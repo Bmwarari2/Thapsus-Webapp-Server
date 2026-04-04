@@ -1,12 +1,11 @@
-const CACHE_NAME = 'thapsuscargo-v1'
+const CACHE_NAME = 'thapsuscargo-v2'
 const urlsToCache = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/src/index.css',
 ]
 
-// Install event - cache files
+// Install event - cache core files, immediately activate
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -15,7 +14,7 @@ self.addEventListener('install', (event) => {
   )
 })
 
-// Activate event - clean up old caches
+// Activate event - delete ALL old caches, then take control
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -28,65 +27,32 @@ self.addEventListener('activate', (event) => {
   )
 })
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event - NETWORK FIRST for everything
 self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
-  if (event.request.method !== 'GET') {
-    return
-  }
+  if (event.request.method !== 'GET') return
 
-  // Skip API calls - always fetch from network
-  if (event.request.url.includes('/api/')) {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          // Clone the response
-          const responseToCache = response.clone()
-
-          // Cache successful responses
-          if (response.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache)
-            })
-          }
-
-          return response
-        })
-        .catch(() => {
-          // Return cached response if network fails
-          return caches.match(event.request)
-        })
-    )
-    return
-  }
-
-  // For other requests, try cache first, then network
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then((response) => {
-        if (response) {
-          return response
-        }
-
-        return fetch(event.request).then((response) => {
-          // Don't cache if not successful
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response
-          }
-
-          // Clone the response
+        // Got a network response - cache it for offline fallback
+        if (response.status === 200) {
           const responseToCache = response.clone()
-
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache)
           })
-
-          return response
-        })
+        }
+        return response
       })
       .catch(() => {
-        // Return offline page or cached response
-        return caches.match('/')
+        // Network failed - try the cache as offline fallback
+        return caches.match(event.request).then((cached) => {
+          // For navigation requests, fall back to cached index.html
+          if (!cached && event.request.mode === 'navigate') {
+            return caches.match('/')
+          }
+          return cached
+        })
       })
   )
 })
@@ -95,7 +61,6 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('sync', (event) => {
   if (event.tag === 'sync-orders') {
     event.waitUntil(
-      // Sync pending orders when connection is restored
       fetch('/api/orders/sync', { method: 'POST' })
         .then(() => console.log('Orders synced'))
         .catch(() => console.log('Sync failed'))
@@ -105,12 +70,9 @@ self.addEventListener('sync', (event) => {
 
 // Push notifications (optional)
 self.addEventListener('push', (event) => {
-  if (!event.data) {
-    return
-  }
+  if (!event.data) return
 
   const data = event.data.json()
-
   const options = {
     body: data.body || 'You have a new notification',
     icon: '/icon-192x192.png',
@@ -127,18 +89,14 @@ self.addEventListener('push', (event) => {
 // Notification click handler
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-
   event.waitUntil(
     clients.matchAll({ type: 'window' }).then((clientList) => {
-      // Check if there's already a window with the target URL open
       for (let i = 0; i < clientList.length; i++) {
         const client = clientList[i]
         if (client.url === event.notification.tag && 'focus' in client) {
           return client.focus()
         }
       }
-
-      // If not, open a new window
       if (clients.openWindow) {
         return clients.openWindow(event.notification.tag || '/')
       }
