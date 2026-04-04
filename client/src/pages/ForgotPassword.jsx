@@ -27,8 +27,9 @@ export const ForgotPassword = () => {
       setSent(true)
       toast.success('Reset link sent! Check your email.')
     } catch (err) {
-      setError(err.message || 'Something went wrong. Please try again.')
-      toast.error(err.message || 'Failed to send reset email')
+      const msg = err.response?.data?.message || err.message || 'Something went wrong. Please try again.'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -40,8 +41,8 @@ export const ForgotPassword = () => {
         <div className="bg-white rounded-xl shadow-xl p-8">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-[#1e3a5f] mb-2">
-              <span>Swift</span>
-              <span className="text-orange-500">Cargo</span>
+              <span>Thapsus</span>
+              <span className="text-orange-500"> Cargo</span>
             </h1>
             <p className="text-gray-600">Reset your password</p>
           </div>

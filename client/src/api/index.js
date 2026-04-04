@@ -146,6 +146,12 @@ export const adminApi = {
   /** Create a new user or admin account */
   createUser: (data) => api.post('/admin/users/create', data),
 
+  /** Get a single user's full details (orders, transactions, referrals) */
+  getUser: (id) => api.get(`/admin/users/${id}`),
+
+  /** Trigger password reset email for a user */
+  resetUserPassword: (id) => api.post(`/admin/users/${id}/reset-password`),
+
   /** Delete a user account permanently */
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
 

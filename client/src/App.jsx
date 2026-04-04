@@ -20,6 +20,9 @@ import { Support } from './pages/Support'
 import { Referral } from './pages/Referral'
 import { WarehouseAddresses } from './pages/WarehouseAddresses'
 import { AdminDashboard } from './pages/AdminDashboard'
+import { ResetPassword } from './pages/ResetPassword'
+import { ForgotPassword } from './pages/ForgotPassword'
+import { OrderDetail } from './pages/OrderDetail'
 
 function App() {
   return (
@@ -36,10 +39,13 @@ function App() {
           <Route path="/pricing" element={<PricingCalculator />} />
           <Route path="/exchange" element={<ExchangeRate />} />
           <Route path="/prohibited" element={<ProhibitedItems />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
 
           {/* Protected Routes */}
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+          <Route path="/orders/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
           <Route path="/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
           <Route path="/consolidation" element={<ProtectedRoute><Consolidation /></ProtectedRoute>} />
           <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />

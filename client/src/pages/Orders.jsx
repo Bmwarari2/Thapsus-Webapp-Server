@@ -161,7 +161,7 @@ export const Orders = () => {
                   {paginatedOrders.map((order) => (
                     <tr key={order.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 font-mono text-sm text-gray-900">
-                        #{order.id.slice(0, 8).toUpperCase()}
+                        {order.tracking_number || `#${order.id.slice(0, 8).toUpperCase()}`}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
                         {order.market === 'UK' ? 'United Kingdom' : order.market === 'USA' ? 'United States' : order.market}
@@ -172,10 +172,10 @@ export const Orders = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
-                        {new Date(order.createdAt).toLocaleDateString()}
+                        {order.created_at ? new Date(order.created_at).toLocaleDateString() : '—'}
                       </td>
                       <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                        KES {order.totalCost?.toLocaleString() || 0}
+                        KES {(order.actual_cost || order.estimated_cost || 0).toLocaleString()}
                       </td>
                       <td className="px-6 py-4">
                         <Link

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import {
   Users, Package, DollarSign, BarChart3, MessageSquare, Activity,
   Lock, RefreshCw, Trash2, XCircle, Plus, CreditCard, Search,
-  UserPlus, Bell, Mail
+  UserPlus, Bell, Mail, Eye, ArrowLeft, Key, Send
 } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
@@ -72,6 +72,21 @@ export const AdminDashboard = () => {
   const [reminderModal, setReminderModal] = useState(null) // { orderId, trackingNumber }
   const [reminderAmount, setReminderAmount] = useState('')
   const [reminderNotes, setReminderNotes] = useState('')
+
+  // User detail panel
+  const [selectedUser, setSelectedUser] = useState(null)
+  const [selectedUserData, setSelectedUserData] = useState(null)
+  const [loadingUser, setLoadingUser] = useState(false)
+
+  // User detail - create order for this specific user
+  const [showUserOrderForm, setShowUserOrderForm] = useState(false)
+  const [userOrderForm, setUserOrderForm] = useState({
+    retailer: '', market: 'UK', description: '',
+    weight_kg: '', shipping_speed: 'economy',
+    dimensions: { length: '', width: '', height: '' },
+    insurance: false, declared_value: ''
+  })
+  const [creatingUserOrder, setCreatingUserOrder] = useState(false)
 
   useEffect(() => { fetchData() }, [])
 
@@ -258,6 +273,73 @@ export const AdminDashboard = () => {
       const res = await adminApi.searchCustomers(query)
       setCustomerResults(res.data?.customers || [])
     } catch { setCustomerResults([]) }
+  }
+
+  // ── Open user detail panel ──────────────────────────────────────────────
+  const handleOpenUserDetail = async (u) => {
+    setSelectedUser(u)
+    setSelectedUserData(null)
+    setLoadingUser(true)
+    setShowUserOrderForm(false)
+    try {
+      const res = await adminApi.getUser(u.id)
+      setSelectedUserData(res.data)
+    } catch (err) {
+      toast.error('Failed to load user details')
+    } finally {
+      setLoadingUser(false)
+    }
+  }
+
+  const handleCloseUserDetail = () => {
+    setSelectedUser(null)
+    setSelectedUserData(null)
+    setShowUserOrderForm(false)
+  }
+
+  // ── Admin reset user password ─────────────────────────────────────────
+  const handleResetUserPassword = async (userId, userName, userEmail) => {
+    if (!window.confirm(`Send password reset email to ${userName} (${userEmail})?`)) return
+    try {
+      await adminApi.resetUserPassword(userId)
+      toast.success(`Password reset email sent to ${userEmail}`)
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send password reset')
+    }
+  }
+
+  // ── Create order for selected user from detail panel ──────────────────
+  const handleCreateOrderForSelectedUser = async (e) => {
+    e.preventDefault()
+    if (!selectedUser) return
+    try {
+      setCreatingUserOrder(true)
+      const { dimensions, ...rest } = userOrderForm
+      const hasDimensions = dimensions.length || dimensions.width || dimensions.height
+      await adminApi.createOrderForClient({
+        customer_email: selectedUser.email,
+        ...rest,
+        weight_kg: parseFloat(rest.weight_kg) || 0,
+        declared_value: parseFloat(rest.declared_value) || 0,
+        dimensions: hasDimensions ? {
+          length: parseFloat(dimensions.length) || 0,
+          width: parseFloat(dimensions.width) || 0,
+          height: parseFloat(dimensions.height) || 0,
+        } : null,
+      })
+      toast.success('Order created successfully')
+      setShowUserOrderForm(false)
+      setUserOrderForm({ retailer: '', market: 'UK', description: '', weight_kg: '', shipping_speed: 'economy', dimensions: { length: '', width: '', height: '' }, insurance: false, declared_value: '' })
+      // Refresh user detail
+      handleOpenUserDetail(selectedUser)
+      // Refresh orders list too
+      const ordersRes = await adminApi.listOrders()
+      setOrders(ordersRes.data?.orders || [])
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to create order')
+    } finally {
+      setCreatingUserOrder(false)
+    }
   }
 
   // ── Create order for client ────────────────────────────────────────────
@@ -572,8 +654,17 @@ export const AdminDashboard = () => {
                       <td className="px-6 py-4 text-sm text-gray-600">KES {(u.wallet_balance || 0).toLocaleString()}</td>
                       <td className="px-6 py-4 text-sm text-gray-600">{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
                       <td className="px-6 py-4">
-                        {u.id !== user?.id && (
                           <div className="flex items-center gap-1">
+                            {/* View user detail */}
+                            <button
+                              onClick={() => handleOpenUserDetail(u)}
+                              title="View User Details"
+                              className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 transition-colors"
+                            >
+                              <Eye size={15} />
+                            </button>
+                        {u.id !== user?.id && (
+                          <>
                             {/* Deactivate / Reactivate toggle */}
                             <button
                               onClick={async () => {
@@ -609,7 +700,7 @@ export const AdminDashboard = () => {
                             >
                               <Trash2 size={15} />
                             </button>
-                          </div>
+                          </>
                         )}
                       </td>
                     </tr>
@@ -618,6 +709,275 @@ export const AdminDashboard = () => {
               </table>
             </div>
           </div>
+          </div>
+        )}
+
+        {/* ═══ User Detail Panel (slide-over) ═══ */}
+        {selectedUser && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex justify-end" onClick={handleCloseUserDetail}>
+            <div className="bg-white w-full max-w-3xl h-full overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+                <div className="flex items-center gap-3">
+                  <button onClick={handleCloseUserDetail} className="p-2 rounded-lg hover:bg-gray-100 text-gray-600">
+                    <ArrowLeft size={20} />
+                  </button>
+                  <h2 className="text-xl font-bold text-[#1e3a5f]">{selectedUser.name}</h2>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${selectedUser.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                    {selectedUser.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+              </div>
+
+              {loadingUser ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500"></div>
+                </div>
+              ) : selectedUserData ? (
+                <div className="px-6 py-6 space-y-6">
+                  {/* User Info */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Email</p>
+                      <p className="font-medium text-gray-900">{selectedUserData.user?.email}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Phone</p>
+                      <p className="font-medium text-gray-900">{selectedUserData.user?.phone}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Warehouse ID</p>
+                      <p className="font-medium font-mono text-gray-900">{selectedUserData.user?.warehouse_id}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Role</p>
+                      <p className="font-medium text-gray-900 capitalize">{selectedUserData.user?.role}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Wallet Balance</p>
+                      <p className="font-bold text-green-700">KES {(selectedUserData.user?.wallet_balance || 0).toLocaleString()}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Joined</p>
+                      <p className="font-medium text-gray-900">{selectedUserData.user?.created_at ? new Date(selectedUserData.user.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</p>
+                    </div>
+                  </div>
+
+                  {/* Referral Stats */}
+                  {selectedUserData.referralStats && (
+                    <div className="bg-orange-50 rounded-lg p-4">
+                      <h3 className="text-sm font-bold text-[#1e3a5f] mb-2">Referral Stats</h3>
+                      <div className="flex gap-6 text-sm">
+                        <span>Total: <strong>{selectedUserData.referralStats.total_referrals || 0}</strong></span>
+                        <span>Completed: <strong>{selectedUserData.referralStats.completed_referrals || 0}</strong></span>
+                        <span>Earned: <strong>KES {(selectedUserData.referralStats.total_earned || 0).toLocaleString()}</strong></span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Quick Actions */}
+                  <div>
+                    <h3 className="text-sm font-bold text-[#1e3a5f] mb-3 uppercase tracking-wide">Actions</h3>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => handleResetUserPassword(selectedUser.id, selectedUser.name, selectedUser.email)}
+                        className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        <Key size={14} />
+                        Reset Password
+                      </button>
+                      <button
+                        onClick={() => setShowUserOrderForm((v) => !v)}
+                        className="flex items-center gap-2 bg-green-50 hover:bg-green-100 text-green-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        <Plus size={14} />
+                        Create Order
+                      </button>
+                      {selectedUser.id !== user?.id && (
+                        <button
+                          onClick={async () => {
+                            const action = selectedUser.is_active ? 'deactivate' : 'reactivate'
+                            if (!window.confirm(`${action === 'deactivate' ? 'Deactivate' : 'Reactivate'} ${selectedUser.name}?`)) return
+                            try {
+                              await adminApi.updateUser(selectedUser.id, { is_active: !selectedUser.is_active })
+                              toast.success(`User ${action}d successfully`)
+                              setSelectedUser((prev) => ({ ...prev, is_active: !prev.is_active }))
+                              setUsers((prev) => prev.map((usr) => usr.id === selectedUser.id ? { ...usr, is_active: !selectedUser.is_active } : usr))
+                            } catch (err) {
+                              toast.error(err.response?.data?.message || `Failed to ${action} user`)
+                            }
+                          }}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedUser.is_active ? 'bg-yellow-50 hover:bg-yellow-100 text-yellow-700' : 'bg-green-50 hover:bg-green-100 text-green-700'}`}
+                        >
+                          {selectedUser.is_active ? <XCircle size={14} /> : <RefreshCw size={14} />}
+                          {selectedUser.is_active ? 'Deactivate Account' : 'Reactivate Account'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Create Order for this User */}
+                  {showUserOrderForm && (
+                    <div className="border-2 border-green-200 rounded-xl p-4">
+                      <h3 className="text-sm font-bold text-[#1e3a5f] mb-3">New Order for {selectedUser.name}</h3>
+                      <form onSubmit={handleCreateOrderForSelectedUser} className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Retailer *</label>
+                            <input type="text" value={userOrderForm.retailer} onChange={(e) => setUserOrderForm((p) => ({ ...p, retailer: e.target.value }))} required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]" placeholder="e.g. Amazon" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Market *</label>
+                            <select value={userOrderForm.market} onChange={(e) => setUserOrderForm((p) => ({ ...p, market: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]">
+                              <option value="UK">United Kingdom</option>
+                              <option value="USA">United States</option>
+                              <option value="China">China</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Description *</label>
+                          <textarea value={userOrderForm.description} onChange={(e) => setUserOrderForm((p) => ({ ...p, description: e.target.value }))} required rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]" placeholder="Brief description of items" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Weight (kg)</label>
+                            <input type="number" step="0.1" min="0" value={userOrderForm.weight_kg} onChange={(e) => setUserOrderForm((p) => ({ ...p, weight_kg: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]" placeholder="0.0" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Shipping Speed</label>
+                            <select value={userOrderForm.shipping_speed} onChange={(e) => setUserOrderForm((p) => ({ ...p, shipping_speed: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]">
+                              <option value="economy">Economy</option>
+                              <option value="express">Express</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button type="submit" disabled={creatingUserOrder} className="bg-[#1e3a5f] hover:bg-[#152d4a] text-white px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50">
+                            {creatingUserOrder ? 'Creating...' : 'Create Order'}
+                          </button>
+                          <button type="button" onClick={() => setShowUserOrderForm(false)} className="border border-gray-300 px-4 py-2 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50">
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  {/* User's Orders */}
+                  <div>
+                    <h3 className="text-sm font-bold text-[#1e3a5f] mb-3 uppercase tracking-wide">
+                      Orders ({selectedUserData.user?.orders?.length || 0})
+                    </h3>
+                    {selectedUserData.user?.orders?.length > 0 ? (
+                      <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                        <table className="w-full">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Tracking #</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Retailer</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Market</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Status</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Cost</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Date</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {selectedUserData.user.orders.map((o) => (
+                              <tr key={o.id} className="hover:bg-gray-50">
+                                <td className="px-3 py-2 text-xs font-mono">{o.tracking_number}</td>
+                                <td className="px-3 py-2 text-xs text-gray-600">{o.retailer}</td>
+                                <td className="px-3 py-2 text-xs text-gray-600">{o.market}</td>
+                                <td className="px-3 py-2 text-xs">
+                                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge(o.status)}`}>
+                                    {o.status?.replace(/_/g, ' ')}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-xs font-semibold">KES {(o.actual_cost || o.estimated_cost || 0).toLocaleString()}</td>
+                                <td className="px-3 py-2 text-xs text-gray-500">{o.created_at ? new Date(o.created_at).toLocaleDateString() : '—'}</td>
+                                <td className="px-3 py-2">
+                                  <div className="flex items-center gap-1">
+                                    {o.status !== 'cancelled' && o.status !== 'delivered' && (
+                                      <>
+                                        <button
+                                          onClick={() => { setPaymentModal({ orderId: o.id, trackingNumber: o.tracking_number }); setPaymentAmount(String(o.estimated_cost || '')) }}
+                                          title="Request Payment"
+                                          className="p-1 rounded bg-green-50 hover:bg-green-100 text-green-700"
+                                        >
+                                          <CreditCard size={12} />
+                                        </button>
+                                        <button
+                                          onClick={() => { setReminderModal({ orderId: o.id, trackingNumber: o.tracking_number }); setReminderAmount(String(o.estimated_cost || '')); setReminderNotes('') }}
+                                          title="Send Reminder"
+                                          className="p-1 rounded bg-orange-50 hover:bg-orange-100 text-orange-700"
+                                        >
+                                          <Bell size={12} />
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-400">No orders yet</p>
+                    )}
+                  </div>
+
+                  {/* Recent Transactions */}
+                  <div>
+                    <h3 className="text-sm font-bold text-[#1e3a5f] mb-3 uppercase tracking-wide">
+                      Recent Transactions
+                    </h3>
+                    {selectedUserData.recentTransactions?.length > 0 ? (
+                      <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                        <table className="w-full">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Type</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Amount</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Method</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Status</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Date</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {selectedUserData.recentTransactions.map((tx) => (
+                              <tr key={tx.id} className="hover:bg-gray-50">
+                                <td className="px-3 py-2 text-xs">
+                                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tx.type === 'deposit' ? 'bg-green-100 text-green-700' : tx.type === 'payment' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                                    {tx.type?.replace(/_/g, ' ')}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-xs font-semibold">
+                                  <span className={tx.type === 'payment' ? 'text-red-600' : 'text-green-600'}>
+                                    {tx.type === 'payment' ? '-' : '+'} KES {Math.abs(tx.amount).toLocaleString()}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-xs text-gray-600">{tx.payment_method || '—'}</td>
+                                <td className="px-3 py-2 text-xs">
+                                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tx.status === 'completed' ? 'bg-green-100 text-green-800' : tx.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
+                                    {tx.status}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-xs text-gray-500">{tx.created_at ? new Date(tx.created_at).toLocaleDateString() : '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-400">No transactions</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="px-6 py-20 text-center text-gray-500">Failed to load user data</div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1005,11 +1365,11 @@ export const AdminDashboard = () => {
                 <Mail className="text-[#1e3a5f]" size={28} />
                 <div>
                   <h2 className="text-2xl font-bold text-[#1e3a5f]">Email Configuration</h2>
-                  <p className="text-sm text-gray-500">Test your Resend email setup</p>
+                  <p className="text-sm text-gray-500">Test your Gmail API email setup</p>
                 </div>
               </div>
               <p className="text-sm text-gray-600 mb-4">
-                Send a test email to verify that the Resend email configuration is working. If emails are not being delivered,
+                Send a test email to verify that the Gmail API configuration is working. If emails are not being delivered,
                 this will show you the exact error. The test sends a password reset email to the address you specify.
               </p>
               <div className="space-y-3">
@@ -1049,12 +1409,14 @@ export const AdminDashboard = () => {
               <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                 <p className="text-xs font-bold text-gray-600 mb-2">Required Railway environment variables:</p>
                 <ul className="text-xs text-gray-500 space-y-1">
-                  <li><code className="bg-gray-200 px-1 rounded">RESEND_API_KEY</code> — your API key from resend.com/api-keys</li>
-                  <li><code className="bg-gray-200 px-1 rounded">EMAIL_FROM</code> — verified sender, e.g. "Thapsus Cargo &lt;noreply@thapsus.uk&gt;"</li>
+                  <li><code className="bg-gray-200 px-1 rounded">GMAIL_CLIENT_ID</code> — OAuth 2.0 client ID from Google Cloud Console</li>
+                  <li><code className="bg-gray-200 px-1 rounded">GMAIL_CLIENT_SECRET</code> — OAuth 2.0 client secret</li>
+                  <li><code className="bg-gray-200 px-1 rounded">GMAIL_REFRESH_TOKEN</code> — from OAuth Playground with gmail scope</li>
+                  <li><code className="bg-gray-200 px-1 rounded">GMAIL_SENDER_EMAIL</code> — e.g. "noreply@thapsus.uk"</li>
                 </ul>
                 <p className="text-xs text-gray-400 mt-2">
-                  Sign up free at <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="text-orange-500 underline">resend.com</a> (100 emails/day free).
-                  For testing, use <code className="bg-gray-200 px-1 rounded">onboarding@resend.dev</code> as the sender.
+                  Set up at <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" className="text-orange-500 underline">Google Cloud Console</a>.
+                  Use <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer" className="text-orange-500 underline">OAuth Playground</a> to generate the refresh token.
                 </p>
               </div>
             </div>

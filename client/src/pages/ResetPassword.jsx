@@ -50,8 +50,9 @@ export const ResetPassword = () => {
       setSuccess(true)
       toast.success('Password reset successfully!')
     } catch (err) {
-      setError(err.message || 'Failed to reset password. The link may be expired.')
-      toast.error(err.message || 'Reset failed')
+      const msg = err.response?.data?.message || err.message || 'Failed to reset password. The link may be expired.'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -86,8 +87,8 @@ export const ResetPassword = () => {
         <div className="bg-white rounded-xl shadow-xl p-8">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-[#1e3a5f] mb-2">
-              <span>Swift</span>
-              <span className="text-orange-500">Cargo</span>
+              <span>Thapsus</span>
+              <span className="text-orange-500"> Cargo</span>
             </h1>
             <p className="text-gray-600">Create a new password</p>
           </div>

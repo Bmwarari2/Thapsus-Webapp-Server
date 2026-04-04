@@ -582,7 +582,7 @@ router.post('/users/:id/reset-password', authMiddleware, isAdmin, async (req, re
       [tokenId, user.id, token, expiresAt]
     );
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
     sendAdminPasswordResetEmail(user.email, user.name, `${frontendUrl}/reset-password?token=${token}`).catch(console.error);
 
     await db.query(
@@ -795,7 +795,7 @@ router.post('/orders/:id/request-payment', authMiddleware, isAdmin, async (req, 
     if (!paymentAmount || paymentAmount <= 0)
       return res.status(400).json({ success: false, message: 'A valid payment amount is required.' });
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://www.thapsus.uk';
     sendPaymentRequestEmail(order.email, order.customer_name, order.tracking_number, paymentAmount, notes || '', `${frontendUrl}/wallet?pay=${id}&amount=${paymentAmount}`).catch(console.error);
     sendInAppNotification(order.user_id, `Payment of KES ${paymentAmount.toLocaleString()} requested for order ${order.tracking_number}.${notes ? ` Note: ${notes}` : ''}`);
     await db.query('INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)',
