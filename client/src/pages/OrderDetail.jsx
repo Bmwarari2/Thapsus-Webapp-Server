@@ -278,7 +278,7 @@ export const OrderDetail = () => {
                 <p className="text-sm text-gray-600">Amount: KES {cost.toLocaleString()}</p>
               </div>
               <Link
-                to={`/wallet?pay=${order.id}&amount=${cost}`}
+                to={`/pay/${order.id}?amount=${cost}`}
                 className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-lg font-bold transition-colors"
               >
                 Pay Now via M-Pesa

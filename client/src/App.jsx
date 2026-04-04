@@ -23,6 +23,7 @@ import { AdminDashboard } from './pages/AdminDashboard'
 import { ResetPassword } from './pages/ResetPassword'
 import { ForgotPassword } from './pages/ForgotPassword'
 import { OrderDetail } from './pages/OrderDetail'
+import { PublicPayment } from './pages/PublicPayment'
 
 function App() {
   return (
@@ -41,6 +42,7 @@ function App() {
           <Route path="/prohibited" element={<ProhibitedItems />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/pay/:orderId" element={<PublicPayment />} />
 
           {/* Protected Routes */}
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

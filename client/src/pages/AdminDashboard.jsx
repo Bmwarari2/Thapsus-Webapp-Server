@@ -88,6 +88,13 @@ export const AdminDashboard = () => {
   })
   const [creatingUserOrder, setCreatingUserOrder] = useState(false)
 
+  // Pending payments
+  const [pendingPayments, setPendingPayments] = useState([])
+  const [approvingPayment, setApprovingPayment] = useState(null)
+
+  // Email logs (for user detail panel)
+  const [emailLogs, setEmailLogs] = useState([])
+
   useEffect(() => { fetchData() }, [])
 
   const fetchData = async () => {
@@ -98,6 +105,7 @@ export const AdminDashboard = () => {
         adminApi.listUsers(),
         adminApi.listOrders(),
         adminApi.getExchangeRates(),
+        adminApi.getPendingPayments(),
       ])
 
       if (results[0].status === 'fulfilled') setStats(results[0].value.data?.stats || null)
@@ -115,6 +123,7 @@ export const AdminDashboard = () => {
           setRatesLastUpdated(ratesData.updated_at || null)
         }
       }
+      if (results[4].status === 'fulfilled') setPendingPayments(results[4].value.data?.transactions || [])
     } catch (err) {
       toast.error('Failed to load admin data')
     } finally {
@@ -279,11 +288,16 @@ export const AdminDashboard = () => {
   const handleOpenUserDetail = async (u) => {
     setSelectedUser(u)
     setSelectedUserData(null)
+    setEmailLogs([])
     setLoadingUser(true)
     setShowUserOrderForm(false)
     try {
-      const res = await adminApi.getUser(u.id)
-      setSelectedUserData(res.data)
+      const [userRes, emailRes] = await Promise.all([
+        adminApi.getUser(u.id),
+        adminApi.getUserEmails(u.id),
+      ])
+      setSelectedUserData(userRes.data)
+      setEmailLogs(emailRes.data?.email_logs || [])
     } catch (err) {
       toast.error('Failed to load user details')
     } finally {
@@ -295,6 +309,35 @@ export const AdminDashboard = () => {
     setSelectedUser(null)
     setSelectedUserData(null)
     setShowUserOrderForm(false)
+  }
+
+  // ── Payment approval handlers ───────────────────────────────────────────
+  const handleApprovePayment = async (paymentId) => {
+    try {
+      setApprovingPayment(paymentId)
+      await adminApi.approvePayment(paymentId)
+      toast.success('Payment approved successfully')
+      setPendingPayments(pendingPayments.filter((p) => p.id !== paymentId))
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to approve payment')
+    } finally {
+      setApprovingPayment(null)
+    }
+  }
+
+  const handleRejectPayment = async (paymentId) => {
+    const reason = window.prompt('Reason for rejection (optional):')
+    if (reason === null) return
+    try {
+      setApprovingPayment(paymentId)
+      await adminApi.rejectPayment(paymentId, reason || '')
+      toast.success('Payment rejected')
+      setPendingPayments(pendingPayments.filter((p) => p.id !== paymentId))
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to reject payment')
+    } finally {
+      setApprovingPayment(null)
+    }
   }
 
   // ── Admin reset user password ─────────────────────────────────────────
@@ -412,7 +455,7 @@ export const AdminDashboard = () => {
 
         {/* Tabs */}
         <div className="flex gap-2 mb-8 overflow-x-auto pb-1">
-          {['overview', 'users', 'orders', 'revenue', 'tickets', 'exchange', 'settings'].map((tab) => (
+          {['overview', 'users', 'orders', 'payments', 'revenue', 'tickets', 'exchange', 'settings'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -420,7 +463,7 @@ export const AdminDashboard = () => {
                 activeTab === tab ? 'bg-[#1e3a5f] text-white' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
               }`}
             >
-              {tab === 'exchange' ? 'Exchange Rates' : tab === 'settings' ? 'Settings' : t(`admin.${tab}`)}
+              {tab === 'exchange' ? 'Exchange Rates' : tab === 'settings' ? 'Settings' : tab === 'payments' ? 'Payments' : t(`admin.${tab}`)}
             </button>
           ))}
         </div>
@@ -974,6 +1017,47 @@ export const AdminDashboard = () => {
                       <p className="text-sm text-gray-400">No transactions</p>
                     )}
                   </div>
+
+                  {/* Emails Sent */}
+                  <div>
+                    <h3 className="text-sm font-bold text-[#1e3a5f] mb-3 uppercase tracking-wide">
+                      Emails Sent
+                    </h3>
+                    {emailLogs && emailLogs.length > 0 ? (
+                      <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                        <table className="w-full">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Type</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Subject</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Status</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Date</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {emailLogs.map((log) => (
+                              <tr key={log.id} className="hover:bg-gray-50">
+                                <td className="px-3 py-2 text-xs">
+                                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                                    {log.email_type?.replace(/_/g, ' ')}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-xs text-gray-700 truncate max-w-xs">{log.subject}</td>
+                                <td className="px-3 py-2 text-xs">
+                                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${log.status === 'sent' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                    {log.status}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-xs text-gray-500">{log.created_at ? new Date(log.created_at).toLocaleDateString() : '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-400">No email logs found</p>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="px-6 py-20 text-center text-gray-500">Failed to load user data</div>
@@ -1214,6 +1298,58 @@ export const AdminDashboard = () => {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ═══ Payments ═══ */}
+        {activeTab === 'payments' && (
+          <div className="card">
+            <h2 className="text-2xl font-bold text-[#1e3a5f] mb-4">Pending M-Pesa Payments</h2>
+            {pendingPayments.length === 0 ? (
+              <p className="text-gray-600 text-center py-8">No pending payments</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Customer Name</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Email</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Amount (KES)</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Reference</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Submitted</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {pendingPayments.map((payment) => (
+                      <tr key={payment.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{payment.name}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{payment.email}</td>
+                        <td className="px-6 py-4 text-sm font-semibold text-[#1e3a5f]">KES {payment.amount.toLocaleString()}</td>
+                        <td className="px-6 py-4 text-sm font-mono text-gray-900">{payment.payment_reference}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{new Date(payment.created_at).toLocaleDateString()}</td>
+                        <td className="px-6 py-4 text-sm space-x-2">
+                          <button
+                            onClick={() => handleApprovePayment(payment.id)}
+                            disabled={approvingPayment === payment.id}
+                            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs font-bold disabled:opacity-50"
+                          >
+                            {approvingPayment === payment.id ? 'Processing...' : 'Approve'}
+                          </button>
+                          <button
+                            onClick={() => handleRejectPayment(payment.id)}
+                            disabled={approvingPayment === payment.id}
+                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-bold disabled:opacity-50"
+                          >
+                            {approvingPayment === payment.id ? 'Processing...' : 'Reject'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 

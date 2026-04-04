@@ -18,6 +18,8 @@
  */
 
 import { google } from 'googleapis';
+import { getPool } from '../database/init.js';
+import { v4 as uuidv4 } from 'uuid';
 
 // ── Gmail OAuth2 Client ────────────────────────────────────────────────────
 let _oauth2Client = null;
@@ -147,6 +149,24 @@ async function sendWithGmail(mailOptions, retries = 2) {
   throw lastError;
 }
 
+/**
+ * Log email sent/failed to database.
+ * Does not throw - logs failures silently so email sending doesn't fail if logging fails.
+ */
+async function logEmailSent({ toEmail, emailType, subject, userId = null, errorMessage = null }) {
+  try {
+    const pool = getPool();
+    const status = errorMessage ? 'failed' : 'sent';
+    await pool.query(
+      `INSERT INTO email_logs (id, user_id, email_to, email_type, subject, status, error_message)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [uuidv4(), userId, toEmail, emailType, subject, status, errorMessage || null]
+    );
+  } catch (err) {
+    // Log to console but don't throw - don't interrupt email sending
+    console.warn('Failed to log email to database:', err.message);
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SHARED HTML HELPERS
@@ -241,12 +261,20 @@ export async function sendPasswordResetEmail(toEmail, toName, resetLink) {
       ${resetLink}
     </p>`;
 
-  return sendWithGmail({
-    to: toEmail,
-    subject: 'Reset Your Thapsus Cargo Password',
-    html: emailLayout(bodyHtml),
-    text: `Hello ${toName || 'there'},\n\nWe received a request to reset your Thapsus Cargo password.\n\nClick this link to reset your password (expires in 1 hour):\n${resetLink}\n\nIf you didn't request this, you can safely ignore this email.\n\n— Thapsus Cargo Team`,
-  });
+  const subject = 'Reset Your Thapsus Cargo Password';
+  try {
+    const result = await sendWithGmail({
+      to: toEmail,
+      subject,
+      html: emailLayout(bodyHtml),
+      text: `Hello ${toName || 'there'},\n\nWe received a request to reset your Thapsus Cargo password.\n\nClick this link to reset your password (expires in 1 hour):\n${resetLink}\n\nIf you didn't request this, you can safely ignore this email.\n\n— Thapsus Cargo Team`,
+    });
+    await logEmailSent({ toEmail, emailType: 'password_reset', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'password_reset', subject, errorMessage: error.message });
+    throw error;
+  }
 }
 
 /**
@@ -282,12 +310,20 @@ export async function sendAdminPasswordResetEmail(toEmail, toName, resetLink) {
       ${resetLink}
     </p>`;
 
-  return sendWithGmail({
-    to: toEmail,
-    subject: 'Your Thapsus Cargo Password Has Been Reset',
-    html: emailLayout(bodyHtml),
-    text: `Hello ${toName || 'there'},\n\nA Thapsus Cargo administrator has initiated a password reset for your account.\n\nClick this link to set a new password (expires in 1 hour):\n${resetLink}\n\nIf you believe this was done in error, please contact support.\n\n— Thapsus Cargo Team`,
-  });
+  const subject = 'Your Thapsus Cargo Password Has Been Reset';
+  try {
+    const result = await sendWithGmail({
+      to: toEmail,
+      subject,
+      html: emailLayout(bodyHtml),
+      text: `Hello ${toName || 'there'},\n\nA Thapsus Cargo administrator has initiated a password reset for your account.\n\nClick this link to set a new password (expires in 1 hour):\n${resetLink}\n\nIf you believe this was done in error, please contact support.\n\n— Thapsus Cargo Team`,
+    });
+    await logEmailSent({ toEmail, emailType: 'admin_password_reset', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'admin_password_reset', subject, errorMessage: error.message });
+    throw error;
+  }
 }
 
 /**
@@ -323,12 +359,20 @@ export async function sendPaymentRequestEmail(toEmail, toName, trackingNumber, a
       ${paymentLink}
     </p>`;
 
-  return sendWithGmail({
-    to: toEmail,
-    subject: `Payment Request for Order ${trackingNumber} — KES ${amount.toLocaleString()}`,
-    html: emailLayout(bodyHtml),
-    text: `Hello ${toName || 'there'},\n\nA payment of KES ${amount.toLocaleString()} is due for your order ${trackingNumber}.\n\n${notes ? `Note: ${notes}\n\n` : ''}Pay here: ${paymentLink}\n\nYou can also log in and pay from your wallet.\n\n— Thapsus Cargo Team`,
-  });
+  const subject = `Payment Request for Order ${trackingNumber} — KES ${amount.toLocaleString()}`;
+  try {
+    const result = await sendWithGmail({
+      to: toEmail,
+      subject,
+      html: emailLayout(bodyHtml),
+      text: `Hello ${toName || 'there'},\n\nA payment of KES ${amount.toLocaleString()} is due for your order ${trackingNumber}.\n\n${notes ? `Note: ${notes}\n\n` : ''}Pay here: ${paymentLink}\n\nYou can also log in and pay from your wallet.\n\n— Thapsus Cargo Team`,
+    });
+    await logEmailSent({ toEmail, emailType: 'payment_request', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'payment_request', subject, errorMessage: error.message });
+    throw error;
+  }
 }
 
 /**
@@ -399,12 +443,20 @@ export async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, ret
       If you have any questions, please reach out to our support team via the portal.
     </p>`;
 
-  return sendWithGmail({
-    to: toEmail,
-    subject: `New Order Created for You — ${trackingNumber}`,
-    html: emailLayout(bodyHtml),
-    text: `Hello ${toName || 'there'},\n\nThe Thapsus Cargo team has created a new order on your behalf.\n\nTracking Number: ${trackingNumber}\nRetailer: ${retailer}\nShipping From: ${market}\nDescription: ${description}\nShipping Speed: ${speedLabel}\n\nYou will receive updates as your package progresses. Our team will contact you regarding payment once confirmed.\n\nView your orders: ${dashboardLink}\n\n— Thapsus Cargo Team`,
-  });
+  const subject = `New Order Created for You — ${trackingNumber}`;
+  try {
+    const result = await sendWithGmail({
+      to: toEmail,
+      subject,
+      html: emailLayout(bodyHtml),
+      text: `Hello ${toName || 'there'},\n\nThe Thapsus Cargo team has created a new order on your behalf.\n\nTracking Number: ${trackingNumber}\nRetailer: ${retailer}\nShipping From: ${market}\nDescription: ${description}\nShipping Speed: ${speedLabel}\n\nYou will receive updates as your package progresses. Our team will contact you regarding payment once confirmed.\n\nView your orders: ${dashboardLink}\n\n— Thapsus Cargo Team`,
+    });
+    await logEmailSent({ toEmail, emailType: 'order_created', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'order_created', subject, errorMessage: error.message });
+    throw error;
+  }
 }
 
 /**
@@ -418,28 +470,31 @@ export async function sendWelcomeAccountEmail(toEmail, toName, warehouseId, role
     <!-- Warehouse Shipping Addresses -->
     <h3 style="margin:24px 0 12px;color:#1e3a5f;font-size:18px;">Your Shipping Addresses</h3>
     <p style="margin:0 0 16px;color:#4b5563;font-size:14px;line-height:1.6;">
-      Use these addresses when shopping from international retailers. Include your Warehouse ID (<strong>${warehouseId}</strong>) in the recipient/attention field.
+      Use these addresses when shopping from international retailers. Include your Warehouse ID in the recipient/attention field.
     </p>
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0f9ff;border-radius:8px;padding:20px;margin-bottom:16px;border:1px solid #bae6fd;">
       <tr>
         <td style="padding:10px 0;border-bottom:1px solid #bae6fd;">
           <span style="color:#6b7280;font-size:13px;">&#127468;&#127463; United Kingdom</span><br>
-          <strong style="color:#111827;font-size:14px;">31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB, United Kingdom</strong><br>
-          <span style="color:#f97316;font-size:13px;font-family:monospace;">Attn: ${warehouseId}</span>
+          <strong style="color:#111827;font-size:14px;">${toName}</strong><br>
+          <strong style="color:#f97316;font-size:13px;font-family:monospace;">${warehouseId}</strong><br>
+          <strong style="color:#111827;font-size:14px;">31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB, United Kingdom</strong>
         </td>
       </tr>
       <tr>
         <td style="padding:10px 0;border-bottom:1px solid #bae6fd;">
           <span style="color:#6b7280;font-size:13px;">&#127482;&#127480; United States</span><br>
-          <strong style="color:#111827;font-size:14px;">Thapsus Cargo Warehouse, 1234 Commerce Way, Los Angeles, CA 90001, USA</strong><br>
-          <span style="color:#f97316;font-size:13px;font-family:monospace;">Attn: ${warehouseId}</span>
+          <strong style="color:#111827;font-size:14px;">${toName}</strong><br>
+          <strong style="color:#f97316;font-size:13px;font-family:monospace;">${warehouseId}</strong><br>
+          <strong style="color:#111827;font-size:14px;">Thapsus Cargo Warehouse, 1234 Commerce Way, Los Angeles, CA 90001, USA</strong>
         </td>
       </tr>
       <tr>
         <td style="padding:10px 0;">
           <span style="color:#6b7280;font-size:13px;">&#127464;&#127475; China</span><br>
-          <strong style="color:#111827;font-size:14px;">Thapsus Cargo Warehouse, Shanghai, China</strong><br>
-          <span style="color:#f97316;font-size:13px;font-family:monospace;">Attn: ${warehouseId}</span>
+          <strong style="color:#111827;font-size:14px;">${toName}</strong><br>
+          <strong style="color:#f97316;font-size:13px;font-family:monospace;">${warehouseId}</strong><br>
+          <strong style="color:#111827;font-size:14px;">Thapsus Cargo Warehouse, Shanghai, China</strong>
         </td>
       </tr>
     </table>` : '';
@@ -502,12 +557,20 @@ export async function sendWelcomeAccountEmail(toEmail, toName, warehouseId, role
       ${setPasswordLink}
     </p>`;
 
-  return sendWithGmail({
-    to: toEmail,
-    subject: `Welcome to Thapsus Cargo — Set Up Your Account`,
-    html: emailLayout(bodyHtml),
-    text: `Hello ${toName || 'there'},\n\nA Thapsus Cargo ${roleLabel.toLowerCase()} account has been created for you.\n\nEmail: ${toEmail}\nAccount Type: ${roleLabel}\n${warehouseId ? `Warehouse ID: ${warehouseId}\n\nYour Shipping Addresses (include your Warehouse ID in the Attn field):\n\nUK: 31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB, United Kingdom — Attn: ${warehouseId}\nUSA: Thapsus Cargo Warehouse, 1234 Commerce Way, Los Angeles, CA 90001, USA — Attn: ${warehouseId}\nChina: Thapsus Cargo Warehouse, Shanghai, China — Attn: ${warehouseId}\n` : ''}\nTo get started, please set up your password using this link (expires in 24 hours):\n${setPasswordLink}\n\nOnce your password is set, you can log in to manage your shipments.\n\n— Thapsus Cargo Team`,
-  });
+  const subject = `Welcome to Thapsus Cargo — Set Up Your Account`;
+  try {
+    const result = await sendWithGmail({
+      to: toEmail,
+      subject,
+      html: emailLayout(bodyHtml),
+      text: `Hello ${toName || 'there'},\n\nA Thapsus Cargo ${roleLabel.toLowerCase()} account has been created for you.\n\nEmail: ${toEmail}\nAccount Type: ${roleLabel}\n${warehouseId ? `Warehouse ID: ${warehouseId}\n\nYour Shipping Addresses:\n\nUK:\n${toName}\n${warehouseId}\n31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB, United Kingdom\n\nUSA:\n${toName}\n${warehouseId}\nThapsus Cargo Warehouse, 1234 Commerce Way, Los Angeles, CA 90001, USA\n\nChina:\n${toName}\n${warehouseId}\nThapsus Cargo Warehouse, Shanghai, China\n` : ''}\nTo get started, please set up your password using this link (expires in 24 hours):\n${setPasswordLink}\n\nOnce your password is set, you can log in to manage your shipments.\n\n— Thapsus Cargo Team`,
+    });
+    await logEmailSent({ toEmail, emailType: 'welcome_account', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'welcome_account', subject, errorMessage: error.message });
+    throw error;
+  }
 }
 
 /**
@@ -549,12 +612,96 @@ export async function sendPaymentReminderEmail(toEmail, toName, trackingNumber, 
       ${paymentLink}
     </p>`;
 
-  return sendWithGmail({
-    to: toEmail,
-    subject: `Payment Reminder for Order ${trackingNumber} — KES ${amount.toLocaleString()}`,
-    html: emailLayout(bodyHtml),
-    text: `Hello ${toName || 'there'},\n\nThis is a friendly reminder that a payment of KES ${amount.toLocaleString()} is outstanding for your order ${trackingNumber}.\n\nPlease complete this payment at your earliest convenience so we can proceed with processing your shipment.\n\n${notes ? `Note from admin: ${notes}\n\n` : ''}Pay here: ${paymentLink}\n\nYou can also log in and pay from your wallet.\n\n— Thapsus Cargo Team`,
-  });
+  const subject = `Payment Reminder for Order ${trackingNumber} — KES ${amount.toLocaleString()}`;
+  try {
+    const result = await sendWithGmail({
+      to: toEmail,
+      subject,
+      html: emailLayout(bodyHtml),
+      text: `Hello ${toName || 'there'},\n\nThis is a friendly reminder that a payment of KES ${amount.toLocaleString()} is outstanding for your order ${trackingNumber}.\n\nPlease complete this payment at your earliest convenience so we can proceed with processing your shipment.\n\n${notes ? `Note from admin: ${notes}\n\n` : ''}Pay here: ${paymentLink}\n\nYou can also log in and pay from your wallet.\n\n— Thapsus Cargo Team`,
+    });
+    await logEmailSent({ toEmail, emailType: 'payment_reminder', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'payment_reminder', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
+/**
+ * Send a payment receipt email to a customer after payment is approved.
+ */
+export async function sendPaymentReceiptEmail(toEmail, toName, trackingNumber, amount, paymentReference, approvedAt) {
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment Received</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      Hello ${toName || 'there'},
+    </p>
+    <p style="margin:0 0 24px;color:#4b5563;font-size:16px;line-height:1.6;">
+      Thank you! We have successfully received your payment for order <strong>${trackingNumber}</strong>.
+    </p>
+
+    <!-- Receipt Details Table -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f9fafb;border-radius:8px;padding:20px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid #e5e7eb;">
+          <span style="color:#6b7280;font-size:14px;">Tracking Number</span><br>
+          <strong style="color:#1e3a5f;font-size:16px;font-family:monospace;">${trackingNumber}</strong>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid #e5e7eb;">
+          <span style="color:#6b7280;font-size:14px;">Amount Paid</span><br>
+          <strong style="color:#111827;font-size:15px;">KES ${amount.toLocaleString()}</strong>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid #e5e7eb;">
+          <span style="color:#6b7280;font-size:14px;">Payment Reference</span><br>
+          <strong style="color:#1e3a5f;font-size:15px;font-family:monospace;">${paymentReference}</strong>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;">
+          <span style="color:#6b7280;font-size:14px;">Approved On</span><br>
+          <strong style="color:#111827;font-size:15px;">${new Date(approvedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</strong>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin:0 0 24px;color:#4b5563;font-size:15px;line-height:1.6;">
+      Thank you for doing business with Thapsus Cargo! Your shipment is now being processed and you will receive updates as it moves through our warehouse.
+    </p>
+
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
+      <tr>
+        <td style="background-color:#f97316;border-radius:8px;">
+          <a href="https://thapsus.cargo/orders" target="_blank"
+             style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">
+            View My Orders
+          </a>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin:0;color:#6b7280;font-size:14px;line-height:1.6;">
+      If you have any questions, please reach out to our support team.
+    </p>`;
+
+  const subject = `Payment Received for Order ${trackingNumber}`;
+  try {
+    const result = await sendWithGmail({
+      to: toEmail,
+      subject,
+      html: emailLayout(bodyHtml),
+      text: `Hello ${toName || 'there'},\n\nThank you! We have successfully received your payment for order ${trackingNumber}.\n\nReceipt Details:\nTracking Number: ${trackingNumber}\nAmount Paid: KES ${amount.toLocaleString()}\nPayment Reference: ${paymentReference}\nApproved On: ${new Date(approvedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}\n\nThank you for doing business with Thapsus Cargo!\n\n— Thapsus Cargo Team`,
+    });
+    await logEmailSent({ toEmail, emailType: 'payment_receipt', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'payment_receipt', subject, errorMessage: error.message });
+    throw error;
+  }
 }
 
 export default {
@@ -564,4 +711,5 @@ export default {
   sendOrderCreatedEmail,
   sendWelcomeAccountEmail,
   sendPaymentReminderEmail,
+  sendPaymentReceiptEmail,
 };

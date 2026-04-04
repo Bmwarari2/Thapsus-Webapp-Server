@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
-import { sendAdminPasswordResetEmail, sendPaymentRequestEmail, sendOrderCreatedEmail, sendWelcomeAccountEmail, sendPaymentReminderEmail } from '../utils/email.js';
+import { sendAdminPasswordResetEmail, sendPaymentRequestEmail, sendOrderCreatedEmail, sendWelcomeAccountEmail, sendPaymentReminderEmail, sendPaymentReceiptEmail } from '../utils/email.js';
 import { calculateShippingCost } from '../utils/pricing.js';
 import { sendInAppNotification } from '../utils/notifications.js';
 
@@ -796,7 +796,7 @@ router.post('/orders/:id/request-payment', authMiddleware, isAdmin, async (req, 
       return res.status(400).json({ success: false, message: 'A valid payment amount is required.' });
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://www.thapsus.uk';
-    sendPaymentRequestEmail(order.email, order.customer_name, order.tracking_number, paymentAmount, notes || '', `${frontendUrl}/wallet?pay=${id}&amount=${paymentAmount}`).catch(console.error);
+    sendPaymentRequestEmail(order.email, order.customer_name, order.tracking_number, paymentAmount, notes || '', `${frontendUrl}/pay/${id}?amount=${paymentAmount}`).catch(console.error);
     sendInAppNotification(order.user_id, `Payment of KES ${paymentAmount.toLocaleString()} requested for order ${order.tracking_number}.${notes ? ` Note: ${notes}` : ''}`);
     await db.query('INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)',
       [uuidv4(), adminId, 'request_payment', JSON.stringify({ order_id: id, tracking_number: order.tracking_number, customer_email: order.email, amount: paymentAmount, notes: notes || '' })]);
@@ -933,7 +933,7 @@ router.post('/orders/:id/send-reminder', authMiddleware, isAdmin, async (req, re
       order.tracking_number,
       reminderAmount,
       notes || '',
-      `${frontendUrl}/wallet?pay=${id}&amount=${reminderAmount}`
+      `${frontendUrl}/pay/${id}?amount=${reminderAmount}`
     ).catch(console.error);
 
     sendInAppNotification(
@@ -961,6 +961,232 @@ router.post('/orders/:id/send-reminder', authMiddleware, isAdmin, async (req, re
   } catch (error) {
     console.error('Send payment reminder error:', error);
     res.status(500).json({ success: false, message: 'Failed to send payment reminder' });
+  }
+});
+
+/** GET /api/admin/transactions/pending */
+router.get('/transactions/pending', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+
+    const transactionsRes = await db.query(
+      `SELECT t.id, t.user_id, t.amount, t.payment_reference, t.created_at,
+              u.id as user_id, u.name, u.email
+       FROM transactions t
+       JOIN users u ON t.user_id = u.id
+       WHERE t.status = 'pending' AND t.payment_method = 'mpesa'
+       ORDER BY t.created_at DESC`,
+      []
+    );
+
+    const transactions = transactionsRes.rows;
+
+    res.json({
+      success: true,
+      transactions,
+    });
+  } catch (error) {
+    console.error('Get pending transactions error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch pending transactions' });
+  }
+});
+
+/** POST /api/admin/transactions/:id/approve */
+router.post('/transactions/:id/approve', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+    const { id } = req.params;
+    const adminId = req.user.id;
+
+    // Get transaction and user details
+    const transRes = await db.query(
+      `SELECT t.id, t.user_id, t.amount, t.payment_reference,
+              u.name, u.email
+       FROM transactions t
+       JOIN users u ON t.user_id = u.id
+       WHERE t.id = $1`,
+      [id]
+    );
+
+    if (!transRes.rows[0]) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    const transaction = transRes.rows[0];
+
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Update transaction status to completed
+      await client.query(
+        `UPDATE transactions SET status = 'completed' WHERE id = $1`,
+        [id]
+      );
+
+      // Get order details from admin_logs by matching this transaction's ID
+      const logsRes = await client.query(
+        `SELECT details FROM admin_logs
+         WHERE action = 'mpesa_payment_submitted' AND details LIKE $1
+         ORDER BY created_at DESC LIMIT 1`,
+        [`%${id}%`]
+      );
+
+      let orderDetails = null;
+      if (logsRes.rows[0]) {
+        try {
+          orderDetails = JSON.parse(logsRes.rows[0].details);
+        } catch (e) {}
+      }
+
+      // Try to get the tracking number from the order
+      let trackingNumber = 'N/A';
+      if (orderDetails?.order_id) {
+        const orderRes = await client.query('SELECT tracking_number FROM orders WHERE id = $1', [orderDetails.order_id]);
+        if (orderRes.rows[0]) trackingNumber = orderRes.rows[0].tracking_number;
+      }
+
+      // Log the approval in admin_logs
+      const logId = uuidv4();
+      await client.query(
+        `INSERT INTO admin_logs (id, admin_id, action, details)
+         VALUES ($1, $2, $3, $4)`,
+        [logId, adminId, 'mpesa_payment_approved', JSON.stringify({
+          transaction_id: id,
+          user_id: transaction.user_id,
+          amount: transaction.amount,
+          payment_reference: transaction.payment_reference,
+          approved_at: new Date().toISOString(),
+        })]
+      );
+
+      await client.query('COMMIT');
+
+      // Send payment receipt email
+      try {
+        await sendPaymentReceiptEmail(
+          transaction.email,
+          transaction.name,
+          trackingNumber,
+          transaction.amount,
+          transaction.payment_reference,
+          new Date().toISOString()
+        );
+      } catch (emailErr) {
+        console.warn('Failed to send receipt email:', emailErr.message);
+      }
+
+      res.json({
+        success: true,
+        message: 'Transaction approved successfully',
+        transaction: { id, status: 'completed' },
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Approve transaction error:', error);
+    res.status(500).json({ success: false, message: 'Failed to approve transaction' });
+  }
+});
+
+/** POST /api/admin/transactions/:id/reject */
+router.post('/transactions/:id/reject', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+    const { id } = req.params;
+    const { reason } = req.body;
+    const adminId = req.user.id;
+
+    // Get transaction
+    const transRes = await db.query(
+      `SELECT id, status FROM transactions WHERE id = $1`,
+      [id]
+    );
+
+    if (!transRes.rows[0]) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Update transaction status to failed
+      await client.query(
+        `UPDATE transactions SET status = 'failed' WHERE id = $1`,
+        [id]
+      );
+
+      // Log the rejection
+      const logId = uuidv4();
+      await client.query(
+        `INSERT INTO admin_logs (id, admin_id, action, details)
+         VALUES ($1, $2, $3, $4)`,
+        [logId, adminId, 'mpesa_payment_rejected', JSON.stringify({
+          transaction_id: id,
+          reason: reason || null,
+          rejected_at: new Date().toISOString(),
+        })]
+      );
+
+      await client.query('COMMIT');
+
+      res.json({
+        success: true,
+        message: 'Transaction rejected',
+        transaction: { id, status: 'failed' },
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Reject transaction error:', error);
+    res.status(500).json({ success: false, message: 'Failed to reject transaction' });
+  }
+});
+
+/** GET /api/admin/users/:id/emails */
+router.get('/users/:id/emails', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+    const { id } = req.params;
+
+    // Get user email
+    const userRes = await db.query(
+      `SELECT email FROM users WHERE id = $1`,
+      [id]
+    );
+
+    if (!userRes.rows[0]) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const userEmail = userRes.rows[0].email;
+
+    // Get email logs for this user or by email
+    const logsRes = await db.query(
+      `SELECT id, email_to, email_type, subject, status, error_message, created_at
+       FROM email_logs
+       WHERE user_id = $1 OR email_to = $2
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      [id, userEmail]
+    );
+
+    res.json({
+      success: true,
+      email_logs: logsRes.rows,
+    });
+  } catch (error) {
+    console.error('Get user emails error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch email logs' });
   }
 });
 

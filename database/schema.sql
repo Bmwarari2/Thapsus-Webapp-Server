@@ -153,6 +153,17 @@ CREATE TABLE IF NOT EXISTS backups (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS email_logs (
+  id TEXT PRIMARY KEY,
+  user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+  email_to TEXT NOT NULL,
+  email_type TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  status TEXT CHECK(status IN ('sent','failed')) DEFAULT 'sent',
+  error_message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_tracking_number ON orders(tracking_number);
@@ -167,3 +178,4 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referee_id ON referrals(referee_id);
 CREATE INDEX IF NOT EXISTS idx_referrals_status ON referrals(status);
 CREATE INDEX IF NOT EXISTS idx_password_reset_token ON password_reset_tokens(token);
 CREATE INDEX IF NOT EXISTS idx_backups_created_at ON backups(created_at);
+CREATE INDEX IF NOT EXISTS idx_email_logs_user_id ON email_logs(user_id);

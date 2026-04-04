@@ -76,6 +76,7 @@ import consolidationRoutes from './routes/consolidation.js';
 import prohibitedRoutes    from './routes/prohibited.js';
 import backupRoutes        from './routes/backup.js';
 import eventsRoutes        from './routes/events.js';
+import paymentRoutes       from './routes/payment.js';
 
 const app      = express();
 const PORT     = process.env.PORT     || 5000;
@@ -201,6 +202,7 @@ app.use('/api/consolidation', consolidationRoutes);
 app.use('/api/prohibited',    prohibitedRoutes);
 app.use('/api/admin/backups', backupRoutes);
 app.use('/api/events',        eventsRoutes);
+app.use('/api/payment',       paymentRoutes);
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 app.get(/^\/(?!api).*/, (req, res) => {

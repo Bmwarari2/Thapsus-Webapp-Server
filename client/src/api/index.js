@@ -178,6 +178,18 @@ export const adminApi = {
 
   /** Create order for a client */
   createOrderForClient: (data) => api.post('/admin/orders/create-for-client', data),
+
+  /** Get pending M-Pesa transactions */
+  getPendingPayments: () => api.get('/admin/transactions/pending'),
+
+  /** Approve a payment transaction */
+  approvePayment: (id) => api.post(`/admin/transactions/${id}/approve`),
+
+  /** Reject a payment transaction */
+  rejectPayment: (id, reason) => api.post(`/admin/transactions/${id}/reject`, { reason }),
+
+  /** Get email logs for a user */
+  getUserEmails: (id) => api.get(`/admin/users/${id}/emails`),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

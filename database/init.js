@@ -248,6 +248,17 @@ export async function initializeDatabase() {
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
 
+      CREATE TABLE IF NOT EXISTS email_logs (
+        id TEXT PRIMARY KEY,
+        user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        email_to TEXT NOT NULL,
+        email_type TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        status TEXT CHECK(status IN ('sent','failed')) DEFAULT 'sent',
+        error_message TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
       CREATE INDEX IF NOT EXISTS idx_orders_user_id       ON orders(user_id);
       CREATE INDEX IF NOT EXISTS idx_orders_tracking      ON orders(tracking_number);
       CREATE INDEX IF NOT EXISTS idx_orders_status        ON orders(status);
@@ -261,6 +272,7 @@ export async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_referrals_status     ON referrals(status);
       CREATE INDEX IF NOT EXISTS idx_reset_token          ON password_reset_tokens(token);
       CREATE INDEX IF NOT EXISTS idx_backups_created_at   ON backups(created_at);
+      CREATE INDEX IF NOT EXISTS idx_email_logs_user_id   ON email_logs(user_id);
     `);
     console.log('✓ Database schema initialised (PostgreSQL / Supabase) — IPv4 + IPv6 enabled');
   } finally {
