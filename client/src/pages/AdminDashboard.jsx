@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react'
 import {
   Users, Package, DollarSign, BarChart3, MessageSquare, Activity,
   Lock, RefreshCw, Trash2, XCircle, Plus, CreditCard, Search,
-  UserPlus, Bell, Mail, Eye, ArrowLeft, Key, Send
+  UserPlus, Bell, Mail, Eye, ArrowLeft, Key, Send, AlertTriangle,
+  ChevronLeft, ChevronRight, Filter
 } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
@@ -95,6 +96,16 @@ export const AdminDashboard = () => {
   // Email logs (for user detail panel)
   const [emailLogs, setEmailLogs] = useState([])
 
+  // Error logs (developer tools)
+  const [errorLogs, setErrorLogs] = useState([])
+  const [errorLogStats, setErrorLogStats] = useState(null)
+  const [errorLogPage, setErrorLogPage] = useState(1)
+  const [errorLogTotal, setErrorLogTotal] = useState(0)
+  const [errorLogTotalPages, setErrorLogTotalPages] = useState(0)
+  const [errorLogFilter, setErrorLogFilter] = useState({ level: '', source: '', search: '' })
+  const [loadingErrorLogs, setLoadingErrorLogs] = useState(false)
+  const [expandedError, setExpandedError] = useState(null)
+
   useEffect(() => { fetchData() }, [])
 
   const fetchData = async () => {
@@ -124,10 +135,51 @@ export const AdminDashboard = () => {
         }
       }
       if (results[4].status === 'fulfilled') setPendingPayments(results[4].value.data?.transactions || [])
+
+      // Also fetch error log stats for the badge
+      try {
+        const statsRes = await adminApi.getErrorLogStats()
+        if (statsRes.data?.stats) setErrorLogStats(statsRes.data.stats)
+      } catch (_) { /* non-critical */ }
     } catch (err) {
       toast.error('Failed to load admin data')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // ── Error logs fetcher ──────────────────────────────────────────────
+  const fetchErrorLogs = async (page = 1, filters = errorLogFilter) => {
+    try {
+      setLoadingErrorLogs(true)
+      const params = { page, limit: 25 }
+      if (filters.level)  params.level  = filters.level
+      if (filters.source) params.source = filters.source
+      if (filters.search) params.search = filters.search
+      const res = await adminApi.getErrorLogs(params)
+      if (res.data?.error_logs) {
+        setErrorLogs(res.data.error_logs)
+        setErrorLogPage(res.data.pagination.page)
+        setErrorLogTotal(res.data.pagination.total)
+        setErrorLogTotalPages(res.data.pagination.totalPages)
+      }
+    } catch (err) {
+      toast.error('Failed to load error logs')
+    } finally {
+      setLoadingErrorLogs(false)
+    }
+  }
+
+  const handleClearErrorLogs = async (keepDays) => {
+    if (!window.confirm(`Delete error logs older than ${keepDays} days?`)) return
+    try {
+      const res = await adminApi.clearErrorLogs(keepDays)
+      toast.success(res.data?.message || 'Logs cleared')
+      fetchErrorLogs(1, errorLogFilter)
+      const statsRes = await adminApi.getErrorLogStats()
+      if (statsRes.data?.stats) setErrorLogStats(statsRes.data.stats)
+    } catch (err) {
+      toast.error('Failed to clear logs')
     }
   }
 
@@ -455,15 +507,20 @@ export const AdminDashboard = () => {
 
         {/* Tabs */}
         <div className="flex gap-2 mb-8 overflow-x-auto pb-1">
-          {['overview', 'users', 'orders', 'payments', 'revenue', 'tickets', 'exchange', 'settings'].map((tab) => (
+          {['overview', 'users', 'orders', 'payments', 'revenue', 'tickets', 'exchange', 'settings', 'errorLogs'].map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-lg font-bold whitespace-nowrap transition-colors ${
+              onClick={() => { setActiveTab(tab); if (tab === 'errorLogs') fetchErrorLogs(1, errorLogFilter); }}
+              className={`px-4 py-2 rounded-lg font-bold whitespace-nowrap transition-colors relative ${
                 activeTab === tab ? 'bg-[#1e3a5f] text-white' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
               }`}
             >
-              {tab === 'exchange' ? 'Exchange Rates' : tab === 'settings' ? 'Settings' : tab === 'payments' ? 'Payments' : t(`admin.${tab}`)}
+              {tab === 'exchange' ? 'Exchange Rates' : tab === 'settings' ? 'Settings' : tab === 'payments' ? 'Payments' : tab === 'errorLogs' ? 'Error Logs' : t(`admin.${tab}`)}
+              {tab === 'errorLogs' && errorLogStats && parseInt(errorLogStats.last_24h) > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {parseInt(errorLogStats.last_24h) > 99 ? '99+' : errorLogStats.last_24h}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -1556,6 +1613,208 @@ export const AdminDashboard = () => {
                   Use <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer" className="text-orange-500 underline">OAuth Playground</a> to generate the refresh token.
                 </p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ Error Logs ═══ */}
+        {activeTab === 'errorLogs' && (
+          <div className="space-y-6">
+            {/* Stats bar */}
+            {errorLogStats && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="card text-center">
+                  <p className="text-2xl font-bold text-red-600">{errorLogStats.last_24h || 0}</p>
+                  <p className="text-xs text-gray-500">Last 24 hours</p>
+                </div>
+                <div className="card text-center">
+                  <p className="text-2xl font-bold text-orange-600">{errorLogStats.last_7d || 0}</p>
+                  <p className="text-xs text-gray-500">Last 7 days</p>
+                </div>
+                <div className="card text-center">
+                  <p className="text-2xl font-bold text-purple-600">{errorLogStats.fatal_24h || 0}</p>
+                  <p className="text-xs text-gray-500">Fatal (24h)</p>
+                </div>
+                <div className="card text-center">
+                  <p className="text-2xl font-bold text-gray-600">{errorLogStats.total || 0}</p>
+                  <p className="text-xs text-gray-500">Total</p>
+                </div>
+              </div>
+            )}
+
+            {/* Filters */}
+            <div className="card">
+              <div className="flex flex-wrap gap-3 items-end">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Level</label>
+                  <select
+                    value={errorLogFilter.level}
+                    onChange={(e) => setErrorLogFilter(prev => ({ ...prev, level: e.target.value }))}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                  >
+                    <option value="">All</option>
+                    <option value="error">Error</option>
+                    <option value="warn">Warning</option>
+                    <option value="fatal">Fatal</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Source</label>
+                  <select
+                    value={errorLogFilter.source}
+                    onChange={(e) => setErrorLogFilter(prev => ({ ...prev, source: e.target.value }))}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                  >
+                    <option value="">All</option>
+                    <option value="api">API</option>
+                    <option value="database">Database</option>
+                    <option value="email">Email</option>
+                    <option value="middleware">Middleware</option>
+                    <option value="unhandled">Unhandled</option>
+                  </select>
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Search</label>
+                  <input
+                    type="text"
+                    value={errorLogFilter.search}
+                    onChange={(e) => setErrorLogFilter(prev => ({ ...prev, search: e.target.value }))}
+                    placeholder="Search error messages or paths..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                  />
+                </div>
+                <button
+                  onClick={() => fetchErrorLogs(1, errorLogFilter)}
+                  className="px-4 py-2 bg-[#1e3a5f] text-white rounded-lg text-sm font-bold hover:bg-[#152d4a] transition-colors"
+                >
+                  <Filter size={14} className="inline mr-1" /> Filter
+                </button>
+                <button
+                  onClick={() => { setErrorLogFilter({ level: '', source: '', search: '' }); fetchErrorLogs(1, { level: '', source: '', search: '' }); }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Clear
+                </button>
+                <div className="ml-auto flex gap-2">
+                  <button onClick={() => handleClearErrorLogs(30)} className="px-3 py-2 bg-orange-500 text-white rounded-lg text-xs font-bold hover:bg-orange-600">Clear 30d+</button>
+                  <button onClick={() => handleClearErrorLogs(7)} className="px-3 py-2 bg-red-500 text-white rounded-lg text-xs font-bold hover:bg-red-600">Clear 7d+</button>
+                </div>
+              </div>
+            </div>
+
+            {/* Error log table */}
+            <div className="card overflow-x-auto">
+              {loadingErrorLogs ? (
+                <div className="text-center py-8 text-gray-500">Loading error logs...</div>
+              ) : errorLogs.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <AlertTriangle size={32} className="mx-auto mb-2 text-gray-300" />
+                  <p>No error logs found</p>
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left border-b border-gray-200">
+                      <th className="pb-3 font-bold text-gray-600">Level</th>
+                      <th className="pb-3 font-bold text-gray-600">Source</th>
+                      <th className="pb-3 font-bold text-gray-600">Method</th>
+                      <th className="pb-3 font-bold text-gray-600">Path</th>
+                      <th className="pb-3 font-bold text-gray-600">Message</th>
+                      <th className="pb-3 font-bold text-gray-600">Status</th>
+                      <th className="pb-3 font-bold text-gray-600">Time</th>
+                      <th className="pb-3 font-bold text-gray-600"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {errorLogs.map((log) => (
+                      <React.Fragment key={log.id}>
+                        <tr className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer" onClick={() => setExpandedError(expandedError === log.id ? null : log.id)}>
+                          <td className="py-3 pr-2">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                              log.level === 'fatal' ? 'bg-red-100 text-red-800' :
+                              log.level === 'error' ? 'bg-orange-100 text-orange-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {log.level}
+                            </span>
+                          </td>
+                          <td className="py-3 pr-2 text-gray-600">{log.source}</td>
+                          <td className="py-3 pr-2">
+                            {log.method && <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">{log.method}</span>}
+                          </td>
+                          <td className="py-3 pr-2 font-mono text-xs text-gray-700 max-w-[200px] truncate">{log.path || '-'}</td>
+                          <td className="py-3 pr-2 max-w-[300px] truncate text-gray-800">{log.message}</td>
+                          <td className="py-3 pr-2">
+                            {log.status_code && <span className={`font-mono text-xs font-bold ${log.status_code >= 500 ? 'text-red-600' : 'text-orange-600'}`}>{log.status_code}</span>}
+                          </td>
+                          <td className="py-3 pr-2 text-gray-500 whitespace-nowrap text-xs">
+                            {new Date(log.created_at).toLocaleString()}
+                          </td>
+                          <td className="py-3">
+                            <Eye size={14} className="text-gray-400" />
+                          </td>
+                        </tr>
+                        {expandedError === log.id && (
+                          <tr>
+                            <td colSpan={8} className="bg-gray-50 px-4 py-4">
+                              <div className="space-y-3">
+                                <div>
+                                  <p className="text-xs font-bold text-gray-500 mb-1">Full Message</p>
+                                  <p className="text-sm text-gray-800">{log.message}</p>
+                                </div>
+                                {log.stack && (
+                                  <div>
+                                    <p className="text-xs font-bold text-gray-500 mb-1">Stack Trace</p>
+                                    <pre className="text-xs bg-gray-900 text-green-400 p-3 rounded-lg overflow-x-auto max-h-[300px] overflow-y-auto whitespace-pre-wrap">{log.stack}</pre>
+                                  </div>
+                                )}
+                                {log.user_id && (
+                                  <div>
+                                    <p className="text-xs font-bold text-gray-500 mb-1">User ID</p>
+                                    <p className="text-sm font-mono text-gray-700">{log.user_id}</p>
+                                  </div>
+                                )}
+                                {log.meta && (
+                                  <div>
+                                    <p className="text-xs font-bold text-gray-500 mb-1">Metadata</p>
+                                    <pre className="text-xs bg-gray-100 p-2 rounded overflow-x-auto">{JSON.stringify(JSON.parse(log.meta), null, 2)}</pre>
+                                  </div>
+                                )}
+                                <p className="text-xs text-gray-400">ID: {log.id}</p>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {/* Pagination */}
+              {errorLogTotalPages > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+                  <p className="text-sm text-gray-500">
+                    Page {errorLogPage} of {errorLogTotalPages} ({errorLogTotal} total)
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => fetchErrorLogs(errorLogPage - 1, errorLogFilter)}
+                      disabled={errorLogPage <= 1}
+                      className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-50"
+                    >
+                      <ChevronLeft size={14} className="inline" /> Prev
+                    </button>
+                    <button
+                      onClick={() => fetchErrorLogs(errorLogPage + 1, errorLogFilter)}
+                      disabled={errorLogPage >= errorLogTotalPages}
+                      className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-50"
+                    >
+                      Next <ChevronRight size={14} className="inline" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

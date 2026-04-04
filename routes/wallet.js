@@ -1,6 +1,7 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware } from '../middleware/auth.js';
+import { logRouteError } from '../utils/errorLogger.js';
 
 const router = express.Router();
 
@@ -26,6 +27,7 @@ router.get('/', authMiddleware, async (req, res) => {
     res.json({ success: true, wallet: walletResult.rows[0], recent_transactions: txResult.rows });
   } catch (error) {
     console.error('Get wallet error:', error);
+    logRouteError(req, res, error, 'Get wallet error');
     res.status(500).json({ success: false, message: 'Failed to fetch wallet' });
   }
 });
@@ -54,6 +56,7 @@ router.get('/mpesa-info', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error('Mpesa info error:', error);
+    logRouteError(req, res, error, 'Mpesa info error');
     res.status(500).json({ success: false, message: 'Failed to fetch Mpesa info' });
   }
 });
@@ -124,6 +127,7 @@ router.post('/mpesa-confirm', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error('Mpesa confirm error:', error);
+    logRouteError(req, res, error, 'Mpesa confirm error');
     res.status(500).json({ success: false, message: 'Failed to submit Mpesa confirmation' });
   }
 });
@@ -163,6 +167,7 @@ router.post('/pay', authMiddleware, async (req, res) => {
     res.json({ success: true, message: 'Payment completed from wallet', transaction_id: transactionId, amount_paid: amount, order_id, new_balance: updatedWallet.rows[0].balance });
   } catch (error) {
     console.error('Pay from wallet error:', error);
+    logRouteError(req, res, error, 'Pay from wallet error');
     res.status(500).json({ success: false, message: 'Payment failed' });
   }
 });
@@ -196,6 +201,7 @@ router.get('/transactions', authMiddleware, async (req, res) => {
     res.json({ success: true, transactions: txResult.rows, pagination: { page, limit, total, totalPages } });
   } catch (error) {
     console.error('Get transactions error:', error);
+    logRouteError(req, res, error, 'Get transactions error');
     res.status(500).json({ success: false, message: 'Failed to fetch transactions' });
   }
 });

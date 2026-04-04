@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import { sendAdminPasswordResetEmail, sendPaymentRequestEmail, sendOrderCreatedEmail, sendWelcomeAccountEmail, sendPaymentReminderEmail, sendPaymentReceiptEmail } from '../utils/email.js';
 import { calculateShippingCost } from '../utils/pricing.js';
 import { sendInAppNotification } from '../utils/notifications.js';
+import { logRouteError } from '../utils/errorLogger.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_change_this_in_production';
 
@@ -1187,6 +1188,100 @@ router.get('/users/:id/emails', authMiddleware, isAdmin, async (req, res) => {
   } catch (error) {
     console.error('Get user emails error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch email logs' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ERROR LOGS  (developer tools)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** GET /api/admin/error-logs — paginated list with optional filters */
+router.get('/error-logs', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+    const offset = (page - 1) * limit;
+
+    // Optional filters
+    const level  = req.query.level  || null;   // 'error', 'warn', 'fatal'
+    const source = req.query.source || null;   // 'api', 'database', 'email', 'unhandled'
+    const search = req.query.search || null;   // free-text search in message/path
+
+    const conditions = [];
+    const params = [];
+    let idx = 1;
+
+    if (level)  { conditions.push(`level = $${idx++}`);  params.push(level); }
+    if (source) { conditions.push(`source = $${idx++}`); params.push(source); }
+    if (search) { conditions.push(`(message ILIKE $${idx} OR path ILIKE $${idx})`); params.push(`%${search}%`); idx++; }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    // Total count
+    const countRes = await db.query(`SELECT COUNT(*) FROM error_logs ${where}`, params);
+    const total = parseInt(countRes.rows[0].count);
+
+    // Paginated rows
+    const logsRes = await db.query(
+      `SELECT id, level, source, message, stack, method, path, status_code, user_id, meta, created_at
+       FROM error_logs ${where}
+       ORDER BY created_at DESC
+       LIMIT $${idx++} OFFSET $${idx++}`,
+      [...params, limit, offset]
+    );
+
+    res.json({
+      success: true,
+      error_logs: logsRes.rows,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
+  } catch (error) {
+    console.error('Get error logs error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch error logs' });
+  }
+});
+
+/** GET /api/admin/error-logs/stats — summary counts for the dashboard badge */
+router.get('/error-logs/stats', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+
+    const statsRes = await db.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') AS last_24h,
+        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days')   AS last_7d,
+        COUNT(*) FILTER (WHERE level = 'fatal' AND created_at > NOW() - INTERVAL '24 hours') AS fatal_24h,
+        COUNT(*) AS total
+      FROM error_logs
+    `);
+
+    res.json({ success: true, stats: statsRes.rows[0] });
+  } catch (error) {
+    console.error('Get error log stats error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch error log stats' });
+  }
+});
+
+/** DELETE /api/admin/error-logs — clear old logs (keeps last N days) */
+router.delete('/error-logs', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+    const keepDays = Math.max(1, parseInt(req.query.keepDays) || 30);
+
+    const result = await db.query(
+      `DELETE FROM error_logs WHERE created_at < NOW() - INTERVAL '1 day' * $1`,
+      [keepDays]
+    );
+
+    res.json({
+      success: true,
+      message: `Deleted ${result.rowCount} error logs older than ${keepDays} days`,
+      deleted: result.rowCount,
+    });
+  } catch (error) {
+    console.error('Clear error logs error:', error);
+    res.status(500).json({ success: false, message: 'Failed to clear error logs' });
   }
 });
 

@@ -10,6 +10,7 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { fileURLToPath } from 'url';
 import { initializeDatabase, getPool } from './database/init.js';
+import { logError, errorLoggingMiddleware, logRouteError } from './utils/errorLogger.js';
 
 dotenv.config();
 
@@ -216,6 +217,9 @@ app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route not found', path: req.path });
 });
 
+// ── Error logging middleware (logs to error_logs table) ───────────────────────
+app.use(errorLoggingMiddleware);
+
 // ── Global error handler ──────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
@@ -270,6 +274,18 @@ Ready ✨
       console.log('SIGINT — shutting down gracefully');
       server.close(() => { pool.end(); process.exit(0); });
     });
+    // ── Process-level error catchers ────────────────────────────────────────
+    process.on('uncaughtException', (err) => {
+      console.error('Uncaught Exception:', err);
+      logError({ level: 'fatal', source: 'unhandled', message: err.message, stack: err.stack });
+    });
+    process.on('unhandledRejection', (reason) => {
+      const msg = reason instanceof Error ? reason.message : String(reason);
+      const stack = reason instanceof Error ? reason.stack : null;
+      console.error('Unhandled Rejection:', reason);
+      logError({ level: 'fatal', source: 'unhandled', message: msg, stack });
+    });
+
   } catch (err) {
     console.error('Failed to start server:', err);
     process.exit(1);

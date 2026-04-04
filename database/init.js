@@ -259,6 +259,20 @@ export async function initializeDatabase() {
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
 
+      CREATE TABLE IF NOT EXISTS error_logs (
+        id TEXT PRIMARY KEY,
+        level TEXT CHECK(level IN ('error','warn','fatal')) DEFAULT 'error',
+        source TEXT NOT NULL,
+        message TEXT NOT NULL,
+        stack TEXT,
+        method TEXT,
+        path TEXT,
+        status_code INTEGER,
+        user_id TEXT,
+        meta TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
       CREATE INDEX IF NOT EXISTS idx_orders_user_id       ON orders(user_id);
       CREATE INDEX IF NOT EXISTS idx_orders_tracking      ON orders(tracking_number);
       CREATE INDEX IF NOT EXISTS idx_orders_status        ON orders(status);
@@ -273,6 +287,9 @@ export async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_reset_token          ON password_reset_tokens(token);
       CREATE INDEX IF NOT EXISTS idx_backups_created_at   ON backups(created_at);
       CREATE INDEX IF NOT EXISTS idx_email_logs_user_id   ON email_logs(user_id);
+      CREATE INDEX IF NOT EXISTS idx_error_logs_created   ON error_logs(created_at);
+      CREATE INDEX IF NOT EXISTS idx_error_logs_level     ON error_logs(level);
+      CREATE INDEX IF NOT EXISTS idx_error_logs_source    ON error_logs(source);
     `);
     console.log('✓ Database schema initialised (PostgreSQL / Supabase) — IPv4 + IPv6 enabled');
   } finally {

@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware } from '../middleware/auth.js';
+import { logRouteError } from '../utils/errorLogger.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_change_this_in_production';
@@ -97,6 +98,7 @@ router.post('/register', async (req, res) => {
     });
   } catch (error) {
     console.error('Registration error:', error);
+    logRouteError(req, res, error, 'Registration error');
     res.status(500).json({ success: false, message: 'Registration failed' });
   }
 });
@@ -132,6 +134,7 @@ router.post('/login', async (req, res) => {
     });
   } catch (error) {
     console.error('Login error:', error);
+    logRouteError(req, res, error, 'Login error');
     res.status(500).json({ success: false, message: 'Login failed' });
   }
 });
@@ -148,6 +151,7 @@ router.get('/me', authMiddleware, async (req, res) => {
     res.json({ success: true, user: rows[0] });
   } catch (error) {
     console.error('Get profile error:', error);
+    logRouteError(req, res, error, 'Get profile error');
     res.status(500).json({ success: false, message: 'Failed to fetch profile' });
   }
 });
@@ -178,6 +182,7 @@ router.put('/profile', authMiddleware, async (req, res) => {
     res.json({ success: true, message: 'Profile updated successfully', user: rows[0] });
   } catch (error) {
     console.error('Profile update error:', error);
+    logRouteError(req, res, error, 'Profile update error');
     res.status(500).json({ success: false, message: 'Failed to update profile' });
   }
 });
@@ -208,6 +213,7 @@ router.put('/password', authMiddleware, async (req, res) => {
     res.json({ success: true, message: 'Password changed successfully' });
   } catch (error) {
     console.error('Password change error:', error);
+    logRouteError(req, res, error, 'Password change error');
     res.status(500).json({ success: false, message: 'Failed to change password' });
   }
 });
@@ -264,6 +270,7 @@ router.post('/reset-password', async (req, res) => {
     res.json({ success: true, message: 'Password reset successfully. You can now log in with your new password.' });
   } catch (error) {
     console.error('Reset password error:', error);
+    logRouteError(req, res, error, 'Reset password error');
     res.status(500).json({ success: false, message: 'Failed to reset password' });
   }
 });
@@ -306,6 +313,7 @@ router.post('/forgot-password', async (req, res) => {
     res.json({ success: true, message: 'If an account with that email exists, a password reset link has been sent.' });
   } catch (error) {
     console.error('Forgot password error:', error);
+    logRouteError(req, res, error, 'Forgot password error');
     res.status(500).json({ success: false, message: 'Failed to process request' });
   }
 });

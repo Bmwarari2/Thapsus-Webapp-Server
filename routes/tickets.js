@@ -4,6 +4,7 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
 import { pushToUser, pushToAdmins } from './events.js';
+import { logRouteError } from '../utils/errorLogger.js';
 
 const router = express.Router();
 
@@ -47,6 +48,7 @@ router.get('/', authMiddleware, async (req, res) => {
     res.json({ success: true, tickets: tickets.rows, pagination: { page, limit, total, totalPages } });
   } catch (error) {
     console.error('Get tickets error:', error);
+    logRouteError(req, res, error, 'Get tickets error');
     res.status(500).json({ success: false, message: 'Failed to fetch tickets' });
   }
 });
@@ -80,6 +82,7 @@ router.post('/', authMiddleware, upload.single('photo'), async (req, res) => {
     res.status(201).json({ success: true, message: 'Ticket created successfully', ticket });
   } catch (error) {
     console.error('Create ticket error:', error);
+    logRouteError(req, res, error, 'Create ticket error');
     res.status(500).json({ success: false, message: 'Failed to create ticket' });
   }
 });
@@ -103,6 +106,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
     res.json({ success: true, ticket: ticketRes.rows[0], messages: messages.rows });
   } catch (error) {
     console.error('Get ticket error:', error);
+    logRouteError(req, res, error, 'Get ticket error');
     res.status(500).json({ success: false, message: 'Failed to fetch ticket' });
   }
 });
@@ -143,6 +147,7 @@ router.post('/:id/message', authMiddleware, async (req, res) => {
     res.status(201).json({ success: true, message: 'Message added successfully', message_id: messageId });
   } catch (error) {
     console.error('Add message error:', error);
+    logRouteError(req, res, error, 'Add message error');
     res.status(500).json({ success: false, message: 'Failed to add message' });
   }
 });
@@ -175,6 +180,7 @@ router.put('/:id/status', authMiddleware, isAdmin, async (req, res) => {
     res.json({ success: true, message: 'Ticket status updated successfully', ticket: updated });
   } catch (error) {
     console.error('Update ticket status error:', error);
+    logRouteError(req, res, error, 'Update ticket status error');
     res.status(500).json({ success: false, message: 'Failed to update ticket status' });
   }
 });
@@ -208,6 +214,7 @@ router.get('/admin/all', authMiddleware, isAdmin, async (req, res) => {
     res.json({ success: true, tickets: tickets.rows, pagination: { page, limit, total, totalPages } });
   } catch (error) {
     console.error('Get all tickets error:', error);
+    logRouteError(req, res, error, 'Get all tickets error');
     res.status(500).json({ success: false, message: 'Failed to fetch tickets' });
   }
 });

@@ -190,6 +190,15 @@ export const adminApi = {
 
   /** Get email logs for a user */
   getUserEmails: (id) => api.get(`/admin/users/${id}/emails`),
+
+  /** Get error logs (paginated, filterable) */
+  getErrorLogs: (params = {}) => api.get('/admin/error-logs', { params }),
+
+  /** Get error log stats (counts for badges) */
+  getErrorLogStats: () => api.get('/admin/error-logs/stats'),
+
+  /** Clear old error logs */
+  clearErrorLogs: (keepDays = 30) => api.delete('/admin/error-logs', { params: { keepDays } }),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

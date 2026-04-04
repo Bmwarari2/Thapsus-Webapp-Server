@@ -1,5 +1,6 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import { logRouteError } from '../utils/errorLogger.js';
 
 const router = express.Router();
 
@@ -45,6 +46,7 @@ router.get('/:orderId', async (req, res) => {
     });
   } catch (error) {
     console.error('Get payment order error:', error);
+    logRouteError(req, res, error, 'Get payment order error');
     res.status(500).json({ success: false, message: 'Failed to fetch order details' });
   }
 });
@@ -148,6 +150,7 @@ router.post('/:orderId/confirm', async (req, res) => {
     }
   } catch (error) {
     console.error('Confirm payment error:', error);
+    logRouteError(req, res, error, 'Confirm payment error');
     res.status(500).json({ success: false, message: 'Failed to process payment' });
   }
 });

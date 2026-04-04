@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
 import { calculateShippingCost } from '../utils/pricing.js';
 import { pushToUser, pushToAdmins } from './events.js';
+import { logRouteError } from '../utils/errorLogger.js';
 
 const router = express.Router();
 
@@ -45,6 +46,7 @@ router.get('/', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error('Get orders error:', error);
+    logRouteError(req, res, error, 'Get orders error');
     res.status(500).json({ success: false, message: 'Failed to fetch orders' });
   }
 });
@@ -127,6 +129,7 @@ router.post('/', authMiddleware, async (req, res) => {
     res.status(201).json({ success: true, message: 'Order created successfully', order });
   } catch (error) {
     console.error('Create order error:', error);
+    logRouteError(req, res, error, 'Create order error');
     res.status(500).json({ success: false, message: 'Failed to create order' });
   }
 });
@@ -153,6 +156,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error('Get order error:', error);
+    logRouteError(req, res, error, 'Get order error');
     res.status(500).json({ success: false, message: 'Failed to fetch order' });
   }
 });
@@ -187,6 +191,7 @@ router.put('/:id/status', authMiddleware, isAdmin, async (req, res) => {
     res.json({ success: true, message: 'Order status updated', order });
   } catch (error) {
     console.error('Update order status error:', error);
+    logRouteError(req, res, error, 'Update order status error');
     res.status(500).json({ success: false, message: 'Failed to update order status' });
   }
 });
