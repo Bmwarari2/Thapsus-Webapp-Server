@@ -702,6 +702,7 @@ export const AdminDashboard = () => {
                             </button>
                           </>
                         )}
+                          </div>
                       </td>
                     </tr>
                   ))}

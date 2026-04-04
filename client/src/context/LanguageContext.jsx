@@ -129,7 +129,7 @@ const translations = {
     'wallet.paypal': 'PayPal',
     'wallet.phone': 'Phone Number',
     'wallet.amount': 'Amount (KES)',
-    'wallet.deposit': 'Deposit',
+    'wallet.depositAction': 'Deposit',
     'wallet.history': 'Transaction History',
     'wallet.type': 'Type',
     'wallet.date': 'Date',
@@ -233,7 +233,6 @@ const translations = {
     'referral.status': 'Status',
     'referral.earnings': 'Earnings',
     'referral.pending': 'Pending',
-    'referral.completed': 'Completed',
 
     // Admin
     'admin.title': 'Admin Dashboard',
@@ -419,7 +418,7 @@ const translations = {
     'wallet.paypal': 'PayPal',
     'wallet.phone': 'Namba ya Simu',
     'wallet.amount': 'Kiasi (KES)',
-    'wallet.deposit': 'Kuweka',
+    'wallet.depositAction': 'Kuweka',
     'wallet.history': 'Historia ya Muamala',
     'wallet.type': 'Aina',
     'wallet.date': 'Tarehe',
@@ -523,7 +522,6 @@ const translations = {
     'referral.status': 'Hali',
     'referral.earnings': 'Kupokea',
     'referral.pending': 'Insubiri',
-    'referral.completed': 'Ilikamilika',
 
     // Admin
     'admin.title': 'Dashibodi ya Msimamizi',
