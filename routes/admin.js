@@ -235,24 +235,32 @@ router.delete('/users/:id', authMiddleware, isAdmin, async (req, res) => {
   }
 });
 
-/** POST /api/admin/test-email – Send a test email to verify Resend configuration */
+/** POST /api/admin/test-email – Send a test email to verify Gmail API configuration */
 router.post('/test-email', authMiddleware, isAdmin, async (req, res) => {
   try {
     const { to } = req.body;
     const recipientEmail = to || req.user.email;
 
-    // Check config
+    // Check Gmail API config
     const emailConfig = {
-      RESEND_API_KEY: process.env.RESEND_API_KEY ? '***set***' : '(NOT SET)',
-      EMAIL_FROM: process.env.EMAIL_FROM || '(not set — using default onboarding@resend.dev)',
+      GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID ? '***set***' : '(NOT SET)',
+      GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET ? '***set***' : '(NOT SET)',
+      GMAIL_REFRESH_TOKEN: process.env.GMAIL_REFRESH_TOKEN ? '***set***' : '(NOT SET)',
+      GMAIL_SENDER_EMAIL: process.env.GMAIL_SENDER_EMAIL || '(NOT SET)',
     };
 
-    if (!process.env.RESEND_API_KEY) {
+    const missing = [];
+    if (!process.env.GMAIL_CLIENT_ID) missing.push('GMAIL_CLIENT_ID');
+    if (!process.env.GMAIL_CLIENT_SECRET) missing.push('GMAIL_CLIENT_SECRET');
+    if (!process.env.GMAIL_REFRESH_TOKEN) missing.push('GMAIL_REFRESH_TOKEN');
+    if (!process.env.GMAIL_SENDER_EMAIL) missing.push('GMAIL_SENDER_EMAIL');
+
+    if (missing.length > 0) {
       return res.status(400).json({
         success: false,
-        message: 'Missing RESEND_API_KEY environment variable. Set it in Railway → Variables.',
+        message: `Missing environment variables: ${missing.join(', ')}. Set them in Railway → Variables.`,
         email_config: emailConfig,
-        help: 'Sign up at https://resend.com (free — 100 emails/day). Create an API key at https://resend.com/api-keys, then add it as RESEND_API_KEY in Railway → Variables. Also set EMAIL_FROM to your verified sender (e.g. "Thapsus Cargo <noreply@thapsus.uk>") or use "Thapsus Cargo <onboarding@resend.dev>" for testing.'
+        help: 'To set up Gmail API: 1) Go to https://console.cloud.google.com → Enable Gmail API → Create OAuth 2.0 credentials. 2) Use https://developers.google.com/oauthplayground to generate a refresh token with the https://mail.google.com/ scope. 3) Add GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, and GMAIL_SENDER_EMAIL to Railway → Variables.'
       });
     }
 
@@ -271,14 +279,16 @@ router.post('/test-email', authMiddleware, isAdmin, async (req, res) => {
       success: false,
       message: `Email failed: ${error.message}`,
       email_config: {
-        RESEND_API_KEY: process.env.RESEND_API_KEY ? '***set***' : '(NOT SET)',
-        EMAIL_FROM: process.env.EMAIL_FROM || '(not set)',
+        GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID ? '***set***' : '(NOT SET)',
+        GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET ? '***set***' : '(NOT SET)',
+        GMAIL_REFRESH_TOKEN: process.env.GMAIL_REFRESH_TOKEN ? '***set***' : '(NOT SET)',
+        GMAIL_SENDER_EMAIL: process.env.GMAIL_SENDER_EMAIL || '(NOT SET)',
       },
-      help: error.message.includes('API key')
-        ? 'Invalid API key. Go to https://resend.com/api-keys and create a new one, then update RESEND_API_KEY in Railway.'
-        : error.message.includes('validation')
-        ? 'The sender address needs to be verified. Add and verify your domain at https://resend.com/domains, or use "Thapsus Cargo <onboarding@resend.dev>" for testing.'
-        : 'Check your Resend API key and sender address in Railway environment variables.'
+      help: error.message.includes('invalid_grant')
+        ? 'Refresh token expired or revoked. Regenerate it at https://developers.google.com/oauthplayground using the https://mail.google.com/ scope, then update GMAIL_REFRESH_TOKEN in Railway.'
+        : error.message.includes('unauthorized_client')
+        ? 'OAuth client ID/secret mismatch. Verify GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET in Railway match your Google Cloud Console credentials.'
+        : 'Check your Gmail API credentials in Railway environment variables. Ensure the Gmail API is enabled in your Google Cloud project.'
     });
   }
 });

@@ -31,7 +31,8 @@
     "react-hot-toast": "^2.4.1",
     "recharts": "^2.10.3",
     "serve": "^14.2.1",
-    "nodemailer": "^6.9.9"
+    "nodemailer": "^6.9.9",
+    "googleapis": "^144.0.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",

@@ -1,81 +1,149 @@
 /**
- * Email service using Resend HTTP API.
+ * Email service using Gmail API (googleapis).
  *
- * Railway blocks outbound SMTP on ports 465/587, so we use Resend's
- * HTTP-based API (port 443) which works on all cloud platforms.
+ * Uses OAuth2 with a refresh token to send emails from your Gmail/Workspace account.
+ * No SMTP ports needed — works on Railway and any cloud platform.
  *
  * Required environment variables:
- *   RESEND_API_KEY    – API key from https://resend.com/api-keys
- *   EMAIL_FROM        – Verified sender, e.g. "Thapsus Cargo <noreply@thapsus.uk>"
- *                       (or use Resend's test address: "Thapsus Cargo <onboarding@resend.dev>")
- *   ADMIN_CONTACT_EMAIL – Admin inbox for notifications
+ *   GMAIL_CLIENT_ID      – OAuth2 client ID from Google Cloud Console
+ *   GMAIL_CLIENT_SECRET   – OAuth2 client secret
+ *   GMAIL_REFRESH_TOKEN   – Refresh token (obtained via OAuth Playground)
+ *   GMAIL_SENDER_EMAIL    – The Gmail/Workspace address to send from
  *
- * Free tier: 100 emails/day, 3,000/month — more than enough to start.
+ * Setup guide:
+ *   1. Enable Gmail API in Google Cloud Console
+ *   2. Create OAuth2 credentials (Web application)
+ *   3. Use OAuth Playground to get a refresh token with gmail.send scope
+ *   4. Set the 4 env vars above in Railway
  */
 
-const RESEND_API_URL = 'https://api.resend.com/emails';
+import { google } from 'googleapis';
 
-function getFromAddress() {
-  return process.env.EMAIL_FROM
-    || process.env.SMTP_FROM_EMAIL
-    || 'Thapsus Cargo <onboarding@resend.dev>';
+// ── Gmail OAuth2 Client ────────────────────────────────────────────────────
+let _oauth2Client = null;
+
+function getOAuth2Client() {
+  if (_oauth2Client) return _oauth2Client;
+
+  const clientId = process.env.GMAIL_CLIENT_ID;
+  const clientSecret = process.env.GMAIL_CLIENT_SECRET;
+  const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error(
+      'Gmail API not configured. Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN environment variables.'
+    );
+  }
+
+  _oauth2Client = new google.auth.OAuth2(
+    clientId,
+    clientSecret,
+    'https://developers.google.com/oauthplayground'
+  );
+
+  _oauth2Client.setCredentials({ refresh_token: refreshToken });
+  return _oauth2Client;
+}
+
+function getSenderAddress() {
+  return process.env.GMAIL_SENDER_EMAIL || process.env.EMAIL_FROM || 'noreply@thapsus.uk';
 }
 
 /**
- * Send an email via Resend HTTP API with retry logic.
- *
- * @param {object} mailOptions  – { from, to, subject, html, text }
- * @param {number} retries      – Number of retries (default 2)
- * @returns {Promise<object>}   – Resend API response
+ * Build a raw RFC 2822 email message for the Gmail API.
+ * Handles UTF-8 subjects and HTML content.
  */
-async function sendWithRetry(mailOptions, retries = 2) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    const msg = 'RESEND_API_KEY is not set. Email sending is disabled.';
-    console.error(`❌ ${msg}`);
-    throw new Error(msg);
-  }
+function buildRawEmail({ from, to, subject, html, text }) {
+  const boundary = `boundary_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+  const messageParts = [
+    `From: ${from}`,
+    `To: ${Array.isArray(to) ? to.join(', ') : to}`,
+    `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    Buffer.from(text || '').toString('base64'),
+    '',
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    Buffer.from(html || '').toString('base64'),
+    '',
+    `--${boundary}--`,
+  ];
+
+  const rawMessage = messageParts.join('\r\n');
+
+  // Gmail API expects URL-safe base64
+  return Buffer.from(rawMessage)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+/**
+ * Send an email via Gmail API with retry logic.
+ *
+ * @param {object} mailOptions – { from, to, subject, html, text }
+ * @param {number} retries     – Number of retries (default 2)
+ * @returns {Promise<object>}  – Gmail API response
+ */
+async function sendWithGmail(mailOptions, retries = 2) {
+  const auth = getOAuth2Client();
+  const gmail = google.gmail({ version: 'v1', auth });
+
+  const senderEmail = getSenderAddress();
+  const from = mailOptions.from || `Thapsus Cargo <${senderEmail}>`;
+
+  const raw = buildRawEmail({
+    from,
+    to: mailOptions.to,
+    subject: mailOptions.subject,
+    html: mailOptions.html,
+    text: mailOptions.text,
+  });
 
   let lastError;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await fetch(RESEND_API_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: mailOptions.from,
-          to: Array.isArray(mailOptions.to) ? mailOptions.to : [mailOptions.to],
-          subject: mailOptions.subject,
-          html: mailOptions.html,
-          text: mailOptions.text,
-        }),
+      const response = await gmail.users.messages.send({
+        userId: 'me',
+        requestBody: { raw },
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        const errMsg = data.message || data.error || JSON.stringify(data);
-        throw new Error(`Resend API error (${response.status}): ${errMsg}`);
-      }
-
-      console.log(`📧 Email sent to ${mailOptions.to}: ${mailOptions.subject} (attempt ${attempt + 1}) [id: ${data.id}]`);
-      return data;
+      console.log(
+        `📧 Email sent to ${mailOptions.to}: ${mailOptions.subject} (attempt ${attempt + 1}) [id: ${response.data.id}]`
+      );
+      return response.data;
     } catch (err) {
       lastError = err;
-      console.warn(`⚠ Email send attempt ${attempt + 1} failed:`, err.message);
+      const errMsg = err.response?.data?.error?.message || err.message;
+      console.warn(`⚠ Email send attempt ${attempt + 1} failed:`, errMsg);
+
+      // If it's a token refresh issue, clear the cached client so it re-authenticates
+      if (err.code === 401 || err.message?.includes('invalid_grant')) {
+        _oauth2Client = null;
+      }
 
       // Wait before retrying (exponential backoff: 1s, 2s)
       if (attempt < retries) {
-        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+        await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
       }
     }
   }
 
-  console.error(`❌ Email to ${mailOptions.to} failed after ${retries + 1} attempts:`, lastError.message);
+  console.error(
+    `❌ Email to ${mailOptions.to} failed after ${retries + 1} attempts:`,
+    lastError.message
+  );
   throw lastError;
 }
 
@@ -173,8 +241,7 @@ export async function sendPasswordResetEmail(toEmail, toName, resetLink) {
       ${resetLink}
     </p>`;
 
-  return sendWithRetry({
-    from: getFromAddress(),
+  return sendWithGmail({
     to: toEmail,
     subject: 'Reset Your Thapsus Cargo Password',
     html: emailLayout(bodyHtml),
@@ -215,8 +282,7 @@ export async function sendAdminPasswordResetEmail(toEmail, toName, resetLink) {
       ${resetLink}
     </p>`;
 
-  return sendWithRetry({
-    from: getFromAddress(),
+  return sendWithGmail({
     to: toEmail,
     subject: 'Your Thapsus Cargo Password Has Been Reset',
     html: emailLayout(bodyHtml),
@@ -257,8 +323,7 @@ export async function sendPaymentRequestEmail(toEmail, toName, trackingNumber, a
       ${paymentLink}
     </p>`;
 
-  return sendWithRetry({
-    from: getFromAddress(),
+  return sendWithGmail({
     to: toEmail,
     subject: `Payment Request for Order ${trackingNumber} — KES ${amount.toLocaleString()}`,
     html: emailLayout(bodyHtml),
@@ -334,8 +399,7 @@ export async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, ret
       If you have any questions, please reach out to our support team via the portal.
     </p>`;
 
-  return sendWithRetry({
-    from: getFromAddress(),
+  return sendWithGmail({
     to: toEmail,
     subject: `New Order Created for You — ${trackingNumber}`,
     html: emailLayout(bodyHtml),
@@ -438,8 +502,7 @@ export async function sendWelcomeAccountEmail(toEmail, toName, warehouseId, role
       ${setPasswordLink}
     </p>`;
 
-  return sendWithRetry({
-    from: getFromAddress(),
+  return sendWithGmail({
     to: toEmail,
     subject: `Welcome to Thapsus Cargo — Set Up Your Account`,
     html: emailLayout(bodyHtml),
@@ -486,8 +549,7 @@ export async function sendPaymentReminderEmail(toEmail, toName, trackingNumber, 
       ${paymentLink}
     </p>`;
 
-  return sendWithRetry({
-    from: getFromAddress(),
+  return sendWithGmail({
     to: toEmail,
     subject: `Payment Reminder for Order ${trackingNumber} — KES ${amount.toLocaleString()}`,
     html: emailLayout(bodyHtml),
