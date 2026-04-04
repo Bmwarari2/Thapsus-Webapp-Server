@@ -10,7 +10,7 @@ import {
 // ==========================================
 // CONFIGURATION
 // ==========================================
-const API_BASE = "https://swiftcargo-production.up.railway.app";
+const API_BASE = "https://thapsus-production.up.railway.app";
 
 const WAREHOUSE_ADDRESSES = {
   UK: {
@@ -208,14 +208,14 @@ const PublicFooter = () => {
         <div>
           <h4 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-4">Contact</h4>
           <div className="space-y-3 text-slate-300 text-sm">
-            <p>support@swiftcargo.co.ke</p>
+            <p>support@thapsus.uk</p>
             <p>+254 700 000 000</p>
             <p>Nairobi, Kenya</p>
           </div>
         </div>
       </div>
       <div className="max-w-7xl mx-auto mt-12 pt-8 border-t border-slate-800 text-center text-slate-500 text-xs font-bold">
-        &copy; {new Date().getFullYear()} SwiftCargo. All rights reserved.
+        &copy; {new Date().getFullYear()} Thapsus Cargo. All rights reserved.
       </div>
     </footer>
   );
@@ -302,7 +302,7 @@ const HowItWorksPage = () => (
       </div>
       <div className="max-w-4xl mx-auto space-y-16">
         {[
-          { step: "1", title: "Get Your Address", desc: "Sign up and get instant access to your unique SC-ID and warehouse addresses in UK, US, and China.", icon: MapPin },
+          { step: "1", title: "Get Your Address", desc: "Sign up and get instant access to your unique TC-ID and warehouse addresses in UK, US, and China.", icon: MapPin },
           { step: "2", title: "Shop Online",      desc: "Shop on any global site. Use our warehouse address as your 'Shipping Address' at checkout.", icon: ShoppingBag },
           { step: "3", title: "We Receive & Alert", desc: "Once your package arrives at our hub, we'll notify you. You can choose to ship now or wait to consolidate.", icon: CheckCircle },
           { step: "4", title: "Final Delivery",   desc: "Pay your shipping fees via M-Pesa. We handle the customs and deliver to your doorstep in Kenya.", icon: Truck },
@@ -940,7 +940,7 @@ const DashboardShell = ({ user, navigate, path, logout }) => {
             <div className="space-y-8">
               <div>
                 <h2 className="text-3xl font-black text-slate-900 mb-2">Your Warehouse Addresses</h2>
-                <p className="text-slate-500">Use these addresses when shopping online. Always include your SC-ID.</p>
+                <p className="text-slate-500">Use these addresses when shopping online. Always include your TC-ID.</p>
               </div>
               <div className="flex gap-2 p-1.5 bg-slate-200 rounded-2xl w-fit">
                 {['UK', 'USA', 'CHINA'].map(m => (
@@ -980,7 +980,7 @@ const DashboardShell = ({ user, navigate, path, logout }) => {
                         <div>
                           <p className="font-bold text-amber-800 text-sm">Important</p>
                           <p className="text-amber-700 text-xs mt-1">
-                            Always include your SC-ID <span className="font-mono font-bold">{user.warehouse_id}</span> in the Name field when shopping.
+                            Always include your TC-ID <span className="font-mono font-bold">{user.warehouse_id}</span> in the Name field when shopping.
                           </p>
                         </div>
                       </div>
@@ -999,7 +999,7 @@ const DashboardShell = ({ user, navigate, path, logout }) => {
             <div className="space-y-8">
               <div>
                 <h2 className="text-3xl font-black text-slate-900 mb-2">Operations Dashboard</h2>
-                <p className="text-slate-500">Real-time overview of SwiftCargo logistics.</p>
+                <p className="text-slate-500">Real-time overview of Thapsus Cargo logistics.</p>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                 {[

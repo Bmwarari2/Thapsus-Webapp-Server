@@ -1,5 +1,5 @@
 /**
- * Multi-language translations for SwiftCargo
+ * Multi-language translations for Thapsus Cargo
  * Supports English and Swahili
  */
 
@@ -149,8 +149,8 @@ export const translations = {
     'payment.failed': 'Failed',
 
     // Messages
-    'messages.welcome': 'Welcome to SwiftCargo',
-    'messages.goodbye': 'Thank you for using SwiftCargo',
+    'messages.welcome': 'Welcome to Thapsus Cargo',
+    'messages.goodbye': 'Thank you for using Thapsus Cargo',
     'messages.loading': 'Please wait...',
     'messages.try_again': 'Please try again',
     'messages.contact_support': 'Contact Support',
@@ -302,8 +302,8 @@ export const translations = {
     'payment.failed': 'Kushindwa',
 
     // Messages
-    'messages.welcome': 'Karibu kwenye SwiftCargo',
-    'messages.goodbye': 'Asante kwa kutumia SwiftCargo',
+    'messages.welcome': 'Karibu kwenye Thapsus Cargo',
+    'messages.goodbye': 'Asante kwa kutumia Thapsus Cargo',
     'messages.loading': 'Tafadhali subiri...',
     'messages.try_again': 'Tafadhali jaribu tena',
     'messages.contact_support': 'Wasiliana na Msaada',

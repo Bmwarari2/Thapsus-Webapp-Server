@@ -21,7 +21,7 @@ function generateReferralCode() {
 }
 
 async function ensureAdminUser(pool) {
-  const adminEmail    = process.env.ADMIN_EMAIL    || 'admin@swiftcargo.co.ke';
+  const adminEmail    = process.env.ADMIN_EMAIL    || 'admin@thapsus.uk';
   const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
   const { rows } = await pool.query(
@@ -38,7 +38,7 @@ async function ensureAdminUser(pool) {
   const adminWalletId = uuidv4();
   const adminHash     = bcrypt.hashSync(adminPassword, 10);
   const adminRefCode  = generateReferralCode();
-  const warehouseId   = `SC-ADM-${Date.now()}`;
+  const warehouseId   = `TC-ADM-${Date.now()}`;
 
   const client = await pool.connect();
   try {
@@ -46,7 +46,7 @@ async function ensureAdminUser(pool) {
     await client.query(
       `INSERT INTO users (id, email, password, name, phone, role, warehouse_id, language_pref, referral_code, wallet_balance, is_active)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-      [adminId, adminEmail, adminHash, 'SwiftCargo Admin', '+254700000000', 'admin', warehouseId, 'en', adminRefCode, 0, true]
+      [adminId, adminEmail, adminHash, 'Thapsus Cargo Admin', '+254700000000', 'admin', warehouseId, 'en', adminRefCode, 0, true]
     );
     await client.query(
       `INSERT INTO wallet (id, user_id, balance, currency) VALUES ($1,$2,$3,$4)`,
@@ -241,7 +241,7 @@ async function start() {
     const server = app.listen(PORT, () => {
       console.log(`
 ╔══════════════════════════════════════════╗
-║         SWIFTCARGO BACKEND               ║
+║         THAPSUS CARGO BACKEND            ║
 ║   Shipping & Forwarding Service          ║
 ╚══════════════════════════════════════════╝
 

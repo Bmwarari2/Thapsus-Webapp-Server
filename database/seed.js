@@ -37,12 +37,12 @@ function seedDatabase() {
 
     insertAdmin.run(
       adminId,
-      process.env.ADMIN_EMAIL || 'admin@swiftcargo.co.ke',
+      process.env.ADMIN_EMAIL || 'admin@thapsus.uk',
       adminHash,
-      'SwiftCargo Admin',
+      'Thapsus Cargo Admin',
       '+254700000000',
       'admin',
-      `SC-ADM-${Date.now()}`,
+      `TC-ADM-${Date.now()}`,
       'en',
       adminRefCode,
       0,
@@ -57,7 +57,7 @@ function seedDatabase() {
     `);
     insertWallet.run(adminWalletId, adminId, 0, 'KES');
 
-    console.log('✓ Created admin user: admin@swiftcargo.co.ke');
+    console.log('✓ Created admin user: admin@thapsus.uk');
 
     // Create sample customers
     const customers = [
@@ -101,7 +101,7 @@ function seedDatabase() {
       const customerId = uuidv4();
       customerIds.push(customerId);
       const passwordHash = bcrypt.hashSync('password123', 10);
-      const warehouseId = `SC-${String(index + 1001).slice(-4)}`;
+      const warehouseId = `TC-${String(index + 1001).slice(-4)}`;
       const refCode = `REF${Date.now()}${Math.random().toString(36).substr(2, 9)}${index}`.toUpperCase();
 
       insertCustomer.run(
@@ -160,7 +160,7 @@ function seedDatabase() {
     customerIds.slice(0, 3).forEach((userId, userIndex) => {
       for (let i = 0; i < 3; i++) {
         const orderId = uuidv4();
-        const trackingNumber = `SC-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+        const trackingNumber = `TC-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
         const retailer = retailers[Math.floor(Math.random() * retailers.length)];
         const market = markets[Math.floor(Math.random() * markets.length)];
         const description = descriptions[Math.floor(Math.random() * descriptions.length)];
@@ -325,7 +325,7 @@ function seedDatabase() {
 
     console.log('\nDatabase seeding completed successfully!');
     console.log('\n--- Test Credentials ---');
-    console.log(`Admin Email: ${process.env.ADMIN_EMAIL || 'admin@swiftcargo.co.ke'}`);
+    console.log(`Admin Email: ${process.env.ADMIN_EMAIL || 'admin@thapsus.uk'}`);
     console.log(`Admin Password: ${process.env.ADMIN_PASSWORD || 'admin123'}`);
     console.log('\nSample Customer Credentials:');
     customers.forEach((customer) => {

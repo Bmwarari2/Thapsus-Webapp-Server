@@ -1,11 +1,11 @@
 {
-  "name": "swiftcargo",
+  "name": "thapsuscargo",
   "private": true,
   "version": "0.0.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "cd client && npm run build",
+    "build": "cd client && npm install && npm run build",
     "preview": "vite preview",
     "start": "node server.js",
     "test:db": "node tests/db-test.js"

@@ -1,5 +1,5 @@
 -- ============================================================
--- SwiftCargo — PostgreSQL Schema for Supabase
+-- Thapsus Cargo — PostgreSQL Schema for Supabase
 -- Run this SQL in Supabase: Dashboard → SQL Editor → New query
 -- All statements use IF NOT EXISTS so re-running is always safe.
 -- ============================================================

@@ -239,7 +239,7 @@ export const Wallet = () => {
                 <textarea
                   value={mpesaMessage}
                   onChange={(e) => setMpesaMessage(e.target.value)}
-                  placeholder="e.g. ABC123XYZ Confirmed. Ksh5,000.00 sent to SwiftCargo Ltd for account XXXXXX on 4/4/26 at 2:30 PM..."
+                  placeholder="e.g. ABC123XYZ Confirmed. Ksh5,000.00 sent to Thapsus Cargo Ltd for account XXXXXX on 4/4/26 at 2:30 PM..."
                   rows={4}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
                 />

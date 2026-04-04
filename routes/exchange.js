@@ -6,7 +6,7 @@ const DEFAULT_RATES = { USD_KES: 130.5, GBP_KES: 164.2, EUR_KES: 142.8, CNY_KES:
 
 async function getExchangeRates(db) {
   let baseRates = { ...DEFAULT_RATES };
-  let source = 'SwiftCargo Default Rates';
+  let source = 'Thapsus Cargo Default Rates';
   let lastUpdated = null;
   try {
     const rows = await db.query('SELECT currency_pair, rate, updated_at FROM exchange_rates');
@@ -15,7 +15,7 @@ async function getExchangeRates(db) {
         baseRates[r.currency_pair] = parseFloat(r.rate);
         if (!lastUpdated || r.updated_at > lastUpdated) lastUpdated = r.updated_at;
       });
-      source = 'SwiftCargo Admin Rates';
+      source = 'Thapsus Cargo Admin Rates';
     }
   } catch { /* table might not exist yet */ }
 

@@ -6,8 +6,8 @@
  *
  * Required environment variables:
  *   RESEND_API_KEY    – API key from https://resend.com/api-keys
- *   EMAIL_FROM        – Verified sender, e.g. "SwiftCargo <noreply@swiftcargo.co.ke>"
- *                       (or use Resend's test address: "SwiftCargo <onboarding@resend.dev>")
+ *   EMAIL_FROM        – Verified sender, e.g. "Thapsus Cargo <noreply@thapsus.uk>"
+ *                       (or use Resend's test address: "Thapsus Cargo <onboarding@resend.dev>")
  *   ADMIN_CONTACT_EMAIL – Admin inbox for notifications
  *
  * Free tier: 100 emails/day, 3,000/month — more than enough to start.
@@ -18,7 +18,7 @@ const RESEND_API_URL = 'https://api.resend.com/emails';
 function getFromAddress() {
   return process.env.EMAIL_FROM
     || process.env.SMTP_FROM_EMAIL
-    || 'SwiftCargo <onboarding@resend.dev>';
+    || 'Thapsus Cargo <onboarding@resend.dev>';
 }
 
 /**
@@ -89,7 +89,7 @@ function emailFooter() {
     <tr>
       <td style="background-color:#f9fafb;padding:24px 40px;border-top:1px solid #e5e7eb;">
         <p style="margin:0;color:#9ca3af;font-size:12px;text-align:center;">
-          SwiftCargo Shipping &amp; Forwarding &bull; Nairobi, Kenya<br>
+          Thapsus Cargo Shipping &amp; Forwarding &bull; Nairobi, Kenya<br>
           This is an automated message. Please do not reply to this email.
         </p>
       </td>
@@ -101,7 +101,7 @@ function emailHeader() {
     <tr>
       <td style="background-color:#1e3a5f;padding:32px 40px;text-align:center;">
         <h1 style="margin:0;color:#ffffff;font-size:28px;font-weight:bold;">
-          Swift<span style="color:#f97316;">Cargo</span>
+          Thapsus<span style="color:#f97316;">Cargo</span>
         </h1>
       </td>
     </tr>`;
@@ -150,7 +150,7 @@ export async function sendPasswordResetEmail(toEmail, toName, resetLink) {
       Hello ${toName || 'there'},
     </p>
     <p style="margin:0 0 24px;color:#4b5563;font-size:16px;line-height:1.6;">
-      We received a request to reset the password for your SwiftCargo account.
+      We received a request to reset the password for your Thapsus Cargo account.
       Click the button below to create a new password. This link will expire in <strong>1 hour</strong>.
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
@@ -176,9 +176,9 @@ export async function sendPasswordResetEmail(toEmail, toName, resetLink) {
   return sendWithRetry({
     from: getFromAddress(),
     to: toEmail,
-    subject: 'Reset Your SwiftCargo Password',
+    subject: 'Reset Your Thapsus Cargo Password',
     html: emailLayout(bodyHtml),
-    text: `Hello ${toName || 'there'},\n\nWe received a request to reset your SwiftCargo password.\n\nClick this link to reset your password (expires in 1 hour):\n${resetLink}\n\nIf you didn't request this, you can safely ignore this email.\n\n— SwiftCargo Team`,
+    text: `Hello ${toName || 'there'},\n\nWe received a request to reset your Thapsus Cargo password.\n\nClick this link to reset your password (expires in 1 hour):\n${resetLink}\n\nIf you didn't request this, you can safely ignore this email.\n\n— Thapsus Cargo Team`,
   });
 }
 
@@ -192,7 +192,7 @@ export async function sendAdminPasswordResetEmail(toEmail, toName, resetLink) {
       Hello ${toName || 'there'},
     </p>
     <p style="margin:0 0 24px;color:#4b5563;font-size:16px;line-height:1.6;">
-      A SwiftCargo administrator has initiated a password reset for your account.
+      A Thapsus Cargo administrator has initiated a password reset for your account.
       Click the button below to set a new password. This link will expire in <strong>1 hour</strong>.
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
@@ -218,9 +218,9 @@ export async function sendAdminPasswordResetEmail(toEmail, toName, resetLink) {
   return sendWithRetry({
     from: getFromAddress(),
     to: toEmail,
-    subject: 'Your SwiftCargo Password Has Been Reset',
+    subject: 'Your Thapsus Cargo Password Has Been Reset',
     html: emailLayout(bodyHtml),
-    text: `Hello ${toName || 'there'},\n\nA SwiftCargo administrator has initiated a password reset for your account.\n\nClick this link to set a new password (expires in 1 hour):\n${resetLink}\n\nIf you believe this was done in error, please contact support.\n\n— SwiftCargo Team`,
+    text: `Hello ${toName || 'there'},\n\nA Thapsus Cargo administrator has initiated a password reset for your account.\n\nClick this link to set a new password (expires in 1 hour):\n${resetLink}\n\nIf you believe this was done in error, please contact support.\n\n— Thapsus Cargo Team`,
   });
 }
 
@@ -248,7 +248,7 @@ export async function sendPaymentRequestEmail(toEmail, toName, trackingNumber, a
       </tr>
     </table>
     <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.6;">
-      You can also log in to your SwiftCargo account and pay from your wallet.
+      You can also log in to your Thapsus Cargo account and pay from your wallet.
     </p>
     <p style="margin:0;color:#6b7280;font-size:14px;line-height:1.6;">
       If the button above doesn't work, copy and paste this link into your browser:
@@ -262,12 +262,12 @@ export async function sendPaymentRequestEmail(toEmail, toName, trackingNumber, a
     to: toEmail,
     subject: `Payment Request for Order ${trackingNumber} — KES ${amount.toLocaleString()}`,
     html: emailLayout(bodyHtml),
-    text: `Hello ${toName || 'there'},\n\nA payment of KES ${amount.toLocaleString()} is due for your order ${trackingNumber}.\n\n${notes ? `Note: ${notes}\n\n` : ''}Pay here: ${paymentLink}\n\nYou can also log in and pay from your wallet.\n\n— SwiftCargo Team`,
+    text: `Hello ${toName || 'there'},\n\nA payment of KES ${amount.toLocaleString()} is due for your order ${trackingNumber}.\n\n${notes ? `Note: ${notes}\n\n` : ''}Pay here: ${paymentLink}\n\nYou can also log in and pay from your wallet.\n\n— Thapsus Cargo Team`,
   });
 }
 
 /**
- * Notify a customer that SwiftCargo has created a new order on their behalf.
+ * Notify a customer that Thapsus Cargo has created a new order on their behalf.
  */
 export async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, market, description, shippingSpeed, dashboardLink) {
   const speedLabel = shippingSpeed === 'express' ? 'Express (3\u20135 days)' : 'Economy (7\u201314 days)';
@@ -278,7 +278,7 @@ export async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, ret
       Hello ${toName || 'there'},
     </p>
     <p style="margin:0 0 24px;color:#4b5563;font-size:16px;line-height:1.6;">
-      The SwiftCargo team has created a new order on your behalf. Here are the details:
+      The Thapsus Cargo team has created a new order on your behalf. Here are the details:
     </p>
 
     <!-- Order Details Table -->
@@ -339,7 +339,7 @@ export async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, ret
     to: toEmail,
     subject: `New Order Created for You — ${trackingNumber}`,
     html: emailLayout(bodyHtml),
-    text: `Hello ${toName || 'there'},\n\nThe SwiftCargo team has created a new order on your behalf.\n\nTracking Number: ${trackingNumber}\nRetailer: ${retailer}\nShipping From: ${market}\nDescription: ${description}\nShipping Speed: ${speedLabel}\n\nYou will receive updates as your package progresses. Our team will contact you regarding payment once confirmed.\n\nView your orders: ${dashboardLink}\n\n— SwiftCargo Team`,
+    text: `Hello ${toName || 'there'},\n\nThe Thapsus Cargo team has created a new order on your behalf.\n\nTracking Number: ${trackingNumber}\nRetailer: ${retailer}\nShipping From: ${market}\nDescription: ${description}\nShipping Speed: ${speedLabel}\n\nYou will receive updates as your package progresses. Our team will contact you regarding payment once confirmed.\n\nView your orders: ${dashboardLink}\n\n— Thapsus Cargo Team`,
   });
 }
 
@@ -367,26 +367,26 @@ export async function sendWelcomeAccountEmail(toEmail, toName, warehouseId, role
       <tr>
         <td style="padding:10px 0;border-bottom:1px solid #bae6fd;">
           <span style="color:#6b7280;font-size:13px;">&#127482;&#127480; United States</span><br>
-          <strong style="color:#111827;font-size:14px;">SwiftCargo Warehouse, 1234 Commerce Way, Los Angeles, CA 90001, USA</strong><br>
+          <strong style="color:#111827;font-size:14px;">Thapsus Cargo Warehouse, 1234 Commerce Way, Los Angeles, CA 90001, USA</strong><br>
           <span style="color:#f97316;font-size:13px;font-family:monospace;">Attn: ${warehouseId}</span>
         </td>
       </tr>
       <tr>
         <td style="padding:10px 0;">
           <span style="color:#6b7280;font-size:13px;">&#127464;&#127475; China</span><br>
-          <strong style="color:#111827;font-size:14px;">SwiftCargo Warehouse, Shanghai, China</strong><br>
+          <strong style="color:#111827;font-size:14px;">Thapsus Cargo Warehouse, Shanghai, China</strong><br>
           <span style="color:#f97316;font-size:13px;font-family:monospace;">Attn: ${warehouseId}</span>
         </td>
       </tr>
     </table>` : '';
 
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Welcome to SwiftCargo!</h2>
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Welcome to Thapsus Cargo!</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       Hello ${toName || 'there'},
     </p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
-      A SwiftCargo ${roleLabel.toLowerCase()} account has been created for you. Here are your account details:
+      A Thapsus Cargo ${roleLabel.toLowerCase()} account has been created for you. Here are your account details:
     </p>
 
     <!-- Account Details -->
@@ -441,9 +441,9 @@ export async function sendWelcomeAccountEmail(toEmail, toName, warehouseId, role
   return sendWithRetry({
     from: getFromAddress(),
     to: toEmail,
-    subject: `Welcome to SwiftCargo — Set Up Your Account`,
+    subject: `Welcome to Thapsus Cargo — Set Up Your Account`,
     html: emailLayout(bodyHtml),
-    text: `Hello ${toName || 'there'},\n\nA SwiftCargo ${roleLabel.toLowerCase()} account has been created for you.\n\nEmail: ${toEmail}\nAccount Type: ${roleLabel}\n${warehouseId ? `Warehouse ID: ${warehouseId}\n\nYour Shipping Addresses (include your Warehouse ID in the Attn field):\n\nUK: 31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB, United Kingdom — Attn: ${warehouseId}\nUSA: SwiftCargo Warehouse, 1234 Commerce Way, Los Angeles, CA 90001, USA — Attn: ${warehouseId}\nChina: SwiftCargo Warehouse, Shanghai, China — Attn: ${warehouseId}\n` : ''}\nTo get started, please set up your password using this link (expires in 24 hours):\n${setPasswordLink}\n\nOnce your password is set, you can log in to manage your shipments.\n\n— SwiftCargo Team`,
+    text: `Hello ${toName || 'there'},\n\nA Thapsus Cargo ${roleLabel.toLowerCase()} account has been created for you.\n\nEmail: ${toEmail}\nAccount Type: ${roleLabel}\n${warehouseId ? `Warehouse ID: ${warehouseId}\n\nYour Shipping Addresses (include your Warehouse ID in the Attn field):\n\nUK: 31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB, United Kingdom — Attn: ${warehouseId}\nUSA: Thapsus Cargo Warehouse, 1234 Commerce Way, Los Angeles, CA 90001, USA — Attn: ${warehouseId}\nChina: Thapsus Cargo Warehouse, Shanghai, China — Attn: ${warehouseId}\n` : ''}\nTo get started, please set up your password using this link (expires in 24 hours):\n${setPasswordLink}\n\nOnce your password is set, you can log in to manage your shipments.\n\n— Thapsus Cargo Team`,
   });
 }
 
@@ -477,7 +477,7 @@ export async function sendPaymentReminderEmail(toEmail, toName, trackingNumber, 
       </tr>
     </table>
     <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.6;">
-      You can also log in to your SwiftCargo account and pay from your wallet.
+      You can also log in to your Thapsus Cargo account and pay from your wallet.
     </p>
     <p style="margin:0;color:#6b7280;font-size:14px;line-height:1.6;">
       If the button above doesn't work, copy and paste this link into your browser:
@@ -491,7 +491,7 @@ export async function sendPaymentReminderEmail(toEmail, toName, trackingNumber, 
     to: toEmail,
     subject: `Payment Reminder for Order ${trackingNumber} — KES ${amount.toLocaleString()}`,
     html: emailLayout(bodyHtml),
-    text: `Hello ${toName || 'there'},\n\nThis is a friendly reminder that a payment of KES ${amount.toLocaleString()} is outstanding for your order ${trackingNumber}.\n\nPlease complete this payment at your earliest convenience so we can proceed with processing your shipment.\n\n${notes ? `Note from admin: ${notes}\n\n` : ''}Pay here: ${paymentLink}\n\nYou can also log in and pay from your wallet.\n\n— SwiftCargo Team`,
+    text: `Hello ${toName || 'there'},\n\nThis is a friendly reminder that a payment of KES ${amount.toLocaleString()} is outstanding for your order ${trackingNumber}.\n\nPlease complete this payment at your earliest convenience so we can proceed with processing your shipment.\n\n${notes ? `Note from admin: ${notes}\n\n` : ''}Pay here: ${paymentLink}\n\nYou can also log in and pay from your wallet.\n\n— Thapsus Cargo Team`,
   });
 }
 

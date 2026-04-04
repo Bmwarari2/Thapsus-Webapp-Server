@@ -182,7 +182,7 @@ const translations = {
     'warehouse.copied': 'Copied to clipboard',
     'warehouse.instructions': 'Instructions',
     'warehouse.instruction1': 'Use this address when shopping online',
-    'warehouse.instruction2': 'Include your SC code in the recipient name',
+    'warehouse.instruction2': 'Include your TC code in the recipient name',
     'warehouse.instruction3': 'Wait for email confirmation when package arrives',
 
     // Prohibited Items
@@ -286,7 +286,7 @@ const translations = {
     'common.invalidEmail': 'Please enter a valid email',
     'common.passwordTooShort': 'Password must be at least 6 characters',
     'common.passwordsDoNotMatch': 'Passwords do not match',
-    'common.copyright': '© 2024 SwiftCargo. All rights reserved.',
+    'common.copyright': '© 2026 Thapsus Cargo. All rights reserved.',
     'common.followUs': 'Follow Us',
     'common.contactUs': 'Contact Us',
     'common.about': 'About Us',
@@ -472,7 +472,7 @@ const translations = {
     'warehouse.copied': 'Kunakili kwenye clipboard',
     'warehouse.instructions': 'Maelezo',
     'warehouse.instruction1': 'Tumia anwani hii wakati wa kununua mtandaoni',
-    'warehouse.instruction2': 'Jumuisha nambari yako ya SC katika jina la pokea',
+    'warehouse.instruction2': 'Jumuisha nambari yako ya TC katika jina la pokea',
     'warehouse.instruction3': 'Subiri ujumbe wa kumkutania wakati pakiti ikifika',
 
     // Prohibited Items
@@ -576,7 +576,7 @@ const translations = {
     'common.invalidEmail': 'Tafadhali ingiza barua pepe halali',
     'common.passwordTooShort': 'Neno la siri lazima liwe na herufi angalau 6',
     'common.passwordsDoNotMatch': 'Maneneo ya siri hayalingani',
-    'common.copyright': '© 2024 SwiftCargo. Haki zote zimehifadhiwa.',
+    'common.copyright': '© 2026 Thapsus Cargo. Haki zote zimehifadhiwa.',
     'common.followUs': 'Tufuate',
     'common.contactUs': 'Wasiliana Nasi',
     'common.about': 'Kuhusu Sisi',

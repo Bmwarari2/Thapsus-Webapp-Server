@@ -11,14 +11,14 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_change_t
 
 function generateWarehouseId() {
   const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  let id = 'SC-';
+  let id = 'TC-';
   for (let i = 0; i < 4; i++) id += chars.charAt(Math.floor(Math.random() * chars.length));
   return id;
 }
 
 function generateReferralCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = 'SC';
+  let code = 'TC';
   for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
   return code;
 }
@@ -252,13 +252,13 @@ router.post('/test-email', authMiddleware, isAdmin, async (req, res) => {
         success: false,
         message: 'Missing RESEND_API_KEY environment variable. Set it in Railway → Variables.',
         email_config: emailConfig,
-        help: 'Sign up at https://resend.com (free — 100 emails/day). Create an API key at https://resend.com/api-keys, then add it as RESEND_API_KEY in Railway → Variables. Also set EMAIL_FROM to your verified sender (e.g. "SwiftCargo <noreply@swiftcargo.co.ke>") or use "SwiftCargo <onboarding@resend.dev>" for testing.'
+        help: 'Sign up at https://resend.com (free — 100 emails/day). Create an API key at https://resend.com/api-keys, then add it as RESEND_API_KEY in Railway → Variables. Also set EMAIL_FROM to your verified sender (e.g. "Thapsus Cargo <noreply@thapsus.uk>") or use "Thapsus Cargo <onboarding@resend.dev>" for testing.'
       });
     }
 
     // Try to send
     const { sendPasswordResetEmail } = await import('../utils/email.js');
-    await sendPasswordResetEmail(recipientEmail, 'SwiftCargo Admin', 'https://www.swift-cargo.uk/test-only-link');
+    await sendPasswordResetEmail(recipientEmail, 'Thapsus Cargo Admin', 'https://www.thapsus.uk/test-only-link');
 
     res.json({
       success: true,
@@ -277,7 +277,7 @@ router.post('/test-email', authMiddleware, isAdmin, async (req, res) => {
       help: error.message.includes('API key')
         ? 'Invalid API key. Go to https://resend.com/api-keys and create a new one, then update RESEND_API_KEY in Railway.'
         : error.message.includes('validation')
-        ? 'The sender address needs to be verified. Add and verify your domain at https://resend.com/domains, or use "SwiftCargo <onboarding@resend.dev>" for testing.'
+        ? 'The sender address needs to be verified. Add and verify your domain at https://resend.com/domains, or use "Thapsus Cargo <onboarding@resend.dev>" for testing.'
         : 'Check your Resend API key and sender address in Railway environment variables.'
     });
   }
@@ -666,7 +666,7 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
     const costBreakdown = calculateShippingCost({ weight_kg: weight_kg || 0, dimensions, market, shipping_speed: speed, insurance: insurance || false, declared_value: declared_value || 0 });
     const orderId = uuidv4();
     const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
-    const trackingNumber = `SC-${date}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+    const trackingNumber = `TC-${date}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
 
     await db.query('BEGIN');
     try {
@@ -686,10 +686,10 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
       await db.query('COMMIT');
     } catch (e) { await db.query('ROLLBACK'); throw e; }
 
-    sendInAppNotification(customer.id, `A new order (${trackingNumber}) has been created for you by SwiftCargo.`);
+    sendInAppNotification(customer.id, `A new order (${trackingNumber}) has been created for you by Thapsus Cargo.`);
 
     // Send email notification to customer (fire-and-forget — don't block the response)
-    const appUrl = process.env.APP_URL || 'https://www.swift-cargo.uk';
+    const appUrl = process.env.APP_URL || 'https://www.thapsus.uk';
     sendOrderCreatedEmail(
       customer.email,
       customer.name,
@@ -877,7 +877,7 @@ router.post('/users/create', authMiddleware, isAdmin, async (req, res) => {
     }
 
     // Send welcome email with password setup link (fire-and-forget)
-    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.swift-cargo.uk';
+    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
     sendWelcomeAccountEmail(
       email.toLowerCase().trim(),
       name,
@@ -916,7 +916,7 @@ router.post('/orders/:id/send-reminder', authMiddleware, isAdmin, async (req, re
       return res.status(400).json({ success: false, message: 'A valid payment amount is required.' });
     }
 
-    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.swift-cargo.uk';
+    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
     sendPaymentReminderEmail(
       order.email,
       order.customer_name,

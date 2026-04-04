@@ -30,7 +30,7 @@ export const Navbar = () => {
         <div className="flex justify-between items-center">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 font-bold text-2xl">
-            <span className="text-white">Swift</span>
+            <span className="text-white">Thapsus</span>
             <span className="text-orange-500">Cargo</span>
           </Link>
 

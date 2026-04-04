@@ -50,13 +50,13 @@ export const Referral = () => {
   }
 
   const handleShareWhatsApp = () => {
-    const msg = `Join SwiftCargo and ship from UK, USA & China to Kenya! Sign up using my code and we both benefit.\n\nReferral code: ${referralCode}\n👉 ${window.location.origin}/register?ref=${referralCode}`
+    const msg = `Join Thapsus Cargo and ship from UK, USA & China to Kenya! Sign up using my code and we both benefit.\n\nReferral code: ${referralCode}\n👉 ${window.location.origin}/register?ref=${referralCode}`
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
   const handleShareEmail = () => {
-    const subject = 'Join SwiftCargo – use my referral code'
-    const body = `Hey!\n\nI use SwiftCargo to ship from the UK, USA & China to Kenya. Sign up with my referral code ${referralCode} and I get KES 50 wallet credit after you place your first order.\n\nhttps://swiftcargo.com/register?ref=${referralCode}`
+    const subject = 'Join Thapsus Cargo – use my referral code'
+    const body = `Hey!\n\nI use Thapsus Cargo to ship from the UK, USA & China to Kenya. Sign up with my referral code ${referralCode} and I get KES 50 wallet credit after you place your first order.\n\nhttps://thapsus.uk/register?ref=${referralCode}`
     window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
   }
 
@@ -108,7 +108,7 @@ export const Referral = () => {
               <Share2 size={18} className="text-purple-500" /> Copy Link
             </button>
             <button
-              onClick={() => navigator.share?.({ title: 'SwiftCargo', text: `Use my code: ${referralCode}`, url: `${window.location.origin}/register?ref=${referralCode}` }).catch(() => {})}
+              onClick={() => navigator.share?.({ title: 'Thapsus Cargo', text: `Use my code: ${referralCode}`, url: `${window.location.origin}/register?ref=${referralCode}` }).catch(() => {})}
               className="bg-white hover:bg-gray-50 border-2 border-orange-500 text-gray-900 px-4 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 text-sm transition-colors">
               <Share2 size={18} className="text-orange-500" /> Share
             </button>
@@ -258,7 +258,7 @@ export const Referral = () => {
               <span className="flex-shrink-0 w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center font-bold text-sm">2</span>
               <div>
                 <p className="font-semibold mb-1">They Sign Up</p>
-                <p className="text-sm text-blue-200">Your friend creates a SwiftCargo account using your referral code.</p>
+                <p className="text-sm text-blue-200">Your friend creates a Thapsus Cargo account using your referral code.</p>
               </div>
             </div>
             <div className="flex gap-3">

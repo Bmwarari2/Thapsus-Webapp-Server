@@ -1,5 +1,5 @@
 /**
- * SwiftCargo Database Function Tests
+ * Thapsus Cargo Database Function Tests
  *
  * Standalone test script — no test framework required.
  * Connects to your Supabase database and tests core operations.
@@ -210,7 +210,7 @@ async function testWalletOperations() {
 async function testOrderOperations() {
   console.log('\n📦 Test: Order Operations');
 
-  const trackingNumber = `SC-${TEST_PREFIX}-TEST`;
+  const trackingNumber = `TC-${TEST_PREFIX}-TEST`;
   await pool.query(
     `INSERT INTO orders (id, user_id, tracking_number, retailer, market, status, description, weight_kg, shipping_speed, insurance, estimated_cost)
      VALUES ($1, $2, $3, 'Amazon UK', 'UK', 'pending', 'Test package', 2.5, 'economy', false, 1500)`,
@@ -445,7 +445,7 @@ async function cleanup() {
 
 async function run() {
   console.log('═══════════════════════════════════════════════════════════');
-  console.log('  SwiftCargo Database Function Tests');
+  console.log('  Thapsus Cargo Database Function Tests');
   console.log('═══════════════════════════════════════════════════════════');
 
   try {

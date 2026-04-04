@@ -96,7 +96,7 @@ export async function sendEmail(email, subject, body) {
     console.log('[EMAIL PLACEHOLDER]', {
       to: email,
       subject: subject,
-      from: process.env.SENDGRID_FROM_EMAIL || 'noreply@swiftcargo.co.ke',
+      from: process.env.SENDGRID_FROM_EMAIL || 'noreply@thapsus.uk',
       provider: 'SendGrid',
       timestamp: new Date().toISOString()
     });
@@ -180,7 +180,7 @@ export async function notifyStatusChange(userId, trackingNumber, newStatus, user
       'in_transit': `Your package ${trackingNumber} is now in transit to Kenya.`,
       'customs': `Your package ${trackingNumber} is currently undergoing customs clearance.`,
       'out_for_delivery': `Your package ${trackingNumber} is out for delivery! Track it for real-time updates.`,
-      'delivered': `Your package ${trackingNumber} has been delivered! Thank you for using SwiftCargo.`
+      'delivered': `Your package ${trackingNumber} has been delivered! Thank you for using Thapsus Cargo.`
     };
 
     const message = statusMessages[newStatus] || `Your package ${trackingNumber} status has been updated to ${newStatus}.`;
@@ -211,8 +211,8 @@ export async function notifyStatusChange(userId, trackingNumber, newStatus, user
         <p>${message}</p>
         <p><strong>Tracking Number:</strong> ${trackingNumber}</p>
         <p>Status: <strong>${newStatus.replace('_', ' ').toUpperCase()}</strong></p>
-        <p>Track your package: <a href="https://swiftcargo.co.ke/track/${trackingNumber}">View Status</a></p>
-        <p>Best regards,<br>SwiftCargo Team</p>
+        <p>Track your package: <a href="https://thapsus.uk/track/${trackingNumber}">View Status</a></p>
+        <p>Best regards,<br>Thapsus Cargo Team</p>
       `;
       results.email = await sendEmail(userData.email, `Package Status Update: ${trackingNumber}`, emailBody);
     }

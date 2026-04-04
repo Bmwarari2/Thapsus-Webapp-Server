@@ -257,7 +257,7 @@ export const Dashboard = () => {
             <div className="text-center py-8">
               <Package className="mx-auto text-gray-400 mb-4" size={48} />
               <p className="text-gray-600 mb-2">{t('orders.noOrders')}</p>
-              <p className="text-sm text-gray-400">Orders are created by the SwiftCargo team. Contact support if you need help.</p>
+              <p className="text-sm text-gray-400">Orders are created by the Thapsus Cargo team. Contact support if you need help.</p>
             </div>
           )}
         </div>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'swiftcargo-v1'
+const CACHE_NAME = 'thapsuscargo-v1'
 const urlsToCache = [
   '/',
   '/index.html',
@@ -120,7 +120,7 @@ self.addEventListener('push', (event) => {
   }
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'SwiftCargo', options)
+    self.registration.showNotification(data.title || 'Thapsus Cargo', options)
   )
 })
 

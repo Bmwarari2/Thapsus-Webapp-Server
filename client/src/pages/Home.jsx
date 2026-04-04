@@ -47,7 +47,7 @@ export const Home = () => {
   const testimonials = [
     {
       name: 'John Kimani',
-      text: 'SwiftCargo made shopping international so easy. My packages arrived quickly and in perfect condition!',
+      text: 'Thapsus Cargo made shopping international so easy. My packages arrived quickly and in perfect condition!',
       rating: 5,
     },
     {
@@ -213,7 +213,7 @@ export const Home = () => {
             Ready to start shipping?
           </h2>
           <p className="text-lg text-gray-600 mb-8">
-            Join thousands of satisfied customers shipping with SwiftCargo
+            Join thousands of satisfied customers shipping with Thapsus Cargo
           </p>
           <Link
             to={isAuthenticated ? '/orders/new' : '/register'}

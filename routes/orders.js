@@ -9,7 +9,7 @@ const router = express.Router();
 function generateTrackingNumber() {
   const date   = new Date().toISOString().split('T')[0].replace(/-/g, '');
   const random = Math.random().toString(36).substr(2, 4).toUpperCase();
-  return `SC-${date}-${random}`;
+  return `TC-${date}-${random}`;
 }
 
 /** GET /api/orders */

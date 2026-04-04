@@ -10,14 +10,14 @@ const JWT_EXPIRY = process.env.JWT_EXPIRY || '7d';
 
 function generateWarehouseId() {
   const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  let id = 'SC-';
+  let id = 'TC-';
   for (let i = 0; i < 4; i++) id += chars.charAt(Math.floor(Math.random() * chars.length));
   return id;
 }
 
 function generateReferralCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = 'SC';
+  let code = 'TC';
   for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
   return code;
 }
@@ -299,7 +299,7 @@ router.post('/forgot-password', async (req, res) => {
       [tokenId, user.id, token, expiresAt]
     );
 
-    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.swift-cargo.uk';
+    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
     const { sendPasswordResetEmail } = await import('../utils/email.js');
     sendPasswordResetEmail(user.email, user.name, `${frontendUrl}/reset-password?token=${token}`).catch(console.error);
 

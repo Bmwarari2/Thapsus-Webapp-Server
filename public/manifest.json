@@ -1,6 +1,6 @@
 {
-  "name": "SwiftCargo - Shipping & Forwarding",
-  "short_name": "SwiftCargo",
+  "name": "Thapsus Cargo - Shipping & Forwarding",
+  "short_name": "Thapsus Cargo",
   "description": "Fast, affordable, and reliable shipping services from UK, USA & China to Kenya",
   "start_url": "/",
   "scope": "/",
@@ -10,13 +10,13 @@
   "background_color": "#ffffff",
   "icons": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%231e3a5f' width='192' height='192'/><text x='50%' y='50%' font-size='100' font-weight='bold' text-anchor='middle' dominant-baseline='central' fill='%23f97316'>SC</text></svg>",
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%231e3a5f' width='192' height='192'/><text x='50%' y='50%' font-size='100' font-weight='bold' text-anchor='middle' dominant-baseline='central' fill='%23f97316'>TC</text></svg>",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect fill='%231e3a5f' width='512' height='512'/><text x='50%' y='50%' font-size='280' font-weight='bold' text-anchor='middle' dominant-baseline='central' fill='%23f97316'>SC</text></svg>",
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect fill='%231e3a5f' width='512' height='512'/><text x='50%' y='50%' font-size='280' font-weight='bold' text-anchor='middle' dominant-baseline='central' fill='%23f97316'>TC</text></svg>",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
@@ -25,7 +25,7 @@
   "categories": ["shopping", "logistics"],
   "screenshots": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 540 720'><rect fill='%231e3a5f' width='540' height='720'/><text x='50%' y='50%' font-size='60' font-weight='bold' text-anchor='middle' dominant-baseline='central' fill='white'>SwiftCargo</text></svg>",
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 540 720'><rect fill='%231e3a5f' width='540' height='720'/><text x='50%' y='50%' font-size='60' font-weight='bold' text-anchor='middle' dominant-baseline='central' fill='white'>Thapsus Cargo</text></svg>",
       "sizes": "540x720",
       "type": "image/svg+xml",
       "form_factor": "narrow"

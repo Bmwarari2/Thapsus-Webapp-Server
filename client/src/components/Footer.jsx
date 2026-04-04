@@ -12,7 +12,7 @@ export const Footer = () => {
           {/* Company Info */}
           <div>
             <h3 className="text-2xl font-bold mb-4">
-              <span className="text-white">Swift</span>
+              <span className="text-white">Thapsus</span>
               <span className="text-orange-500">Cargo</span>
             </h3>
             <p className="text-gray-300 text-sm leading-relaxed">
@@ -41,8 +41,8 @@ export const Footer = () => {
               </li>
               <li className="flex items-center gap-2">
                 <Mail size={16} className="text-orange-500" />
-                <a href="mailto:support@swiftcargo.com" className="hover:text-orange-500 transition-colors">
-                  support@swiftcargo.com
+                <a href="mailto:support@thapsus.uk" className="hover:text-orange-500 transition-colors">
+                  support@thapsus.uk
                 </a>
               </li>
               <li className="flex items-center gap-2">

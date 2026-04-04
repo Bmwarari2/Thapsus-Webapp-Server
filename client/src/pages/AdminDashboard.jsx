@@ -1020,7 +1020,7 @@ export const AdminDashboard = () => {
                     id="testEmailTo"
                     defaultValue={user?.email || ''}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
-                    placeholder="admin@swiftcargo.co.ke"
+                    placeholder="admin@thapsus.uk"
                   />
                 </div>
                 <button
@@ -1050,7 +1050,7 @@ export const AdminDashboard = () => {
                 <p className="text-xs font-bold text-gray-600 mb-2">Required Railway environment variables:</p>
                 <ul className="text-xs text-gray-500 space-y-1">
                   <li><code className="bg-gray-200 px-1 rounded">RESEND_API_KEY</code> — your API key from resend.com/api-keys</li>
-                  <li><code className="bg-gray-200 px-1 rounded">EMAIL_FROM</code> — verified sender, e.g. "SwiftCargo &lt;noreply@swiftcargo.co.ke&gt;"</li>
+                  <li><code className="bg-gray-200 px-1 rounded">EMAIL_FROM</code> — verified sender, e.g. "Thapsus Cargo &lt;noreply@thapsus.uk&gt;"</li>
                 </ul>
                 <p className="text-xs text-gray-400 mt-2">
                   Sign up free at <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="text-orange-500 underline">resend.com</a> (100 emails/day free).

@@ -33,17 +33,17 @@ export const WarehouseAddresses = () => {
 
   const defaultAddresses = {
     UK: {
-      full: `31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB, United Kingdom\nAttn: SC-${user?.warehouse_id || 'XXXX'}`,
+      full: `31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB, United Kingdom\nAttn: TC-${user?.warehouse_id || 'XXXX'}`,
       label: 'United Kingdom',
       flag: '🇬🇧',
     },
     USA: {
-      full: `SwiftCargo Warehouse, 1234 Commerce Way, Los Angeles, CA 90001, USA\nAttn: SC-${user?.warehouse_id || 'XXXX'}`,
+      full: `Thapsus Cargo Warehouse, 1234 Commerce Way, Los Angeles, CA 90001, USA\nAttn: TC-${user?.warehouse_id || 'XXXX'}`,
       label: 'United States',
       flag: '🇺🇸',
     },
     China: {
-      full: `SwiftCargo Warehouse, Shanghai, China\nAttn: SC-${user?.warehouse_id || 'XXXX'}`,
+      full: `Thapsus Cargo Warehouse, Shanghai, China\nAttn: TC-${user?.warehouse_id || 'XXXX'}`,
       label: 'China',
       flag: '🇨🇳',
     },
@@ -101,11 +101,11 @@ export const WarehouseAddresses = () => {
                   Copy Address
                 </button>
                 <button
-                  onClick={() => handleCopyAddress(`SC-${user?.warehouse_id || 'XXXX'}`)}
+                  onClick={() => handleCopyAddress(`TC-${user?.warehouse_id || 'XXXX'}`)}
                   className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors"
                 >
                   <Copy size={20} />
-                  Copy SC Code
+                  Copy TC Code
                 </button>
               </div>
 
@@ -126,7 +126,7 @@ export const WarehouseAddresses = () => {
                       <li className="flex gap-2">
                         <span>•</span>
                         <span>
-                          Enter the full address including your SC code in the delivery address
+                          Enter the full address including your TC code in the delivery address
                         </span>
                       </li>
                       <li className="flex gap-2">
@@ -154,7 +154,7 @@ export const WarehouseAddresses = () => {
                       <li className="flex gap-2">
                         <span>•</span>
                         <span>
-                          Make sure your SC code is clearly visible in the recipient name
+                          Make sure your TC code is clearly visible in the recipient name
                         </span>
                       </li>
                     </>
@@ -243,7 +243,7 @@ export const WarehouseAddresses = () => {
             <li className="flex gap-2">
               <span>✓</span>
               <span>
-                Keep your SC code safe and use it consistently for all your orders
+                Keep your TC code safe and use it consistently for all your orders
               </span>
             </li>
             <li className="flex gap-2">

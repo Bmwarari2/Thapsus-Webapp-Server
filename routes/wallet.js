@@ -39,7 +39,7 @@ router.get('/mpesa-info', authMiddleware, async (req, res) => {
       mpesa: {
         paybill_number: 'XXXXXX',         // TODO: Replace with actual paybill number
         account_number: 'XXXXXX',          // TODO: Replace with actual account number
-        business_name: 'SwiftCargo Ltd',
+        business_name: 'Thapsus Cargo Ltd',
         instructions: [
           'Go to M-Pesa on your phone',
           'Select "Lipa na M-Pesa"',
