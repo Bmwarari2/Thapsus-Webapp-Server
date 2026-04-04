@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { Phone, Copy, CheckCircle, AlertCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { apiClient } from '../api/client'
+import api from '../api/client'
 
 export const PublicPayment = () => {
   const { orderId } = useParams()
@@ -24,7 +24,7 @@ export const PublicPayment = () => {
   const fetchOrder = async () => {
     try {
       setLoading(true)
-      const res = await apiClient.get(`/payment/${orderId}`)
+      const res = await api.get(`/payment/${orderId}`)
       if (res.data.success) {
         setOrder(res.data.order)
         setFormData((prev) => ({ ...prev, amount_paid: res.data.order.amount_due }))
@@ -52,7 +52,7 @@ export const PublicPayment = () => {
 
     try {
       setSubmitting(true)
-      const res = await apiClient.post(`/payment/${orderId}/confirm`, {
+      const res = await api.post(`/payment/${orderId}/confirm`, {
         mpesa_message: formData.mpesa_message,
         amount: parseFloat(formData.amount_paid),
         payer_name: formData.payer_name,
