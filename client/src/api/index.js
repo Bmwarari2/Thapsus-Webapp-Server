@@ -56,13 +56,18 @@ export const walletApi = {
   getTransactions: (params = {}) => api.get('/wallet/transactions', { params }),
 
   /**
-   * Initiate a deposit.
-   * @param {string} method  - e.g. 'mpesa' | 'card'
-   * @param {number} amount  - amount in KES
-   * @param {string} phone   - M-Pesa phone number (required for mpesa)
+   * Get Mpesa paybill info.
    */
-  deposit: (method, amount, phone) =>
-    api.post('/wallet/deposit', { method, amount, phone }),
+  getMpesaInfo: () => api.get('/wallet/mpesa-info'),
+
+  /**
+   * Submit Mpesa confirmation message after payment.
+   * @param {string} mpesa_message - The full Mpesa SMS confirmation
+   * @param {string|null} order_id - Optional order ID being paid for
+   * @param {number} amount - Amount paid in KES
+   */
+  submitMpesaConfirmation: (mpesa_message, order_id, amount) =>
+    api.post('/wallet/mpesa-confirm', { mpesa_message, order_id, amount }),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

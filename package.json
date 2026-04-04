@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "cd client && npm run build",
     "preview": "vite preview",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test:db": "node tests/db-test.js"
   },
   "dependencies": {
     "express": "^4.18.2",

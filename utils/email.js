@@ -349,6 +349,37 @@ export async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, ret
 export async function sendWelcomeAccountEmail(toEmail, toName, warehouseId, role, setPasswordLink) {
   const roleLabel = role === 'admin' ? 'Administrator' : 'Customer';
 
+  // Warehouse shipping addresses for the welcome email
+  const warehouseAddresses = warehouseId ? `
+    <!-- Warehouse Shipping Addresses -->
+    <h3 style="margin:24px 0 12px;color:#1e3a5f;font-size:18px;">Your Shipping Addresses</h3>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:14px;line-height:1.6;">
+      Use these addresses when shopping from international retailers. Include your Warehouse ID (<strong>${warehouseId}</strong>) in the recipient/attention field.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0f9ff;border-radius:8px;padding:20px;margin-bottom:16px;border:1px solid #bae6fd;">
+      <tr>
+        <td style="padding:10px 0;border-bottom:1px solid #bae6fd;">
+          <span style="color:#6b7280;font-size:13px;">&#127468;&#127463; United Kingdom</span><br>
+          <strong style="color:#111827;font-size:14px;">31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB, United Kingdom</strong><br>
+          <span style="color:#f97316;font-size:13px;font-family:monospace;">Attn: ${warehouseId}</span>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:10px 0;border-bottom:1px solid #bae6fd;">
+          <span style="color:#6b7280;font-size:13px;">&#127482;&#127480; United States</span><br>
+          <strong style="color:#111827;font-size:14px;">SwiftCargo Warehouse, 1234 Commerce Way, Los Angeles, CA 90001, USA</strong><br>
+          <span style="color:#f97316;font-size:13px;font-family:monospace;">Attn: ${warehouseId}</span>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:10px 0;">
+          <span style="color:#6b7280;font-size:13px;">&#127464;&#127475; China</span><br>
+          <strong style="color:#111827;font-size:14px;">SwiftCargo Warehouse, Shanghai, China</strong><br>
+          <span style="color:#f97316;font-size:13px;font-family:monospace;">Attn: ${warehouseId}</span>
+        </td>
+      </tr>
+    </table>` : '';
+
   const bodyHtml = `
     <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Welcome to SwiftCargo!</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
@@ -380,6 +411,8 @@ export async function sendWelcomeAccountEmail(toEmail, toName, warehouseId, role
       </tr>` : ''}
     </table>
 
+    ${warehouseAddresses}
+
     <p style="margin:0 0 24px;color:#4b5563;font-size:16px;line-height:1.6;">
       To get started, please set up your password by clicking the button below. This link will expire in <strong>24 hours</strong>.
     </p>
@@ -410,7 +443,7 @@ export async function sendWelcomeAccountEmail(toEmail, toName, warehouseId, role
     to: toEmail,
     subject: `Welcome to SwiftCargo — Set Up Your Account`,
     html: emailLayout(bodyHtml),
-    text: `Hello ${toName || 'there'},\n\nA SwiftCargo ${roleLabel.toLowerCase()} account has been created for you.\n\nEmail: ${toEmail}\nAccount Type: ${roleLabel}\n${warehouseId ? `Warehouse ID: ${warehouseId}\n` : ''}\nTo get started, please set up your password using this link (expires in 24 hours):\n${setPasswordLink}\n\nOnce your password is set, you can log in to manage your shipments.\n\n— SwiftCargo Team`,
+    text: `Hello ${toName || 'there'},\n\nA SwiftCargo ${roleLabel.toLowerCase()} account has been created for you.\n\nEmail: ${toEmail}\nAccount Type: ${roleLabel}\n${warehouseId ? `Warehouse ID: ${warehouseId}\n\nYour Shipping Addresses (include your Warehouse ID in the Attn field):\n\nUK: 31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB, United Kingdom — Attn: ${warehouseId}\nUSA: SwiftCargo Warehouse, 1234 Commerce Way, Los Angeles, CA 90001, USA — Attn: ${warehouseId}\nChina: SwiftCargo Warehouse, Shanghai, China — Attn: ${warehouseId}\n` : ''}\nTo get started, please set up your password using this link (expires in 24 hours):\n${setPasswordLink}\n\nOnce your password is set, you can log in to manage your shipments.\n\n— SwiftCargo Team`,
   });
 }
 

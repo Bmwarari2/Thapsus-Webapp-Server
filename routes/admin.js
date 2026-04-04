@@ -125,9 +125,15 @@ router.put('/users/:id', authMiddleware, isAdmin, async (req, res) => {
   try {
     const db = req.db;
     const { id } = req.params;
+    const adminId = req.user.id;
     const { role, is_active } = req.body;
 
-    const userCheck = await db.query('SELECT id FROM users WHERE id = $1', [id]);
+    // Prevent admin from deactivating themselves
+    if (id === adminId && is_active === false) {
+      return res.status(400).json({ success: false, message: 'You cannot deactivate your own account' });
+    }
+
+    const userCheck = await db.query('SELECT id, email, name, is_active FROM users WHERE id = $1', [id]);
     if (!userCheck.rows[0]) return res.status(404).json({ success: false, message: 'User not found' });
 
     const params = [];
@@ -141,6 +147,20 @@ router.put('/users/:id', authMiddleware, isAdmin, async (req, res) => {
     updates.push('updated_at = NOW()');
     params.push(id);
     await db.query(`UPDATE users SET ${updates.join(', ')} WHERE id = $${params.length}`, params);
+
+    // Log the action
+    const userInfo = userCheck.rows[0];
+    if (is_active !== undefined) {
+      const action = is_active ? 'reactivate_user' : 'deactivate_user';
+      await db.query(
+        'INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1, $2, $3, $4)',
+        [uuidv4(), adminId, action, JSON.stringify({
+          user_id: id, email: userInfo.email, name: userInfo.name,
+          previous_status: userInfo.is_active, new_status: is_active
+        })]
+      );
+    }
+
     const updated = await db.query('SELECT id, email, name, phone, role, warehouse_id, is_active FROM users WHERE id = $1', [id]);
     res.json({ success: true, message: 'User updated successfully', user: updated.rows[0] });
   } catch (error) {
@@ -238,7 +258,7 @@ router.post('/test-email', authMiddleware, isAdmin, async (req, res) => {
 
     // Try to send
     const { sendPasswordResetEmail } = await import('../utils/email.js');
-    await sendPasswordResetEmail(recipientEmail, 'SwiftCargo Admin', 'https://swiftcargo.up.railway.app/test-only-link');
+    await sendPasswordResetEmail(recipientEmail, 'SwiftCargo Admin', 'https://www.swift-cargo.uk/test-only-link');
 
     res.json({
       success: true,
@@ -669,7 +689,7 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
     sendInAppNotification(customer.id, `A new order (${trackingNumber}) has been created for you by SwiftCargo.`);
 
     // Send email notification to customer (fire-and-forget — don't block the response)
-    const appUrl = process.env.APP_URL || 'https://swiftcargo.up.railway.app';
+    const appUrl = process.env.APP_URL || 'https://www.swift-cargo.uk';
     sendOrderCreatedEmail(
       customer.email,
       customer.name,
@@ -857,7 +877,7 @@ router.post('/users/create', authMiddleware, isAdmin, async (req, res) => {
     }
 
     // Send welcome email with password setup link (fire-and-forget)
-    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://swiftcargo.up.railway.app';
+    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.swift-cargo.uk';
     sendWelcomeAccountEmail(
       email.toLowerCase().trim(),
       name,
@@ -896,7 +916,7 @@ router.post('/orders/:id/send-reminder', authMiddleware, isAdmin, async (req, re
       return res.status(400).json({ success: false, message: 'A valid payment amount is required.' });
     }
 
-    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://swiftcargo.up.railway.app';
+    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.swift-cargo.uk';
     sendPaymentReminderEmail(
       order.email,
       order.customer_name,

@@ -573,22 +573,43 @@ export const AdminDashboard = () => {
                       <td className="px-6 py-4 text-sm text-gray-600">{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
                       <td className="px-6 py-4">
                         {u.id !== user?.id && (
-                          <button
-                            onClick={async () => {
-                              if (!window.confirm(`Permanently delete user ${u.name} (${u.email})? This will remove ALL their orders, transactions, and data. This cannot be undone.`)) return
-                              try {
-                                await adminApi.deleteUser(u.id)
-                                toast.success(`User ${u.name} deleted successfully`)
-                                setUsers((prev) => prev.filter((usr) => usr.id !== u.id))
-                              } catch (err) {
-                                toast.error(err.response?.data?.message || err.message || 'Failed to delete user')
-                              }
-                            }}
-                            title="Delete User"
-                            className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 transition-colors"
-                          >
-                            <Trash2 size={15} />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            {/* Deactivate / Reactivate toggle */}
+                            <button
+                              onClick={async () => {
+                                const action = u.is_active ? 'deactivate' : 'reactivate'
+                                if (!window.confirm(`${action === 'deactivate' ? 'Deactivate' : 'Reactivate'} ${u.name} (${u.email})? ${action === 'deactivate' ? 'They will not be able to log in.' : 'They will be able to log in again.'}`)) return
+                                try {
+                                  await adminApi.updateUser(u.id, { is_active: !u.is_active })
+                                  toast.success(`User ${u.name} ${action === 'deactivate' ? 'deactivated' : 'reactivated'} successfully`)
+                                  setUsers((prev) => prev.map((usr) => usr.id === u.id ? { ...usr, is_active: !u.is_active } : usr))
+                                } catch (err) {
+                                  toast.error(err.response?.data?.message || err.message || `Failed to ${action} user`)
+                                }
+                              }}
+                              title={u.is_active ? 'Deactivate Account' : 'Reactivate Account'}
+                              className={`p-1.5 rounded-lg transition-colors ${u.is_active ? 'bg-yellow-50 hover:bg-yellow-100 text-yellow-700' : 'bg-green-50 hover:bg-green-100 text-green-700'}`}
+                            >
+                              {u.is_active ? <XCircle size={15} /> : <RefreshCw size={15} />}
+                            </button>
+                            {/* Delete permanently */}
+                            <button
+                              onClick={async () => {
+                                if (!window.confirm(`Permanently delete user ${u.name} (${u.email})? This will remove ALL their orders, transactions, and data. This cannot be undone.`)) return
+                                try {
+                                  await adminApi.deleteUser(u.id)
+                                  toast.success(`User ${u.name} deleted successfully`)
+                                  setUsers((prev) => prev.filter((usr) => usr.id !== u.id))
+                                } catch (err) {
+                                  toast.error(err.response?.data?.message || err.message || 'Failed to delete user')
+                                }
+                              }}
+                              title="Permanently Delete User"
+                              className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 transition-colors"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>

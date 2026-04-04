@@ -299,7 +299,7 @@ router.post('/forgot-password', async (req, res) => {
       [tokenId, user.id, token, expiresAt]
     );
 
-    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://swiftcargo.up.railway.app';
+    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.swift-cargo.uk';
     const { sendPasswordResetEmail } = await import('../utils/email.js');
     sendPasswordResetEmail(user.email, user.name, `${frontendUrl}/reset-password?token=${token}`).catch(console.error);
 

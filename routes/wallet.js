@@ -30,45 +30,101 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-/** POST /api/wallet/deposit */
-router.post('/deposit', authMiddleware, async (req, res) => {
+/** GET /api/wallet/mpesa-info – Get Mpesa paybill details for payment */
+router.get('/mpesa-info', authMiddleware, async (req, res) => {
+  try {
+    // Mpesa paybill details — update these placeholders with your real values
+    res.json({
+      success: true,
+      mpesa: {
+        paybill_number: 'XXXXXX',         // TODO: Replace with actual paybill number
+        account_number: 'XXXXXX',          // TODO: Replace with actual account number
+        business_name: 'SwiftCargo Ltd',
+        instructions: [
+          'Go to M-Pesa on your phone',
+          'Select "Lipa na M-Pesa"',
+          'Select "Pay Bill"',
+          'Enter Business Number: XXXXXX',
+          'Enter Account Number: XXXXXX',
+          'Enter the amount',
+          'Enter your M-Pesa PIN and confirm',
+          'Copy the confirmation message and paste it below'
+        ]
+      }
+    });
+  } catch (error) {
+    console.error('Mpesa info error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch Mpesa info' });
+  }
+});
+
+/** POST /api/wallet/mpesa-confirm – Submit Mpesa confirmation message */
+router.post('/mpesa-confirm', authMiddleware, async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
-    const { amount, payment_method, payment_details } = req.body;
+    const { mpesa_message, order_id, amount } = req.body;
 
-    if (!amount || amount <= 0)
-      return res.status(400).json({ success: false, message: 'Invalid amount' });
-    if (!payment_method)
-      return res.status(400).json({ success: false, message: 'Payment method is required' });
-    if (!['mpesa', 'stripe', 'paypal'].includes(payment_method))
-      return res.status(400).json({ success: false, message: 'Invalid payment method. Must be mpesa, stripe, or paypal' });
+    if (!mpesa_message || !mpesa_message.trim()) {
+      return res.status(400).json({ success: false, message: 'Mpesa confirmation message is required' });
+    }
+
+    // Extract transaction code from Mpesa message (format: e.g. "ABC123XYZ Confirmed...")
+    const codeMatch = mpesa_message.trim().match(/^([A-Z0-9]{8,12})\s/i);
+    const mpesaCode = codeMatch ? codeMatch[1].toUpperCase() : null;
+
+    // Check for duplicate submission
+    if (mpesaCode) {
+      const existing = await db.query(
+        'SELECT id FROM transactions WHERE payment_reference = $1',
+        [mpesaCode]
+      );
+      if (existing.rows.length > 0) {
+        return res.status(409).json({ success: false, message: 'This Mpesa transaction has already been submitted' });
+      }
+    }
 
     const transactionId = uuidv4();
-    const paymentReference = `${payment_method.toUpperCase()}-${transactionId.slice(0, 8)}`;
+    const paymentReference = mpesaCode || `MPESA-${transactionId.slice(0, 8)}`;
 
     await db.query(
       `INSERT INTO transactions (id, user_id, type, amount, currency, payment_method, payment_reference, status)
-       VALUES ($1,$2,'deposit',$3,'KES',$4,$5,'pending')`,
-      [transactionId, userId, amount, payment_method, paymentReference]
+       VALUES ($1, $2, 'deposit', $3, 'KES', 'mpesa', $4, 'pending')`,
+      [transactionId, userId, amount || 0, paymentReference]
     );
 
-    let processingResult = { success: false, message: 'Payment processing placeholder', requiresAction: false };
-    if (payment_method === 'mpesa') {
-      processingResult = { success: true, message: 'M-Pesa STK push initiated', requiresAction: true,
-        details: { method: 'MPESA_STK_PUSH', phone: payment_details?.phone || '', amount, instruction: 'Check your phone for M-Pesa prompt' } };
-    } else if (payment_method === 'stripe') {
-      processingResult = { success: true, message: 'Stripe payment processing', requiresAction: true,
-        details: { method: 'STRIPE_CHECKOUT', sessionId: `cs_test_${transactionId.slice(0, 12)}`, redirectUrl: '/stripe-checkout', instruction: 'You will be redirected to Stripe checkout' } };
-    } else if (payment_method === 'paypal') {
-      processingResult = { success: true, message: 'PayPal payment processing', requiresAction: true,
-        details: { method: 'PAYPAL_REDIRECT', redirectUrl: '/paypal-checkout', instruction: 'You will be redirected to PayPal' } };
+    // Store the full Mpesa message in admin_logs for admin verification
+    await db.query(
+      `INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1, NULL, $2, $3)`,
+      [uuidv4(), 'mpesa_payment_submitted', JSON.stringify({
+        user_id: userId,
+        transaction_id: transactionId,
+        mpesa_code: mpesaCode,
+        mpesa_message: mpesa_message.trim(),
+        order_id: order_id || null,
+        amount: amount || 0,
+        submitted_at: new Date().toISOString()
+      })]
+    );
+
+    // Create in-app notification for admins
+    const admins = await db.query("SELECT id FROM users WHERE role = 'admin' AND is_active = true");
+    for (const admin of admins.rows) {
+      await db.query(
+        `INSERT INTO notifications (id, user_id, type, message) VALUES ($1, $2, 'in_app', $3)`,
+        [uuidv4(), admin.id, `New Mpesa payment submitted by user. Reference: ${paymentReference}. Amount: KES ${amount || 'unspecified'}. Awaiting verification.`]
+      );
     }
 
-    res.status(202).json({ success: true, message: 'Deposit initiated', transaction_id: transactionId, processing: processingResult });
+    res.status(201).json({
+      success: true,
+      message: 'Mpesa payment confirmation submitted. Our team will verify and credit your account.',
+      transaction_id: transactionId,
+      payment_reference: paymentReference
+    });
   } catch (error) {
-    console.error('Deposit error:', error);
-    res.status(500).json({ success: false, message: 'Deposit failed' });
+    console.error('Mpesa confirm error:', error);
+    res.status(500).json({ success: false, message: 'Failed to submit Mpesa confirmation' });
   }
 });
 
