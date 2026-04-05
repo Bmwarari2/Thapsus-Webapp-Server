@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
 import { ordersApi, walletApi } from '../api'
 import toast from 'react-hot-toast'
+import { useOrderUpdates, useWalletUpdates } from '../hooks/useRealtimeUpdates'
 
 export const Dashboard = () => {
   const { user } = useAuth()
@@ -61,6 +62,42 @@ export const Dashboard = () => {
 
     fetchData()
   }, []) // ← mount only; referralEarnings is derived from live `user` context below
+
+  // Live updates: keep active orders and wallet balance in sync with SSE events
+  useOrderUpdates(({ action, order }) => {
+    if (!order) return
+
+    const isActiveStatus = ['pending', 'received_at_warehouse', 'consolidating', 'in_transit', 'customs', 'out_for_delivery'].includes(
+      order.status,
+    )
+
+    setOrders((prev) => {
+      // Remove any previous instance of this order
+      let next = prev.filter((o) => o.id !== order.id)
+
+      // Only keep it in the dashboard list if it is still an "active" order
+      if (isActiveStatus) {
+        next = [order, ...next].sort(
+          (a, b) => new Date(b.created_at || b.createdAt) - new Date(a.created_at || a.createdAt),
+        )
+      }
+
+      setStats((prevStats) => ({
+        ...prevStats,
+        activeOrders: next.length,
+      }))
+
+      return next
+    })
+  })
+
+  useWalletUpdates((payload) => {
+    if (!payload || typeof payload.balance !== 'number') return
+    setStats((prevStats) => ({
+      ...prevStats,
+      walletBalance: payload.balance,
+    }))
+  })
 
   // Build the full shipping address lines
   const addressLines = [
