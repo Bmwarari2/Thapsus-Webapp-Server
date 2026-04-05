@@ -349,7 +349,10 @@ export async function initializeDatabase() {
     throw err;
   }
 
-  // ── Step 2: verify connection, role, and RLS status ──────────────────────
+  // ── Step 2: verify connection, check role, detect read-only ─────────────
+  let dbUser = 'unknown';
+  let isReadOnly = false;
+
   try {
     const versionRes = await client.query('SELECT version()');
     console.log(`✓ Database connected — ${versionRes.rows[0].version.split(' ').slice(0, 2).join(' ')}`);
@@ -357,59 +360,83 @@ export async function initializeDatabase() {
     console.error('⚠ Connected but SELECT version() failed:', err.message);
   }
 
-  // Check which role we're connected as — must be 'postgres' to bypass RLS
+  // Check role
   try {
     const roleRes = await client.query('SELECT current_user, current_setting(\'role\') AS session_role');
-    const { current_user: dbUser, session_role: sessRole } = roleRes.rows[0];
+    dbUser = roleRes.rows[0].current_user;
+    const sessRole = roleRes.rows[0].session_role;
     console.log(`✓ Connected as role: ${dbUser} (session: ${sessRole})`);
 
     if (dbUser !== 'postgres' && sessRole !== 'postgres') {
       console.error(`⚠ WARNING: Connected as "${dbUser}" instead of "postgres".`);
       console.error('  RLS policies may block queries. Use the direct connection string (port 5432).');
-      console.error('  Go to Supabase → Settings → Database → Connection string (URI)');
     }
   } catch (err) {
     console.error('⚠ Could not check database role:', err.message);
   }
 
-  // ── Step 3: create tables one by one ─────────────────────────────────────
-  const results = { ok: [], failed: [] };
+  // Check if connection is read-only (Supabase transaction pooler = read-only for DDL)
+  try {
+    const txRes = await client.query('SHOW transaction_read_only');
+    isReadOnly = txRes.rows[0]?.transaction_read_only === 'on';
+    if (isReadOnly) {
+      console.error(`
+╔══════════════════════════════════════════════════════════════════╗
+║  ⚠ DATABASE CONNECTION IS READ-ONLY                              ║
+║                                                                  ║
+║  Your DATABASE_URL is using the Supabase transaction pooler      ║
+║  (port 6543). This blocks CREATE TABLE, ALTER TABLE, etc.        ║
+║                                                                  ║
+║  To fix: use the DIRECT connection string instead:               ║
+║  Supabase → Settings → Database → Connection string → URI        ║
+║  Make sure it uses port 5432 and starts with:                    ║
+║  postgresql://postgres.[REF]:[PASS]@aws-0-...:5432/postgres      ║
+║                                                                  ║
+║  Skipping schema creation — using existing tables only.          ║
+╚══════════════════════════════════════════════════════════════════╝
+      `);
+    }
+  } catch (err) {
+    console.error('⚠ Could not check transaction_read_only:', err.message);
+  }
 
-  for (const table of TABLES) {
-    try {
-      await client.query(table.sql);
-      results.ok.push(table.name);
+  // ── Step 3: create tables (skip if read-only) ───────────────────────────
+  if (!isReadOnly) {
+    const results = { ok: [], failed: [] };
 
-      // Create indexes for this table
-      for (const idx of table.indexes) {
-        try {
-          await client.query(idx);
-        } catch (idxErr) {
-          console.error(`  ⚠ Index failed for ${table.name}: ${idxErr.message}`);
+    for (const table of TABLES) {
+      try {
+        await client.query(table.sql);
+        results.ok.push(table.name);
+
+        for (const idx of table.indexes) {
+          try {
+            await client.query(idx);
+          } catch (idxErr) {
+            console.error(`  ⚠ Index failed for ${table.name}: ${idxErr.message}`);
+          }
         }
+      } catch (err) {
+        results.failed.push({ name: table.name, error: err.message });
+        console.error(`  ✗ Table "${table.name}" failed: ${err.message}`);
       }
-    } catch (err) {
-      results.failed.push({ name: table.name, error: err.message });
-      console.error(`  ✗ Table "${table.name}" failed: ${err.message}`);
+    }
+
+    if (results.failed.length === 0) {
+      console.log(`✓ Database schema initialised — ${results.ok.length}/${TABLES.length} tables ready`);
+    } else {
+      console.error(`\n⚠ Database schema partially initialised:`);
+      console.error(`  ✓ ${results.ok.length} tables OK: ${results.ok.join(', ')}`);
+      console.error(`  ✗ ${results.failed.length} tables FAILED:`);
+      for (const f of results.failed) {
+        console.error(`    - ${f.name}: ${f.error}`);
+      }
     }
   }
 
   client.release();
 
-  // ── Step 4: report results ───────────────────────────────────────────────
-  if (results.failed.length === 0) {
-    console.log(`✓ Database schema initialised — ${results.ok.length}/${TABLES.length} tables ready`);
-  } else {
-    console.error(`\n⚠ Database schema partially initialised:`);
-    console.error(`  ✓ ${results.ok.length} tables OK: ${results.ok.join(', ')}`);
-    console.error(`  ✗ ${results.failed.length} tables FAILED:`);
-    for (const f of results.failed) {
-      console.error(`    - ${f.name}: ${f.error}`);
-    }
-    console.error('');
-  }
-
-  // ── Step 5: verify key tables exist by querying information_schema ───────
+  // ── Step 4: verify tables exist in database ─────────────────────────────
   try {
     const checkRes = await pool.query(`
       SELECT table_name
@@ -423,18 +450,18 @@ export async function initializeDatabase() {
 
     if (missing.length > 0) {
       console.error(`⚠ Missing tables in database: ${missing.join(', ')}`);
-      console.error('  These tables need to be created manually or the errors above need fixing.');
+      console.error('  Create these manually in the Supabase SQL Editor.');
     } else {
       console.log(`✓ All ${expected.length} tables verified in database`);
     }
+
+    // Also log all public tables for debugging
+    console.log(`  Tables found: ${existing.join(', ')}`);
   } catch (err) {
     console.error('⚠ Could not verify tables:', err.message);
   }
 
-  // ── Step 6: detect and disable RLS on all app tables ─────────────────────
-  // Supabase enables RLS by default. Our backend connects as 'postgres' via
-  // the direct connection string and handles auth via JWT middleware, so RLS
-  // would block all reads/writes unless explicit policies exist.
+  // ── Step 5: check RLS status and attempt to disable ─────────────────────
   try {
     const rlsRes = await pool.query(`
       SELECT tablename, rowsecurity
@@ -446,21 +473,77 @@ export async function initializeDatabase() {
 
     if (rlsEnabled.length > 0) {
       console.log(`⚠ RLS is enabled on ${rlsEnabled.length} table(s): ${rlsEnabled.map(r => r.tablename).join(', ')}`);
-      console.log('  Disabling RLS — this backend handles auth via JWT middleware...');
 
-      for (const row of rlsEnabled) {
-        try {
-          await pool.query(`ALTER TABLE public."${row.tablename}" DISABLE ROW LEVEL SECURITY`);
-          console.log(`  ✓ RLS disabled on "${row.tablename}"`);
-        } catch (rlsErr) {
-          console.error(`  ✗ Failed to disable RLS on "${row.tablename}": ${rlsErr.message}`);
+      if (isReadOnly) {
+        console.error('  ✗ Cannot disable RLS — connection is read-only (pooler mode).');
+        console.error('  → Run this in Supabase SQL Editor to disable RLS:');
+        console.error('  ────────────────────────────────────────────');
+        for (const row of rlsEnabled) {
+          console.error(`  ALTER TABLE public."${row.tablename}" DISABLE ROW LEVEL SECURITY;`);
+        }
+        console.error('  ────────────────────────────────────────────');
+      } else {
+        console.log('  Disabling RLS — this backend handles auth via JWT middleware...');
+        for (const row of rlsEnabled) {
+          try {
+            await pool.query(`ALTER TABLE public."${row.tablename}" DISABLE ROW LEVEL SECURITY`);
+            console.log(`  ✓ RLS disabled on "${row.tablename}"`);
+          } catch (rlsErr) {
+            console.error(`  ✗ Failed to disable RLS on "${row.tablename}": ${rlsErr.message}`);
+          }
         }
       }
     } else {
-      console.log('✓ RLS is not enabled on any tables (OK for backend-managed auth)');
+      console.log('✓ RLS is not enabled on any tables');
     }
   } catch (err) {
     console.error('⚠ Could not check RLS status:', err.message);
+  }
+
+  // ── Step 6: check for broken RLS policies (uuid = text mismatch) ────────
+  try {
+    const policiesRes = await pool.query(`
+      SELECT schemaname, tablename, policyname, qual, with_check
+      FROM pg_policies
+      WHERE schemaname = 'public'
+    `);
+
+    if (policiesRes.rows.length > 0) {
+      console.log(`⚠ Found ${policiesRes.rows.length} RLS policies on public tables:`);
+      for (const p of policiesRes.rows) {
+        console.log(`  - ${p.tablename}: "${p.policyname}" → ${p.qual || '(no qual)'}`);
+      }
+      if (isReadOnly) {
+        console.error('  → To drop these policies, run in Supabase SQL Editor:');
+        console.error('  ────────────────────────────────────────────');
+        for (const p of policiesRes.rows) {
+          console.error(`  DROP POLICY IF EXISTS "${p.policyname}" ON public."${p.tablename}";`);
+        }
+        console.error('  ────────────────────────────────────────────');
+      } else {
+        console.log('  Dropping RLS policies — this backend uses JWT middleware for auth...');
+        for (const p of policiesRes.rows) {
+          try {
+            await pool.query(`DROP POLICY IF EXISTS "${p.policyname}" ON public."${p.tablename}"`);
+            console.log(`  ✓ Dropped policy "${p.policyname}" on "${p.tablename}"`);
+          } catch (dropErr) {
+            console.error(`  ✗ Failed to drop "${p.policyname}": ${dropErr.message}`);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    // pg_policies may not be accessible depending on role
+    console.error('⚠ Could not check RLS policies:', err.message);
+  }
+
+  // ── Step 7: quick data test — can we actually read from users? ──────────
+  try {
+    const testRes = await pool.query('SELECT COUNT(*) AS cnt FROM users');
+    console.log(`✓ Data access test: users table has ${testRes.rows[0].cnt} row(s)`);
+  } catch (err) {
+    console.error(`✗ Data access test FAILED on users table: ${err.message}`);
+    console.error('  This confirms RLS or permissions are blocking reads.');
   }
 
   return pool;
