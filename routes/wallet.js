@@ -72,8 +72,11 @@ router.post('/mpesa-confirm', authMiddleware, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Mpesa confirmation message is required' });
     }
 
+    const trimmedMessage = mpesa_message.trim();
+    const numericAmount = typeof amount === 'number' ? amount : parseFloat(amount) || 0;
+
     // Extract transaction code from Mpesa message (format: e.g. "ABC123XYZ Confirmed...")
-    const codeMatch = mpesa_message.trim().match(/^([A-Z0-9]{8,12})\s/i);
+    const codeMatch = trimmedMessage.match(/^([A-Z0-9]{8,12})\s/i);
     const mpesaCode = codeMatch ? codeMatch[1].toUpperCase() : null;
 
     // Check for duplicate submission
@@ -90,40 +93,62 @@ router.post('/mpesa-confirm', authMiddleware, async (req, res) => {
     const transactionId = uuidv4();
     const paymentReference = mpesaCode || `MPESA-${transactionId.slice(0, 8)}`;
 
+    // Record the pending Mpesa transaction
     await db.query(
       `INSERT INTO transactions (id, user_id, type, amount, currency, payment_method, payment_reference, status)
        VALUES ($1, $2, 'deposit', $3, 'KES', 'mpesa', $4, 'pending')`,
-      [transactionId, userId, amount || 0, paymentReference]
+      [transactionId, userId, numericAmount, paymentReference]
     );
 
-    // Store the full Mpesa message in admin_logs for admin verification
-    await db.query(
-      `INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1, NULL, $2, $3)`,
-      [uuidv4(), 'mpesa_payment_submitted', JSON.stringify({
-        user_id: userId,
-        transaction_id: transactionId,
-        mpesa_code: mpesaCode,
-        mpesa_message: mpesa_message.trim(),
-        order_id: order_id || null,
-        amount: amount || 0,
-        submitted_at: new Date().toISOString()
-      })]
-    );
-
-    // Create in-app notification for admins
-    const admins = await db.query("SELECT id FROM users WHERE role = 'admin' AND is_active = true");
-    for (const admin of admins.rows) {
+    // Best-effort: store the full Mpesa message in admin_logs for admin verification.
+    // If the admin_logs table is missing or misconfigured, do not fail the payment submission.
+    try {
       await db.query(
-        `INSERT INTO notifications (id, user_id, type, message) VALUES ($1, $2, 'in_app', $3)`,
-        [uuidv4(), admin.id, `New Mpesa payment submitted by user. Reference: ${paymentReference}. Amount: KES ${amount || 'unspecified'}. Awaiting verification.`]
+        `INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1, NULL, $2, $3)`,
+        [
+          uuidv4(),
+          'mpesa_payment_submitted',
+          JSON.stringify({
+            user_id: userId,
+            transaction_id: transactionId,
+            mpesa_code: mpesaCode,
+            mpesa_message: trimmedMessage,
+            order_id: order_id || null,
+            amount: numericAmount,
+            submitted_at: new Date().toISOString(),
+          }),
+        ]
       );
+    } catch (logError) {
+      console.warn('Failed to log Mpesa payment submission to admin_logs:', logError.message || logError);
+    }
+
+    // Best-effort: create in-app notification for admins. If notifications fail, do not block the submission.
+    try {
+      const admins = await db.query("SELECT id FROM users WHERE role = 'admin' AND is_active = true");
+      for (const admin of admins.rows) {
+        try {
+          await db.query(
+            `INSERT INTO notifications (id, user_id, type, message) VALUES ($1, $2, 'in_app', $3)`,
+            [
+              uuidv4(),
+              admin.id,
+              `New Mpesa payment submitted by user. Reference: ${paymentReference}. Amount: KES ${numericAmount || 'unspecified'}. Awaiting verification.`,
+            ]
+          );
+        } catch (notifError) {
+          console.warn('Failed to create Mpesa notification for admin', admin.id, notifError.message || notifError);
+        }
+      }
+    } catch (adminFetchError) {
+      console.warn('Failed to fetch admins for Mpesa notification:', adminFetchError.message || adminFetchError);
     }
 
     res.status(201).json({
       success: true,
       message: 'Mpesa payment confirmation submitted. Our team will verify and credit your account.',
       transaction_id: transactionId,
-      payment_reference: paymentReference
+      payment_reference: paymentReference,
     });
   } catch (error) {
     console.error('Mpesa confirm error:', error);

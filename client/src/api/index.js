@@ -188,6 +188,9 @@ export const adminApi = {
   /** Reject a payment transaction */
   rejectPayment: (id, reason) => api.post(`/admin/transactions/${id}/reject`, { reason }),
 
+  /** View the raw Mpesa message submitted as proof of payment */
+  getPaymentProof: (id) => api.get(`/admin/transactions/${id}/proof`),
+
   /** Get email logs for a user */
   getUserEmails: (id) => api.get(`/admin/users/${id}/emails`),
 

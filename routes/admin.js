@@ -1158,6 +1158,45 @@ router.post('/transactions/:id/reject', authMiddleware, isAdmin, async (req, res
   }
 });
 
+/** GET /api/admin/transactions/:id/proof – Retrieve Mpesa proof-of-payment message for a transaction */
+router.get('/transactions/:id/proof', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+    const { id } = req.params;
+
+    // Look up the admin_log entry created when the user submitted the Mpesa payment
+    const logsRes = await db.query(
+      `SELECT details FROM admin_logs
+       WHERE action = 'mpesa_payment_submitted' AND details LIKE $1
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [`%${id}%`]
+    );
+
+    if (!logsRes.rows[0]) {
+      return res.status(404).json({ success: false, message: 'No proof of payment message found for this transaction' });
+    }
+
+    const rawDetails = logsRes.rows[0].details;
+    let payload = null;
+    try {
+      payload = typeof rawDetails === 'string' ? JSON.parse(rawDetails) : rawDetails;
+    } catch (parseError) {
+      console.warn('Failed to parse admin_logs.details for Mpesa proof:', parseError.message || parseError);
+    }
+
+    const mpesaMessage = payload?.mpesa_message || null;
+    if (!mpesaMessage) {
+      return res.status(404).json({ success: false, message: 'Mpesa message not stored for this transaction' });
+    }
+
+    res.json({ success: true, mpesa_message: mpesaMessage, meta: { user_id: payload.user_id, amount: payload.amount, mpesa_code: payload.mpesa_code, order_id: payload.order_id || null, submitted_at: payload.submitted_at || null } });
+  } catch (error) {
+    console.error('Get Mpesa proof error:', error);
+    res.status(500).json({ success: false, message: 'Failed to load proof of payment' });
+  }
+});
+
 /** GET /api/admin/users/:id/emails */
 router.get('/users/:id/emails', authMiddleware, isAdmin, async (req, res) => {
   try {
