@@ -15,13 +15,16 @@ export const Dashboard = () => {
   const [stats, setStats] = useState({
     activeOrders: 0,
     walletBalance: 0,
-    referralEarnings: 0,
   })
 
+  // Fetch once on mount — the auth token is already in storage and is
+  // attached to every request by the axios interceptor in api/client.js.
+  // Depending on [user] caused double (and triple) fetches because
+  // AuthContext sets user twice: optimistic restore → server verification.
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Use Promise.allSettled so a single failure doesn't block the whole dashboard
+        // Promise.allSettled so a single failure doesn't block the whole dashboard
         const [ordersResult, walletResult] = await Promise.allSettled([
           ordersApi.list(),
           walletApi.getBalance(),
@@ -48,7 +51,6 @@ export const Dashboard = () => {
         setStats({
           activeOrders: activeOrders.length,
           walletBalance,
-          referralEarnings: user?.referral_earnings || user?.referralEarnings || 0,
         })
       } catch (err) {
         toast.error('Failed to load dashboard')
@@ -58,7 +60,7 @@ export const Dashboard = () => {
     }
 
     fetchData()
-  }, [user])
+  }, []) // ← mount only; referralEarnings is derived from live `user` context below
 
   // Build the full shipping address lines
   const addressLines = [
@@ -95,6 +97,9 @@ export const Dashboard = () => {
   const formatStatus = (status) => {
     return status?.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'Pending'
   }
+
+  // Derived directly from AuthContext so it stays in sync without an extra fetch
+  const referralEarnings = user?.referral_earnings || user?.referralEarnings || 0
 
   if (loading) {
     return (
@@ -165,13 +170,13 @@ export const Dashboard = () => {
             </div>
           </div>
 
-          {/* Referral Earnings */}
+          {/* Referral Earnings — derived from live AuthContext user */}
           <div className="card hover:shadow-xl transition-shadow">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-gray-600 text-sm mb-1">{t('dashboard.referralEarnings')}</p>
                 <h3 className="text-3xl font-bold text-[#1e3a5f]">
-                  KES {stats.referralEarnings.toLocaleString()}
+                  KES {referralEarnings.toLocaleString()}
                 </h3>
               </div>
               <div className="p-3 bg-orange-100 rounded-lg">
