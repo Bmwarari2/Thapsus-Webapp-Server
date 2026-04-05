@@ -100,7 +100,13 @@ api.interceptors.response.use(
       message = error.message
     }
 
-    return Promise.reject(new Error(message))
+    // Preserve the original Axios error object (response, config, etc.)
+    // but normalize the message so UI code can rely on error.message.
+    if (error && typeof error === 'object') {
+      error.message = message
+    }
+
+    return Promise.reject(error)
   }
 )
 

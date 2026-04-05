@@ -32,6 +32,9 @@ export const walletApi = {
   getTransactionDetails: (id) => api.get(`/wallet/transactions/${id}`),
   // Pay for an order from wallet
   payFromWallet: (orderId, amount) => api.post('/wallet/pay', { order_id: orderId, amount }),
+  // Submit an Mpesa payment confirmation (wallet top-up or order payment)
+  submitMpesaConfirmation: (mpesa_message, order_id = null, amount = 0) =>
+    api.post('/wallet/mpesa-confirm', { mpesa_message, order_id, amount }),
 }
 
 // Pricing
