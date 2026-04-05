@@ -1,5 +1,6 @@
 [build]
   builder = "nixpacks"
+  buildCommand = "npm install && cd client && npm install --include=dev && npm run build && cd .."
 
 [deploy]
   startCommand = "node server.js"
