@@ -62,8 +62,17 @@ router.post('/:orderId/confirm', async (req, res) => {
     const { orderId } = req.params;
     const { mpesa_message, amount, payer_name, payer_phone } = req.body;
 
-    if (!mpesa_message || !amount || !payer_name || !payer_phone) {
-      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    const trimmedMessage = typeof mpesa_message === 'string' ? mpesa_message.trim() : '';
+    const numericAmount = typeof amount === 'number' ? amount : parseFloat(amount) || 0;
+
+    // Frontend was previously only sending mpesa_message and amount, which caused 400s.
+    // We now only require these fields and treat payer_name/phone as optional metadata.
+    if (!trimmedMessage) {
+      return res.status(400).json({ success: false, message: 'Mpesa confirmation message is required' });
+    }
+
+    if (!numericAmount || numericAmount <= 0) {
+      return res.status(400).json({ success: false, message: 'A valid payment amount is required' });
     }
 
     // Get order and user
@@ -81,9 +90,10 @@ router.post('/:orderId/confirm', async (req, res) => {
     const order = orderRes.rows[0];
     const userId = order.user_id;
 
-    // Extract M-Pesa code from message (assumes format like "XXXX123456 Confirmed")
-    const mpesaCodeMatch = mpesa_message.match(/([A-Z]+\d+)/);
-    const mpesaCode = mpesaCodeMatch ? mpesaCodeMatch[1] : 'UNKNOWN';
+    // Extract M-Pesa code from message (try strict Mpesa-like prefix first, then fallback)
+    const strictMatch = trimmedMessage.match(/^([A-Z0-9]{8,12})\s/i);
+    const fallbackMatch = strictMatch || trimmedMessage.match(/([A-Z]+\d+)/);
+    const mpesaCode = fallbackMatch ? fallbackMatch[1].toUpperCase() : 'UNKNOWN';
 
     // Check for duplicate transactions with same M-Pesa code in last 24 hours
     const dupRes = await db.query(
@@ -105,36 +115,56 @@ router.post('/:orderId/confirm', async (req, res) => {
       await client.query(
         `INSERT INTO transactions (id, user_id, type, amount, currency, payment_method, payment_reference, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [transactionId, userId, 'deposit', amount, 'KES', 'mpesa', mpesaCode, 'pending']
+        [transactionId, userId, 'deposit', numericAmount, 'KES', 'mpesa', mpesaCode, 'pending']
       );
 
-      // Insert admin log with order_id in details JSON
-      const logId = uuidv4();
+      const submittedAt = new Date().toISOString();
+
+      // Store the full Mpesa message in admin_logs so admins can view it from the dashboard.
+      // Use the same key (mpesa_message) as the wallet-based flow so /api/admin/transactions/:id/proof works.
       await client.query(
-        `INSERT INTO admin_logs (id, action, details)
-         VALUES ($1, $2, $3)`,
-        [logId, 'mpesa_payment_submitted', JSON.stringify({
-          order_id: orderId,
-          user_id: userId,
-          user_name: order.name,
-          payer_name,
-          payer_phone,
-          amount,
-          mpesa_code: mpesaCode,
-          full_message: mpesa_message,
-          transaction_id: transactionId,
-        })]
+        `INSERT INTO admin_logs (id, admin_id, action, details)
+         VALUES ($1, $2, $3, $4)`,
+        [
+          uuidv4(),
+          null,
+          'mpesa_payment_submitted',
+          JSON.stringify({
+            order_id: orderId,
+            user_id: userId,
+            user_name: order.name,
+            payer_name: payer_name || null,
+            payer_phone: payer_phone || null,
+            amount: numericAmount,
+            mpesa_code: mpesaCode,
+            mpesa_message: trimmedMessage,
+            transaction_id: transactionId,
+            submitted_at: submittedAt,
+          }),
+        ]
       );
 
       await client.query('COMMIT');
 
-      // Notify all admins via in-app notifications
-      const adminsRes = await db.query("SELECT id FROM users WHERE role = 'admin' AND is_active = true");
-      for (const admin of adminsRes.rows) {
-        await db.query(
-          `INSERT INTO notifications (id, user_id, type, message) VALUES ($1, $2, 'in_app', $3)`,
-          [uuidv4(), admin.id, `New M-Pesa payment submitted for order ${orderId} (KES ${amount}). Awaiting verification.`]
-        );
+      // Notify all admins via in-app notifications (best effort; failures should not break the flow)
+      try {
+        const adminsRes = await db.query("SELECT id FROM users WHERE role = 'admin' AND is_active = true");
+        for (const admin of adminsRes.rows) {
+          try {
+            await db.query(
+              `INSERT INTO notifications (id, user_id, type, message) VALUES ($1, $2, 'in_app', $3)`,
+              [
+                uuidv4(),
+                admin.id,
+                `New M-Pesa payment submitted for order ${orderId}. Reference: ${mpesaCode}. Amount: KES ${numericAmount}. Awaiting verification.`,
+              ]
+            );
+          } catch (notifErr) {
+            console.warn('Failed to create Mpesa notification for admin', admin.id, notifErr.message || notifErr);
+          }
+        }
+      } catch (adminFetchErr) {
+        console.warn('Failed to fetch admins for Mpesa notification:', adminFetchErr.message || adminFetchErr);
       }
 
       res.json({
