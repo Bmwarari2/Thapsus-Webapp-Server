@@ -92,6 +92,7 @@ export const AdminDashboard = () => {
   // Pending payments
   const [pendingPayments, setPendingPayments] = useState([])
   const [approvingPayment, setApprovingPayment] = useState(null)
+  const [expandedProof, setExpandedProof] = useState(null)
 
   // Email logs (for user detail panel)
   const [emailLogs, setEmailLogs] = useState([])
@@ -1374,34 +1375,49 @@ export const AdminDashboard = () => {
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Amount (KES)</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Reference</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Submitted</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Proof Message</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {pendingPayments.map((payment) => (
-                      <tr key={payment.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{payment.name}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{payment.email}</td>
-                        <td className="px-6 py-4 text-sm font-semibold text-[#1e3a5f]">KES {payment.amount.toLocaleString()}</td>
-                        <td className="px-6 py-4 text-sm font-mono text-gray-900">{payment.payment_reference}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{new Date(payment.created_at).toLocaleDateString()}</td>
-                        <td className="px-6 py-4 text-sm space-x-2">
-                          <button
-                            onClick={() => handleApprovePayment(payment.id)}
-                            disabled={approvingPayment === payment.id}
-                            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs font-bold disabled:opacity-50"
-                          >
-                            {approvingPayment === payment.id ? 'Processing...' : 'Approve'}
-                          </button>
-                          <button
-                            onClick={() => handleRejectPayment(payment.id)}
-                            disabled={approvingPayment === payment.id}
-                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-bold disabled:opacity-50"
-                          >
-                            {approvingPayment === payment.id ? 'Processing...' : 'Reject'}
-                          </button>
-                        </td>
-                      </tr>
+                      <React.Fragment key={payment.id}>
+                        <tr className="hover:bg-gray-50">
+                          <td className="px-6 py-4 text-sm font-medium text-gray-900">{payment.name}</td>
+                          <td className="px-6 py-4 text-sm text-gray-600">{payment.email}</td>
+                          <td className="px-6 py-4 text-sm font-semibold text-[#1e3a5f]">KES {payment.amount.toLocaleString()}</td>
+                          <td className="px-6 py-4 text-sm font-mono text-gray-900">{payment.payment_reference}</td>
+                          <td className="px-6 py-4 text-sm text-gray-600">{new Date(payment.created_at).toLocaleDateString()}</td>
+                          <td className="px-6 py-4 text-sm">
+                            <button
+                              onClick={() => setExpandedProof(expandedProof === payment.id ? null : payment.id)}
+                              className="text-blue-600 hover:text-blue-800 underline text-xs font-medium"
+                            >
+                              {expandedProof === payment.id ? 'Hide' : 'View Message'}
+                            </button>
+                          </td>
+                          <td className="px-6 py-4 text-sm space-x-2">
+                            <button onClick={() => handleApprovePayment(payment.id)} disabled={approvingPayment === payment.id}
+                              className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs font-bold disabled:opacity-50">
+                              {approvingPayment === payment.id ? 'Processing...' : 'Approve'}
+                            </button>
+                            <button onClick={() => handleRejectPayment(payment.id)} disabled={approvingPayment === payment.id}
+                              className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-bold disabled:opacity-50">
+                              {approvingPayment === payment.id ? 'Processing...' : 'Reject'}
+                            </button>
+                          </td>
+                        </tr>
+                        {expandedProof === payment.id && (
+                          <tr className="bg-amber-50">
+                            <td colSpan={7} className="px-6 py-4">
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">M-Pesa Confirmation Message</p>
+                              <pre className="text-sm text-gray-800 bg-white border border-amber-200 rounded-lg p-3 whitespace-pre-wrap font-mono leading-relaxed">
+                                {payment.mpesa_message || 'No message was submitted with this payment.'}
+                              </pre>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>

@@ -18,27 +18,34 @@ export function AuthProvider({ children }) {
 
   // ── On mount: restore session from localStorage ──────────────────────────
   useEffect(() => {
+    // Guard against React StrictMode double-invocation
+    let cancelled = false
+
     const { token, user: storedUser } = getSession()
 
     if (token && storedUser) {
-      // Optimistically restore from cache, then verify with the server
       setUser(storedUser)
       authApi
         .me()
         .then((res) => {
+          if (cancelled) return
           const freshUser = res.data.user
           setUser(freshUser)
           saveSession(token, freshUser)
         })
         .catch(() => {
-          // Token is invalid / expired – clear everything
+          if (cancelled) return
           clearSession()
           setUser(null)
         })
-        .finally(() => setLoading(false))
+        .finally(() => {
+          if (!cancelled) setLoading(false)
+        })
     } else {
       setLoading(false)
     }
+
+    return () => { cancelled = true }
   }, [])
 
   // ── login ─────────────────────────────────────────────────────────────────
