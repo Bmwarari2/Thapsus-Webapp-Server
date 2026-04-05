@@ -123,7 +123,7 @@ export const adminApi = {
   listOrders: (params = {}) => api.get('/admin/orders', { params }),
 
   /** List all support tickets */
-  listTickets: (params = {}) => api.get('/tickets', { params }),
+  listTickets: (params = {}) => api.get('/tickets/admin/all', { params }),
 
   /**
    * Bulk-update multiple orders to a new status.
@@ -256,7 +256,7 @@ export const supportApi = {
       form.append('subject', subject)
       form.append('description', description)
       form.append('priority', priority)
-      form.append('file', file)
+      form.append('photo', file)
       return api.post('/tickets', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
@@ -266,7 +266,7 @@ export const supportApi = {
 
   /** Reply to an existing ticket */
   replyToTicket: (id, message) =>
-    api.post(`/tickets/${id}/reply`, { message }),
+    api.post(`/tickets/${id}/message`, { message }),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

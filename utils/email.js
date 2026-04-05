@@ -1,22 +1,3 @@
-/**
- * Email service using Gmail API (googleapis).
- *
- * Uses OAuth2 with a refresh token to send emails from your Gmail/Workspace account.
- * No SMTP ports needed — works on Railway and any cloud platform.
- *
- * Required environment variables:
- *   GMAIL_CLIENT_ID      – OAuth2 client ID from Google Cloud Console
- *   GMAIL_CLIENT_SECRET   – OAuth2 client secret
- *   GMAIL_REFRESH_TOKEN   – Refresh token (obtained via OAuth Playground)
- *   GMAIL_SENDER_EMAIL    – The Gmail/Workspace address to send from
- *
- * Setup guide:
- *   1. Enable Gmail API in Google Cloud Console
- *   2. Create OAuth2 credentials (Web application)
- *   3. Use OAuth Playground to get a refresh token with gmail.send scope
- *   4. Set the 4 env vars above in Railway
- */
-
 import { google } from 'googleapis';
 import { getPool } from '../database/init.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -168,10 +149,6 @@ async function logEmailSent({ toEmail, emailType, subject, userId = null, errorM
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// SHARED HTML HELPERS
-// ═══════════════════════════════════════════════════════════════════════════════
-
 function emailFooter() {
   return `
     <tr>
@@ -223,14 +200,6 @@ function emailLayout(bodyHtml) {
     </html>`;
 }
 
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// EMAIL TEMPLATES
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Send a password-reset email to a user.
- */
 export async function sendPasswordResetEmail(toEmail, toName, resetLink) {
   const bodyHtml = `
     <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Password Reset Request</h2>
@@ -277,9 +246,6 @@ export async function sendPasswordResetEmail(toEmail, toName, resetLink) {
   }
 }
 
-/**
- * Send admin-triggered password-reset notification.
- */
 export async function sendAdminPasswordResetEmail(toEmail, toName, resetLink) {
   const bodyHtml = `
     <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Password Reset by Administrator</h2>
@@ -326,9 +292,6 @@ export async function sendAdminPasswordResetEmail(toEmail, toName, resetLink) {
   }
 }
 
-/**
- * Send a payment request email to a customer.
- */
 export async function sendPaymentRequestEmail(toEmail, toName, trackingNumber, amount, notes, paymentLink) {
   const bodyHtml = `
     <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment Request</h2>
@@ -375,9 +338,6 @@ export async function sendPaymentRequestEmail(toEmail, toName, trackingNumber, a
   }
 }
 
-/**
- * Notify a customer that Thapsus Cargo has created a new order on their behalf.
- */
 export async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, market, description, shippingSpeed, dashboardLink) {
   const speedLabel = shippingSpeed === 'express' ? 'Express (3\u20135 days)' : 'Economy (7\u201314 days)';
 
@@ -459,13 +419,9 @@ export async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, ret
   }
 }
 
-/**
- * Send a welcome email when an admin creates an account for a user.
- */
 export async function sendWelcomeAccountEmail(toEmail, toName, warehouseId, role, setPasswordLink) {
   const roleLabel = role === 'admin' ? 'Administrator' : 'Customer';
 
-  // Warehouse shipping addresses for the welcome email
   const warehouseAddresses = warehouseId ? `
     <!-- Warehouse Shipping Addresses -->
     <h3 style="margin:24px 0 12px;color:#1e3a5f;font-size:18px;">Your Shipping Addresses</h3>
@@ -573,9 +529,6 @@ export async function sendWelcomeAccountEmail(toEmail, toName, warehouseId, role
   }
 }
 
-/**
- * Send a payment reminder email to a customer.
- */
 export async function sendPaymentReminderEmail(toEmail, toName, trackingNumber, amount, notes, paymentLink) {
   const bodyHtml = `
     <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment Reminder</h2>
@@ -628,9 +581,6 @@ export async function sendPaymentReminderEmail(toEmail, toName, trackingNumber, 
   }
 }
 
-/**
- * Send a payment receipt email to a customer after payment is approved.
- */
 export async function sendPaymentReceiptEmail(toEmail, toName, trackingNumber, amount, paymentReference, approvedAt) {
   const bodyHtml = `
     <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment Received</h2>
@@ -704,6 +654,125 @@ export async function sendPaymentReceiptEmail(toEmail, toName, trackingNumber, a
   }
 }
 
+export async function sendTicketCreatedEmail(toEmail, ticket) {
+  const appUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
+  const subject = `New Support Ticket: ${ticket.subject}`;
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">New Support Ticket Created</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      A new support ticket has been created in the Thapsus Cargo portal.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f9fafb;border-radius:8px;padding:20px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid #e5e7eb;">
+          <span style="color:#6b7280;font-size:14px;">Ticket ID</span><br>
+          <strong style="color:#1e3a5f;font-size:16px;font-family:monospace;">${ticket.id}</strong>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid #e5e7eb;">
+          <span style="color:#6b7280;font-size:14px;">Subject</span><br>
+          <strong style="color:#111827;font-size:15px;">${ticket.subject}</strong>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid #e5e7eb;">
+          <span style="color:#6b7280;font-size:14px;">Priority</span><br>
+          <strong style="color:#111827;font-size:15px;">${ticket.priority}</strong>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;">
+          <span style="color:#6b7280;font-size:14px;">Description</span><br>
+          <span style="color:#111827;font-size:14px;white-space:pre-line;">${ticket.description}</span>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:14px;line-height:1.6;">
+      You can view and respond to this ticket from the admin dashboard.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
+      <tr>
+        <td style="background-color:#f97316;border-radius:8px;">
+          <a href="${appUrl}/admin" target="_blank"
+             style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">
+            Open Admin Dashboard
+          </a>
+        </td>
+      </tr>
+    </table>`;
+
+  try {
+    const result = await sendWithGmail({
+      to: toEmail,
+      subject,
+      html: emailLayout(bodyHtml),
+      text: `A new support ticket has been created.\n\nTicket ID: ${ticket.id}\nSubject: ${ticket.subject}\nPriority: ${ticket.priority}\nDescription:\n${ticket.description}\n\nOpen the admin dashboard to respond: ${appUrl}/admin`,
+    });
+    await logEmailSent({ toEmail, emailType: 'ticket_created', subject, userId: ticket.user_id });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'ticket_created', subject, userId: ticket.user_id, errorMessage: error.message });
+    throw error;
+  }
+}
+
+export async function sendTicketReplyEmail(toEmail, toName, ticket, replyMessage) {
+  const appUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
+  const subject = `Support Reply on Ticket ${ticket.id.slice(0, 8).toUpperCase()}`;
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">New Reply from Support</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      Hello ${toName || 'there'},
+    </p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      Our support team has replied to your ticket <strong>${ticket.subject}</strong>.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f9fafb;border-radius:8px;padding:20px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid #e5e7eb;">
+          <span style="color:#6b7280;font-size:14px;">Ticket ID</span><br>
+          <strong style="color:#1e3a5f;font-size:16px;font-family:monospace;">${ticket.id}</strong>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:12px 0;">
+          <span style="color:#6b7280;font-size:14px;">Support Reply</span><br>
+          <div style="margin-top:8px;padding:12px 16px;background-color:#eff6ff;border-radius:8px;border-left:4px solid #3b82f6;">
+            <p style="margin:0;color:#1f2937;font-size:14px;line-height:1.6;white-space:pre-line;">${replyMessage}</p>
+          </div>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:14px;line-height:1.6;">
+      You can reply to this message from your Thapsus Cargo account.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
+      <tr>
+        <td style="background-color:#f97316;border-radius:8px;">
+          <a href="${appUrl}/support" target="_blank"
+             style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">
+            Open Support Portal
+          </a>
+        </td>
+      </tr>
+    </table>`;
+
+  try {
+    const result = await sendWithGmail({
+      to: toEmail,
+      subject,
+      html: emailLayout(bodyHtml),
+      text: `Hello ${toName || 'there'},\n\nOur support team has replied to your ticket: ${ticket.subject}.\n\nReply:\n${replyMessage}\n\nYou can respond from your account here: ${appUrl}/support\n\n— Thapsus Cargo Support`,
+    });
+    await logEmailSent({ toEmail, emailType: 'ticket_reply', subject, userId: ticket.user_id });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'ticket_reply', subject, userId: ticket.user_id, errorMessage: error.message });
+    throw error;
+  }
+}
+
 export default {
   sendPasswordResetEmail,
   sendAdminPasswordResetEmail,
@@ -712,4 +781,6 @@ export default {
   sendWelcomeAccountEmail,
   sendPaymentReminderEmail,
   sendPaymentReceiptEmail,
+  sendTicketCreatedEmail,
+  sendTicketReplyEmail,
 };

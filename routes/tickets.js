@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
 import { pushToUser, pushToAdmins } from './events.js';
 import { logRouteError } from '../utils/errorLogger.js';
+import { sendTicketCreatedEmail, sendTicketReplyEmail } from '../utils/email.js';
 
 const router = express.Router();
 
@@ -79,6 +80,16 @@ router.post('/', authMiddleware, upload.single('photo'), async (req, res) => {
     // Notify admins that a new ticket was raised
     pushToAdmins('ticket_update', { action: 'created', ticket });
 
+    // Email notification to support inbox (non-blocking)
+    try {
+      const supportEmail = process.env.SUPPORT_EMAIL || process.env.SUPPORT_INBOX || process.env.GMAIL_SENDER_EMAIL;
+      if (supportEmail) {
+        await sendTicketCreatedEmail(supportEmail, ticket);
+      }
+    } catch (err) {
+      console.error('Ticket email notify failed', err);
+    }
+
     res.status(201).json({ success: true, message: 'Ticket created successfully', ticket });
   } catch (error) {
     console.error('Create ticket error:', error);
@@ -92,18 +103,29 @@ router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const db = req.db;
     const { id } = req.params;
-    const userId  = req.user.id;
+    const userId = req.user.id;
+    const isAdminUser = req.user.role === 'admin';
 
-    const ticketRes = await db.query('SELECT * FROM tickets WHERE id = $1 AND user_id = $2', [id, userId]);
-    if (!ticketRes.rows[0]) return res.status(404).json({ success: false, message: 'Ticket not found' });
+    const ticketRes = isAdminUser
+      ? await db.query('SELECT * FROM tickets WHERE id = $1', [id])
+      : await db.query('SELECT * FROM tickets WHERE id = $1 AND user_id = $2', [id, userId]);
+
+    if (!ticketRes.rows[0]) {
+      return res.status(404).json({ success: false, message: 'Ticket not found' });
+    }
+
+    const ticket = ticketRes.rows[0];
 
     const messages = await db.query(
       `SELECT tm.id, tm.message, tm.created_at, u.email, u.name, u.role
-       FROM ticket_messages tm JOIN users u ON tm.sender_id = u.id
-       WHERE tm.ticket_id = $1 ORDER BY tm.created_at ASC`,
+       FROM ticket_messages tm
+       JOIN users u ON tm.sender_id = u.id
+       WHERE tm.ticket_id = $1
+       ORDER BY tm.created_at ASC`,
       [id]
     );
-    res.json({ success: true, ticket: ticketRes.rows[0], messages: messages.rows });
+
+    res.json({ success: true, ticket, messages: messages.rows });
   } catch (error) {
     console.error('Get ticket error:', error);
     logRouteError(req, res, error, 'Get ticket error');
@@ -139,6 +161,17 @@ router.post('/:id/message', authMiddleware, async (req, res) => {
     if (isAdminUser) {
       // Admin replied — push to ticket owner
       pushToUser(ticket.user_id, 'ticket_update', payload);
+
+      // Also email the customer (non-blocking)
+      try {
+        const userRes = await db.query('SELECT email, name FROM users WHERE id = $1', [ticket.user_id]);
+        const user = userRes.rows[0];
+        if (user && user.email) {
+          await sendTicketReplyEmail(user.email, user.name, ticket, message);
+        }
+      } catch (err) {
+        console.error('Ticket reply email failed', err);
+      }
     } else {
       // Customer replied — push to all admins
       pushToAdmins('ticket_update', payload);
