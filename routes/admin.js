@@ -432,15 +432,20 @@ router.put('/orders/bulk-update', authMiddleware, isAdmin, async (req, res) => {
     const validStatuses = ['pending','received_at_warehouse','consolidating','in_transit','customs','out_for_delivery','delivered','cancelled'];
     if (!validStatuses.includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
 
-    const placeholders = order_ids.map((_, i) => `$${i + 2}`).join(',');
+    // UPDATE: $1 = status, $2..$N = order IDs
+    const updatePlaceholders = order_ids.map((_, i) => `$${i + 2}`).join(',');
     await db.query(
-      `UPDATE orders SET status = $1, updated_at = NOW() WHERE id IN (${placeholders})`,
+      `UPDATE orders SET status = $1, updated_at = NOW() WHERE id IN (${updatePlaceholders})`,
       [status, ...order_ids]
     );
+
+    // SELECT: fresh $1..$N placeholders — only order IDs, no leading null
+    const selectPlaceholders = order_ids.map((_, i) => `$${i + 1}`).join(',');
     const updated = await db.query(
-      `SELECT id, tracking_number, status FROM orders WHERE id IN (${placeholders})`,
-      [null, ...order_ids]
+      `SELECT id, tracking_number, status FROM orders WHERE id IN (${selectPlaceholders})`,
+      order_ids
     );
+
     res.json({ success: true, message: `Updated ${updated.rows.length} orders`, updated_count: updated.rows.length, orders: updated.rows });
   } catch (error) {
     console.error('Bulk update error:', error);
