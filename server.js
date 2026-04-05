@@ -143,6 +143,13 @@ app.use(morgan(NODE_ENV === 'development' ? 'dev' : 'combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Serve sw.js with no-cache so the browser always checks for updates
+app.get('/sw.js', (req, res) => {
+  res.set({ 'Cache-Control': 'no-store, no-cache, must-revalidate', 'Content-Type': 'application/javascript' });
+  res.sendFile(path.join(__dirname, 'client', 'dist', 'sw.js'));
+});
+
 app.use(express.static(path.join(__dirname, 'client', 'dist')));
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
@@ -168,6 +175,20 @@ const authLimiter = rateLimit({
 app.use('/api/', limiter);
 app.use('/api/auth/login',    authLimiter);
 app.use('/api/auth/register', authLimiter);
+
+// ── Disable caching on API routes ────────────────────────────────────────────
+// Express generates ETags by default, which causes 304 (Not Modified) responses.
+// Combined with service worker caching, this makes the frontend serve stale data.
+app.set('etag', false);
+app.use('/api', (req, res, next) => {
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+    'Surrogate-Control': 'no-store',
+  });
+  next();
+});
 
 // ── Attach pool to every request ──────────────────────────────────────────────
 app.use((req, res, next) => { req.db = getPool(); next(); });
