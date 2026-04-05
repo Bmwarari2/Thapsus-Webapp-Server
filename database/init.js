@@ -53,18 +53,34 @@ try {
 }
 
 /**
- * PostgreSQL connection pool (Supabase)
+ * PostgreSQL connection pool (Supabase via Railway)
  *
- * family: 0  → allow BOTH IPv4 and IPv6 (Node resolves whichever the host returns)
- * ssl        → required for Supabase
+ * Timeout tuning — Railway kills idle TCP connections after ~20s.
+ * We must evict idle pool connections before that window closes.
+ *
+ *   idleTimeoutMillis: 10000   — drop idle connections after 10s,
+ *                                before Railway's ~20s TCP teardown
+ *   keepAlive: true            — send TCP keepalive probes so Railway
+ *                                doesn't classify active connections
+ *                                as idle and tear them down silently
+ *   keepAliveInitialDelayMillis: 10000 — start keepalives after 10s
+ *   max: 5                     — Supabase free tier allows ~25 total
+ *                                concurrent connections; 5 is safe
+ *   allowExitOnIdle: true      — clean exit when all connections idle
+ *
+ *   family: 0  → allow both IPv4 and IPv6
+ *   ssl        → required for Supabase
  */
 const pool = new Pool({
   connectionString: rawUrl,
   ssl: { rejectUnauthorized: false },
   family: 0,
-  max: 10,
-  idleTimeoutMillis: 30000,
+  max: 5,
+  idleTimeoutMillis: 10000,
   connectionTimeoutMillis: 10000,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
+  allowExitOnIdle: true,
 });
 
 pool.on('error', (err) => {
@@ -455,7 +471,6 @@ export async function initializeDatabase() {
       console.log(`✓ All ${expected.length} tables verified in database`);
     }
 
-    // Also log all public tables for debugging
     console.log(`  Tables found: ${existing.join(', ')}`);
   } catch (err) {
     console.error('⚠ Could not verify tables:', err.message);
@@ -533,7 +548,6 @@ export async function initializeDatabase() {
       }
     }
   } catch (err) {
-    // pg_policies may not be accessible depending on role
     console.error('⚠ Could not check RLS policies:', err.message);
   }
 
