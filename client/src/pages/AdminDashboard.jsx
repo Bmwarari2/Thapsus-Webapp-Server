@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
-import { adminApi, authApi } from '../api'
+import { adminApi, authApi, supportApi } from '../api'
 import {
   LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -23,6 +23,10 @@ export const AdminDashboard = () => {
   const [users, setUsers] = useState([])
   const [orders, setOrders] = useState([])
   const [tickets, setTickets] = useState([])
+  const [selectedTicket, setSelectedTicket] = useState(null)
+  const [ticketMessages, setTicketMessages] = useState([])
+  const [adminReply, setAdminReply] = useState('')
+  const [sendingReply, setSendingReply] = useState(false)
   const [selectedOrders, setSelectedOrders] = useState([])
   const [newStatus, setNewStatus] = useState('')
 
@@ -118,6 +122,7 @@ export const AdminDashboard = () => {
         adminApi.listOrders(),
         adminApi.getExchangeRates(),
         adminApi.getPendingPayments(),
+        adminApi.listTickets({ page: 1, limit: 20 }),
       ])
 
       if (results[0].status === 'fulfilled') setStats(results[0].value.data?.stats || null)
@@ -136,6 +141,7 @@ export const AdminDashboard = () => {
         }
       }
       if (results[4].status === 'fulfilled') setPendingPayments(results[4].value.data?.transactions || [])
+      if (results[5].status === 'fulfilled') setTickets(results[5].value.data?.tickets || [])
 
       // Also fetch error log stats for the badge
       try {
@@ -335,6 +341,44 @@ export const AdminDashboard = () => {
       const res = await adminApi.searchCustomers(query)
       setCustomerResults(res.data?.customers || [])
     } catch { setCustomerResults([]) }
+  }
+
+  // ── Admin ticket chat handlers ─────────────────────────────────────────
+  const openTicket = async (ticket) => {
+    try {
+      const res = await supportApi.getTicket(ticket.id)
+      const { ticket: fullTicket, messages } = res.data
+      setSelectedTicket({
+        ...fullTicket,
+        customer_name: ticket.customer_name,
+        customer_email: ticket.customer_email,
+      })
+      setTicketMessages(messages || [])
+    } catch (err) {
+      toast.error('Failed to load ticket')
+    }
+  }
+
+  const sendAdminReply = async (e) => {
+    e.preventDefault()
+    if (!adminReply.trim() || !selectedTicket) return
+    try {
+      setSendingReply(true)
+      await supportApi.replyToTicket(selectedTicket.id, adminReply)
+      const res = await supportApi.getTicket(selectedTicket.id)
+      const { ticket: fullTicket, messages } = res.data
+      setSelectedTicket((prev) => ({
+        ...fullTicket,
+        customer_name: prev?.customer_name,
+        customer_email: prev?.customer_email,
+      }))
+      setTicketMessages(messages || [])
+      setAdminReply('')
+    } catch (err) {
+      toast.error('Failed to send reply')
+    } finally {
+      setSendingReply(false)
+    }
   }
 
   // ── Open user detail panel ──────────────────────────────────────────────
@@ -1474,6 +1518,7 @@ export const AdminDashboard = () => {
                   <tr>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Ticket ID</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Subject</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Customer</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Priority</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Created</th>
@@ -1481,16 +1526,23 @@ export const AdminDashboard = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {tickets.length === 0 ? (
-                    <tr><td colSpan="5" className="px-6 py-8 text-center text-gray-500">No tickets found</td></tr>
+                    <tr><td colSpan="6" className="px-6 py-8 text-center text-gray-500">No tickets found</td></tr>
                   ) : tickets.map((ticket) => (
-                    <tr key={ticket.id} className="hover:bg-gray-50">
+                    <tr
+                      key={ticket.id}
+                      className="hover:bg-gray-50 cursor-pointer"
+                      onClick={() => openTicket(ticket)}
+                    >
                       <td className="px-6 py-4 text-sm font-mono text-gray-900">{ticket.id?.slice(0, 8).toUpperCase()}</td>
                       <td className="px-6 py-4 text-sm text-gray-900">{ticket.subject}</td>
+                      <td className="px-6 py-4 text-sm text-gray-700">{ticket.customer_name || ticket.customer_email || '—'}</td>
                       <td className="px-6 py-4 text-sm">
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${ticket.priority === 'high' ? 'bg-red-100 text-red-800' : ticket.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>{ticket.priority}</span>
                       </td>
                       <td className="px-6 py-4 text-sm">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${ticket.status === 'closed' ? 'bg-green-100 text-green-800' : ticket.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>{ticket.status}</span>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${ticket.status === 'closed' ? 'bg-green-100 text-green-800' : ticket.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                          {ticket.status?.replace(/_/g, ' ')}
+                        </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">{ticket.created_at ? new Date(ticket.created_at).toLocaleDateString() : '—'}</td>
                     </tr>
@@ -1498,6 +1550,91 @@ export const AdminDashboard = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Admin chat view for selected ticket */}
+            {selectedTicket && (
+              <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Ticket meta */}
+                <div className="bg-gray-50 rounded-lg p-4 lg:col-span-1">
+                  <h3 className="text-lg font-bold text-[#1e3a5f] mb-3 flex items-center gap-2">
+                    <MessageSquare size={18} className="text-[#1e3a5f]" />
+                    Ticket Details
+                  </h3>
+                  <div className="space-y-2 text-sm text-gray-700">
+                    <p><span className="font-semibold">Subject:</span> {selectedTicket.subject}</p>
+                    <p><span className="font-semibold">Ticket ID:</span> {selectedTicket.id?.slice(0, 8).toUpperCase()}</p>
+                    <p><span className="font-semibold">Customer:</span> {selectedTicket.customer_name || 'Unknown'}</p>
+                    <p><span className="font-semibold">Email:</span> {selectedTicket.customer_email || '—'}</p>
+                    <p>
+                      <span className="font-semibold">Priority:</span>
+                      <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium ${selectedTicket.priority === 'high' ? 'bg-red-100 text-red-800' : selectedTicket.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+                        {selectedTicket.priority}
+                      </span>
+                    </p>
+                    <p>
+                      <span className="font-semibold">Status:</span>
+                      <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium ${selectedTicket.status === 'closed' ? 'bg-green-100 text-green-800' : selectedTicket.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                        {selectedTicket.status?.replace(/_/g, ' ')}
+                      </span>
+                    </p>
+                    <p><span className="font-semibold">Created:</span> {selectedTicket.created_at ? new Date(selectedTicket.created_at).toLocaleString() : '—'}</p>
+                  </div>
+                  {selectedTicket.description && (
+                    <div className="mt-4">
+                      <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Description</p>
+                      <p className="text-sm text-gray-800 whitespace-pre-line">{selectedTicket.description}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Conversation */}
+                <div className="bg-white rounded-lg border border-gray-200 flex flex-col lg:col-span-2 max-h-[500px]">
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    {ticketMessages.length === 0 ? (
+                      <p className="text-sm text-gray-500 text-center mt-10">No messages on this ticket yet.</p>
+                    ) : (
+                      ticketMessages.map((msg) => {
+                        const isAdmin = msg.role === 'admin'
+                        return (
+                          <div
+                            key={msg.id}
+                            className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}
+                          >
+                            <div
+                              className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm ${
+                                isAdmin ? 'bg-[#1e3a5f] text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                              }`}
+                            >
+                              <p className="whitespace-pre-line mb-1">{msg.message}</p>
+                              <p className={`text-[10px] mt-1 ${isAdmin ? 'text-blue-100' : 'text-gray-500'}`}>
+                                {isAdmin ? 'Support' : msg.name || 'Customer'} •{' '}
+                                {msg.created_at ? new Date(msg.created_at).toLocaleString() : ''}
+                              </p>
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                  <form onSubmit={sendAdminReply} className="border-t border-gray-200 p-3 flex gap-2">
+                    <textarea
+                      value={adminReply}
+                      onChange={(e) => setAdminReply(e.target.value)}
+                      rows={2}
+                      placeholder="Type your reply to the customer..."
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] text-sm resize-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={sendingReply || !adminReply.trim()}
+                      className="flex items-center gap-2 bg-[#1e3a5f] hover:bg-[#152d4a] text-white px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50"
+                    >
+                      {sendingReply ? 'Sending...' : <><Send size={14} /> Send Reply</>}
+                    </button>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
