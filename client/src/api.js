@@ -144,6 +144,21 @@ export const adminApi = {
   listBackups: (filters = {}) => api.get('/admin/backups', { params: filters }),
   createBackup: () => api.post('/admin/backups'),
   downloadBackup: (id) => api.get(`/admin/backups/${id}/download`, { responseType: 'blob' }),
+
+  // Pending M-Pesa payments — used by AdminDashboard on load
+  getPendingPayments: () => api.get('/admin/transactions/pending'),
+
+  // Approve / reject a pending M-Pesa payment
+  approvePayment: (id) => api.post(`/admin/transactions/${id}/approve`),
+  rejectPayment: (id, reason) => api.post(`/admin/transactions/${id}/reject`, { reason }),
+
+  // Per-user email logs (user detail panel)
+  getUserEmails: (userId) => api.get(`/admin/users/${userId}/emails`),
+
+  // Error logs (developer tools tab)
+  getErrorLogs: (params = {}) => api.get('/admin/error-logs', { params }),
+  getErrorLogStats: () => api.get('/admin/error-logs/stats'),
+  clearErrorLogs: (keepDays) => api.delete('/admin/error-logs', { params: { keepDays } }),
 }
 
 export default api
