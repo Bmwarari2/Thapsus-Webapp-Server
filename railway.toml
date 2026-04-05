@@ -1,6 +1,8 @@
 [build]
   builder = "nixpacks"
-  buildCommand = "npm install && cd client && npm install --include=dev && npm run build && cd .."
+  # --include=dev ensures Vite (a devDependency) is available during the client build step.
+  # Without this flag Railway's production npm install omits devDeps and the build fails.
+  buildCommand = "npm install --include=dev && cd client && npm install --include=dev && npm run build && cd .."
 
 [deploy]
   startCommand = "node server.js"
