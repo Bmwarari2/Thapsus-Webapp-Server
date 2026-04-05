@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { fileURLToPath } from 'url';
@@ -84,22 +85,11 @@ const PORT     = process.env.PORT     || 5000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
-// CORS_ORIGIN can be:
-//   *                  → allow every origin (useful for Railway where the
-//                        frontend and backend share the same domain via a
-//                        reverse-proxy, or while you're still configuring things)
-//   https://a.com,https://b.com  → comma-separated allow-list
-//
-// On Railway both services typically live under *.up.railway.app so we default
-// to a permissive wildcard.  Tighten this once you know your exact domain.
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
 app.set('trust proxy', 1);
 
 // ── Helmet / CSP ──────────────────────────────────────────────────────────────
-// connectSrc must allow the Railway backend URL as well as the frontend itself.
-// Using '*' for connectSrc keeps things working regardless of domain changes;
-// tighten once you pin a custom domain.
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -109,22 +99,18 @@ app.use(helmet({
       fontSrc:    ["'self'", "https://fonts.gstatic.com"],
       scriptSrc:  ["'self'", "'unsafe-inline'"],
       imgSrc:     ["'self'", 'data:', 'https:'],
-      connectSrc: ["'self'", 'https:', 'wss:'],   // allow XHR/fetch/SSE to any HTTPS endpoint
+      connectSrc: ["'self'", 'https:', 'wss:'],
     },
   },
 }));
 
 // ── CORS middleware ───────────────────────────────────────────────────────────
 if (CORS_ORIGIN === '*') {
-  // Wildcard mode — allow all origins
-  // Note: credentials (cookies) cannot be used with wildcard CORS, but since
-  // we rely on the Authorization header (Bearer token) this is fine.
   app.use(cors({ origin: '*', methods: ['GET','POST','PUT','DELETE','OPTIONS'], allowedHeaders: ['Content-Type','Authorization'], optionsSuccessStatus: 200 }));
 } else {
   const allowList = CORS_ORIGIN.split(',').map(o => o.trim());
   app.use(cors({
     origin: (origin, cb) => {
-      // Allow requests with no origin (curl, Postman, same-origin) or matching origins
       if (!origin || allowList.includes(origin)) return cb(null, true);
       cb(new Error(`CORS: origin ${origin} not allowed`));
     },
@@ -135,7 +121,6 @@ if (CORS_ORIGIN === '*') {
   }));
 }
 
-// Handle pre-flight for every route
 app.options('*', cors());
 
 app.use(compression());
@@ -144,26 +129,44 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Serve sw.js with no-cache so the browser always checks for updates
+// ── Service Worker ────────────────────────────────────────────────────────────
+// Serve sw.js with no-cache headers so browsers always fetch the latest version.
+// If the built file doesn't exist yet (e.g. first cold deploy before `npm run
+// build` completes) we fall back to a minimal no-op SW served inline so the
+// server never throws ENOENT and the app remains fully functional.
+const SW_DIST_PATH = path.join(__dirname, 'client', 'dist', 'sw.js');
+const SW_NO_OP = [
+  '// Thapsus Cargo — no-op service worker fallback',
+  'self.addEventListener("install",  e => self.skipWaiting());',
+  'self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));',
+  'self.addEventListener("fetch",    () => {});',
+].join('\n');
+
 app.get('/sw.js', (req, res) => {
-  res.set({ 'Cache-Control': 'no-store, no-cache, must-revalidate', 'Content-Type': 'application/javascript' });
-  res.sendFile(path.join(__dirname, 'client', 'dist', 'sw.js'));
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+    'Content-Type':  'application/javascript',
+  });
+  // Use the built file when available, otherwise send the inline no-op fallback
+  if (fs.existsSync(SW_DIST_PATH)) {
+    res.sendFile(SW_DIST_PATH);
+  } else {
+    console.warn('[sw.js] dist file not found — serving no-op fallback');
+    res.send(SW_NO_OP);
+  }
 });
 
 app.use(express.static(path.join(__dirname, 'client', 'dist')));
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
-// General API limit: 200 requests / 15 min
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
   standardHeaders: true,
   legacyHeaders: false,
-  // Return JSON instead of plain text so the frontend error handler can parse it
   handler: (req, res) => res.status(429).json({ success: false, message: 'Too many requests, please try again later.' }),
 });
 
-// Auth-specific limit: 20 requests / 15 min (was 5 — too aggressive for testing)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
@@ -177,8 +180,6 @@ app.use('/api/auth/login',    authLimiter);
 app.use('/api/auth/register', authLimiter);
 
 // ── Disable caching on API routes ────────────────────────────────────────────
-// Express generates ETags by default, which causes 304 (Not Modified) responses.
-// Combined with service worker caching, this makes the frontend serve stale data.
 app.set('etag', false);
 app.use('/api', (req, res, next) => {
   res.set({
@@ -249,7 +250,6 @@ app.use((err, req, res, next) => {
       return res.status(400).json({ success: false, message: 'File size exceeds maximum allowed' });
     return res.status(400).json({ success: false, message: 'File upload error' });
   }
-  // CORS error from our origin check
   if (err.message && err.message.startsWith('CORS:')) {
     return res.status(403).json({ success: false, message: err.message });
   }
@@ -295,7 +295,6 @@ Ready ✨
       console.log('SIGINT — shutting down gracefully');
       server.close(() => { pool.end(); process.exit(0); });
     });
-    // ── Process-level error catchers ────────────────────────────────────────
     process.on('uncaughtException', (err) => {
       console.error('Uncaught Exception:', err);
       logError({ level: 'fatal', source: 'unhandled', message: err.message, stack: err.stack });
