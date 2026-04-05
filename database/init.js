@@ -349,12 +349,27 @@ export async function initializeDatabase() {
     throw err;
   }
 
-  // ── Step 2: verify connection with a simple query ────────────────────────
+  // ── Step 2: verify connection, role, and RLS status ──────────────────────
   try {
     const versionRes = await client.query('SELECT version()');
     console.log(`✓ Database connected — ${versionRes.rows[0].version.split(' ').slice(0, 2).join(' ')}`);
   } catch (err) {
     console.error('⚠ Connected but SELECT version() failed:', err.message);
+  }
+
+  // Check which role we're connected as — must be 'postgres' to bypass RLS
+  try {
+    const roleRes = await client.query('SELECT current_user, current_setting(\'role\') AS session_role');
+    const { current_user: dbUser, session_role: sessRole } = roleRes.rows[0];
+    console.log(`✓ Connected as role: ${dbUser} (session: ${sessRole})`);
+
+    if (dbUser !== 'postgres' && sessRole !== 'postgres') {
+      console.error(`⚠ WARNING: Connected as "${dbUser}" instead of "postgres".`);
+      console.error('  RLS policies may block queries. Use the direct connection string (port 5432).');
+      console.error('  Go to Supabase → Settings → Database → Connection string (URI)');
+    }
+  } catch (err) {
+    console.error('⚠ Could not check database role:', err.message);
   }
 
   // ── Step 3: create tables one by one ─────────────────────────────────────
@@ -414,6 +429,38 @@ export async function initializeDatabase() {
     }
   } catch (err) {
     console.error('⚠ Could not verify tables:', err.message);
+  }
+
+  // ── Step 6: detect and disable RLS on all app tables ─────────────────────
+  // Supabase enables RLS by default. Our backend connects as 'postgres' via
+  // the direct connection string and handles auth via JWT middleware, so RLS
+  // would block all reads/writes unless explicit policies exist.
+  try {
+    const rlsRes = await pool.query(`
+      SELECT tablename, rowsecurity
+      FROM pg_tables
+      WHERE schemaname = 'public'
+    `);
+
+    const rlsEnabled = rlsRes.rows.filter(r => r.rowsecurity === true);
+
+    if (rlsEnabled.length > 0) {
+      console.log(`⚠ RLS is enabled on ${rlsEnabled.length} table(s): ${rlsEnabled.map(r => r.tablename).join(', ')}`);
+      console.log('  Disabling RLS — this backend handles auth via JWT middleware...');
+
+      for (const row of rlsEnabled) {
+        try {
+          await pool.query(`ALTER TABLE public."${row.tablename}" DISABLE ROW LEVEL SECURITY`);
+          console.log(`  ✓ RLS disabled on "${row.tablename}"`);
+        } catch (rlsErr) {
+          console.error(`  ✗ Failed to disable RLS on "${row.tablename}": ${rlsErr.message}`);
+        }
+      }
+    } else {
+      console.log('✓ RLS is not enabled on any tables (OK for backend-managed auth)');
+    }
+  } catch (err) {
+    console.error('⚠ Could not check RLS status:', err.message);
   }
 
   return pool;
