@@ -100,7 +100,7 @@ export const Register = () => {
           {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-[#1e3a5f] mb-2">
-              <span>Swift</span><span className="text-orange-500">Cargo</span>
+              <span>Thapsus</span><span className="text-orange-500">Cargo</span>
             </h1>
             <p className="text-gray-600">{t('auth.register')}</p>
           </div>
