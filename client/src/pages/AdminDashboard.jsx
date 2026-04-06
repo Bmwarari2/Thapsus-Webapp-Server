@@ -40,7 +40,8 @@ export const AdminDashboard = () => {
     weight_kg: '',
     dimensions: { length: '', width: '', height: '' },
     shipping_speed: 'economy',
-    insurance: false, declared_value: ''
+    insurance: false, declared_value: '',
+    electronics_item: '',
   })
   const [creatingOrder, setCreatingOrder] = useState(false)
 
@@ -89,7 +90,8 @@ export const AdminDashboard = () => {
     retailer: '', market: 'UK', description: '',
     weight_kg: '', shipping_speed: 'economy',
     dimensions: { length: '', width: '', height: '' },
-    insurance: false, declared_value: ''
+    insurance: false, declared_value: '',
+    electronics_item: '',
   })
   const [creatingUserOrder, setCreatingUserOrder] = useState(false)
 
@@ -155,7 +157,7 @@ export const AdminDashboard = () => {
     }
   }
 
-  // â”€â”€ Error logs fetcher â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Error logs fetcher ──────────────────────────────────────────
   const fetchErrorLogs = async (page = 1, filters = errorLogFilter) => {
     try {
       setLoadingErrorLogs(true)
@@ -190,7 +192,7 @@ export const AdminDashboard = () => {
     }
   }
 
-  // â”€â”€ Password change â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Password change ───────────────────────────────────────────────
   const handlePasswordChange = async (e) => {
     e.preventDefault()
     const { currentPassword, newPassword, confirmPassword } = passwordForm
@@ -209,7 +211,7 @@ export const AdminDashboard = () => {
     }
   }
 
-  // â”€â”€ Exchange rates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Exchange rates ────────────────────────────────────────────────
   const handleRateChange = (pair, value) => setExchangeRates((prev) => ({ ...prev, [pair]: value }))
 
   const handleSaveRates = async (e) => {
@@ -232,7 +234,7 @@ export const AdminDashboard = () => {
     }
   }
 
-  // â”€â”€ Order bulk update â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Order bulk update ───────────────────────────────────────────
   const handleToggleOrderSelection = (orderId) => {
     setSelectedOrders((prev) =>
       prev.includes(orderId) ? prev.filter((id) => id !== orderId) : [...prev, orderId]
@@ -253,7 +255,7 @@ export const AdminDashboard = () => {
     }
   }
 
-  // â”€â”€ Delete order â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Delete order ──────────────────────────────────────────────────
   const handleDeleteOrder = async (orderId, trackingNumber) => {
     if (!window.confirm(`Permanently delete order ${trackingNumber}? This cannot be undone.`)) return
     try {
@@ -265,7 +267,7 @@ export const AdminDashboard = () => {
     }
   }
 
-  // â”€â”€ Cancel order â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Cancel order ──────────────────────────────────────────────────
   const handleCancelOrder = async () => {
     if (!cancelModal) return
     try {
@@ -281,7 +283,7 @@ export const AdminDashboard = () => {
     }
   }
 
-  // â”€â”€ Request payment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Request payment ───────────────────────────────────────────────
   const handleRequestPayment = async () => {
     if (!paymentModal) return
     const amount = parseFloat(paymentAmount)
@@ -297,7 +299,7 @@ export const AdminDashboard = () => {
     }
   }
 
-  // â”€â”€ Create user/admin account â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Create user/admin account ───────────────────────────────────
   const handleCreateUser = async (e) => {
     e.preventDefault()
     const { name, email, phone, role } = createUserForm
@@ -317,7 +319,7 @@ export const AdminDashboard = () => {
     }
   }
 
-  // â”€â”€ Send payment reminder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Send payment reminder ───────────────────────────────────────
   const handleSendReminder = async () => {
     if (!reminderModal) return
     const amount = parseFloat(reminderAmount)
@@ -333,7 +335,7 @@ export const AdminDashboard = () => {
     }
   }
 
-  // â”€â”€ Customer search (for create order form) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Customer search (for create order form) ─────────────────────
   const handleSearchCustomers = async (query) => {
     setCustomerSearch(query)
     if (query.length < 2) { setCustomerResults([]); return }
@@ -343,7 +345,7 @@ export const AdminDashboard = () => {
     } catch { setCustomerResults([]) }
   }
 
-  // â”€â”€ Admin ticket chat handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Admin ticket chat handlers ──────────────────────────────────
   const openTicket = async (ticket) => {
     try {
       const res = await supportApi.getTicket(ticket.id)
@@ -381,7 +383,7 @@ export const AdminDashboard = () => {
     }
   }
 
-  // â”€â”€ Open user detail panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Open user detail panel ──────────────────────────────────────
   const handleOpenUserDetail = async (u) => {
     setSelectedUser(u)
     setSelectedUserData(null)
@@ -408,7 +410,7 @@ export const AdminDashboard = () => {
     setShowUserOrderForm(false)
   }
 
-  // â”€â”€ Payment approval handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Payment approval handlers ───────────────────────────────────
   const handleApprovePayment = async (paymentId) => {
     try {
       setApprovingPayment(paymentId)
@@ -437,7 +439,7 @@ export const AdminDashboard = () => {
     }
   }
 
-  // â”€â”€ Admin reset user password â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Admin reset user password ───────────────────────────────────
   const handleResetUserPassword = async (userId, userName, userEmail) => {
     if (!window.confirm(`Send password reset email to ${userName} (${userEmail})?`)) return
     try {
@@ -448,7 +450,7 @@ export const AdminDashboard = () => {
     }
   }
 
-  // â”€â”€ Create order for selected user from detail panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Create order for selected user from detail panel ──────────────────
   const handleCreateOrderForSelectedUser = async (e) => {
     e.preventDefault()
     if (!selectedUser) return
@@ -469,7 +471,7 @@ export const AdminDashboard = () => {
       })
       toast.success('Order created successfully')
       setShowUserOrderForm(false)
-      setUserOrderForm({ retailer: '', market: 'UK', description: '', weight_kg: '', shipping_speed: 'economy', dimensions: { length: '', width: '', height: '' }, insurance: false, declared_value: '' })
+      setUserOrderForm({ retailer: '', market: 'UK', description: '', weight_kg: '', shipping_speed: 'economy', dimensions: { length: '', width: '', height: '' }, insurance: false, declared_value: '', electronics_item: '' })
       // Refresh user detail
       handleOpenUserDetail(selectedUser)
       // Refresh orders list too
@@ -482,7 +484,7 @@ export const AdminDashboard = () => {
     }
   }
 
-  // â”€â”€ Create order for client â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Create order for client ───────────────────────────────────────
   const handleCreateOrderForClient = async (e) => {
     e.preventDefault()
     if (!selectedCustomer) { toast.error('Please search and select a customer'); return }
@@ -506,7 +508,7 @@ export const AdminDashboard = () => {
       setSelectedCustomer(null)
       setCustomerSearch('')
       setCustomerResults([])
-      setCreateOrderForm({ retailer: '', market: 'UK', description: '', weight_kg: '', dimensions: { length: '', width: '', height: '' }, shipping_speed: 'economy', insurance: false, declared_value: '' })
+      setCreateOrderForm({ retailer: '', market: 'UK', description: '', weight_kg: '', dimensions: { length: '', width: '', height: '' }, shipping_speed: 'economy', insurance: false, declared_value: '', electronics_item: '' })
       const ordersRes = await adminApi.listOrders()
       setOrders(ordersRes.data?.orders || [])
     } catch (err) {
@@ -570,7 +572,7 @@ export const AdminDashboard = () => {
           ))}
         </div>
 
-        {/* â•â•â• Overview â•â•â• */}
+        {/* ═══ Overview ═══ */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -669,7 +671,7 @@ export const AdminDashboard = () => {
           </div>
         )}
 
-        {/* â•â•â• Users â•â•â• */}
+        {/* ═══ Users ═══ */}
         {activeTab === 'users' && (
           <div className="space-y-6">
             {/* Create User Button */}
@@ -797,7 +799,7 @@ export const AdminDashboard = () => {
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${u.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{u.is_active ? 'Active' : 'Inactive'}</span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">KES {(u.wallet_balance || 0).toLocaleString()}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{u.created_at ? new Date(u.created_at).toLocaleDateString() : 'â€”'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
                       <td className="px-6 py-4">
                           <div className="flex items-center gap-1">
                             {/* View user detail */}
@@ -858,7 +860,7 @@ export const AdminDashboard = () => {
           </div>
         )}
 
-        {/* â•â•â• User Detail Panel (slide-over) â•â•â• */}
+        {/* ═══ User Detail Panel (slide-over) ═══ */}
         {selectedUser && (
           <div className="fixed inset-0 bg-black/50 z-50 flex justify-end" onClick={handleCloseUserDetail}>
             <div className="bg-white w-full max-w-3xl h-full overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -904,7 +906,7 @@ export const AdminDashboard = () => {
                     </div>
                     <div className="bg-gray-50 rounded-lg p-4">
                       <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Joined</p>
-                      <p className="font-medium text-gray-900">{selectedUserData.user?.created_at ? new Date(selectedUserData.user.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'â€”'}</p>
+                      <p className="font-medium text-gray-900">{selectedUserData.user?.created_at ? new Date(selectedUserData.user.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</p>
                     </div>
                   </div>
 
@@ -997,6 +999,27 @@ export const AdminDashboard = () => {
                             </select>
                           </div>
                         </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Electronics Handling
+                          </label>
+                          <select
+                            value={userOrderForm.electronics_item}
+                            onChange={(e) =>
+                              setUserOrderForm((p) => ({ ...p, electronics_item: e.target.value }))
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                          >
+                            <option value="">No electronics</option>
+                            <option value="phone">Phone</option>
+                            <option value="laptop">Laptop / Accessories</option>
+                            <option value="tv_monitor">TV / Screen / Monitor</option>
+                          </select>
+                          <p className="text-[11px] text-gray-500 mt-1">
+                            Use this when the order includes phones, laptops or other electronics so
+                            the correct handling fee is applied.
+                          </p>
+                        </div>
                         <div className="flex gap-2 pt-1">
                           <button type="submit" disabled={creatingUserOrder} className="bg-[#1e3a5f] hover:bg-[#152d4a] text-white px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50">
                             {creatingUserOrder ? 'Creating...' : 'Create Order'}
@@ -1040,7 +1063,7 @@ export const AdminDashboard = () => {
                                   </span>
                                 </td>
                                 <td className="px-3 py-2 text-xs font-semibold">KES {(o.actual_cost || o.estimated_cost || 0).toLocaleString()}</td>
-                                <td className="px-3 py-2 text-xs text-gray-500">{o.created_at ? new Date(o.created_at).toLocaleDateString() : 'â€”'}</td>
+                                <td className="px-3 py-2 text-xs text-gray-500">{o.created_at ? new Date(o.created_at).toLocaleDateString() : '—'}</td>
                                 <td className="px-3 py-2">
                                   <div className="flex items-center gap-1">
                                     {o.status !== 'cancelled' && o.status !== 'delivered' && (
@@ -1103,13 +1126,13 @@ export const AdminDashboard = () => {
                                     {tx.type === 'payment' ? '-' : '+'} KES {Math.abs(tx.amount).toLocaleString()}
                                   </span>
                                 </td>
-                                <td className="px-3 py-2 text-xs text-gray-600">{tx.payment_method || 'â€”'}</td>
+                                <td className="px-3 py-2 text-xs text-gray-600">{tx.payment_method || '—'}</td>
                                 <td className="px-3 py-2 text-xs">
                                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tx.status === 'completed' ? 'bg-green-100 text-green-800' : tx.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
                                     {tx.status}
                                   </span>
                                 </td>
-                                <td className="px-3 py-2 text-xs text-gray-500">{tx.created_at ? new Date(tx.created_at).toLocaleDateString() : 'â€”'}</td>
+                                <td className="px-3 py-2 text-xs text-gray-500">{tx.created_at ? new Date(tx.created_at).toLocaleDateString() : '—'}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -1150,7 +1173,7 @@ export const AdminDashboard = () => {
                                     {log.status}
                                   </span>
                                 </td>
-                                <td className="px-3 py-2 text-xs text-gray-500">{log.created_at ? new Date(log.created_at).toLocaleDateString() : 'â€”'}</td>
+                                <td className="px-3 py-2 text-xs text-gray-500">{log.created_at ? new Date(log.created_at).toLocaleDateString() : '—'}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -1168,7 +1191,7 @@ export const AdminDashboard = () => {
           </div>
         )}
 
-        {/* â•â•â• Orders â•â•â• */}
+        {/* ═══ Orders ═══ */}
         {activeTab === 'orders' && (
           <div className="space-y-6">
             {/* Create Order Button */}
@@ -1212,14 +1235,14 @@ export const AdminDashboard = () => {
                               className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-0"
                             >
                               <p className="font-medium text-sm text-gray-900">{c.name}</p>
-                              <p className="text-xs text-gray-500">{c.email} Â· {c.warehouse_id}</p>
+                              <p className="text-xs text-gray-500">{c.email} · {c.warehouse_id}</p>
                             </button>
                           ))}
                         </div>
                       )}
                     </div>
                     {selectedCustomer && (
-                      <p className="mt-1 text-xs text-green-600 font-medium">âœ“ Selected: {selectedCustomer.name} ({selectedCustomer.email})</p>
+                      <p className="mt-1 text-xs text-green-600 font-medium">✓ Selected: {selectedCustomer.name} ({selectedCustomer.email})</p>
                     )}
                   </div>
 
@@ -1243,25 +1266,46 @@ export const AdminDashboard = () => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Shipping Speed</label>
                       <select value={createOrderForm.shipping_speed} onChange={(e) => setCreateOrderForm((p) => ({ ...p, shipping_speed: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]">
-                        <option value="economy">Economy (7â€“14 days)</option>
-                        <option value="express">Express (3â€“5 days)</option>
+                        <option value="economy">Economy (7–14 days)</option>
+                        <option value="express">Express (3–5 days)</option>
                       </select>
                     </div>
                   </div>
 
                   {/* Dimensions */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Dimensions (cm) <span className="text-gray-400 font-normal">â€” optional</span></label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Dimensions (cm) <span className="text-gray-400 font-normal">— optional</span></label>
                     <div className="grid grid-cols-3 gap-2">
                       <input type="number" step="0.1" min="0" value={createOrderForm.dimensions.length} onChange={(e) => setCreateOrderForm((p) => ({ ...p, dimensions: { ...p.dimensions, length: e.target.value } }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]" placeholder="L (cm)" />
                       <input type="number" step="0.1" min="0" value={createOrderForm.dimensions.width} onChange={(e) => setCreateOrderForm((p) => ({ ...p, dimensions: { ...p.dimensions, width: e.target.value } }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]" placeholder="W (cm)" />
                       <input type="number" step="0.1" min="0" value={createOrderForm.dimensions.height} onChange={(e) => setCreateOrderForm((p) => ({ ...p, dimensions: { ...p.dimensions, height: e.target.value } }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]" placeholder="H (cm)" />
                     </div>
-                    <p className="text-xs text-gray-400 mt-1">Length Ã— Width Ã— Height. Used for volumetric weight calculation if heavier than actual weight.</p>
+                    <p className="text-xs text-gray-400 mt-1">Length × Width × Height. Used for volumetric weight calculation if heavier than actual weight.</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Description *</label>
                     <textarea value={createOrderForm.description} onChange={(e) => setCreateOrderForm((p) => ({ ...p, description: e.target.value }))} required rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]" placeholder="Brief description of items" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Electronics Handling
+                    </label>
+                    <select
+                      value={createOrderForm.electronics_item}
+                      onChange={(e) =>
+                        setCreateOrderForm((p) => ({ ...p, electronics_item: e.target.value }))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                    >
+                      <option value="">No electronics</option>
+                      <option value="phone">Phone</option>
+                      <option value="laptop">Laptop / Accessories</option>
+                      <option value="tv_monitor">TV / Screen / Monitor</option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Selecting an electronics category adds the specialist handling fee and
+                      applies a minimum chargeable weight of 1 kg for that item.
+                    </p>
                   </div>
                   <div className="flex gap-4 items-center">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -1338,8 +1382,8 @@ export const AdminDashboard = () => {
                           <input type="checkbox" checked={selectedOrders.includes(order.id)} onChange={() => handleToggleOrderSelection(order.id)} className="w-4 h-4" disabled={order.status === 'cancelled'} />
                         </td>
                         <td className="px-4 py-4 text-sm font-mono text-gray-900">{order.tracking_number}</td>
-                        <td className="px-4 py-4 text-sm text-gray-600">{order.name || order.email || 'â€”'}</td>
-                        <td className="px-4 py-4 text-sm text-gray-600">{order.retailer || 'â€”'}</td>
+                        <td className="px-4 py-4 text-sm text-gray-600">{order.name || order.email || '—'}</td>
+                        <td className="px-4 py-4 text-sm text-gray-600">{order.retailer || '—'}</td>
                         <td className="px-4 py-4 text-sm">
                           <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusBadge(order.status)}`}>
                             {order.status?.replace(/_/g, ' ')}
@@ -1350,7 +1394,7 @@ export const AdminDashboard = () => {
                           KES {(order.estimated_cost || 0).toLocaleString()}
                         </td>
                         <td className="px-4 py-4 text-sm text-gray-600">
-                          {order.created_at ? new Date(order.created_at).toLocaleDateString() : 'â€”'}
+                          {order.created_at ? new Date(order.created_at).toLocaleDateString() : '—'}
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-2">
@@ -1403,7 +1447,7 @@ export const AdminDashboard = () => {
           </div>
         )}
 
-        {/* â•â•â• Payments â•â•â• */}
+        {/* ═══ Payments ═══ */}
         {activeTab === 'payments' && (
           <div className="card">
             <h2 className="text-2xl font-bold text-[#1e3a5f] mb-4">Pending M-Pesa Payments</h2>
@@ -1470,7 +1514,7 @@ export const AdminDashboard = () => {
           </div>
         )}
 
-        {/* â•â•â• Revenue â•â•â• */}
+        {/* ═══ Revenue ═══ */}
         {activeTab === 'revenue' && (
           <div className="card">
             <h2 className="text-2xl font-bold text-[#1e3a5f] mb-4">{t('admin.revenueReport')}</h2>
@@ -1508,7 +1552,7 @@ export const AdminDashboard = () => {
           </div>
         )}
 
-        {/* â•â•â• Tickets â•â•â• */}
+        {/* ═══ Tickets ═══ */}
         {activeTab === 'tickets' && (
           <div className="card">
             <h2 className="text-2xl font-bold text-[#1e3a5f] mb-4">{t('admin.tickets')}</h2>
@@ -1535,7 +1579,7 @@ export const AdminDashboard = () => {
                     >
                       <td className="px-6 py-4 text-sm font-mono text-gray-900">{ticket.id?.slice(0, 8).toUpperCase()}</td>
                       <td className="px-6 py-4 text-sm text-gray-900">{ticket.subject}</td>
-                      <td className="px-6 py-4 text-sm text-gray-700">{ticket.customer_name || ticket.customer_email || 'â€”'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-700">{ticket.customer_name || ticket.customer_email || '—'}</td>
                       <td className="px-6 py-4 text-sm">
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${ticket.priority === 'high' ? 'bg-red-100 text-red-800' : ticket.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>{ticket.priority}</span>
                       </td>
@@ -1544,7 +1588,7 @@ export const AdminDashboard = () => {
                           {ticket.status?.replace(/_/g, ' ')}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{ticket.created_at ? new Date(ticket.created_at).toLocaleDateString() : 'â€”'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{ticket.created_at ? new Date(ticket.created_at).toLocaleDateString() : '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1564,7 +1608,7 @@ export const AdminDashboard = () => {
                     <p><span className="font-semibold">Subject:</span> {selectedTicket.subject}</p>
                     <p><span className="font-semibold">Ticket ID:</span> {selectedTicket.id?.slice(0, 8).toUpperCase()}</p>
                     <p><span className="font-semibold">Customer:</span> {selectedTicket.customer_name || 'Unknown'}</p>
-                    <p><span className="font-semibold">Email:</span> {selectedTicket.customer_email || 'â€”'}</p>
+                    <p><span className="font-semibold">Email:</span> {selectedTicket.customer_email || '—'}</p>
                     <p>
                       <span className="font-semibold">Priority:</span>
                       <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium ${selectedTicket.priority === 'high' ? 'bg-red-100 text-red-800' : selectedTicket.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
@@ -1577,7 +1621,7 @@ export const AdminDashboard = () => {
                         {selectedTicket.status?.replace(/_/g, ' ')}
                       </span>
                     </p>
-                    <p><span className="font-semibold">Created:</span> {selectedTicket.created_at ? new Date(selectedTicket.created_at).toLocaleString() : 'â€”'}</p>
+                    <p><span className="font-semibold">Created:</span> {selectedTicket.created_at ? new Date(selectedTicket.created_at).toLocaleString() : '—'}</p>
                   </div>
                   {selectedTicket.description && (
                     <div className="mt-4">
@@ -1607,7 +1651,7 @@ export const AdminDashboard = () => {
                             >
                               <p className="whitespace-pre-line mb-1">{msg.message}</p>
                               <p className={`text-[10px] mt-1 ${isAdmin ? 'text-blue-100' : 'text-gray-500'}`}>
-                                {isAdmin ? 'Support' : msg.name || 'Customer'} â€¢{' '}
+                                {isAdmin ? 'Support' : msg.name || 'Customer'} •{' '}
                                 {msg.created_at ? new Date(msg.created_at).toLocaleString() : ''}
                               </p>
                             </div>
@@ -1638,7 +1682,7 @@ export const AdminDashboard = () => {
           </div>
         )}
 
-        {/* â•â•â• Exchange Rates â•â•â• */}
+        {/* ═══ Exchange Rates ═══ */}
         {activeTab === 'exchange' && (
           <div className="card max-w-2xl">
             <div className="flex items-center gap-3 mb-6">
@@ -1654,9 +1698,9 @@ export const AdminDashboard = () => {
             <form onSubmit={handleSaveRates} className="space-y-4">
               {[
                 { pair: 'USD_KES', label: 'USD to KES', flag: '$' },
-                { pair: 'GBP_KES', label: 'GBP to KES', flag: 'Â£' },
-                { pair: 'EUR_KES', label: 'EUR to KES', flag: 'â‚¬' },
-                { pair: 'CNY_KES', label: 'CNY to KES', flag: 'Â¥' },
+                { pair: 'GBP_KES', label: 'GBP to KES', flag: '£' },
+                { pair: 'EUR_KES', label: 'EUR to KES', flag: '€' },
+                { pair: 'CNY_KES', label: 'CNY to KES', flag: '¥' },
               ].map(({ pair, label, flag }) => (
                 <div key={pair}>
                   <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
@@ -1675,7 +1719,7 @@ export const AdminDashboard = () => {
           </div>
         )}
 
-        {/* â•â•â• Settings â•â•â• */}
+        {/* ═══ Settings ═══ */}
         {activeTab === 'settings' && (
           <div className="space-y-6 max-w-lg">
             {/* Password Change */}
@@ -1756,10 +1800,10 @@ export const AdminDashboard = () => {
               <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                 <p className="text-xs font-bold text-gray-600 mb-2">Required Railway environment variables:</p>
                 <ul className="text-xs text-gray-500 space-y-1">
-                  <li><code className="bg-gray-200 px-1 rounded">GMAIL_CLIENT_ID</code> â€” OAuth 2.0 client ID from Google Cloud Console</li>
-                  <li><code className="bg-gray-200 px-1 rounded">GMAIL_CLIENT_SECRET</code> â€” OAuth 2.0 client secret</li>
-                  <li><code className="bg-gray-200 px-1 rounded">GMAIL_REFRESH_TOKEN</code> â€” from OAuth Playground with gmail scope</li>
-                  <li><code className="bg-gray-200 px-1 rounded">GMAIL_SENDER_EMAIL</code> â€” e.g. "noreply@thapsus.uk"</li>
+                  <li><code className="bg-gray-200 px-1 rounded">GMAIL_CLIENT_ID</code> — OAuth 2.0 client ID from Google Cloud Console</li>
+                  <li><code className="bg-gray-200 px-1 rounded">GMAIL_CLIENT_SECRET</code> — OAuth 2.0 client secret</li>
+                  <li><code className="bg-gray-200 px-1 rounded">GMAIL_REFRESH_TOKEN</code> — from OAuth Playground with gmail scope</li>
+                  <li><code className="bg-gray-200 px-1 rounded">GMAIL_SENDER_EMAIL</code> — e.g. "noreply@thapsus.uk"</li>
                 </ul>
                 <p className="text-xs text-gray-400 mt-2">
                   Set up at <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" className="text-orange-500 underline">Google Cloud Console</a>.
@@ -1770,7 +1814,7 @@ export const AdminDashboard = () => {
           </div>
         )}
 
-        {/* â•â•â• Error Logs â•â•â• */}
+        {/* ═══ Error Logs ═══ */}
         {activeTab === 'errorLogs' && (
           <div className="space-y-6">
             {/* Stats bar */}
@@ -1973,7 +2017,7 @@ export const AdminDashboard = () => {
         )}
       </div>
 
-      {/* â”€â”€ Cancel Modal â”€â”€ */}
+      {/* ─── Cancel Modal ─── */}
       {cancelModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
@@ -1996,7 +2040,7 @@ export const AdminDashboard = () => {
         </div>
       )}
 
-      {/* â”€â”€ Payment Reminder Modal â”€â”€ */}
+      {/* ─── Payment Reminder Modal ─── */}
       {reminderModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
@@ -2032,7 +2076,7 @@ export const AdminDashboard = () => {
         </div>
       )}
 
-      {/* â”€â”€ Payment Request Modal â”€â”€ */}
+      {/* ─── Payment Request Modal ─── */}
       {paymentModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
