@@ -72,7 +72,14 @@ export const Support = () => {
   const handleFormChange = (e) => {
     const { name, value, type, files } = e.target
     if (type === 'file') {
-      setFormData((prev) => ({ ...prev, [name]: files[0] || null }))
+      const file = files[0] || null
+      if (file && !file.type.startsWith('image/')) {
+        toast.error('Only image files are allowed')
+        e.target.value = ''
+        setFormData((prev) => ({ ...prev, [name]: null }))
+        return
+      }
+      setFormData((prev) => ({ ...prev, [name]: file }))
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }))
     }
@@ -199,7 +206,7 @@ export const Support = () => {
                       <p className="text-xs text-gray-500 mt-1">
                         {ticket.created_at ? new Date(ticket.created_at).toLocaleDateString() : ''}
                       </p>
-                      <div className="mt-2">
+                      <div className="mt-2 flex items-center gap-2">
                         <span
                           className={`inline-block px-2 py-1 rounded text-xs font-medium ${
                             ticket.status === 'open'
@@ -211,6 +218,12 @@ export const Support = () => {
                         >
                           {ticket.status.replace(/_/g, ' ')}
                         </span>
+                        {ticket.photo_url && (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+                            Image attached
+                          </span>
+                        )}
                       </div>
                     </button>
                   ))}
@@ -272,9 +285,11 @@ export const Support = () => {
                     <input
                       type="file"
                       name="file"
+                      accept="image/*"
                       onChange={handleFormChange}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
                     />
+                    <p className="mt-1 text-xs text-gray-500">Only image files are allowed (JPEG, PNG, GIF, WebP).</p>
                   </div>
 
                   {/* Buttons */}
@@ -307,6 +322,22 @@ export const Support = () => {
                     <p className="text-gray-600 mt-1 text-sm">
                       {t('support.ticketId')}: {selectedTicket.id.slice(0, 8).toUpperCase()}
                     </p>
+                    {selectedTicket.photo_url && (
+                      <div className="mt-2">
+                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Attached Image</p>
+                        <a
+                          href={selectedTicket.photo_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <img
+                            src={selectedTicket.photo_url}
+                            alt="Ticket attachment"
+                            className="mt-1 rounded-lg border border-gray-200 max-h-64 object-contain"
+                          />
+                        </a>
+                      </div>
+                    )}
                   </div>
                   <span
                     className={`px-4 py-2 rounded-lg font-medium text-xs md:text-sm ${

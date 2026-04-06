@@ -37,8 +37,12 @@ const upload = multer({
   storage,
   limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE) || 5242880 },
   fileFilter: (req, file, cb) => {
-    ['image/jpeg','image/png','image/gif','application/pdf'].includes(file.mimetype)
-      ? cb(null, true) : cb(new Error('Invalid file type'));
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only image files are allowed.'));
+    }
   },
 });
 
