@@ -25,6 +25,8 @@ import { ResetPassword } from './pages/ResetPassword'
 import { ForgotPassword } from './pages/ForgotPassword'
 import { OrderDetail } from './pages/OrderDetail'
 import { PublicPayment } from './pages/PublicPayment'
+import { NewOrder } from './pages/NewOrder'
+import { OrderConfirmation } from './pages/OrderConfirmation'
 
 function App() {
   return (
@@ -49,6 +51,8 @@ function App() {
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
           <Route path="/orders/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
+                  <Route path="/orders/new" element={<ProtectedRoute><NewOrder /></ProtectedRoute>} />
+                  <Route path="/orders/confirmation" element={<ProtectedRoute><OrderConfirmation /></ProtectedRoute>} />
           <Route path="/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
           <Route path="/consolidation" element={<ProtectedRoute><Consolidation /></ProtectedRoute>} />
           <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
