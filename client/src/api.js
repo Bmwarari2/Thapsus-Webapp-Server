@@ -75,11 +75,10 @@ export const prohibitedApi = {
 
 // Support Tickets
 export const supportApi = {
-  createTicket: (subject, description, priority, file) => {
+  createTicket: (subject, description, file) => {
     const formData = new FormData()
     formData.append('subject', subject)
     formData.append('description', description)
-    formData.append('priority', priority)
     if (file) formData.append('photo', file)
     return api.post('/tickets', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -122,7 +121,7 @@ export const adminApi = {
   exportRevenue: (startDate, endDate) =>
     api.get('/admin/revenue/export', { params: { startDate, endDate }, responseType: 'blob' }),
 
-  listTickets: (filters = {}) => api.get('/admin/tickets', { params: filters }),
+  listTickets: (filters = {}) => api.get('/tickets/admin/all', { params: filters }),
   assignTicket: (id, assignedTo) => api.put(`/admin/tickets/${id}`, { assignedTo }),
   updateTicketStatus: (id, status) => api.put(`/admin/tickets/${id}`, { status }),
 

@@ -14,7 +14,6 @@ export const Support = () => {
   const [formData, setFormData] = useState({
     subject: '',
     description: '',
-    priority: 'medium',
     file: null,
   })
   const [replyText, setReplyText] = useState('')
@@ -102,7 +101,6 @@ export const Support = () => {
       const response = await supportApi.createTicket(
         formData.subject,
         formData.description,
-        formData.priority,
         formData.file
       )
 
@@ -110,7 +108,7 @@ export const Support = () => {
       toast.success('Ticket created successfully!')
 
       setTickets((prev) => [ticket, ...prev])
-      setFormData({ subject: '', description: '', priority: 'medium', file: null })
+      setFormData({ subject: '', description: '', file: null })
       setShowCreateForm(false)
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to create ticket')
@@ -271,23 +269,6 @@ export const Support = () => {
                       required
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
                     />
-                  </div>
-
-                  {/* Priority */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {t('support.priority')}
-                    </label>
-                    <select
-                      name="priority"
-                      value={formData.priority}
-                      onChange={handleFormChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
-                    >
-                      <option value="low">{t('support.low')}</option>
-                      <option value="medium">{t('support.medium')}</option>
-                      <option value="high">{t('support.high')}</option>
-                    </select>
                   </div>
 
                   {/* File Upload */}

@@ -60,9 +60,16 @@ router.post('/', authMiddleware, upload.single('photo'), async (req, res) => {
     const db = req.db;
     const userId = req.user.id;
     const { subject, description, priority } = req.body;
+    const isAdminUser = req.user.role === 'admin';
+
     if (!subject || !description)
       return res.status(400).json({ success: false, message: 'Subject and description are required' });
-    const ticketPriority = priority || 'medium';
+
+    // Only admins can choose priority; customers default to medium
+    let ticketPriority = 'medium';
+    if (isAdminUser && priority) {
+      ticketPriority = priority;
+    }
     if (!['low','medium','high'].includes(ticketPriority))
       return res.status(400).json({ success: false, message: 'Invalid priority' });
 

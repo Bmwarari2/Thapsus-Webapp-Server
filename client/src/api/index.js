@@ -155,26 +155,12 @@ export const adminApi = {
   /** Delete a user account permanently */
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
 
-  /** Send test email to verify SMTP configuration */
-  testEmail: (to) => api.post('/admin/test-email', { to }),
-
-  /** Search customers by name/email */
-  searchCustomers: (q) => api.get('/admin/users/search', { params: { q } }),
-
-  /** Request payment from customer */
-  requestPayment: (orderId, amount, notes) =>
-    api.post(`/admin/orders/${orderId}/request-payment`, { amount, notes }),
-
   /** Send payment reminder email */
   sendPaymentReminder: (orderId, amount, notes) =>
     api.post(`/admin/orders/${orderId}/send-reminder`, { amount, notes }),
 
-  /** Cancel an order */
-  cancelOrder: (orderId, reason) =>
-    api.put(`/admin/orders/${orderId}/cancel`, { reason }),
-
-  /** Delete an order */
-  deleteOrder: (orderId) => api.delete(`/admin/orders/${orderId}`),
+  /** Send test email to verify SMTP configuration */
+  testEmail: (to) => api.post('/admin/test-email', { to }),
 
   /** Create order for a client */
   createOrderForClient: (data) => api.post('/admin/orders/create-for-client', data),
@@ -250,18 +236,17 @@ export const supportApi = {
    * Create a new support ticket.
    * File attachment is optional – sent as multipart/form-data when present.
    */
-  createTicket: (subject, description, priority = 'medium', file = null) => {
+  createTicket: (subject, description, file = null) => {
     if (file) {
       const form = new FormData()
       form.append('subject', subject)
       form.append('description', description)
-      form.append('priority', priority)
       form.append('photo', file)
       return api.post('/tickets', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
     }
-    return api.post('/tickets', { subject, description, priority })
+    return api.post('/tickets', { subject, description })
   },
 
   /** Reply to an existing ticket */
