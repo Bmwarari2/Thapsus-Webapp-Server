@@ -192,6 +192,33 @@ export const adminApi = {
 
   /** Clear old error logs */
   clearErrorLogs: (keepDays = 30) => api.delete('/admin/error-logs', { params: { keepDays } }),
+
+  /** Get current shipping rates (per-kg rates for standard/express/economy) */
+  getShippingRates: () => api.get('/admin/shipping-rates'),
+
+  /** Update shipping rates */
+  setShippingRates: (rates) => api.put('/admin/shipping-rates', { rates }),
+
+  /** Update shipping rates (alias) */
+  updateShippingRates: (rates) => api.put('/admin/shipping-rates', { rates }),
+
+  /** Request payment for an order — sends a payment request email to the customer */
+  requestPayment: (orderId, amount, notes) =>
+    api.post(`/admin/orders/${orderId}/request-payment`, { amount, notes }),
+
+  /** Cancel an order */
+  cancelOrder: (orderId, reason) =>
+    api.post(`/admin/orders/${orderId}/cancel`, { reason }),
+
+  /** Delete an order permanently */
+  deleteOrder: (orderId) => api.delete(`/admin/orders/${orderId}`),
+
+  /** Search customers by name/email for the create-order form */
+  searchCustomers: (query) =>
+    api.get('/admin/users/search', { params: { q: query } }),
+
+  /** Get revenue analytics */
+  getRevenue: (params = {}) => api.get('/admin/revenue', { params }),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
