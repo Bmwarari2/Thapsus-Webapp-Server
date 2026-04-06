@@ -1,180 +1,106 @@
 import React, { useState, useEffect } from 'react'
-import { Save, RefreshCw, Info } from 'lucide-react'
-import { adminApi } from '../api'
-import toast from 'react-hot-toast'
 
-/**
- * ShippingRatesPanel
- * Allows admins to view and update shipping rates per market/weight band.
- * Rendered inside the AdminDashboard Settings tab.
- */
-export const ShippingRatesPanel = () => {
+export function ShippingRatesPanel() {
   const [rates, setRates] = useState({
-    UK: { economy_base: '', economy_per_kg: '', express_base: '', express_per_kg: '' },
-    USA: { economy_base: '', economy_per_kg: '', express_base: '', express_per_kg: '' },
-    China: { economy_base: '', economy_per_kg: '', express_base: '', express_per_kg: '' },
+    standard_per_kg: '',
+    express_per_kg: '',
+    economy_per_kg: '',
+    base_fee: '',
+    fuel_surcharge_pct: '',
   })
-  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [lastUpdated, setLastUpdated] = useState(null)
+  const [message, setMessage] = useState(null)
 
   useEffect(() => {
-    fetchRates()
+    fetch('/api/admin/shipping-rates', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((data) => setRates((prev) => ({ ...prev, ...data })))
+      .catch(() => {})
   }, [])
 
-  const fetchRates = async () => {
-    try {
-      setLoading(true)
-      // Try to fetch shipping rates from adminApi; gracefully handle if endpoint not yet available
-      if (typeof adminApi.getShippingRates === 'function') {
-        const res = await adminApi.getShippingRates()
-        if (res.data?.rates) {
-          setRates((prev) => ({ ...prev, ...res.data.rates }))
-          setLastUpdated(res.data.updated_at || null)
-        }
-      }
-    } catch (err) {
-      // Non-critical — panel still usable for input
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleChange = (market, field, value) => {
-    setRates((prev) => ({
-      ...prev,
-      [market]: { ...prev[market], [field]: value },
-    }))
+  const handleChange = (e) => {
+    setRates({ ...rates, [e.target.name]: e.target.value })
   }
 
   const handleSave = async (e) => {
     e.preventDefault()
-    // Validate all fields are positive numbers
-    for (const [market, fields] of Object.entries(rates)) {
-      for (const [field, val] of Object.entries(fields)) {
-        const num = parseFloat(val)
-        if (val !== '' && (isNaN(num) || num < 0)) {
-          toast.error(`Invalid value for ${market} – ${field.replace(/_/g, ' ')}`)
-          return
-        }
-      }
-    }
+    setSaving(true)
+    setMessage(null)
     try {
-      setSaving(true)
-      if (typeof adminApi.setShippingRates === 'function') {
-        await adminApi.setShippingRates(rates)
-        toast.success('Shipping rates updated successfully')
-        setLastUpdated(new Date().toISOString())
-      } else {
-        toast.success('Rates saved (API endpoint pending integration)')
-      }
+      const res = await fetch('/api/admin/shipping-rates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(rates),
+      })
+      if (!res.ok) throw new Error('Failed to save rates')
+      setMessage({ type: 'success', text: 'Shipping rates updated successfully.' })
     } catch (err) {
-      toast.error(err?.response?.data?.message || 'Failed to save shipping rates')
+      setMessage({ type: 'error', text: err.message })
     } finally {
       setSaving(false)
     }
   }
 
-  const markets = ['UK', 'USA', 'China']
-  const fieldLabels = {
-    economy_base: 'Economy – Base fee (KES)',
-    economy_per_kg: 'Economy – Per kg (KES)',
-    express_base: 'Express – Base fee (KES)',
-    express_per_kg: 'Express – Per kg (KES)',
-  }
+  const fields = [
+    { name: 'standard_per_kg', label: 'Standard Rate (£/kg)' },
+    { name: 'express_per_kg',  label: 'Express Rate (£/kg)' },
+    { name: 'economy_per_kg',  label: 'Economy Rate (£/kg)' },
+    { name: 'base_fee',        label: 'Base Handling Fee (£)' },
+    { name: 'fuel_surcharge_pct', label: 'Fuel Surcharge (%)' },
+  ]
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-bold text-[#1e3a5f]">Shipping Rates Adjustment</h3>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Set the base fee and per-kg rate for each market and shipping speed.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={fetchRates}
-          disabled={loading}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#1e3a5f] transition-colors"
+    <div>
+      <h2 className="text-lg font-semibold text-[#1e3a5f] mb-1">Shipping Rates</h2>
+      <p className="text-sm text-gray-500 mb-5">
+        Adjust per-kg rates and surcharges applied across all shipping calculations.
+      </p>
+
+      {message && (
+        <div
+          className={`mb-4 rounded-lg px-4 py-3 text-sm font-medium ${
+            message.type === 'success'
+              ? 'bg-green-50 text-green-800 border border-green-200'
+              : 'bg-red-50 text-red-800 border border-red-200'
+          }`}
         >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          Refresh
-        </button>
-      </div>
+          {message.text}
+        </div>
+      )}
 
-      {/* Info banner */}
-      <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <Info size={16} className="text-blue-600 mt-0.5 shrink-0" />
-        <p className="text-sm text-blue-800">
-          <span className="font-semibold">Formula:</span> Total shipping cost = Base fee + (Weight in kg × Per-kg rate).
-          Electronics handling fees are applied on top of these rates at checkout.
-        </p>
-      </div>
-
-      {/* Rates form */}
-      <form onSubmit={handleSave} className="space-y-6">
-        {markets.map((market) => (
-          <div key={market} className="border border-gray-200 rounded-xl p-5">
-            <h4 className="text-sm font-bold text-[#1e3a5f] mb-4 uppercase tracking-wide">
-              {market === 'UK' ? '🇬🇧' : market === 'USA' ? '🇺🇸' : '🇨🇳'} {market}
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {Object.entries(fieldLabels).map(([field, label]) => (
-                <div key={field}>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={rates[market][field]}
-                    onChange={(e) => handleChange(market, field, e.target.value)}
-                    placeholder="e.g. 500"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
-                  />
-                </div>
-              ))}
-            </div>
+      <form onSubmit={handleSave} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {fields.map(({ name, label }) => (
+          <div key={name} className="flex flex-col gap-1">
+            <label htmlFor={name} className="text-sm font-medium text-gray-700">
+              {label}
+            </label>
+            <input
+              id={name}
+              name={name}
+              type="number"
+              step="0.01"
+              min="0"
+              value={rates[name]}
+              onChange={handleChange}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+              placeholder="0.00"
+            />
           </div>
         ))}
 
-        {/* Electronics fees (read-only reference) */}
-        <div className="border border-amber-200 rounded-xl p-5 bg-amber-50">
-          <h4 className="text-sm font-bold text-amber-800 mb-3 uppercase tracking-wide">⚡ Electronics Handling Fees (Fixed)</h4>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-            <div className="bg-white rounded-lg p-3 border border-amber-200">
-              <p className="font-semibold text-gray-800">Phone</p>
-              <p className="text-amber-700 font-bold">+£75</p>
-            </div>
-            <div className="bg-white rounded-lg p-3 border border-amber-200">
-              <p className="font-semibold text-gray-800">Laptop / Accessories</p>
-              <p className="text-amber-700 font-bold">+£65</p>
-            </div>
-            <div className="bg-white rounded-lg p-3 border border-amber-200">
-              <p className="font-semibold text-gray-800">TV / Screen / Monitor</p>
-              <p className="text-amber-700 font-bold">+£65</p>
-            </div>
-          </div>
-          <p className="text-xs text-amber-700 mt-3">These flat fees are applied automatically when a customer selects an electronics item type. To change them, update the source code in <code className="font-mono bg-amber-100 px-1 rounded">PricingCalculator.jsx</code> and <code className="font-mono bg-amber-100 px-1 rounded">Pricing.jsx</code>.</p>
-        </div>
-
-        <div className="flex items-center gap-4">
+        <div className="sm:col-span-2 lg:col-span-3 flex justify-end mt-2">
           <button
             type="submit"
             disabled={saving}
-            className="flex items-center gap-2 bg-[#1e3a5f] hover:bg-[#152d4a] text-white px-6 py-2.5 rounded-lg font-bold transition-colors disabled:opacity-50"
+            className="bg-[#1e3a5f] hover:bg-[#152d4a] text-white text-sm font-bold px-6 py-2 rounded-lg disabled:opacity-50 transition-colors"
           >
-            <Save size={16} />
-            {saving ? 'Saving...' : 'Save Shipping Rates'}
+            {saving ? 'Saving…' : 'Save Rates'}
           </button>
-          {lastUpdated && (
-            <p className="text-xs text-gray-400">
-              Last updated: {new Date(lastUpdated).toLocaleString('en-GB')}
-            </p>
-          )}
         </div>
       </form>
     </div>
   )
 }
+
+export default ShippingRatesPanel
