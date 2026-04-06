@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom', useNavigate
+import { Link, useNavigate } from 'react-router-dom'
 import { Package, Eye } from 'lucide-react'
 
 import { useLanguage } from '../context/LanguageContext'
