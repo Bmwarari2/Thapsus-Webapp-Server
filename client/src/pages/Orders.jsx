@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router-dom', useNavigate
 import { Package, Eye } from 'lucide-react'
 
 import { useLanguage } from '../context/LanguageContext'
@@ -16,6 +16,7 @@ export const Orders = () => {
   })
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
+    const navigate = useNavigate()
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -67,6 +68,13 @@ export const Orders = () => {
             {t('orders.title')}
           </h1>
           <p className="text-gray-600">Track and view all your shipments</p>
+                        <button
+                onClick={() => navigate('/orders/new')}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+              >
+                <Package size={18} />
+                New Order
+              </button>
         </div>
 
         {/* Filters */}
