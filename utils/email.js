@@ -8,14 +8,14 @@ let _oauth2Client = null;
 function getOAuth2Client() {
   if (_oauth2Client) return _oauth2Client;
 
-  const clientId = process.env.GMAIL_CLIENT_ID;
+  const clientId     = process.env.GMAIL_CLIENT_ID;
   const clientSecret = process.env.GMAIL_CLIENT_SECRET;
   const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
 
+  // FIX 5: Return null instead of throwing so the server can boot without
+  // Gmail credentials — callers handle null gracefully (see sendWithGmail).
   if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error(
-      'Gmail API not configured. Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN environment variables.'
-    );
+    return null;
   }
 
   _oauth2Client = new google.auth.OAuth2(
@@ -70,7 +70,15 @@ function buildRawEmail({ from, to, subject, html, text }) {
 }
 
 async function sendWithGmail(mailOptions, retries = 2) {
+  // FIX 6: Surface a clean error when env vars are not configured.
   const auth = getOAuth2Client();
+  if (!auth) {
+    throw new Error(
+      'Gmail API not configured. Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, ' +
+      'GMAIL_REFRESH_TOKEN, and GMAIL_SENDER_EMAIL in Railway → Variables.'
+    );
+  }
+
   const gmail = google.gmail({ version: 'v1', auth });
 
   const senderEmail = getSenderAddress();
@@ -78,10 +86,10 @@ async function sendWithGmail(mailOptions, retries = 2) {
 
   const raw = buildRawEmail({
     from,
-    to: mailOptions.to,
+    to:      mailOptions.to,
     subject: mailOptions.subject,
-    html: mailOptions.html,
-    text: mailOptions.text,
+    html:    mailOptions.html,
+    text:    mailOptions.text,
   });
 
   let lastError;
@@ -89,14 +97,23 @@ async function sendWithGmail(mailOptions, retries = 2) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const response = await gmail.users.messages.send({
-        userId: 'me',
+        userId:      'me',
         requestBody: { raw },
       });
-      console.log(`📧 Email sent to ${mailOptions.to}: ${mailOptions.subject} (attempt ${attempt + 1})`);
+      console.log(
+        `📧 Email sent to ${mailOptions.to}: ${mailOptions.subject} (attempt ${attempt + 1})`
+      );
       return response.data;
     } catch (err) {
       lastError = err;
-      if (err.code === 401 || err.message?.includes('invalid_grant')) {
+      // FIX 4: Reset the cached client on any auth failure (401 OR 400
+      // invalid_grant) so the next attempt rebuilds it from env vars.
+      if (
+        err.code === 401 ||
+        err.code === 400 ||
+        err.message?.includes('invalid_grant') ||
+        err.message?.includes('Invalid Credentials')
+      ) {
         _oauth2Client = null;
       }
       if (attempt < retries) {
@@ -107,6 +124,7 @@ async function sendWithGmail(mailOptions, retries = 2) {
   throw lastError;
 }
 
+// FIX 3: Accept userId so email_logs rows are attributed to the correct user.
 async function logEmailSent({ toEmail, emailType, subject, userId = null, errorMessage = null }) {
   try {
     const pool = getPool();
@@ -124,11 +142,11 @@ async function logEmailSent({ toEmail, emailType, subject, userId = null, errorM
 // ── Helpers & Layouts ──────────────────────────────────────────────────────
 
 function costBreakdownTable(order) {
-  const shipping_cost = order.shipping_cost?.toLocaleString() ?? order.estimated_cost?.toLocaleString();
-  const handling_fee = order.handling_fee > 0 ? order.handling_fee.toLocaleString() : null;
-  const insurance_fee = order.insurance_fee > 0 ? order.insurance_fee.toLocaleString() : null;
-  const customs_duty = order.customs_duty > 0 ? order.customs_duty.toLocaleString() : null;
-  const total_cost = ((order.actual_cost ?? order.estimated_cost ?? 0) + (order.customs_duty ?? 0)).toLocaleString();
+  const shipping_cost  = order.shipping_cost?.toLocaleString() ?? order.estimated_cost?.toLocaleString();
+  const handling_fee   = order.handling_fee  > 0 ? order.handling_fee.toLocaleString()  : null;
+  const insurance_fee  = order.insurance_fee > 0 ? order.insurance_fee.toLocaleString() : null;
+  const customs_duty   = order.customs_duty  > 0 ? order.customs_duty.toLocaleString()  : null;
+  const total_cost     = ((order.actual_cost ?? order.estimated_cost ?? 0) + (order.customs_duty ?? 0)).toLocaleString();
   const is_actual_cost = !!order.actual_cost;
 
   return `
@@ -141,9 +159,9 @@ function costBreakdownTable(order) {
       </thead>
       <tbody>
         ${shipping_cost ? `<tr><td style="padding:8px 12px; border-bottom:1px solid #e5e7eb;">Shipping Rate</td><td style="padding:8px 12px; text-align:right; border-bottom:1px solid #e5e7eb;">${shipping_cost}</td></tr>` : ''}
-        ${handling_fee ? `<tr><td style="padding:8px 12px; border-bottom:1px solid #e5e7eb;">Handling Fee</td><td style="padding:8px 12px; text-align:right; border-bottom:1px solid #e5e7eb;">${handling_fee}</td></tr>` : ''}
+        ${handling_fee  ? `<tr><td style="padding:8px 12px; border-bottom:1px solid #e5e7eb;">Handling Fee</td><td style="padding:8px 12px; text-align:right; border-bottom:1px solid #e5e7eb;">${handling_fee}</td></tr>`  : ''}
         ${insurance_fee ? `<tr><td style="padding:8px 12px; border-bottom:1px solid #e5e7eb;">Insurance Fee</td><td style="padding:8px 12px; text-align:right; border-bottom:1px solid #e5e7eb;">${insurance_fee}</td></tr>` : ''}
-        ${customs_duty ? `<tr><td style="padding:8px 12px; border-bottom:1px solid #e5e7eb;">Customs Duty</td><td style="padding:8px 12px; text-align:right; border-bottom:1px solid #e5e7eb;">${customs_duty}</td></tr>` : ''}
+        ${customs_duty  ? `<tr><td style="padding:8px 12px; border-bottom:1px solid #e5e7eb;">Customs Duty</td><td style="padding:8px 12px; text-align:right; border-bottom:1px solid #e5e7eb;">${customs_duty}</td></tr>`  : ''}
         <tr style="background:#eff6ff;">
           <td style="padding:10px 12px; font-weight:700; color:#1e3a5f;">Total</td>
           <td style="padding:10px 12px; text-align:right; font-weight:700; color:#1e3a5f;">KES ${total_cost}</td>
@@ -226,7 +244,6 @@ async function sendPasswordResetEmail(toEmail, toName, resetLink) {
   }
 }
 
-// ── Bug 2 fix: sendAdminPasswordResetEmail ─────────────────────────────────
 async function sendAdminPasswordResetEmail(toEmail, toName, resetLink) {
   const bodyHtml = `
     <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Your Password Has Been Reset</h2>
@@ -256,6 +273,8 @@ async function sendAdminPasswordResetEmail(toEmail, toName, resetLink) {
   }
 }
 
+// FIX 1 & 2 applied at the call-site in routes/admin.js.
+// These functions themselves are correct — they require `order` as the 7th arg.
 async function sendPaymentRequestEmail(toEmail, toName, trackingNumber, amount, notes, paymentLink, order) {
   const bodyHtml = `
     <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment Request</h2>
@@ -279,10 +298,10 @@ async function sendPaymentRequestEmail(toEmail, toName, trackingNumber, amount, 
   const subject = `Payment Request for Order ${trackingNumber}`;
   try {
     const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
-    await logEmailSent({ toEmail, emailType: 'payment_request', subject });
+    await logEmailSent({ toEmail, emailType: 'payment_request', subject, userId: order?.user_id ?? null });
     return result;
   } catch (error) {
-    await logEmailSent({ toEmail, emailType: 'payment_request', subject, errorMessage: error.message });
+    await logEmailSent({ toEmail, emailType: 'payment_request', subject, userId: order?.user_id ?? null, errorMessage: error.message });
     throw error;
   }
 }
@@ -310,18 +329,17 @@ async function sendPaymentReminderEmail(toEmail, toName, trackingNumber, amount,
   const subject = `Payment Reminder for Order ${trackingNumber}`;
   try {
     const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
-    await logEmailSent({ toEmail, emailType: 'payment_reminder', subject });
+    await logEmailSent({ toEmail, emailType: 'payment_reminder', subject, userId: order?.user_id ?? null });
     return result;
   } catch (error) {
-    await logEmailSent({ toEmail, emailType: 'payment_reminder', subject, errorMessage: error.message });
+    await logEmailSent({ toEmail, emailType: 'payment_reminder', subject, userId: order?.user_id ?? null, errorMessage: error.message });
     throw error;
   }
 }
 
-// ── Bug 1 fix: sendOrderCreatedEmail ──────────────────────────────────────
 async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, market, description, shippingSpeed, ordersLink) {
-  const speedLabel = shippingSpeed === 'express' ? 'Express' : 'Economy';
-  const marketFlags = { UK: '🇬🇧', USA: '🇺🇸', China: '🇨🇳' };
+  const speedLabel   = shippingSpeed === 'express' ? 'Express' : 'Economy';
+  const marketFlags  = { UK: '🇬🇧', USA: '🇺🇸', China: '🇨🇳' };
   const marketDisplay = `${marketFlags[market] || ''} ${market}`.trim();
 
   const bodyHtml = `
@@ -376,7 +394,6 @@ async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, 
   }
 }
 
-// ── Bug 2 fix: sendWelcomeAccountEmail ────────────────────────────────────
 async function sendWelcomeAccountEmail(toEmail, toName, warehouseId, role, setupLink) {
   const roleLabel = role === 'admin' ? 'Administrator' : 'Customer';
   const bodyHtml = `
@@ -424,12 +441,11 @@ async function sendWelcomeAccountEmail(toEmail, toName, warehouseId, role, setup
   }
 }
 
-// ── Bug 2 fix: sendPaymentReceiptEmail ────────────────────────────────────
 async function sendPaymentReceiptEmail(toEmail, toName, trackingNumber, amount, paymentReference, paidAt) {
   const formattedAmount = typeof amount === 'number' ? amount.toLocaleString() : amount;
-  const formattedDate = paidAt
+  const formattedDate   = paidAt
     ? new Date(paidAt).toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' })
-    : new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
+    : new Date().toLocaleString('en-GB',        { dateStyle: 'long', timeStyle: 'short' });
 
   const bodyHtml = `
     <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment Received ✓</h2>

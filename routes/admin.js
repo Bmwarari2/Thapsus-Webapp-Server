@@ -230,16 +230,16 @@ router.post('/test-email', authMiddleware, isAdmin, async (req, res) => {
     const { to } = req.body;
     const recipientEmail = to || req.user.email;
     const emailConfig = {
-      GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID ? '***set***' : '(NOT SET)',
+      GMAIL_CLIENT_ID:     process.env.GMAIL_CLIENT_ID     ? '***set***' : '(NOT SET)',
       GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET ? '***set***' : '(NOT SET)',
       GMAIL_REFRESH_TOKEN: process.env.GMAIL_REFRESH_TOKEN ? '***set***' : '(NOT SET)',
-      GMAIL_SENDER_EMAIL: process.env.GMAIL_SENDER_EMAIL || '(NOT SET)',
+      GMAIL_SENDER_EMAIL:  process.env.GMAIL_SENDER_EMAIL  || '(NOT SET)',
     };
     const missing = [];
-    if (!process.env.GMAIL_CLIENT_ID) missing.push('GMAIL_CLIENT_ID');
+    if (!process.env.GMAIL_CLIENT_ID)     missing.push('GMAIL_CLIENT_ID');
     if (!process.env.GMAIL_CLIENT_SECRET) missing.push('GMAIL_CLIENT_SECRET');
     if (!process.env.GMAIL_REFRESH_TOKEN) missing.push('GMAIL_REFRESH_TOKEN');
-    if (!process.env.GMAIL_SENDER_EMAIL) missing.push('GMAIL_SENDER_EMAIL');
+    if (!process.env.GMAIL_SENDER_EMAIL)  missing.push('GMAIL_SENDER_EMAIL');
     if (missing.length > 0) {
       return res.status(400).json({
         success: false,
@@ -576,7 +576,6 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
     if (!customer_email && !customer_name)
       return res.status(400).json({ success: false, message: 'customer_email or customer_name is required' });
 
-    // Validate electronics_item if provided
     if (electronics_item && !ELECTRONICS_HANDLING[electronics_item]) {
       return res.status(400).json({ success: false, message: `Invalid electronics_item. Valid values: ${Object.keys(ELECTRONICS_HANDLING).join(', ')}` });
     }
@@ -598,7 +597,6 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
     if (!['economy','express'].includes(speed))
       return res.status(400).json({ success: false, message: 'Invalid shipping speed' });
 
-    // Load admin-configured per-kg rates if available
     let rates_gbp = null;
     try {
       const ratesRes = await db.query('SELECT market, rate_gbp FROM shipping_rates');
@@ -647,7 +645,6 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
 
     sendInAppNotification(customer.id, `A new order (${trackingNumber}) has been created for you by Thapsus Cargo.`);
 
-    // Build electronics handling fee note for the order-created email
     const elecCfg = electronics_item ? ELECTRONICS_HANDLING[electronics_item] : null;
     let handlingFeeNote = '';
     if (elecCfg) {
@@ -745,16 +742,50 @@ router.post('/orders/:id/request-payment', authMiddleware, isAdmin, async (req, 
     const { id } = req.params;
     const adminId = req.user.id;
     const { amount, notes } = req.body;
-    const orderRes = await db.query(`SELECT o.*, u.email, u.name AS customer_name FROM orders o JOIN users u ON o.user_id = u.id WHERE o.id = $1`, [id]);
+    const orderRes = await db.query(
+      `SELECT o.*, u.email, u.name AS customer_name FROM orders o JOIN users u ON o.user_id = u.id WHERE o.id = $1`,
+      [id]
+    );
     if (!orderRes.rows[0]) return res.status(404).json({ success: false, message: 'Order not found' });
     const order = orderRes.rows[0];
     const paymentAmount = amount || order.actual_cost || order.estimated_cost;
-    if (!paymentAmount || paymentAmount <= 0) return res.status(400).json({ success: false, message: 'A valid payment amount is required.' });
-    const frontendUrl = process.env.FRONTEND_URL || 'https://www.thapsus.uk';
-    sendPaymentRequestEmail(order.email, order.customer_name, order.tracking_number, paymentAmount, notes || '', `${frontendUrl}/pay/${id}?amount=${paymentAmount}`).catch(console.error);
-    sendInAppNotification(order.user_id, `Payment of KES ${paymentAmount.toLocaleString()} requested for order ${order.tracking_number}.${notes ? ` Note: ${notes}` : ''}`);
-    await db.query('INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)', [uuidv4(), adminId, 'request_payment', JSON.stringify({ order_id: id, tracking_number: order.tracking_number, customer_email: order.email, amount: paymentAmount, notes: notes || '' })]);
-    res.json({ success: true, message: `Payment request of KES ${paymentAmount.toLocaleString()} sent to ${order.email}`, payment_request: { order_id: id, tracking_number: order.tracking_number, customer: { email: order.email, name: order.customer_name }, amount: paymentAmount, currency: 'KES' } });
+    if (!paymentAmount || paymentAmount <= 0)
+      return res.status(400).json({ success: false, message: 'A valid payment amount is required.' });
+    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
+
+    // FIX 1: Pass the full `order` object as the 7th argument so that
+    // costBreakdownTable(order) inside sendPaymentRequestEmail does not
+    // throw "Cannot read properties of undefined".
+    sendPaymentRequestEmail(
+      order.email,
+      order.customer_name,
+      order.tracking_number,
+      paymentAmount,
+      notes || '',
+      `${frontendUrl}/pay/${id}?amount=${paymentAmount}`,
+      order                           // ← was missing
+    ).catch(console.error);
+
+    sendInAppNotification(
+      order.user_id,
+      `Payment of KES ${paymentAmount.toLocaleString()} requested for order ${order.tracking_number}.${notes ? ` Note: ${notes}` : ''}`
+    );
+    await db.query(
+      'INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)',
+      [uuidv4(), adminId, 'request_payment', JSON.stringify({
+        order_id: id, tracking_number: order.tracking_number,
+        customer_email: order.email, amount: paymentAmount, notes: notes || ''
+      })]
+    );
+    res.json({
+      success: true,
+      message: `Payment request of KES ${paymentAmount.toLocaleString()} sent to ${order.email}`,
+      payment_request: {
+        order_id: id, tracking_number: order.tracking_number,
+        customer: { email: order.email, name: order.customer_name },
+        amount: paymentAmount, currency: 'KES'
+      }
+    });
   } catch (error) {
     console.error('Request payment error:', error);
     res.status(500).json({ success: false, message: 'Failed to send payment request' });
@@ -767,34 +798,53 @@ router.post('/users/create', authMiddleware, isAdmin, async (req, res) => {
     const db = req.db;
     const adminId = req.user.id;
     const { name, email, phone, role } = req.body;
-    if (!name || !email || !phone) return res.status(400).json({ success: false, message: 'Name, email, and phone are required' });
+    if (!name || !email || !phone)
+      return res.status(400).json({ success: false, message: 'Name, email, and phone are required' });
     const accountRole = role || 'customer';
-    if (!['customer', 'admin'].includes(accountRole)) return res.status(400).json({ success: false, message: 'Invalid role. Must be customer or admin' });
+    if (!['customer', 'admin'].includes(accountRole))
+      return res.status(400).json({ success: false, message: 'Invalid role. Must be customer or admin' });
     const existing = await db.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase().trim()]);
-    if (existing.rows.length > 0) return res.status(409).json({ success: false, message: 'A user with this email already exists' });
-    const userId = uuidv4();
-    const warehouseId = generateWarehouseId();
-    let referralCode = generateReferralCode();
+    if (existing.rows.length > 0)
+      return res.status(409).json({ success: false, message: 'A user with this email already exists' });
+    const userId        = uuidv4();
+    const warehouseId   = generateWarehouseId();
+    let referralCode    = generateReferralCode();
     while ((await db.query('SELECT id FROM users WHERE referral_code = $1', [referralCode])).rows.length > 0) {
       referralCode = generateReferralCode();
     }
-    const tempPassword = crypto.randomBytes(24).toString('hex');
-    const passwordHash = bcrypt.hashSync(tempPassword, 10);
-    const setupToken = crypto.randomBytes(32).toString('hex');
-    const setupTokenId = uuidv4();
-    const expiresAt = new Date(Date.now() + 24 * 3600000).toISOString();
+    const tempPassword  = crypto.randomBytes(24).toString('hex');
+    const passwordHash  = bcrypt.hashSync(tempPassword, 10);
+    const setupToken    = crypto.randomBytes(32).toString('hex');
+    const setupTokenId  = uuidv4();
+    const expiresAt     = new Date(Date.now() + 24 * 3600000).toISOString();
     const client = await db.connect();
     try {
       await client.query('BEGIN');
-      await client.query(`INSERT INTO users (id, email, password, name, phone, role, warehouse_id, language_pref, referral_code, wallet_balance, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, 'en', $8, 0, true)`, [userId, email.toLowerCase().trim(), passwordHash, name, phone, accountRole, warehouseId, referralCode]);
+      await client.query(
+        `INSERT INTO users (id, email, password, name, phone, role, warehouse_id, language_pref, referral_code, wallet_balance, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'en', $8, 0, true)`,
+        [userId, email.toLowerCase().trim(), passwordHash, name, phone, accountRole, warehouseId, referralCode]
+      );
       await client.query(`INSERT INTO wallet (id, user_id, balance, currency) VALUES ($1, $2, 0, 'KES')`, [uuidv4(), userId]);
       await client.query('INSERT INTO password_reset_tokens (id, user_id, token, expires_at) VALUES ($1, $2, $3, $4)', [setupTokenId, userId, setupToken, expiresAt]);
       await client.query('INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1, $2, $3, $4)', [uuidv4(), adminId, 'create_user_account', JSON.stringify({ user_id: userId, email: email.toLowerCase().trim(), role: accountRole, warehouse_id: warehouseId })]);
       await client.query('COMMIT');
     } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
+
     const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
-    sendWelcomeAccountEmail(email.toLowerCase().trim(), name, warehouseId, accountRole, `${frontendUrl}/reset-password?token=${setupToken}`).catch((err) => console.warn('Welcome email failed (non-fatal):', err.message));
-    res.status(201).json({ success: true, message: `${accountRole === 'admin' ? 'Admin' : 'User'} account created. Welcome email sent to ${email}.`, user: { id: userId, email: email.toLowerCase().trim(), name, phone, role: accountRole, warehouse_id: warehouseId, referral_code: referralCode, is_active: true } });
+    sendWelcomeAccountEmail(
+      email.toLowerCase().trim(),
+      name,
+      warehouseId,
+      accountRole,
+      `${frontendUrl}/reset-password?token=${setupToken}`
+    ).catch((err) => console.warn('Welcome email failed (non-fatal):', err.message));
+
+    res.status(201).json({
+      success: true,
+      message: `${accountRole === 'admin' ? 'Admin' : 'User'} account created. Welcome email sent to ${email}.`,
+      user: { id: userId, email: email.toLowerCase().trim(), name, phone, role: accountRole, warehouse_id: warehouseId, referral_code: referralCode, is_active: true }
+    });
   } catch (error) {
     console.error('Create user account error:', error);
     res.status(500).json({ success: false, message: 'Failed to create account' });
@@ -808,16 +858,50 @@ router.post('/orders/:id/send-reminder', authMiddleware, isAdmin, async (req, re
     const { id } = req.params;
     const adminId = req.user.id;
     const { amount, notes } = req.body;
-    const orderRes = await db.query(`SELECT o.*, u.email, u.name AS customer_name FROM orders o JOIN users u ON o.user_id = u.id WHERE o.id = $1`, [id]);
+    const orderRes = await db.query(
+      `SELECT o.*, u.email, u.name AS customer_name FROM orders o JOIN users u ON o.user_id = u.id WHERE o.id = $1`,
+      [id]
+    );
     if (!orderRes.rows[0]) return res.status(404).json({ success: false, message: 'Order not found' });
     const order = orderRes.rows[0];
     const reminderAmount = amount || order.actual_cost || order.estimated_cost;
-    if (!reminderAmount || reminderAmount <= 0) return res.status(400).json({ success: false, message: 'A valid payment amount is required.' });
+    if (!reminderAmount || reminderAmount <= 0)
+      return res.status(400).json({ success: false, message: 'A valid payment amount is required.' });
     const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
-    sendPaymentReminderEmail(order.email, order.customer_name, order.tracking_number, reminderAmount, notes || '', `${frontendUrl}/pay/${id}?amount=${reminderAmount}`).catch(console.error);
-    sendInAppNotification(order.user_id, `Reminder: Payment of KES ${reminderAmount.toLocaleString()} is due for order ${order.tracking_number}.${notes ? ` Note: ${notes}` : ''}`);
-    await db.query('INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1, $2, $3, $4)', [uuidv4(), adminId, 'send_payment_reminder', JSON.stringify({ order_id: id, tracking_number: order.tracking_number, customer_email: order.email, amount: reminderAmount, notes: notes || '' })]);
-    res.json({ success: true, message: `Payment reminder sent to ${order.email} for KES ${reminderAmount.toLocaleString()}`, reminder: { order_id: id, tracking_number: order.tracking_number, customer: { email: order.email, name: order.customer_name }, amount: reminderAmount, currency: 'KES' } });
+
+    // FIX 2: Pass the full `order` object as the 7th argument so that
+    // costBreakdownTable(order) inside sendPaymentReminderEmail does not
+    // throw "Cannot read properties of undefined".
+    sendPaymentReminderEmail(
+      order.email,
+      order.customer_name,
+      order.tracking_number,
+      reminderAmount,
+      notes || '',
+      `${frontendUrl}/pay/${id}?amount=${reminderAmount}`,
+      order                           // ← was missing
+    ).catch(console.error);
+
+    sendInAppNotification(
+      order.user_id,
+      `Reminder: Payment of KES ${reminderAmount.toLocaleString()} is due for order ${order.tracking_number}.${notes ? ` Note: ${notes}` : ''}`
+    );
+    await db.query(
+      'INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1, $2, $3, $4)',
+      [uuidv4(), adminId, 'send_payment_reminder', JSON.stringify({
+        order_id: id, tracking_number: order.tracking_number,
+        customer_email: order.email, amount: reminderAmount, notes: notes || ''
+      })]
+    );
+    res.json({
+      success: true,
+      message: `Payment reminder sent to ${order.email} for KES ${reminderAmount.toLocaleString()}`,
+      reminder: {
+        order_id: id, tracking_number: order.tracking_number,
+        customer: { email: order.email, name: order.customer_name },
+        amount: reminderAmount, currency: 'KES'
+      }
+    });
   } catch (error) {
     console.error('Send payment reminder error:', error);
     res.status(500).json({ success: false, message: 'Failed to send payment reminder' });
@@ -828,7 +912,14 @@ router.post('/orders/:id/send-reminder', authMiddleware, isAdmin, async (req, re
 router.get('/transactions/pending', authMiddleware, isAdmin, async (req, res) => {
   try {
     const db = req.db;
-    const transactionsRes = await db.query(`SELECT t.id, t.user_id, t.amount, t.payment_reference, t.created_at, u.id as user_id, u.name, u.email FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.status = 'pending' AND t.payment_method = 'mpesa' ORDER BY t.created_at DESC`, []);
+    const transactionsRes = await db.query(
+      `SELECT t.id, t.user_id, t.amount, t.payment_reference, t.created_at,
+              u.id as user_id, u.name, u.email
+       FROM transactions t JOIN users u ON t.user_id = u.id
+       WHERE t.status = 'pending' AND t.payment_method = 'mpesa'
+       ORDER BY t.created_at DESC`,
+      []
+    );
     res.json({ success: true, transactions: transactionsRes.rows });
   } catch (error) {
     console.error('Get pending transactions error:', error);
@@ -842,14 +933,21 @@ router.post('/transactions/:id/approve', authMiddleware, isAdmin, async (req, re
     const db = req.db;
     const { id } = req.params;
     const adminId = req.user.id;
-    const transRes = await db.query(`SELECT t.id, t.user_id, t.amount, t.payment_reference, u.name, u.email FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.id = $1`, [id]);
+    const transRes = await db.query(
+      `SELECT t.id, t.user_id, t.amount, t.payment_reference, u.name, u.email
+       FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.id = $1`,
+      [id]
+    );
     if (!transRes.rows[0]) return res.status(404).json({ success: false, message: 'Transaction not found' });
     const transaction = transRes.rows[0];
     const client = await db.connect();
     try {
       await client.query('BEGIN');
       await client.query(`UPDATE transactions SET status = 'completed' WHERE id = $1`, [id]);
-      const logsRes = await client.query(`SELECT details FROM admin_logs WHERE action = 'mpesa_payment_submitted' AND details LIKE $1 ORDER BY created_at DESC LIMIT 1`, [`%${id}%`]);
+      const logsRes = await client.query(
+        `SELECT details FROM admin_logs WHERE action = 'mpesa_payment_submitted' AND details LIKE $1 ORDER BY created_at DESC LIMIT 1`,
+        [`%${id}%`]
+      );
       let orderDetails = null;
       if (logsRes.rows[0]) { try { orderDetails = JSON.parse(logsRes.rows[0].details); } catch (e) {} }
       let trackingNumber = 'N/A';
@@ -857,9 +955,26 @@ router.post('/transactions/:id/approve', authMiddleware, isAdmin, async (req, re
         const orderRes = await client.query('SELECT tracking_number FROM orders WHERE id = $1', [orderDetails.order_id]);
         if (orderRes.rows[0]) trackingNumber = orderRes.rows[0].tracking_number;
       }
-      await client.query(`INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1, $2, $3, $4)`, [uuidv4(), adminId, 'mpesa_payment_approved', JSON.stringify({ transaction_id: id, user_id: transaction.user_id, amount: transaction.amount, payment_reference: transaction.payment_reference, approved_at: new Date().toISOString() })]);
+      await client.query(
+        `INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1, $2, $3, $4)`,
+        [uuidv4(), adminId, 'mpesa_payment_approved', JSON.stringify({
+          transaction_id: id, user_id: transaction.user_id, amount: transaction.amount,
+          payment_reference: transaction.payment_reference, approved_at: new Date().toISOString()
+        })]
+      );
       await client.query('COMMIT');
-      try { await sendPaymentReceiptEmail(transaction.email, transaction.name, trackingNumber, transaction.amount, transaction.payment_reference, new Date().toISOString()); } catch (emailErr) { console.warn('Failed to send receipt email:', emailErr.message); }
+      try {
+        await sendPaymentReceiptEmail(
+          transaction.email,
+          transaction.name,
+          trackingNumber,
+          transaction.amount,
+          transaction.payment_reference,
+          new Date().toISOString()
+        );
+      } catch (emailErr) {
+        console.warn('Failed to send receipt email:', emailErr.message);
+      }
       res.json({ success: true, message: 'Transaction approved successfully', transaction: { id, status: 'completed' } });
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
   } catch (error) {
@@ -881,7 +996,10 @@ router.post('/transactions/:id/reject', authMiddleware, isAdmin, async (req, res
     try {
       await client.query('BEGIN');
       await client.query(`UPDATE transactions SET status = 'failed' WHERE id = $1`, [id]);
-      await client.query(`INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1, $2, $3, $4)`, [uuidv4(), adminId, 'mpesa_payment_rejected', JSON.stringify({ transaction_id: id, reason: reason || null, rejected_at: new Date().toISOString() })]);
+      await client.query(
+        `INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1, $2, $3, $4)`,
+        [uuidv4(), adminId, 'mpesa_payment_rejected', JSON.stringify({ transaction_id: id, reason: reason || null, rejected_at: new Date().toISOString() })]
+      );
       await client.query('COMMIT');
       res.json({ success: true, message: 'Transaction rejected', transaction: { id, status: 'failed' } });
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
@@ -896,14 +1014,22 @@ router.get('/transactions/:id/proof', authMiddleware, isAdmin, async (req, res) 
   try {
     const db = req.db;
     const { id } = req.params;
-    const logsRes = await db.query(`SELECT details FROM admin_logs WHERE action = 'mpesa_payment_submitted' AND details LIKE $1 ORDER BY created_at DESC LIMIT 1`, [`%${id}%`]);
-    if (!logsRes.rows[0]) return res.status(404).json({ success: false, message: 'No proof of payment message found for this transaction' });
+    const logsRes = await db.query(
+      `SELECT details FROM admin_logs WHERE action = 'mpesa_payment_submitted' AND details LIKE $1 ORDER BY created_at DESC LIMIT 1`,
+      [`%${id}%`]
+    );
+    if (!logsRes.rows[0])
+      return res.status(404).json({ success: false, message: 'No proof of payment message found for this transaction' });
     const rawDetails = logsRes.rows[0].details;
     let payload = null;
     try { payload = typeof rawDetails === 'string' ? JSON.parse(rawDetails) : rawDetails; } catch (parseError) { console.warn('Failed to parse admin_logs.details for Mpesa proof:', parseError.message || parseError); }
     const mpesaMessage = payload?.mpesa_message || null;
-    if (!mpesaMessage) return res.status(404).json({ success: false, message: 'Mpesa message not stored for this transaction' });
-    res.json({ success: true, mpesa_message: mpesaMessage, meta: { user_id: payload.user_id, amount: payload.amount, mpesa_code: payload.mpesa_code, order_id: payload.order_id || null, submitted_at: payload.submitted_at || null } });
+    if (!mpesaMessage)
+      return res.status(404).json({ success: false, message: 'Mpesa message not stored for this transaction' });
+    res.json({
+      success: true, mpesa_message: mpesaMessage,
+      meta: { user_id: payload.user_id, amount: payload.amount, mpesa_code: payload.mpesa_code, order_id: payload.order_id || null, submitted_at: payload.submitted_at || null }
+    });
   } catch (error) {
     console.error('Get Mpesa proof error:', error);
     res.status(500).json({ success: false, message: 'Failed to load proof of payment' });
@@ -918,7 +1044,11 @@ router.get('/users/:id/emails', authMiddleware, isAdmin, async (req, res) => {
     const userRes = await db.query(`SELECT email FROM users WHERE id = $1`, [id]);
     if (!userRes.rows[0]) return res.status(404).json({ success: false, message: 'User not found' });
     const userEmail = userRes.rows[0].email;
-    const logsRes = await db.query(`SELECT id, email_to, email_type, subject, status, error_message, created_at FROM email_logs WHERE user_id = $1 OR email_to = $2 ORDER BY created_at DESC LIMIT 50`, [id, userEmail]);
+    const logsRes = await db.query(
+      `SELECT id, email_to, email_type, subject, status, error_message, created_at
+       FROM email_logs WHERE user_id = $1 OR email_to = $2 ORDER BY created_at DESC LIMIT 50`,
+      [id, userEmail]
+    );
     res.json({ success: true, email_logs: logsRes.rows });
   } catch (error) {
     console.error('Get user emails error:', error);
@@ -930,8 +1060,8 @@ router.get('/users/:id/emails', authMiddleware, isAdmin, async (req, res) => {
 router.get('/error-logs', authMiddleware, isAdmin, async (req, res) => {
   try {
     const db = req.db;
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+    const page   = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit  = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
     const offset = (page - 1) * limit;
     const level  = req.query.level  || null;
     const source = req.query.source || null;
@@ -945,7 +1075,11 @@ router.get('/error-logs', authMiddleware, isAdmin, async (req, res) => {
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const countRes = await db.query(`SELECT COUNT(*) FROM error_logs ${where}`, params);
     const total = parseInt(countRes.rows[0].count);
-    const logsRes = await db.query(`SELECT id, level, source, message, stack, method, path, status_code, user_id, meta, created_at FROM error_logs ${where} ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx++}`, [...params, limit, offset]);
+    const logsRes = await db.query(
+      `SELECT id, level, source, message, stack, method, path, status_code, user_id, meta, created_at
+       FROM error_logs ${where} ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx++}`,
+      [...params, limit, offset]
+    );
     res.json({ success: true, error_logs: logsRes.rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
   } catch (error) {
     console.error('Get error logs error:', error);
@@ -957,7 +1091,12 @@ router.get('/error-logs', authMiddleware, isAdmin, async (req, res) => {
 router.get('/error-logs/stats', authMiddleware, isAdmin, async (req, res) => {
   try {
     const db = req.db;
-    const statsRes = await db.query(`SELECT COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') AS last_24h, COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') AS last_7d, COUNT(*) FILTER (WHERE level = 'fatal' AND created_at > NOW() - INTERVAL '24 hours') AS fatal_24h, COUNT(*) AS total FROM error_logs`);
+    const statsRes = await db.query(
+      `SELECT COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') AS last_24h,
+              COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days')  AS last_7d,
+              COUNT(*) FILTER (WHERE level = 'fatal' AND created_at > NOW() - INTERVAL '24 hours') AS fatal_24h,
+              COUNT(*) AS total FROM error_logs`
+    );
     res.json({ success: true, stats: statsRes.rows[0] });
   } catch (error) {
     console.error('Get error log stats error:', error);
