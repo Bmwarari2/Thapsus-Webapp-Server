@@ -151,4 +151,60 @@ router.put('/rates', authMiddleware, isAdmin, async (req, res) => {
   }
 });
 
-export default router;
+
+
+
+// ─── PUT /api/pricing/electronics ─────────────────────────────────────────
+// Admin only: update electronics handling fees
+router.put('/electronics', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+    const { fees } = req.body; // { phone: 75, laptop: 65, tv_monitor: 65 }
+    const adminId = req.user.id;
+    if (!fees || typeof fees !== 'object') {
+      return res.status(400).json({ success: false, message: 'fees object is required' });
+    }
+    const validKeys = Object.keys(ELECTRONICS_HANDLING);
+    for (const [key, fee] of Object.entries(fees)) {
+      if (!validKeys.includes(key)) {
+        return res.status(400).json({ success: false, message: `Invalid electronics item: ${key}` });
+      }
+      const f = parseFloat(fee);
+      if (isNaN(f) || f < 0) {
+        return res.status(400).json({ success: false, message: `Invalid fee for ${key}` });
+      }
+    }
+    // Store in DB: create electronics_fees table if needed
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS electronics_fees (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        item_key VARCHAR(50) NOT NULL UNIQUE,
+        fee_gbp NUMERIC(10,2) NOT NULL,
+        updated_by UUID,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    for (const [key, fee] of Object.entries(fees)) {
+      const f = parseFloat(fee);
+      await db.query(
+        `INSERT INTO electronics_fees (id, item_key, fee_gbp, updated_by, updated_at)
+        VALUES ($1,$2,$3,$4,NOW())
+        ON CONFLICT (item_key) DO UPDATE SET fee_gbp=$3, updated_by=$4, updated_at=NOW()`,
+        [uuidv4(), key, f, adminId]
+      );
+    }
+    await db.query(
+      'INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)',
+      [uuidv4(), adminId, 'update_electronics_handling_fees', JSON.stringify(fees)]
+    );
+    const updatedFees = {};
+    for (const key of validKeys) {
+      const queryRes = await db.query('SELECT fee_gbp FROM electronics_fees WHERE item_key = $1', [key]);
+      updatedFees[key] = queryRes.rows.length ? parseFloat(queryRes.rows[0].fee_gbp) : ELECTRONICS_HANDLING[key].fee_gbp;
+    }
+    res.json({ success: true, message: 'Electronics handling fees updated', fees: updatedFees });
+  } catch (error) {
+    console.error('Update electronics handling fees error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update electronics handling fees' });
+  }
+});export default router;
