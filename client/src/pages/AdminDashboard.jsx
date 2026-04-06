@@ -3,7 +3,7 @@ import {
   Users, Package, DollarSign, BarChart3, MessageSquare, Activity,
   Lock, RefreshCw, Trash2, XCircle, Plus, CreditCard, Search,
   UserPlus, Bell, Mail, Eye, ArrowLeft, Key, Send, AlertTriangle,
-  ChevronLeft, ChevronRight, Filter
+  ChevronLeft, ChevronRight, Filter, ChevronDown
 } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
@@ -29,6 +29,9 @@ export const AdminDashboard = () => {
   const [sendingReply, setSendingReply] = useState(false)
   const [selectedOrders, setSelectedOrders] = useState([])
   const [newStatus, setNewStatus] = useState('')
+
+  // Cost breakdown expansion state
+  const [expandedAdminOrderCost, setExpandedAdminOrderCost] = useState(null)
 
   // Admin order management
   const [showCreateOrderForm, setShowCreateOrderForm] = useState(false)
@@ -1062,7 +1065,57 @@ export const AdminDashboard = () => {
                                     {o.status?.replace(/_/g, ' ')}
                                   </span>
                                 </td>
-                                <td className="px-3 py-2 text-xs font-semibold">KES {(o.actual_cost || o.estimated_cost || 0).toLocaleString()}</td>
+                                <td className="px-3 py-2 text-xs">
+                                  <div>
+                                    <button
+                                      onClick={() =>
+                                        setExpandedAdminOrderCost(expandedAdminOrderCost === o.id ? null : o.id)
+                                      }
+                                      className="font-semibold text-[#1e3a5f] hover:text-orange-500 flex items-center gap-1"
+                                    >
+                                      KES {((o.actual_cost ?? o.estimated_cost ?? 0) + (o.customs_duty ?? 0)).toLocaleString()}
+                                      <ChevronDown
+                                        size={12}
+                                        className={`transition-transform ${expandedAdminOrderCost === o.id ? 'rotate-180' : ''}`}
+                                      />
+                                    </button>
+                                    {expandedAdminOrderCost === o.id && (
+                                      <div className="mt-1 bg-blue-50 border border-blue-100 rounded-md p-2 text-[11px] space-y-0.5 min-w-[180px]">
+                                        {(o.shipping_cost ?? o.estimated_cost) > 0 && (
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-500">Shipping</span>
+                                            <span>KES {(o.shipping_cost ?? o.estimated_cost ?? 0).toLocaleString()}</span>
+                                          </div>
+                                        )}
+                                        {o.handling_fee > 0 && (
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-500">Handling</span>
+                                            <span>KES {o.handling_fee.toLocaleString()}</span>
+                                          </div>
+                                        )}
+                                        {o.insurance_fee > 0 && (
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-500">Insurance</span>
+                                            <span>KES {o.insurance_fee.toLocaleString()}</span>
+                                          </div>
+                                        )}
+                                        {o.customs_duty > 0 && (
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-500">Customs</span>
+                                            <span>KES {o.customs_duty.toLocaleString()}</span>
+                                          </div>
+                                        )}
+                                        <div className="flex justify-between font-bold text-[#1e3a5f] pt-0.5 border-t border-blue-200">
+                                          <span>Total</span>
+                                          <span>KES {((o.actual_cost ?? o.estimated_cost ?? 0) + (o.customs_duty ?? 0)).toLocaleString()}</span>
+                                        </div>
+                                        <p className="text-gray-400 italic">
+                                          {o.actual_cost ? 'Confirmed cost' : 'Estimated — not yet weighed'}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
                                 <td className="px-3 py-2 text-xs text-gray-500">{o.created_at ? new Date(o.created_at).toLocaleDateString() : '—'}</td>
                                 <td className="px-3 py-2">
                                   <div className="flex items-center gap-1">
