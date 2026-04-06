@@ -14,7 +14,6 @@ export const Support = () => {
   const [formData, setFormData] = useState({
     subject: '',
     description: '',
-    file: null,
   })
   const [replyText, setReplyText] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -70,19 +69,8 @@ export const Support = () => {
   })
 
   const handleFormChange = (e) => {
-    const { name, value, type, files } = e.target
-    if (type === 'file') {
-      const file = files[0] || null
-      if (file && !file.type.startsWith('image/')) {
-        toast.error('Only image files are allowed')
-        e.target.value = ''
-        setFormData((prev) => ({ ...prev, [name]: null }))
-        return
-      }
-      setFormData((prev) => ({ ...prev, [name]: file }))
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: value }))
-    }
+    const { name, value } = e.target
+    setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
   const handleSelectTicket = async (id) => {
@@ -107,15 +95,14 @@ export const Support = () => {
       setSubmitting(true)
       const response = await supportApi.createTicket(
         formData.subject,
-        formData.description,
-        formData.file
+        formData.description
       )
 
       const ticket = response.data.ticket
       toast.success('Ticket created successfully!')
 
       setTickets((prev) => [ticket, ...prev])
-      setFormData({ subject: '', description: '', file: null })
+      setFormData({ subject: '', description: '' })
       setShowCreateForm(false)
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to create ticket')
@@ -218,12 +205,6 @@ export const Support = () => {
                         >
                           {ticket.status.replace(/_/g, ' ')}
                         </span>
-                        {ticket.photo_url && (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
-                            Image attached
-                          </span>
-                        )}
                       </div>
                     </button>
                   ))}
@@ -277,21 +258,6 @@ export const Support = () => {
                     />
                   </div>
 
-                  {/* File Upload */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {t('support.attach')} (Optional)
-                    </label>
-                    <input
-                      type="file"
-                      name="file"
-                      accept="image/*"
-                      onChange={handleFormChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">Only image files are allowed (JPEG, PNG, GIF, WebP).</p>
-                  </div>
-
                   {/* Buttons */}
                   <div className="flex gap-4">
                     <button
@@ -322,22 +288,6 @@ export const Support = () => {
                     <p className="text-gray-600 mt-1 text-sm">
                       {t('support.ticketId')}: {selectedTicket.id.slice(0, 8).toUpperCase()}
                     </p>
-                    {selectedTicket.photo_url && (
-                      <div className="mt-2">
-                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Attached Image</p>
-                        <a
-                          href={selectedTicket.photo_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <img
-                            src={selectedTicket.photo_url}
-                            alt="Ticket attachment"
-                            className="mt-1 rounded-lg border border-gray-200 max-h-64 object-contain"
-                          />
-                        </a>
-                      </div>
-                    )}
                   </div>
                   <span
                     className={`px-4 py-2 rounded-lg font-medium text-xs md:text-sm ${

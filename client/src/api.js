@@ -75,15 +75,8 @@ export const prohibitedApi = {
 
 // Support Tickets
 export const supportApi = {
-  createTicket: (subject, description, file) => {
-    const formData = new FormData()
-    formData.append('subject', subject)
-    formData.append('description', description)
-    if (file) formData.append('photo', file)
-    return api.post('/tickets', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
-  },
+  createTicket: (subject, description) =>
+    api.post('/tickets', { subject, description }),
   listTickets: () => api.get('/tickets'),
   getTicket: (id) => api.get(`/tickets/${id}`),
   replyToTicket: (id, message) => api.post(`/tickets/${id}/message`, { message }),
