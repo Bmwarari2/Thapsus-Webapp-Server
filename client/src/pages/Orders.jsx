@@ -229,7 +229,7 @@ export const Orders = () => {
           <div className="card text-center py-12">
             <Package className="mx-auto text-gray-400 mb-4" size={48} />
             <p className="text-gray-600 mb-2">{t('orders.noOrders')}</p>
-            <p className="text-sm text-gray-400">Orders are created by the Thapsus Cargo team on your behalf.</p>
+            <p className="text-sm text-gray-400">Create your own orders or contact support for assistance.</p>
           </div>
         )}
       </div>
