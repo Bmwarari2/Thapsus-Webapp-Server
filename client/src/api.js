@@ -46,6 +46,7 @@ export const pricingApi = {
       electronics_item,
     }),
   getElectronicsItems: () => api.get('/pricing/electronics'),
+      setElectronicsFees: (fees) => api.put('/pricing/electronics', { fees }),
   getRates: () => api.get('/pricing/rates'),
 }
 
