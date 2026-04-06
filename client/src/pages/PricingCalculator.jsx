@@ -1,8 +1,33 @@
-import React, { useState } from 'react'
-import { Calculator, Info, CheckCircle } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Calculator, Info, CheckCircle, AlertCircle } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { pricingApi } from '../api'
 import toast from 'react-hot-toast'
+
+// ── Electronics handling fee guide (mirrors server-side ELECTRONICS_HANDLING) ──
+const ELECTRONICS_GUIDE = [
+  {
+    key: 'phone',
+    label: 'Phone',
+    fee_gbp: 75,
+    detail:
+      'Minimum £75 handling fee + 1 kg minimum weight. If total weight of phones exceeds 1 kg, the per-kg rate applies on top.',
+  },
+  {
+    key: 'laptop',
+    label: 'Laptop / Accessories',
+    fee_gbp: 65,
+    detail:
+      'Minimum £65 handling fee + 1 kg minimum weight. Includes accessories, cases and bags. Per-kg rate applies above 1 kg.',
+  },
+  {
+    key: 'tv_monitor',
+    label: 'TV / Screen / Monitor',
+    fee_gbp: 65,
+    detail:
+      'Minimum £65 handling fee charged based on actual weight and dimensions.',
+  },
+]
 
 export const PricingCalculator = () => {
   const { t } = useLanguage()
@@ -16,14 +41,24 @@ export const PricingCalculator = () => {
     shippingSpeed: 'economy',
     insurance: false,
     declaredValue: '0',
+    electronics_item: '',
   })
   const [result, setResult] = useState(null)
+  const [currentRates, setCurrentRates] = useState(null)
 
   const markets = ['UK', 'USA', 'China']
   const shippingSpeeds = [
     { value: 'economy', label: t('pricing.economy') },
     { value: 'express', label: t('pricing.express') },
   ]
+
+  // Fetch current per-kg rates for the info panel
+  useEffect(() => {
+    pricingApi
+      .getRates()
+      .then((res) => { if (res.data?.success) setCurrentRates(res.data.rates) })
+      .catch(() => {})
+  }, [])
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
@@ -35,12 +70,10 @@ export const PricingCalculator = () => {
 
   const handleCalculate = async (e) => {
     e.preventDefault()
-
     if (!formData.weight || parseFloat(formData.weight) <= 0) {
       toast.error('Please enter a valid weight')
       return
     }
-
     try {
       setLoading(true)
       const response = await pricingApi.calculate(
@@ -54,10 +87,9 @@ export const PricingCalculator = () => {
         formData.shippingSpeed,
         formData.insurance
           ? { enabled: true, declaredValue: parseFloat(formData.declaredValue) || 0 }
-          : { enabled: false }
+          : { enabled: false },
+        formData.electronics_item || null
       )
-
-      // Backend returns { success, pricing: { summary, breakdown, notes } }
       if (response.data?.success && response.data?.pricing) {
         setResult(response.data.pricing)
       } else {
@@ -70,10 +102,10 @@ export const PricingCalculator = () => {
     }
   }
 
-  // Helpers to read the nested breakdown structure
   const bd = result?.breakdown
-  const sm = result?.summary
+  const sm = result?.summary || result
   const dimWeight = bd?.dimensional_weight
+  const elec = bd?.electronics_handling
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4">
@@ -89,29 +121,84 @@ export const PricingCalculator = () => {
           </p>
         </div>
 
+        {/* ── Electronics Handling Fee Notice ── */}
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-8">
+          <div className="flex items-start gap-3 mb-3">
+            <AlertCircle className="text-amber-600 flex-shrink-0 mt-0.5" size={22} />
+            <div>
+              <h2 className="font-bold text-amber-900 text-base mb-1">
+                Electronics, Phone &amp; Laptop Handling Fees
+              </h2>
+              <p className="text-sm text-amber-800">
+                Certain electronics carry an additional handling fee on top of the standard shipping
+                rate. If your shipment includes one of the items below, select it in the calculator
+                to include the correct handling fee in your estimate.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+            {ELECTRONICS_GUIDE.map((item) => (
+              <div key={item.key} className="bg-white border border-amber-200 rounded-lg p-3">
+                <p className="font-semibold text-gray-800 text-sm">{item.label}</p>
+                <p className="text-orange-600 font-bold text-sm">£{item.fee_gbp} handling fee</p>
+                <p className="text-xs text-gray-500 mt-1">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* ── Form ── */}
           <div className="card">
             <h2 className="text-2xl font-bold text-[#1e3a5f] mb-6">{t('pricing.title')}</h2>
-
             <form onSubmit={handleCalculate} className="space-y-4">
               {/* Market */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('pricing.market')}
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('pricing.market')}</label>
                 <select
                   name="market"
                   value={formData.market}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
                 >
-                  {markets.map((market) => (
-                    <option key={market} value={market}>
-                      {market === 'UK' ? 'United Kingdom' : market === 'USA' ? 'United States' : 'China'}
+                  {markets.map((m) => (
+                    <option key={m} value={m}>
+                      {m === 'UK' ? 'United Kingdom' : m === 'USA' ? 'United States' : 'China'}
                     </option>
                   ))}
                 </select>
+                {currentRates && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Current rate for {formData.market}: £{currentRates[formData.market]?.toFixed(2) ?? '—'}/kg
+                  </p>
+                )}
+              </div>
+
+              {/* Electronics Item */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Electronics / Special Item (optional)
+                </label>
+                <select
+                  name="electronics_item"
+                  value={formData.electronics_item}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                >
+                  <option value="">— None / Standard shipment —</option>
+                  {ELECTRONICS_GUIDE.map((item) => (
+                    <option key={item.key} value={item.key}>
+                      {item.label} (+ £{item.fee_gbp} handling fee)
+                    </option>
+                  ))}
+                </select>
+                {formData.electronics_item && (
+                  <p className="text-xs text-amber-700 mt-1">
+                    ⚠ A £
+                    {ELECTRONICS_GUIDE.find((e) => e.key === formData.electronics_item)?.fee_gbp}
+                    {' '}handling fee will be added. Minimum chargeable weight: 1 kg.
+                  </p>
+                )}
               </div>
 
               {/* Weight */}
@@ -127,7 +214,7 @@ export const PricingCalculator = () => {
                   step="0.1"
                   min="0.1"
                   required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
                 />
               </div>
 
@@ -137,44 +224,25 @@ export const PricingCalculator = () => {
                   {t('pricing.dimensions')} (cm)
                 </label>
                 <div className="grid grid-cols-3 gap-2">
-                  <input
-                    type="number"
-                    name="length"
-                    placeholder={t('pricing.length')}
-                    value={formData.length}
-                    onChange={handleChange}
-                    step="0.1"
-                    min="0"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] text-sm"
-                  />
-                  <input
-                    type="number"
-                    name="width"
-                    placeholder={t('pricing.width')}
-                    value={formData.width}
-                    onChange={handleChange}
-                    step="0.1"
-                    min="0"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] text-sm"
-                  />
-                  <input
-                    type="number"
-                    name="height"
-                    placeholder={t('pricing.height')}
-                    value={formData.height}
-                    onChange={handleChange}
-                    step="0.1"
-                    min="0"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] text-sm"
-                  />
+                  {['length','width','height'].map((dim) => (
+                    <input
+                      key={dim}
+                      type="number"
+                      name={dim}
+                      placeholder={t(`pricing.${dim}`)}
+                      value={formData[dim]}
+                      onChange={handleChange}
+                      step="0.1"
+                      min="0"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] text-sm"
+                    />
+                  ))}
                 </div>
               </div>
 
               {/* Shipping Speed */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('pricing.shipping')}
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('pricing.shipping')}</label>
                 <div className="flex gap-4">
                   {shippingSpeeds.map((speed) => (
                     <label key={speed.value} className="flex items-center gap-2 cursor-pointer">
@@ -217,7 +285,7 @@ export const PricingCalculator = () => {
                     value={formData.declaredValue}
                     onChange={handleChange}
                     min="0"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
                   />
                 </div>
               )}
@@ -241,7 +309,6 @@ export const PricingCalculator = () => {
                   <CheckCircle className="text-green-500" size={24} />
                   <h2 className="text-2xl font-bold text-[#1e3a5f]">{t('pricing.results')}</h2>
                 </div>
-
                 <div className="space-y-3">
                   {/* Weight Breakdown */}
                   {dimWeight && (
@@ -275,16 +342,31 @@ export const PricingCalculator = () => {
                     </span>
                   </div>
 
-                  {/* Handling Fee */}
-                  <div className="flex justify-between items-center py-3 border-b border-orange-200">
-                    <div>
-                      <span className="text-gray-700 font-medium">Handling Fee</span>
-                      <p className="text-xs text-gray-500">{bd?.handling_fee?.description}</p>
+                  {/* Electronics Handling Fee */}
+                  {elec?.included && (
+                    <div className="flex justify-between items-center py-3 border-b border-orange-200">
+                      <div>
+                        <span className="text-gray-700 font-medium">Electronics Handling Fee</span>
+                        <p className="text-xs text-gray-500">{elec.description}</p>
+                      </div>
+                      <span className="font-bold text-orange-600">
+                        KES {(elec.amount || 0).toLocaleString()}
+                      </span>
                     </div>
-                    <span className="font-bold text-gray-900">
-                      KES {(bd?.handling_fee?.amount || 0).toLocaleString()}
-                    </span>
-                  </div>
+                  )}
+
+                  {/* General Handling Fee (non-electronics) */}
+                  {!elec?.included && (bd?.handling_fee?.amount || 0) > 0 && (
+                    <div className="flex justify-between items-center py-3 border-b border-orange-200">
+                      <div>
+                        <span className="text-gray-700 font-medium">Handling Fee</span>
+                        <p className="text-xs text-gray-500">{bd?.handling_fee?.description}</p>
+                      </div>
+                      <span className="font-bold text-gray-900">
+                        KES {(bd?.handling_fee?.amount || 0).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Insurance */}
                   {formData.insurance && (
@@ -313,10 +395,10 @@ export const PricingCalculator = () => {
                   <div className="bg-[#1e3a5f] text-white rounded-lg p-4 mt-2">
                     <p className="text-sm text-gray-300 mb-1">{t('pricing.total')}</p>
                     <p className="text-3xl font-bold">
-                      KES {(sm?.total || 0).toLocaleString()}
+                      KES {((sm?.total || result?.total) || 0).toLocaleString()}
                     </p>
                     <p className="text-xs text-gray-300 mt-1">
-                      {sm?.shipping_speed === 'express' ? 'Express' : 'Economy'} shipping · {sm?.market}
+                      {(sm?.shipping_speed || result?.shipping_speed) === 'express' ? 'Express' : 'Economy'} shipping · {sm?.market || result?.market}
                     </p>
                   </div>
 

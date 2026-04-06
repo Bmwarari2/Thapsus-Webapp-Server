@@ -1,12 +1,30 @@
 import express from 'express';
+import { calculateShippingCost, DEFAULT_RATES_GBP, ELECTRONICS_HANDLING } from '../utils/pricing.js';
+import { authMiddleware, isAdmin } from '../middleware/auth.js';
+import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
 
-/**
- * POST /api/pricing/calculate
- * Calculate shipping cost with detailed breakdown
- */
-router.post('/calculate', (req, res) => {
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+async function getActiveRates(db) {
+  try {
+    const res = await db.query(
+      'SELECT market, rate_gbp FROM shipping_rates ORDER BY updated_at DESC'
+    );
+    if (!res.rows.length) return { ...DEFAULT_RATES_GBP };
+    const rates = { ...DEFAULT_RATES_GBP };
+    res.rows.forEach((r) => { rates[r.market] = parseFloat(r.rate_gbp); });
+    return rates;
+  } catch {
+    // Table may not exist yet; fall back to defaults
+    return { ...DEFAULT_RATES_GBP };
+  }
+}
+
+// ─── POST /api/pricing/calculate ────────────────────────────────────────────
+
+router.post('/calculate', async (req, res) => {
   try {
     const {
       weight_kg = 0,
@@ -14,151 +32,123 @@ router.post('/calculate', (req, res) => {
       market,
       shipping_speed = 'economy',
       insurance = false,
-      declared_value = 0
+      declared_value = 0,
+      electronics_item = null,
     } = req.body;
 
-    // Validation
     if (!market || !['UK', 'USA', 'China'].includes(market)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid market. Must be UK, USA, or China'
-      });
+      return res.status(400).json({ success: false, message: 'Invalid market. Must be UK, USA, or China' });
     }
-
     if (!['economy', 'express'].includes(shipping_speed)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid shipping_speed. Must be economy or express'
-      });
+      return res.status(400).json({ success: false, message: 'Invalid shipping_speed. Must be economy or express' });
+    }
+    if (electronics_item && !ELECTRONICS_HANDLING[electronics_item]) {
+      return res.status(400).json({ success: false, message: 'Invalid electronics_item' });
     }
 
-    const breakdown = calculateShippingCost({
+    const db = req.db;
+    const rates_gbp = await getActiveRates(db);
+
+    const pricing = calculateShippingCost({
       weight_kg,
       dimensions,
       market,
       shipping_speed,
       insurance,
-      declared_value
+      declared_value,
+      electronics_item,
+      rates_gbp,
     });
 
-    res.json({
-      success: true,
-      pricing: breakdown
-    });
+    res.json({ success: true, pricing });
   } catch (error) {
     console.error('Calculate pricing error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to calculate pricing'
-    });
+    res.status(500).json({ success: false, message: 'Failed to calculate pricing' });
   }
 });
 
-/**
- * Calculate shipping cost with full breakdown
- * @param {Object} options - Pricing options
- * @returns {Object} Cost breakdown
- */
-export function calculateShippingCost(options) {
-  const {
-    weight_kg = 0,
-    dimensions = {},
-    market = 'UK',
-    shipping_speed = 'economy',
-    insurance = false,
-    declared_value = 0
-  } = options;
+// ─── GET /api/pricing/electronics ───────────────────────────────────────────
+// Public: returns the list of electronics categories and their handling fees
 
-  // Base rates per kg (in KES equivalent of USD rates converted at ~130 KES/USD)
-  const baseRates = {
-    'UK': 8 * 130,      // $8 = ~1040 KES
-    'USA': 10 * 130,    // $10 = ~1300 KES
-    'China': 6 * 130    // $6 = ~780 KES
-  };
+router.get('/electronics', (req, res) => {
+  res.json({
+    success: true,
+    items: Object.entries(ELECTRONICS_HANDLING).map(([key, cfg]) => ({
+      key,
+      label: cfg.label,
+      fee_gbp: cfg.fee_gbp,
+      min_weight_kg: cfg.min_weight_kg,
+    })),
+  });
+});
 
-  const baseRate = baseRates[market] || baseRates['UK'];
+// ─── GET /api/pricing/rates ──────────────────────────────────────────────────
+// Public: returns current per-kg shipping rates
 
-  // Calculate dimensional weight (volumetric weight)
-  let dimensionalWeight = 0;
-  if (dimensions && dimensions.length && dimensions.width && dimensions.height) {
-    // Volumetric weight = (L x W x H) / 5000
-    dimensionalWeight = (dimensions.length * dimensions.width * dimensions.height) / 5000;
+router.get('/rates', async (req, res) => {
+  try {
+    const db = req.db;
+    const rates = await getActiveRates(db);
+    res.json({ success: true, rates });
+  } catch (error) {
+    console.error('Get rates error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch shipping rates' });
   }
+});
 
-  // Use whichever is greater: actual weight or dimensional weight
-  const chargeableWeight = Math.max(weight_kg, dimensionalWeight);
+// ─── PUT /api/pricing/rates ──────────────────────────────────────────────────
+// Admin only: update per-kg shipping rates
 
-  // Calculate base shipping cost
-  let shippingCost = chargeableWeight * baseRate;
+router.put('/rates', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+    const { rates } = req.body; // { UK: 8, USA: 10, China: 6 }
+    const adminId = req.user.id;
 
-  // Apply speed multiplier
-  const speedMultiplier = shipping_speed === 'express' ? 1.5 : 1.0;
-  shippingCost *= speedMultiplier;
-
-  // Calculate insurance (3% of declared value)
-  let insuranceCost = 0;
-  if (insurance && declared_value > 0) {
-    insuranceCost = declared_value * 0.03;
-  }
-
-  // Calculate customs duty estimate (16% VAT + applicable duty)
-  let customsDutyEstimate = 0;
-  if (declared_value > 0) {
-    // Estimated VAT at 16% of declared value
-    customsDutyEstimate = declared_value * 0.16;
-
-    // Add base duty rate (varies by product type, using 10% as average)
-    customsDutyEstimate += declared_value * 0.10;
-  }
-
-  // Calculate handling and processing fee
-  const handlingFee = Math.max(500, chargeableWeight * 100); // Min 500 KES or 100 KES per kg
-
-  // Total cost
-  const total = shippingCost + insuranceCost + handlingFee + customsDutyEstimate;
-
-  return {
-    summary: {
-      total: parseFloat(total.toFixed(2)),
-      currency: 'KES',
-      shipping_speed: shipping_speed,
-      market: market
-    },
-    breakdown: {
-      base_shipping: {
-        amount: parseFloat(shippingCost.toFixed(2)),
-        description: `Base shipping cost (${chargeableWeight.toFixed(2)} kg @ ${(baseRate / 130).toFixed(2)} USD/kg ${shipping_speed})`
-      },
-      dimensional_weight: {
-        actual_weight_kg: weight_kg,
-        dimensional_weight_kg: parseFloat(dimensionalWeight.toFixed(2)),
-        chargeable_weight_kg: parseFloat(chargeableWeight.toFixed(2)),
-        calculation: dimensions ? `(${dimensions.length}x${dimensions.width}x${dimensions.height})/5000` : 'N/A'
-      },
-      insurance: {
-        amount: parseFloat(insuranceCost.toFixed(2)),
-        rate: '3% of declared value',
-        declared_value: declared_value,
-        included: insurance
-      },
-      handling_fee: {
-        amount: parseFloat(handlingFee.toFixed(2)),
-        description: 'Handling and processing fee'
-      },
-      customs_estimate: {
-        amount: parseFloat(customsDutyEstimate.toFixed(2)),
-        vat_rate: '16%',
-        duty_rate: '10%',
-        declared_value: declared_value,
-        note: 'Estimate only - actual duty depends on product classification'
-      }
-    },
-    notes: {
-      delivery_time: shipping_speed === 'express' ? '5-7 business days' : '10-14 business days',
-      warehouse: '31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB',
-      disclaimer: 'This is an estimate. Final cost may vary based on actual weight, customs clearance, and other factors.'
+    if (!rates || typeof rates !== 'object') {
+      return res.status(400).json({ success: false, message: 'rates object is required' });
     }
-  };
-}
+
+    const validMarkets = ['UK', 'USA', 'China'];
+
+    // Ensure the table exists
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS shipping_rates (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        market      VARCHAR(10) NOT NULL UNIQUE,
+        rate_gbp    NUMERIC(10,4) NOT NULL,
+        updated_by  UUID,
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    for (const [market, rate] of Object.entries(rates)) {
+      if (!validMarkets.includes(market)) {
+        return res.status(400).json({ success: false, message: `Invalid market: ${market}` });
+      }
+      const r = parseFloat(rate);
+      if (isNaN(r) || r <= 0) {
+        return res.status(400).json({ success: false, message: `Invalid rate for ${market}` });
+      }
+      await db.query(
+        `INSERT INTO shipping_rates (id, market, rate_gbp, updated_by, updated_at)
+         VALUES ($1,$2,$3,$4,NOW())
+         ON CONFLICT (market) DO UPDATE SET rate_gbp=$3, updated_by=$4, updated_at=NOW()`,
+        [uuidv4(), market, r, adminId]
+      );
+    }
+
+    await db.query(
+      'INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)',
+      [uuidv4(), adminId, 'update_shipping_rates', JSON.stringify(rates)]
+    );
+
+    const updatedRates = await getActiveRates(db);
+    res.json({ success: true, message: 'Shipping rates updated', rates: updatedRates });
+  } catch (error) {
+    console.error('Update shipping rates error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update shipping rates' });
+  }
+});
 
 export default router;

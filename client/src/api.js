@@ -22,24 +22,20 @@ export const ordersApi = {
   track: (trackingNumber) => api.get(`/tracking/${trackingNumber}`),
 }
 
-// Wallet — balance lives at GET /wallet (returns { wallet: { balance } })
+// Wallet
 export const walletApi = {
-  // Returns { success, wallet: { balance, currency, ... }, recent_transactions }
   getWallet: () => api.get('/wallet'),
-  // Convenience: returns the wallet balance as a number
   getBalance: () => api.get('/wallet'),
   getTransactions: () => api.get('/wallet/transactions'),
   getTransactionDetails: (id) => api.get(`/wallet/transactions/${id}`),
-  // Pay for an order from wallet
   payFromWallet: (orderId, amount) => api.post('/wallet/pay', { order_id: orderId, amount }),
-  // Submit an Mpesa payment confirmation (wallet top-up or order payment)
   submitMpesaConfirmation: (mpesa_message, order_id = null, amount = 0) =>
     api.post('/wallet/mpesa-confirm', { mpesa_message, order_id, amount }),
 }
 
 // Pricing
 export const pricingApi = {
-  calculate: (market, weight_kg, dimensions, shipping_speed, insurance) =>
+  calculate: (market, weight_kg, dimensions, shipping_speed, insurance, electronics_item = null) =>
     api.post('/pricing/calculate', {
       market,
       weight_kg,
@@ -47,9 +43,10 @@ export const pricingApi = {
       shipping_speed,
       insurance: insurance?.enabled || false,
       declared_value: insurance?.declaredValue || 0,
+      electronics_item,
     }),
-  // Exchange rates are managed by admin; pricing calculator uses hardcoded rates on the backend
-  // No separate /pricing/exchange-rates endpoint exists
+  getElectronicsItems: () => api.get('/pricing/electronics'),
+  getRates: () => api.get('/pricing/rates'),
 }
 
 // Warehouse
@@ -124,6 +121,10 @@ export const adminApi = {
   getExchangeRates: () => api.get('/admin/exchange-rates'),
   setExchangeRates: (rates) => api.put('/admin/exchange-rates', { rates }),
 
+  // Shipping rate management (per kg in GBP)
+  getShippingRates: () => api.get('/pricing/rates'),
+  setShippingRates: (rates) => api.put('/pricing/rates', { rates }),
+
   // Create user/admin account
   createUser: (data) => api.post('/admin/users/create', data),
 
@@ -142,17 +143,17 @@ export const adminApi = {
   createBackup: () => api.post('/admin/backups'),
   downloadBackup: (id) => api.get(`/admin/backups/${id}/download`, { responseType: 'blob' }),
 
-  // Pending M-Pesa payments — used by AdminDashboard on load
+  // Pending M-Pesa payments
   getPendingPayments: () => api.get('/admin/transactions/pending'),
 
   // Approve / reject a pending M-Pesa payment
   approvePayment: (id) => api.post(`/admin/transactions/${id}/approve`),
   rejectPayment: (id, reason) => api.post(`/admin/transactions/${id}/reject`, { reason }),
 
-  // Per-user email logs (user detail panel)
+  // Per-user email logs
   getUserEmails: (userId) => api.get(`/admin/users/${userId}/emails`),
 
-  // Error logs (developer tools tab)
+  // Error logs
   getErrorLogs: (params = {}) => api.get('/admin/error-logs', { params }),
   getErrorLogStats: () => api.get('/admin/error-logs/stats'),
   clearErrorLogs: (keepDays) => api.delete('/admin/error-logs', { params: { keepDays } }),
