@@ -3,9 +3,9 @@ import { adminApi } from '../api'
 
 export function ShippingRatesPanel() {
   const [rates, setRates] = useState({
-    standard: '',
-    express: '',
-    economy: '',
+    UK: '',
+    USA: '',
+    China: '',
   })
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState(null)
@@ -31,9 +31,9 @@ export function ShippingRatesPanel() {
     setMessage(null)
     try {
       await adminApi.setShippingRates({
-        standard: parseFloat(rates.standard) || 0,
-        express:  parseFloat(rates.express)  || 0,
-        economy:  parseFloat(rates.economy)  || 0,
+        UK: parseFloat(rates.UK) || 0,
+        USA: parseFloat(rates.USA) || 0,
+        China: parseFloat(rates.China) || 0,
       })
       setMessage({ type: 'success', text: 'Shipping rates updated successfully.' })
     } catch (err) {
@@ -47,9 +47,9 @@ export function ShippingRatesPanel() {
   }
 
   const fields = [
-    { name: 'standard', label: 'Standard Rate (£/kg)' },
-    { name: 'express',  label: 'Express Rate (£/kg)'  },
-    { name: 'economy',  label: 'Economy Rate (£/kg)'  },
+    { name: 'UK', label: 'UK Rate (£/kg)' },
+    { name: 'USA', label: 'USA Rate (£/kg)' },
+    { name: 'China', label: 'China Rate (£/kg)' },
   ]
 
   return (
@@ -58,7 +58,6 @@ export function ShippingRatesPanel() {
       <p className="text-sm text-gray-500 mb-5">
         Adjust per-kg rates applied across all shipping calculations.
       </p>
-
       {message && (
         <div
           className={`mb-4 rounded-lg px-4 py-3 text-sm font-medium ${
@@ -70,7 +69,6 @@ export function ShippingRatesPanel() {
           {message.text}
         </div>
       )}
-
       <form onSubmit={handleSave} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {fields.map(({ name, label }) => (
           <div key={name} className="flex flex-col gap-1">
@@ -90,7 +88,6 @@ export function ShippingRatesPanel() {
             />
           </div>
         ))}
-
         <div className="sm:col-span-3 flex justify-end mt-2">
           <button
             type="submit"
