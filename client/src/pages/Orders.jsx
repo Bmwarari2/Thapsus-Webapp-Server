@@ -1,22 +1,67 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Package, Eye } from 'lucide-react'
+import { Package, Eye, ChevronDown } from 'lucide-react'
 
 import { useLanguage } from '../context/LanguageContext'
 import { ordersApi } from '../api'
 import toast from 'react-hot-toast'
 
+const CostBreakdown = ({ order }) => {
+  const shippingCost = order.shipping_cost ?? order.estimated_cost ?? 0
+  const handlingFee  = order.handling_fee ?? 0
+  const insuranceFee = order.insurance_fee ?? 0
+  const customsDuty  = order.customs_duty ?? 0
+  const total = (order.actual_cost ?? order.estimated_cost ?? 0) + customsDuty
+  
+  return (
+    <div className="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs space-y-1">
+      {shippingCost > 0 && (
+        <div className="flex justify-between text-gray-600">
+          <span>Shipping</span>
+          <span>KES {shippingCost.toLocaleString()}</span>
+        </div>
+      )}
+      {handlingFee > 0 && (
+        <div className="flex justify-between text-gray-600">
+          <span>Handling Fee</span>
+          <span>KES {handlingFee.toLocaleString()}</span>
+        </div>
+      )}
+      {insuranceFee > 0 && (
+        <div className="flex justify-between text-gray-600">
+          <span>Insurance</span>
+          <span>KES {insuranceFee.toLocaleString()}</span>
+        </div>
+      )}
+      {customsDuty > 0 && (
+        <div className="flex justify-between text-gray-600">
+          <span>Customs Duty</span>
+          <span>KES {customsDuty.toLocaleString()}</span>
+        </div>
+      )}
+      <div className="flex justify-between font-bold text-[#1e3a5f] pt-1 border-t border-gray-200">
+        <span>Total</span>
+        <span>KES {total.toLocaleString()}</span>
+      </div>
+      {!order.actual_cost && (
+        <p className="text-orange-500 text-[10px]">* Estimated — final cost confirmed after weighing</p>
+      )}
+    </div>
+  )
+}
+
 export const Orders = () => {
   const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [orders, setOrders] = useState([])
+  const [expandedCost, setExpandedCost] = useState(null)
   const [filters, setFilters] = useState({
     status: '',
     market: '',
   })
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
-    const navigate = useNavigate()
+  const navigate = useNavigate()
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -68,17 +113,17 @@ export const Orders = () => {
             {t('orders.title')}
           </h1>
           <p className="text-gray-600">Track and view all your shipments</p>
-                        <button
-                onClick={() => navigate('/orders/new')}
-                className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-              >
-                <Package size={18} />
-                New Order
-              </button>
+          <button
+            onClick={() => navigate('/orders/new')}
+            className="mt-4 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+          >
+            <Package size={18} />
+            New Order
+          </button>
         </div>
 
         {/* Filters */}
-        <div className="card mb-8">
+        <div className="card mb-8 bg-white p-4 rounded-lg shadow-sm border border-gray-100">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Status Filter */}
             <div>
@@ -140,7 +185,7 @@ export const Orders = () => {
 
         {/* Orders Table */}
         {orders.length > 0 ? (
-          <div className="card overflow-hidden">
+          <div className="card overflow-hidden bg-white rounded-lg shadow-sm border border-gray-100">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
@@ -182,8 +227,17 @@ export const Orders = () => {
                       <td className="px-6 py-4 text-sm text-gray-600">
                         {order.created_at ? new Date(order.created_at).toLocaleDateString() : '—'}
                       </td>
-                      <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                        KES {(order.actual_cost || order.estimated_cost || 0).toLocaleString()}
+                      <td className="px-6 py-4">
+                        <div>
+                          <button
+                            onClick={() => setExpandedCost(expandedCost === order.id ? null : order.id)}
+                            className="text-sm font-semibold text-[#1e3a5f] hover:text-orange-500 flex items-center gap-1"
+                          >
+                            KES {((order.actual_cost ?? order.estimated_cost ?? 0) + (order.customs_duty ?? 0)).toLocaleString()}
+                            <ChevronDown size={14} className={`transition-transform ${expandedCost === order.id ? 'rotate-180' : ''}`} />
+                          </button>
+                          {expandedCost === order.id && <CostBreakdown order={order} />}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <Link
@@ -226,7 +280,7 @@ export const Orders = () => {
             )}
           </div>
         ) : (
-          <div className="card text-center py-12">
+          <div className="card text-center py-12 bg-white rounded-lg shadow-sm border border-gray-100">
             <Package className="mx-auto text-gray-400 mb-4" size={48} />
             <p className="text-gray-600 mb-2">{t('orders.noOrders')}</p>
             <p className="text-sm text-gray-400">Create your own orders or contact support for assistance.</p>
