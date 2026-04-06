@@ -74,7 +74,7 @@ export const OrderDetail = () => {
   }
 
   const dimensions = order.dimensions_json
-  const cost = order.actual_cost || order.estimated_cost || 0
+  const cost = (order.actual_cost ?? order.estimated_cost ?? 0) + (order.customs_duty ?? 0)
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -198,37 +198,57 @@ export const OrderDetail = () => {
               )}
             </div>
 
+            {/* Expanded Cost Breakdown Section */}
             <div className="mt-6 pt-4 border-t border-gray-200">
               <h3 className="text-lg font-bold text-[#1e3a5f] mb-3 flex items-center gap-2">
                 <DollarSign size={20} />
-                Cost
+                Cost Breakdown
               </h3>
-              <div className="space-y-2">
-                {order.estimated_cost > 0 && (
+              <div className="space-y-2 text-sm">
+                {/* Shipping */}
+                {(order.shipping_cost ?? order.estimated_cost) > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Estimated Cost</span>
-                    <span className="font-medium text-gray-900">KES {order.estimated_cost.toLocaleString()}</span>
+                    <span className="text-gray-500">Shipping Rate</span>
+                    <span className="font-medium">
+                      KES {(order.shipping_cost ?? order.estimated_cost ?? 0).toLocaleString()}
+                    </span>
                   </div>
                 )}
-                {order.actual_cost > 0 && (
+                {/* Handling */}
+                {order.handling_fee > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Actual Cost</span>
-                    <span className="font-bold text-green-700">KES {order.actual_cost.toLocaleString()}</span>
+                    <span className="text-gray-500">Handling Fee</span>
+                    <span className="font-medium">KES {order.handling_fee.toLocaleString()}</span>
                   </div>
                 )}
+                {/* Insurance */}
+                {order.insurance_fee > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Insurance Fee</span>
+                    <span className="font-medium">KES {order.insurance_fee.toLocaleString()}</span>
+                  </div>
+                )}
+                {/* Customs */}
                 {order.customs_duty > 0 && (
                   <div className="flex justify-between">
                     <span className="text-gray-500">Customs Duty</span>
-                    <span className="font-medium text-gray-900">KES {order.customs_duty.toLocaleString()}</span>
+                    <span className="font-medium">KES {order.customs_duty.toLocaleString()}</span>
                   </div>
                 )}
-                {cost > 0 && (
-                  <div className="flex justify-between pt-2 border-t border-gray-100">
-                    <span className="font-bold text-[#1e3a5f]">Total</span>
-                    <span className="font-bold text-[#1e3a5f] text-lg">
-                      KES {((order.actual_cost || order.estimated_cost || 0) + (order.customs_duty || 0)).toLocaleString()}
-                    </span>
-                  </div>
+                {/* Total */}
+                <div className="flex justify-between pt-2 border-t border-gray-200 font-bold text-[#1e3a5f]">
+                  <span>{order.actual_cost ? 'Total (Confirmed)' : 'Total (Estimated)'}</span>
+                  <span className="text-lg">
+                    KES {(
+                      (order.actual_cost ?? order.estimated_cost ?? 0) +
+                      (order.customs_duty ?? 0)
+                    ).toLocaleString()}
+                  </span>
+                </div>
+                {!order.actual_cost && (
+                  <p className="text-xs text-orange-500 mt-1">
+                    * Estimated cost — final amount confirmed once your package is weighed at our warehouse.
+                  </p>
                 )}
               </div>
             </div>
