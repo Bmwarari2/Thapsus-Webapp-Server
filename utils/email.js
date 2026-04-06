@@ -226,6 +226,36 @@ async function sendPasswordResetEmail(toEmail, toName, resetLink) {
   }
 }
 
+// ── Bug 2 fix: sendAdminPasswordResetEmail ─────────────────────────────────
+async function sendAdminPasswordResetEmail(toEmail, toName, resetLink) {
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Your Password Has Been Reset</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      A Thapsus Cargo administrator has initiated a password reset for your account.
+      Click the button below to set a new password. This link will expire in <strong>1 hour</strong>.
+    </p>
+    <p style="margin:0 0 24px;color:#6b7280;font-size:14px;line-height:1.6;">
+      If you did not expect this, please contact Thapsus Cargo support immediately.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
+      <tr>
+        <td style="background-color:#f97316;border-radius:8px;">
+          <a href="${resetLink}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">Set New Password</a>
+        </td>
+      </tr>
+    </table>`;
+  const subject = 'Your Thapsus Cargo Password Has Been Reset by an Admin';
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'admin_password_reset', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'admin_password_reset', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
 async function sendPaymentRequestEmail(toEmail, toName, trackingNumber, amount, notes, paymentLink, order) {
   const bodyHtml = `
     <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment Request</h2>
@@ -288,17 +318,167 @@ async function sendPaymentReminderEmail(toEmail, toName, trackingNumber, amount,
   }
 }
 
-// Placeholders for remaining functions used in admin.js
-async function sendAdminPasswordResetEmail() { /* implementation */ }
-async function sendOrderCreatedEmail() { /* implementation */ }
-async function sendWelcomeAccountEmail() { /* implementation */ }
-async function sendPaymentReceiptEmail() { /* implementation */ }
-async function sendTicketCreatedEmail() { /* implementation */ }
-async function sendTicketReplyEmail() { /* implementation */ }
+// ── Bug 1 fix: sendOrderCreatedEmail ──────────────────────────────────────
+async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, market, description, shippingSpeed, ordersLink) {
+  const speedLabel = shippingSpeed === 'express' ? 'Express' : 'Economy';
+  const marketFlags = { UK: '🇬🇧', USA: '🇺🇸', China: '🇨🇳' };
+  const marketDisplay = `${marketFlags[market] || ''} ${market}`.trim();
 
-// --- FIXED EXPORTS BLOCK ---
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Your Order Has Been Created</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 24px;color:#4b5563;font-size:16px;line-height:1.6;">
+      Thapsus Cargo has created a new order on your behalf. Here are the details:
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 24px;font-size:15px;">
+      <tbody>
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;width:40%;">Tracking Number</td>
+          <td style="padding:10px 12px;color:#1e3a5f;font-weight:700;">${trackingNumber}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Retailer</td>
+          <td style="padding:10px 12px;color:#111827;">${retailer}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Market</td>
+          <td style="padding:10px 12px;color:#111827;">${marketDisplay}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Description</td>
+          <td style="padding:10px 12px;color:#111827;">${description}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Shipping Speed</td>
+          <td style="padding:10px 12px;color:#111827;">${speedLabel}</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="margin:0 0 24px;color:#4b5563;font-size:14px;line-height:1.6;">
+      You will receive further updates as your order progresses. You can track your order at any time using the button below.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
+      <tr>
+        <td style="background-color:#1e3a5f;border-radius:8px;">
+          <a href="${ordersLink}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">View My Orders</a>
+        </td>
+      </tr>
+    </table>`;
 
-// Explicitly add named exports for all functions
+  const subject = `New Order Created — ${trackingNumber}`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'order_created', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'order_created', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
+// ── Bug 2 fix: sendWelcomeAccountEmail ────────────────────────────────────
+async function sendWelcomeAccountEmail(toEmail, toName, warehouseId, role, setupLink) {
+  const roleLabel = role === 'admin' ? 'Administrator' : 'Customer';
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Welcome to Thapsus Cargo!</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      Your <strong>${roleLabel}</strong> account has been created by a Thapsus Cargo administrator.
+      Click the button below to set your password and activate your account.
+      This setup link will expire in <strong>24 hours</strong>.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 24px;font-size:15px;">
+      <tbody>
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;width:40%;">Email</td>
+          <td style="padding:10px 12px;color:#111827;">${toEmail}</td>
+        </tr>
+        <tr style="background:#f9fafb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Warehouse ID</td>
+          <td style="padding:10px 12px;color:#1e3a5f;font-weight:700;">${warehouseId}</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="margin:0 0 8px;color:#4b5563;font-size:14px;line-height:1.6;">
+      Your <strong>Warehouse ID</strong> is used to identify your shipments at our facility. Keep it handy.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
+      <tr>
+        <td style="background-color:#f97316;border-radius:8px;">
+          <a href="${setupLink}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">Activate My Account</a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6;">
+      If you were not expecting this email, you can safely ignore it.
+    </p>`;
+
+  const subject = 'Welcome to Thapsus Cargo — Activate Your Account';
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'welcome_account', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'welcome_account', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
+// ── Bug 2 fix: sendPaymentReceiptEmail ────────────────────────────────────
+async function sendPaymentReceiptEmail(toEmail, toName, trackingNumber, amount, paymentReference, paidAt) {
+  const formattedAmount = typeof amount === 'number' ? amount.toLocaleString() : amount;
+  const formattedDate = paidAt
+    ? new Date(paidAt).toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' })
+    : new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
+
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment Received ✓</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 24px;color:#4b5563;font-size:16px;line-height:1.6;">
+      We have successfully received your payment. Below is your receipt:
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 24px;font-size:15px;">
+      <tbody>
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;width:45%;">Tracking Number</td>
+          <td style="padding:10px 12px;color:#1e3a5f;font-weight:700;">${trackingNumber}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Amount Paid</td>
+          <td style="padding:10px 12px;color:#111827;font-weight:700;">KES ${formattedAmount}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">M-Pesa Reference</td>
+          <td style="padding:10px 12px;color:#111827;">${paymentReference || 'N/A'}</td>
+        </tr>
+        <tr style="background:#f0fdf4;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Date &amp; Time</td>
+          <td style="padding:10px 12px;color:#111827;">${formattedDate}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:0 0 24px;">
+      <p style="margin:0;color:#166534;font-size:15px;font-weight:600;">✓ Payment Confirmed</p>
+      <p style="margin:4px 0 0;color:#166534;font-size:14px;">Your payment has been approved and your order is being processed.</p>
+    </div>`;
+
+  const subject = `Payment Receipt — ${trackingNumber}`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'payment_receipt', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'payment_receipt', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
+// ── Ticket emails (stubs retained — not yet called in production routes) ──
+async function sendTicketCreatedEmail() { /* TODO: implement when ticket email flow is added */ }
+async function sendTicketReplyEmail()   { /* TODO: implement when ticket email flow is added */ }
+
+// ── Exports ────────────────────────────────────────────────────────────────
+
 export {
   sendPasswordResetEmail,
   sendAdminPasswordResetEmail,
@@ -311,7 +491,6 @@ export {
   sendTicketReplyEmail,
 };
 
-// Keep default export for components relying on a default import
 export default {
   sendPasswordResetEmail,
   sendAdminPasswordResetEmail,
