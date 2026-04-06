@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { MessageSquare, Plus, Send, AlertCircle } from 'lucide-react'
+import { MessageSquare, Plus, Send } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { supportApi } from '../api'
 import { useTicketUpdates } from '../hooks/useRealtimeUpdates'
@@ -18,6 +18,23 @@ export const Support = () => {
   })
   const [replyText, setReplyText] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  const shapeTicketThread = (ticket, messages) => {
+    if (!ticket) return null
+    const baseMessages = [
+      {
+        fromUser: true,
+        createdAt: ticket.created_at,
+        message: ticket.description,
+      },
+      ...(messages || []).map((m) => ({
+        fromUser: m.role !== 'admin',
+        createdAt: m.created_at,
+        message: m.message,
+      })),
+    ]
+    return { ...ticket, messages: baseMessages }
+  }
 
   useEffect(() => {
     const fetchTickets = async () => {
@@ -46,14 +63,7 @@ export const Support = () => {
         .getTicket(selectedTicket.id)
         .then((res) => {
           const { ticket, messages } = res.data
-          setSelectedTicket({
-            ...ticket,
-            messages: messages.map((m) => ({
-              fromUser: m.role !== 'admin',
-              createdAt: m.created_at,
-              message: m.message,
-            })),
-          })
+          setSelectedTicket(shapeTicketThread(ticket, messages))
         })
         .catch(() => {})
     }
@@ -72,17 +82,7 @@ export const Support = () => {
     try {
       const res = await supportApi.getTicket(id)
       const { ticket, messages } = res.data
-
-      const shaped = {
-        ...ticket,
-        messages: messages.map((m) => ({
-          fromUser: m.role !== 'admin',
-          createdAt: m.created_at,
-          message: m.message,
-        })),
-      }
-
-      setSelectedTicket(shaped)
+      setSelectedTicket(shapeTicketThread(ticket, messages))
     } catch (err) {
       toast.error('Failed to load ticket details')
     }
@@ -131,14 +131,7 @@ export const Support = () => {
       const res = await supportApi.getTicket(selectedTicket.id)
       const { ticket, messages } = res.data
 
-      setSelectedTicket({
-        ...ticket,
-        messages: messages.map((m) => ({
-          fromUser: m.role !== 'admin',
-          createdAt: m.created_at,
-          message: m.message,
-        })),
-      })
+      setSelectedTicket(shapeTicketThread(ticket, messages))
 
       setReplyText('')
       toast.success('Reply sent!')
@@ -304,19 +297,19 @@ export const Support = () => {
                 </form>
               </div>
             ) : selectedTicket ? (
-              <div className="card">
+              <div className="card flex flex-col h-[480px]">
                 {/* Ticket Header */}
-                <div className="flex items-start justify-between mb-6 pb-6 border-b border-gray-200">
+                <div className="flex items-start justify-between mb-4 pb-4 border-b border-gray-200">
                   <div>
                     <h2 className="text-2xl font-bold text-[#1e3a5f]">
                       {selectedTicket.subject}
                     </h2>
-                    <p className="text-gray-600 mt-1">
+                    <p className="text-gray-600 mt-1 text-sm">
                       {t('support.ticketId')}: {selectedTicket.id.slice(0, 8).toUpperCase()}
                     </p>
                   </div>
                   <span
-                    className={`px-4 py-2 rounded-lg font-medium ${
+                    className={`px-4 py-2 rounded-lg font-medium text-xs md:text-sm ${
                       selectedTicket.status === 'open'
                         ? 'bg-yellow-100 text-yellow-800'
                         : selectedTicket.status === 'in_progress'
@@ -329,43 +322,55 @@ export const Support = () => {
                 </div>
 
                 {/* Messages */}
-                <div className="space-y-4 mb-6 max-h-96 overflow-y-auto">
+                <div className="flex-1 space-y-3 mb-4 overflow-y-auto pr-1">
                   {selectedTicket.messages?.map((msg, idx) => (
                     <div
                       key={idx}
-                      className={`p-4 rounded-lg ${
-                        msg.fromUser
-                          ? 'bg-blue-50 border border-blue-200'
-                          : 'bg-gray-50 border border-gray-200'
-                      }`}
+                      className={`flex ${msg.fromUser ? 'justify-end' : 'justify-start'}`}
                     >
-                      <p className="text-xs text-gray-600 mb-2">
-                        {msg.fromUser ? 'You' : 'Support Team'} •{' '}
-                        {new Date(msg.createdAt).toLocaleString()}
-                      </p>
-                      <p className="text-gray-900">{msg.message}</p>
+                      <div
+                        className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
+                          msg.fromUser
+                            ? 'bg-orange-500 text-white rounded-br-none'
+                            : 'bg-gray-100 text-gray-900 rounded-bl-none'
+                        }`}
+                      >
+                        <p className="text-[11px] opacity-80 mb-1">
+                          {msg.fromUser ? 'You' : 'Support Team'} •{' '}
+                          {new Date(msg.createdAt).toLocaleString()}
+                        </p>
+                        <p className="whitespace-pre-wrap break-words">{msg.message}</p>
+                      </div>
                     </div>
                   ))}
+
+                  {selectedTicket.messages?.length === 0 && (
+                    <div className="text-center text-gray-500 text-sm py-8">
+                      No messages yet. Start the conversation below.
+                    </div>
+                  )}
                 </div>
 
                 {/* Reply Form */}
                 {selectedTicket.status !== 'closed' && (
-                  <form onSubmit={handleReply} className="space-y-4">
-                    <textarea
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      placeholder="Type your reply..."
-                      rows="3"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
-                    />
-                    <button
-                      type="submit"
-                      disabled={submitting || !replyText.trim()}
-                      className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-                    >
-                      <Send size={20} />
-                      {t('support.send')}
-                    </button>
+                  <form onSubmit={handleReply} className="mt-auto pt-2 border-t border-gray-200">
+                    <div className="flex gap-2 items-end">
+                      <textarea
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        placeholder="Type your message..."
+                        rows="2"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-sm resize-none"
+                      />
+                      <button
+                        type="submit"
+                        disabled={submitting || !replyText.trim()}
+                        className="inline-flex items-center justify-center bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-bold gap-2 transition-colors disabled:opacity-50"
+                      >
+                        <Send size={18} />
+                        <span className="hidden sm:inline">{t('support.send')}</span>
+                      </button>
+                    </div>
                   </form>
                 )}
               </div>

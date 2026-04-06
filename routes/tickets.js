@@ -1,6 +1,8 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
 import { pushToUser, pushToAdmins } from './events.js';
@@ -9,8 +11,26 @@ import { sendTicketCreatedEmail, sendTicketReplyEmail } from '../utils/email.js'
 
 const router = express.Router();
 
+// Resolve a stable absolute uploads directory and ensure it exists
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const UPLOAD_ROOT = (() => {
+  const configured = process.env.UPLOAD_DIR;
+  if (configured) {
+    return path.isAbsolute(configured)
+      ? configured
+      : path.join(__dirname, '..', configured);
+  }
+  return path.join(__dirname, '..', 'uploads');
+})();
+
+if (!fs.existsSync(UPLOAD_ROOT)) {
+  fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
+}
+
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, process.env.UPLOAD_DIR || './uploads'),
+  destination: (req, file, cb) => cb(null, UPLOAD_ROOT),
   filename:    (req, file, cb) => cb(null, 'ticket-' + Date.now() + '-' + Math.round(Math.random() * 1e9) + path.extname(file.originalname)),
 });
 const upload = multer({
@@ -74,7 +94,7 @@ router.post('/', authMiddleware, upload.single('photo'), async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid priority' });
 
     const ticketId = uuidv4();
-    const photoUrl = req.file ? `/uploads/${req.file.filename}` : null;
+    const photoUrl = req.file ? `/uploads/${path.basename(req.file.path)}` : null;
 
     await db.query(
       `INSERT INTO tickets (id, user_id, subject, description, status, priority, photo_url)

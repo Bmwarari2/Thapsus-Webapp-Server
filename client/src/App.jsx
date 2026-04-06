@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom'
 import { Navbar } from './components/Navbar'
 import { Footer } from './components/Footer'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { SupportChatWidget } from './components/SupportChatWidget'
 
 // Pages
 import { Home } from './pages/Home'
@@ -30,7 +31,7 @@ function App() {
     <div className="flex flex-col min-h-screen">
       <Navbar />
 
-      <main className="flex-grow">
+      <main className="relative flex-grow">
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<Home />} />
@@ -70,6 +71,9 @@ function App() {
             </div>
           } />
         </Routes>
+
+        {/* Floating support chat launcher */}
+        <SupportChatWidget />
       </main>
 
       <Footer />
