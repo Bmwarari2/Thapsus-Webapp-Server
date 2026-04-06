@@ -125,6 +125,10 @@ export const adminApi = {
   /** List all support tickets */
   listTickets: (params = {}) => api.get('/tickets/admin/all', { params }),
 
+  /** Update a ticket's status (admin only) */
+  updateTicketStatus: (id, status, admin_message) =>
+    api.put(`/tickets/${id}/status`, { status, ...(admin_message ? { admin_message } : {}) }),
+
   /**
    * Bulk-update multiple orders to a new status.
    * @param {string[]} order_ids

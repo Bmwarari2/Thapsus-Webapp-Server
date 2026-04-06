@@ -87,7 +87,8 @@ export const supportApi = {
   listTickets: () => api.get('/tickets'),
   getTicket: (id) => api.get(`/tickets/${id}`),
   replyToTicket: (id, message) => api.post(`/tickets/${id}/message`, { message }),
-  closeTicket: (id) => api.put(`/tickets/${id}`, { status: 'closed' }),
+  closeTicket: (id, adminMessage) =>
+    api.put(`/tickets/${id}/status`, { status: 'closed', ...(adminMessage ? { admin_message: adminMessage } : {}) }),
 }
 
 // Referral
@@ -123,7 +124,8 @@ export const adminApi = {
 
   listTickets: (filters = {}) => api.get('/tickets/admin/all', { params: filters }),
   assignTicket: (id, assignedTo) => api.put(`/admin/tickets/${id}`, { assignedTo }),
-  updateTicketStatus: (id, status) => api.put(`/admin/tickets/${id}`, { status }),
+  updateTicketStatus: (id, status, adminMessage) =>
+    api.put(`/tickets/${id}/status`, { status, ...(adminMessage ? { admin_message: adminMessage } : {}) }),
 
   // Exchange rate management
   getExchangeRates: () => api.get('/admin/exchange-rates'),

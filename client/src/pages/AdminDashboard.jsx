@@ -3,7 +3,7 @@ import {
   Users, Package, DollarSign, BarChart3, MessageSquare, Activity,
   Lock, RefreshCw, Trash2, XCircle, Plus, CreditCard, Search,
   UserPlus, Bell, Mail, Eye, ArrowLeft, Key, Send, AlertTriangle,
-  ChevronLeft, ChevronRight, Filter
+  ChevronLeft, ChevronRight, Filter, CheckCircle,
 } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
@@ -381,6 +381,23 @@ export const AdminDashboard = () => {
     }
   }
 
+  const handleCloseTicket = async () => {
+    if (!selectedTicket || selectedTicket.status === 'closed') return
+    if (!window.confirm(`Mark ticket ${selectedTicket.id?.slice(0, 8).toUpperCase()} as closed?`)) return
+    try {
+      setSendingReply(true)
+      const res = await adminApi.updateTicketStatus(selectedTicket.id, 'closed')
+      const updated = res.data?.ticket || { ...selectedTicket, status: 'closed' }
+      setSelectedTicket((prev) => (prev ? { ...prev, status: updated.status } : prev))
+      setTickets((prev) => prev.map((t) => (t.id === updated.id ? { ...t, status: updated.status } : t)))
+      toast.success('Ticket closed')
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to close ticket')
+    } finally {
+      setSendingReply(false)
+    }
+  }
+
   // ── Open user detail panel ──────────────────────────────────────────────
   const handleOpenUserDetail = async (u) => {
     setSelectedUser(u)
@@ -661,7 +678,7 @@ export const AdminDashboard = () => {
                     <Pie data={marketChartData.map((m) => ({ name: m.name, value: m.revenue }))} cx="50%" cy="50%" labelLine={false} label={({ name, value }) => `${name}: KES ${value.toLocaleString()}`} outerRadius={80} fill="#8884d8" dataKey="value">
                       {marketChartData.map((_, index) => <Cell key={`rev-${index}`} fill={COLORS[index % COLORS.length]} />)}
                     </Pie>
-                    <Tooltip formatter={(value) => `KES ${value.toLocaleString()}`} />
+                    <Tooltip formatter={(value) => `KES ${value.toLocaleString}`} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -1585,6 +1602,17 @@ export const AdminDashboard = () => {
                       <p className="text-sm text-gray-800 whitespace-pre-line">{selectedTicket.description}</p>
                     </div>
                   )}
+                  {selectedTicket.status !== 'closed' && (
+                    <button
+                      type="button"
+                      onClick={handleCloseTicket}
+                      disabled={sendingReply}
+                      className="mt-4 w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50"
+                    >
+                      <CheckCircle size={14} />
+                      Mark as Closed
+                    </button>
+                  )}
                 </div>
 
                 {/* Conversation */}
@@ -1653,7 +1681,7 @@ export const AdminDashboard = () => {
             )}
             <form onSubmit={handleSaveRates} className="space-y-4">
               {[
-                { pair: 'USD_KES', label: 'USD to KES', flag: '$' },
+                { pair: 'USD_KES', label: 'USD to KES', label: 'USD to KES', flag: '$' },
                 { pair: 'GBP_KES', label: 'GBP to KES', flag: '£' },
                 { pair: 'EUR_KES', label: 'EUR to KES', flag: '€' },
                 { pair: 'CNY_KES', label: 'CNY to KES', flag: '¥' },
