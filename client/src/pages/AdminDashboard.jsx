@@ -1132,14 +1132,3 @@ return (
 }
 
 export default AdminDashboard;
-
-  const [emailLogs, setEmailLogs] = useState([])
-  // Error logs (developer tools)
-  const [errorLogs, setErrorLogs] = useState([])
-  const [errorLogStats, setErrorLogStats] = useState(null)
-  const [errorLogPage, setErrorLogPage] = useState(1)
-  const [errorLogTotal, setErrorLogTotal] = useState(0)
-  const [errorLogTotalPages, setErrorLogTotalPages] = useState(0)
-  const [errorLogFilter, setErrorLogFilter] = useState({ level: '', source: '', search: '' })
-  const [loadingErrorLogs, setLoadingErrorLogs] = useState(false)
-  const [expandedError, setExpandedError] = useState(null)
