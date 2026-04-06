@@ -15,14 +15,6 @@ import {
 import toast from 'react-hot-toast'
 import { ShippingRatesPanel } from '../components/ShippingRatesPanel'
 
-// Imported Structural Components for the missing tabs
-import OrdersTab from '../components/admin/OrdersTab'
-import PaymentsTab from '../components/admin/PaymentsTab'
-import RevenueTab from '../components/admin/RevenueTab'
-import TicketsTab from '../components/admin/TicketsTab'
-import ExchangeRatesTab from '../components/admin/ExchangeRatesTab'
-import ErrorLogsTab from '../components/admin/ErrorLogsTab'
-
 export const AdminDashboard = () => {
   const { t } = useLanguage()
   const { user } = useAuth()
@@ -54,12 +46,12 @@ export const AdminDashboard = () => {
   const [creatingOrder, setCreatingOrder] = useState(false)
 
   // Payment request modal
-  const [paymentModal, setPaymentModal] = useState(null)
+  const [paymentModal, setPaymentModal] = useState(null) // { orderId, trackingNumber }
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentNotes, setPaymentNotes] = useState('')
 
   // Cancel order modal
-  const [cancelModal, setCancelModal] = useState(null)
+  const [cancelModal, setCancelModal] = useState(null) // { orderId, trackingNumber }
   const [cancelReason, setCancelReason] = useState('')
 
   // Password change state
@@ -67,10 +59,6 @@ export const AdminDashboard = () => {
     currentPassword: '', newPassword: '', confirmPassword: '',
   })
   const [changingPassword, setChangingPassword] = useState(false)
-
-  // Test Email state
-  const [testEmail, setTestEmail] = useState('')
-  const [sendingTestEmail, setSendingTestEmail] = useState(false)
 
   // Exchange rate state
   const [exchangeRates, setExchangeRates] = useState({
@@ -87,7 +75,7 @@ export const AdminDashboard = () => {
   const [creatingUser, setCreatingUser] = useState(false)
 
   // Payment reminder modal
-  const [reminderModal, setReminderModal] = useState(null)
+  const [reminderModal, setReminderModal] = useState(null) // { orderId, trackingNumber }
   const [reminderAmount, setReminderAmount] = useState('')
   const [reminderNotes, setReminderNotes] = useState('')
 
@@ -111,10 +99,10 @@ export const AdminDashboard = () => {
   const [approvingPayment, setApprovingPayment] = useState(null)
   const [expandedProof, setExpandedProof] = useState(null)
 
-  // Email logs
+  // Email logs (for user detail panel)
   const [emailLogs, setEmailLogs] = useState([])
 
-  // Error logs
+  // Error logs (developer tools)
   const [errorLogs, setErrorLogs] = useState([])
   const [errorLogStats, setErrorLogStats] = useState(null)
   const [errorLogPage, setErrorLogPage] = useState(1)
@@ -156,6 +144,7 @@ export const AdminDashboard = () => {
       if (results[4].status === 'fulfilled') setPendingPayments(results[4].value.data?.transactions || [])
       if (results[5].status === 'fulfilled') setTickets(results[5].value.data?.tickets || [])
 
+      // Also fetch error log stats for the badge
       try {
         const statsRes = await adminApi.getErrorLogStats()
         if (statsRes.data?.stats) setErrorLogStats(statsRes.data.stats)
@@ -218,22 +207,6 @@ export const AdminDashboard = () => {
       toast.error(err.message || 'Failed to change password')
     } finally {
       setChangingPassword(false)
-    }
-  }
-
-  // ── Send Test Email ──────────────────────────────────────────────────
-  const handleSendTestEmail = async (e) => {
-    e.preventDefault()
-    if (!testEmail) { toast.error('Please enter an email address'); return }
-    try {
-      setSendingTestEmail(true)
-      await adminApi.sendTestEmail(testEmail)
-      toast.success(`Test email sent to ${testEmail}`)
-      setTestEmail('')
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to send test email')
-    } finally {
-      setSendingTestEmail(false)
     }
   }
 
@@ -515,7 +488,9 @@ export const AdminDashboard = () => {
       toast.success('Order created successfully')
       setShowUserOrderForm(false)
       setUserOrderForm({ retailer: '', market: 'UK', description: '', weight_kg: '', shipping_speed: 'economy', dimensions: { length: '', width: '', height: '' }, insurance: false, declared_value: '' })
+      // Refresh user detail
       handleOpenUserDetail(selectedUser)
+      // Refresh orders list too
       const ordersRes = await adminApi.listOrders()
       setOrders(ordersRes.data?.orders || [])
     } catch (err) {
@@ -584,475 +559,6 @@ export const AdminDashboard = () => {
     return cls[status] || 'bg-purple-100 text-purple-800'
   }
 
-  // ── Render Helpers to keep main return clean ─────────────────────────────────────────
-
-  const renderOverviewTab = () => (
-    <div className="space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="card">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-gray-600 text-sm mb-1">{t('admin.totalUsers')}</p>
-              <h3 className="text-4xl font-bold text-[#1e3a5f]">{userStats.total || 0}</h3>
-              <p className="text-xs text-gray-500 mt-1">{userStats.customers || 0} customers, {userStats.admins || 0} admins</p>
-            </div>
-            <Users className="text-blue-500" size={32} />
-          </div>
-        </div>
-        <div className="card">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-gray-600 text-sm mb-1">{t('admin.activeOrders')}</p>
-              <h3 className="text-4xl font-bold text-[#1e3a5f]">{orderStats.total_orders || 0}</h3>
-              <p className="text-xs text-gray-500 mt-1">{orderStats.pending || 0} pending, {orderStats.in_transit || 0} in transit</p>
-            </div>
-            <Package className="text-orange-500" size={32} />
-          </div>
-        </div>
-        <div className="card">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-gray-600 text-sm mb-1">Delivered Orders</p>
-              <h3 className="text-4xl font-bold text-[#1e3a5f]">{orderStats.delivered || 0}</h3>
-            </div>
-            <Activity className="text-green-500" size={32} />
-          </div>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="card">
-          <p className="text-gray-600 text-sm mb-1">Total Revenue (Completed)</p>
-          <h3 className="text-3xl font-bold text-green-600">KES {(revenueStats.total_revenue || 0).toLocaleString()}</h3>
-          <p className="text-xs text-gray-500 mt-1">{revenueStats.total_transactions || 0} transactions</p>
-        </div>
-        <div className="card">
-          <p className="text-gray-600 text-sm mb-1">Estimated Order Value</p>
-          <h3 className="text-3xl font-bold text-blue-600">KES {(orderStats.total_estimated_value || 0).toLocaleString()}</h3>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card">
-          <h2 className="text-xl font-bold text-[#1e3a5f] mb-4">Orders by Status</h2>
-          {stats?.order_statuses?.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie data={stats.order_statuses.map((s) => ({ name: s.status?.replace(/_/g, ' '), value: parseInt(s.count) || 0 }))} cx="50%" cy="50%" labelLine={false} label={({ name, value }) => `${name}: ${value}`} outerRadius={80} fill="#8884d8" dataKey="value">
-                  {stats.order_statuses.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : <p className="text-center text-gray-500 py-8">No order data available</p>}
-        </div>
-        <div className="card">
-          <h2 className="text-xl font-bold text-[#1e3a5f] mb-4">{t('admin.ordersByMarket')}</h2>
-          {marketChartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie data={marketChartData} cx="50%" cy="50%" labelLine={false} label={({ name, value }) => `${name}: ${value}`} outerRadius={80} fill="#8884d8" dataKey="value">
-                  {marketChartData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : <p className="text-center text-gray-500 py-8">No market data available</p>}
-        </div>
-      </div>
-      {/* Sales by Market (Revenue Breakdown) */}
-      {marketStats.length > 0 && (
-        <div className="card">
-          <h2 className="text-xl font-bold text-[#1e3a5f] mb-4">Sales by Market (Revenue)</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            {marketStats.map((m, i) => (
-              <div key={m.market} className="rounded-lg p-4" style={{ backgroundColor: `${COLORS[i % COLORS.length]}10` }}>
-                <p className="text-sm text-gray-600 mb-1">{m.market}</p>
-                <p className="text-2xl font-bold" style={{ color: COLORS[i % COLORS.length] }}>KES {(parseFloat(m.value) || 0).toLocaleString()}</p>
-                <p className="text-xs text-gray-500 mt-1">{parseInt(m.count) || 0} order(s)</p>
-              </div>
-            ))}
-          </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie data={marketChartData.map((m) => ({ name: m.name, value: m.revenue }))} cx="50%" cy="50%" labelLine={false} label={({ name, value }) => `${name}: KES ${value.toLocaleString()}`} outerRadius={80} fill="#8884d8" dataKey="value">
-                {marketChartData.map((_, index) => <Cell key={`rev-${index}`} fill={COLORS[index % COLORS.length]} />)}
-              </Pie>
-              <Tooltip formatter={(value) => `KES ${value.toLocaleString()}`} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </div>
-  )
-
-  const renderUsersTab = () => (
-    <div className="space-y-6">
-      {/* Create User Button */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-[#1e3a5f]">{t('admin.userManagement')}</h2>
-        <button
-          onClick={() => setShowCreateUserForm((v) => !v)}
-          className="flex items-center gap-2 bg-[#1e3a5f] hover:bg-[#152d4a] text-white px-4 py-2 rounded-lg font-bold transition-colors"
-        >
-          <UserPlus size={16} />
-          Create Account
-        </button>
-      </div>
-
-      {/* Create User/Admin Form */}
-      {showCreateUserForm && (
-        <div className="card border-2 border-[#1e3a5f]">
-          <h3 className="text-lg font-bold text-[#1e3a5f] mb-4">Create New Account</h3>
-          <form onSubmit={handleCreateUser} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  value={createUserForm.name}
-                  onChange={(e) => setCreateUserForm((p) => ({ ...p, name: e.target.value }))}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
-                  placeholder="e.g. John Doe"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                <input
-                  type="email"
-                  value={createUserForm.email}
-                  onChange={(e) => setCreateUserForm((p) => ({ ...p, email: e.target.value }))}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
-                  placeholder="e.g. john@example.com"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
-                <input
-                  type="text"
-                  value={createUserForm.phone}
-                  onChange={(e) => setCreateUserForm((p) => ({ ...p, phone: e.target.value }))}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
-                  placeholder="e.g. +254712345678"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Account Type *</label>
-                <select
-                  value={createUserForm.role}
-                  onChange={(e) => setCreateUserForm((p) => ({ ...p, role: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
-                >
-                  <option value="customer">Customer</option>
-                  <option value="admin">Admin (Full Access)</option>
-                </select>
-              </div>
-            </div>
-            <p className="text-sm text-gray-500">
-              The user will receive a welcome email with a link to set up their password.
-              {createUserForm.role === 'admin' && (
-                <span className="text-orange-600 font-medium"> This admin will have the same permission levels as your account.</span>
-              )}
-            </p>
-            <div className="flex gap-3 pt-2">
-              <button
-                type="submit"
-                disabled={creatingUser}
-                className="bg-[#1e3a5f] hover:bg-[#152d4a] text-white px-6 py-2 rounded-lg font-bold disabled:opacity-50"
-              >
-                {creatingUser ? 'Creating...' : `Create ${createUserForm.role === 'admin' ? 'Admin' : 'Customer'} Account`}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowCreateUserForm(false)}
-                className="border border-gray-300 px-6 py-2 rounded-lg font-bold text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-[#1e3a5f]">All Users</h3>
-          <span className="text-sm text-gray-500">{users.length} user(s)</span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Name</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Email</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Phone</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Warehouse ID</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Role</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Balance</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Joined</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {users.length === 0 ? (
-                <tr><td colSpan="9" className="px-6 py-8 text-center text-gray-500">No users found</td></tr>
-              ) : users.map((u) => (
-                <tr key={u.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{u.name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{u.email}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{u.phone}</td>
-                  <td className="px-6 py-4 text-sm font-mono text-gray-600">{u.warehouse_id}</td>
-                  <td className="px-6 py-4 text-sm">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${u.role === 'admin' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>{u.role}</span>
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${u.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{u.is_active ? 'Active' : 'Inactive'}</span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">KES {(u.wallet_balance || 0).toLocaleString()}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
-                  <td className="px-6 py-4">
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleOpenUserDetail(u)}
-                          title="View User Details"
-                          className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 transition-colors"
-                        >
-                          <Eye size={15} />
-                        </button>
-                    {u.id !== user?.id && (
-                      <>
-                        <button
-                          onClick={async () => {
-                            const action = u.is_active ? 'deactivate' : 'reactivate'
-                            if (!window.confirm(`${action === 'deactivate' ? 'Deactivate' : 'Reactivate'} ${u.name} (${u.email})? ${action === 'deactivate' ? 'They will not be able to log in.' : 'They will be able to log in again.'}`)) return
-                            try {
-                              await adminApi.updateUser(u.id, { is_active: !u.is_active })
-                              toast.success(`User ${u.name} ${action === 'deactivate' ? 'deactivated' : 'reactivated'} successfully`)
-                              setUsers((prev) => prev.map((usr) => usr.id === u.id ? { ...usr, is_active: !u.is_active } : usr))
-                            } catch (err) {
-                              toast.error(err.response?.data?.message || err.message || `Failed to ${action} user`)
-                            }
-                          }}
-                          title={u.is_active ? 'Deactivate Account' : 'Reactivate Account'}
-                          className={`p-1.5 rounded-lg transition-colors ${u.is_active ? 'bg-yellow-50 hover:bg-yellow-100 text-yellow-700' : 'bg-green-50 hover:bg-green-100 text-green-700'}`}
-                        >
-                          {u.is_active ? <XCircle size={15} /> : <RefreshCw size={15} />}
-                        </button>
-                        <button
-                          onClick={async () => {
-                            if (!window.confirm(`Permanently delete user ${u.name} (${u.email})? This will remove ALL their orders, transactions, and data. This cannot be undone.`)) return
-                            try {
-                              await adminApi.deleteUser(u.id)
-                              toast.success(`User ${u.name} deleted successfully`)
-                              setUsers((prev) => prev.filter((usr) => usr.id !== u.id))
-                            } catch (err) {
-                              toast.error(err.response?.data?.message || err.message || 'Failed to delete user')
-                            }
-                          }}
-                          title="Permanently Delete User"
-                          className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 transition-colors"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </>
-                    )}
-                      </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  )
-
-  const renderSettingsTab = () => (
-    <div className="space-y-8">
-      {/* Shipping Rates Adjustment Panel */}
-      <div className="card">
-        <ShippingRatesPanel />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Password Change */}
-        <div className="card">
-          <h3 className="text-lg font-bold text-[#1e3a5f] mb-4 flex items-center gap-2">
-            <Lock size={20} /> Change Password
-          </h3>
-          <form onSubmit={handlePasswordChange} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
-              <input
-                type="password"
-                value={passwordForm.currentPassword}
-                onChange={(e) => setPasswordForm((p) => ({ ...p, currentPassword: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-              <input
-                type="password"
-                value={passwordForm.newPassword}
-                onChange={(e) => setPasswordForm((p) => ({ ...p, newPassword: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
-              <input
-                type="password"
-                value={passwordForm.confirmPassword}
-                onChange={(e) => setPasswordForm((p) => ({ ...p, confirmPassword: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={changingPassword}
-              className="bg-[#1e3a5f] hover:bg-[#152d4a] text-white px-6 py-2 rounded-lg font-bold disabled:opacity-50"
-            >
-              {changingPassword ? 'Changing...' : 'Change Password'}
-            </button>
-          </form>
-        </div>
-
-        {/* Test Email Utility */}
-        <div className="card">
-          <h3 className="text-lg font-bold text-[#1e3a5f] mb-4 flex items-center gap-2">
-            <Mail size={20} /> Test Email
-          </h3>
-          <p className="text-sm text-gray-600 mb-4">
-            Verify your SMTP configuration by sending a test email to an address of your choice.
-          </p>
-          <form onSubmit={handleSendTestEmail} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Destination Email</label>
-              <input
-                type="email"
-                value={testEmail}
-                onChange={(e) => setTestEmail(e.target.value)}
-                placeholder="e.g. admin@example.com"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={sendingTestEmail}
-              className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-bold disabled:opacity-50 flex items-center gap-2"
-            >
-              <Send size={16} />
-              {sendingTestEmail ? 'Sending...' : 'Send Test Email'}
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
-  )
-
-  // ── Corrected Rendering Logic ───────────────────────────────────────────
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'overview':
-        return renderOverviewTab();
-      case 'users':
-        return renderUsersTab();
-      case 'orders':
-        return (
-          <OrdersTab 
-            orders={orders}
-            selectedOrders={selectedOrders}
-            handleToggleOrderSelection={handleToggleOrderSelection}
-            newStatus={newStatus}
-            setNewStatus={setNewStatus}
-            handleBulkUpdateOrders={handleBulkUpdateOrders}
-            showCreateOrderForm={showCreateOrderForm}
-            setShowCreateOrderForm={setShowCreateOrderForm}
-            customerSearch={customerSearch}
-            handleSearchCustomers={handleSearchCustomers}
-            customerResults={customerResults}
-            selectedCustomer={selectedCustomer}
-            setSelectedCustomer={setSelectedCustomer}
-            createOrderForm={createOrderForm}
-            setCreateOrderForm={setCreateOrderForm}
-            handleCreateOrderForClient={handleCreateOrderForClient}
-            creatingOrder={creatingOrder}
-            setCancelModal={setCancelModal}
-            setPaymentModal={setPaymentModal}
-            handleDeleteOrder={handleDeleteOrder}
-            handleCancelOrder={handleCancelOrder}
-            cancelModal={cancelModal}
-            cancelReason={cancelReason}
-            setCancelReason={setCancelReason}
-          />
-        );
-      case 'payments':
-        return (
-          <PaymentsTab 
-            pendingPayments={pendingPayments}
-            handleApprovePayment={handleApprovePayment}
-            handleRejectPayment={handleRejectPayment}
-            approvingPayment={approvingPayment}
-            expandedProof={expandedProof}
-            setExpandedProof={setExpandedProof}
-          />
-        );
-      case 'revenue':
-        return <RevenueTab stats={stats} marketChartData={marketChartData} marketStats={marketStats} revenueStats={revenueStats} />;
-      case 'tickets':
-        return (
-          <TicketsTab 
-            tickets={tickets} 
-            openTicket={openTicket} 
-            selectedTicket={selectedTicket} 
-            ticketMessages={ticketMessages}
-            adminReply={adminReply}
-            setAdminReply={setAdminReply}
-            sendAdminReply={sendAdminReply}
-            sendingReply={sendingReply}
-            handleCloseTicket={handleCloseTicket}
-          />
-        );
-      case 'exchange':
-        return (
-          <ExchangeRatesTab 
-            exchangeRates={exchangeRates} 
-            handleRateChange={handleRateChange} 
-            handleSaveRates={handleSaveRates} 
-            savingRates={savingRates}
-            ratesLastUpdated={ratesLastUpdated}
-          />
-        );
-      case 'errorLogs':
-        return (
-          <ErrorLogsTab 
-            errorLogs={errorLogs} 
-            errorLogPage={errorLogPage}
-            errorLogTotal={errorLogTotal}
-            errorLogTotalPages={errorLogTotalPages}
-            errorLogFilter={errorLogFilter}
-            setErrorLogFilter={setErrorLogFilter}
-            fetchErrorLogs={fetchErrorLogs}
-            handleClearErrorLogs={handleClearErrorLogs}
-            loadingErrorLogs={loadingErrorLogs}
-            expandedError={expandedError}
-            setExpandedError={setExpandedError}
-          />
-        );
-      case 'settings':
-        return renderSettingsTab();
-      default:
-        return (
-          <div className="flex items-center justify-center h-full text-gray-500 py-20">
-            Please select a valid tab from the navigation menu.
-          </div>
-        );
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-7xl mx-auto">
@@ -1082,8 +588,293 @@ export const AdminDashboard = () => {
           ))}
         </div>
 
-        {/* Dynamic Content Renderer */}
-        {renderContent()}
+        {/* ═══ Overview ═══ */}
+        {activeTab === 'overview' && (
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="card">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-gray-600 text-sm mb-1">{t('admin.totalUsers')}</p>
+                    <h3 className="text-4xl font-bold text-[#1e3a5f]">{userStats.total || 0}</h3>
+                    <p className="text-xs text-gray-500 mt-1">{userStats.customers || 0} customers, {userStats.admins || 0} admins</p>
+                  </div>
+                  <Users className="text-blue-500" size={32} />
+                </div>
+              </div>
+              <div className="card">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-gray-600 text-sm mb-1">{t('admin.activeOrders')}</p>
+                    <h3 className="text-4xl font-bold text-[#1e3a5f]">{orderStats.total_orders || 0}</h3>
+                    <p className="text-xs text-gray-500 mt-1">{orderStats.pending || 0} pending, {orderStats.in_transit || 0} in transit</p>
+                  </div>
+                  <Package className="text-orange-500" size={32} />
+                </div>
+              </div>
+              <div className="card">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-gray-600 text-sm mb-1">Delivered Orders</p>
+                    <h3 className="text-4xl font-bold text-[#1e3a5f]">{orderStats.delivered || 0}</h3>
+                  </div>
+                  <Activity className="text-green-500" size={32} />
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="card">
+                <p className="text-gray-600 text-sm mb-1">Total Revenue (Completed)</p>
+                <h3 className="text-3xl font-bold text-green-600">KES {(revenueStats.total_revenue || 0).toLocaleString()}</h3>
+                <p className="text-xs text-gray-500 mt-1">{revenueStats.total_transactions || 0} transactions</p>
+              </div>
+              <div className="card">
+                <p className="text-gray-600 text-sm mb-1">Estimated Order Value</p>
+                <h3 className="text-3xl font-bold text-blue-600">KES {(orderStats.total_estimated_value || 0).toLocaleString()}</h3>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="card">
+                <h2 className="text-xl font-bold text-[#1e3a5f] mb-4">Orders by Status</h2>
+                {stats?.order_statuses?.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie data={stats.order_statuses.map((s) => ({ name: s.status?.replace(/_/g, ' '), value: parseInt(s.count) || 0 }))} cx="50%" cy="50%" labelLine={false} label={({ name, value }) => `${name}: ${value}`} outerRadius={80} fill="#8884d8" dataKey="value">
+                        {stats.order_statuses.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : <p className="text-center text-gray-500 py-8">No order data available</p>}
+              </div>
+              <div className="card">
+                <h2 className="text-xl font-bold text-[#1e3a5f] mb-4">{t('admin.ordersByMarket')}</h2>
+                {marketChartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie data={marketChartData} cx="50%" cy="50%" labelLine={false} label={({ name, value }) => `${name}: ${value}`} outerRadius={80} fill="#8884d8" dataKey="value">
+                        {marketChartData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : <p className="text-center text-gray-500 py-8">No market data available</p>}
+              </div>
+            </div>
+            {/* Sales by Market (Revenue Breakdown) */}
+            {marketStats.length > 0 && (
+              <div className="card">
+                <h2 className="text-xl font-bold text-[#1e3a5f] mb-4">Sales by Market (Revenue)</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  {marketStats.map((m, i) => (
+                    <div key={m.market} className="rounded-lg p-4" style={{ backgroundColor: `${COLORS[i % COLORS.length]}10` }}>
+                      <p className="text-sm text-gray-600 mb-1">{m.market}</p>
+                      <p className="text-2xl font-bold" style={{ color: COLORS[i % COLORS.length] }}>KES {(parseFloat(m.value) || 0).toLocaleString()}</p>
+                      <p className="text-xs text-gray-500 mt-1">{parseInt(m.count) || 0} order(s)</p>
+                    </div>
+                  ))}
+                </div>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie data={marketChartData.map((m) => ({ name: m.name, value: m.revenue }))} cx="50%" cy="50%" labelLine={false} label={({ name, value }) => `${name}: KES ${value.toLocaleString()}`} outerRadius={80} fill="#8884d8" dataKey="value">
+                      {marketChartData.map((_, index) => <Cell key={`rev-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip formatter={(value) => `KES ${value.toLocaleString}`} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ Users ═══ */}
+        {activeTab === 'users' && (
+          <div className="space-y-6">
+            {/* Create User Button */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-[#1e3a5f]">{t('admin.userManagement')}</h2>
+              <button
+                onClick={() => setShowCreateUserForm((v) => !v)}
+                className="flex items-center gap-2 bg-[#1e3a5f] hover:bg-[#152d4a] text-white px-4 py-2 rounded-lg font-bold transition-colors"
+              >
+                <UserPlus size={16} />
+                Create Account
+              </button>
+            </div>
+
+            {/* Create User/Admin Form */}
+            {showCreateUserForm && (
+              <div className="card border-2 border-[#1e3a5f]">
+                <h3 className="text-lg font-bold text-[#1e3a5f] mb-4">Create New Account</h3>
+                <form onSubmit={handleCreateUser} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+                      <input
+                        type="text"
+                        value={createUserForm.name}
+                        onChange={(e) => setCreateUserForm((p) => ({ ...p, name: e.target.value }))}
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                        placeholder="e.g. John Doe"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                      <input
+                        type="email"
+                        value={createUserForm.email}
+                        onChange={(e) => setCreateUserForm((p) => ({ ...p, email: e.target.value }))}
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                        placeholder="e.g. john@example.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
+                      <input
+                        type="text"
+                        value={createUserForm.phone}
+                        onChange={(e) => setCreateUserForm((p) => ({ ...p, phone: e.target.value }))}
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                        placeholder="e.g. +254712345678"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Account Type *</label>
+                      <select
+                        value={createUserForm.role}
+                        onChange={(e) => setCreateUserForm((p) => ({ ...p, role: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                      >
+                        <option value="customer">Customer</option>
+                        <option value="admin">Admin (Full Access)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    The user will receive a welcome email with a link to set up their password.
+                    {createUserForm.role === 'admin' && (
+                      <span className="text-orange-600 font-medium"> This admin will have the same permission levels as your account.</span>
+                    )}
+                  </p>
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="submit"
+                      disabled={creatingUser}
+                      className="bg-[#1e3a5f] hover:bg-[#152d4a] text-white px-6 py-2 rounded-lg font-bold disabled:opacity-50"
+                    >
+                      {creatingUser ? 'Creating...' : `Create ${createUserForm.role === 'admin' ? 'Admin' : 'Customer'} Account`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateUserForm(false)}
+                      className="border border-gray-300 px-6 py-2 rounded-lg font-bold text-gray-700 hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-[#1e3a5f]">All Users</h3>
+              <span className="text-sm text-gray-500">{users.length} user(s)</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Name</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Email</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Phone</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Warehouse ID</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Role</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Balance</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Joined</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {users.length === 0 ? (
+                    <tr><td colSpan="9" className="px-6 py-8 text-center text-gray-500">No users found</td></tr>
+                  ) : users.map((u) => (
+                    <tr key={u.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{u.name}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{u.email}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{u.phone}</td>
+                      <td className="px-6 py-4 text-sm font-mono text-gray-600">{u.warehouse_id}</td>
+                      <td className="px-6 py-4 text-sm">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${u.role === 'admin' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>{u.role}</span>
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${u.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{u.is_active ? 'Active' : 'Inactive'}</span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">KES {(u.wallet_balance || 0).toLocaleString()}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
+                      <td className="px-6 py-4">
+                          <div className="flex items-center gap-1">
+                            {/* View user detail */}
+                            <button
+                              onClick={() => handleOpenUserDetail(u)}
+                              title="View User Details"
+                              className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 transition-colors"
+                            >
+                              <Eye size={15} />
+                            </button>
+                        {u.id !== user?.id && (
+                          <>
+                            {/* Deactivate / Reactivate toggle */}
+                            <button
+                              onClick={async () => {
+                                const action = u.is_active ? 'deactivate' : 'reactivate'
+                                if (!window.confirm(`${action === 'deactivate' ? 'Deactivate' : 'Reactivate'} ${u.name} (${u.email})? ${action === 'deactivate' ? 'They will not be able to log in.' : 'They will be able to log in again.'}`)) return
+                                try {
+                                  await adminApi.updateUser(u.id, { is_active: !u.is_active })
+                                  toast.success(`User ${u.name} ${action === 'deactivate' ? 'deactivated' : 'reactivated'} successfully`)
+                                  setUsers((prev) => prev.map((usr) => usr.id === u.id ? { ...usr, is_active: !u.is_active } : usr))
+                                } catch (err) {
+                                  toast.error(err.response?.data?.message || err.message || `Failed to ${action} user`)
+                                }
+                              }}
+                              title={u.is_active ? 'Deactivate Account' : 'Reactivate Account'}
+                              className={`p-1.5 rounded-lg transition-colors ${u.is_active ? 'bg-yellow-50 hover:bg-yellow-100 text-yellow-700' : 'bg-green-50 hover:bg-green-100 text-green-700'}`}
+                            >
+                              {u.is_active ? <XCircle size={15} /> : <RefreshCw size={15} />}
+                            </button>
+                            {/* Delete permanently */}
+                            <button
+                              onClick={async () => {
+                                if (!window.confirm(`Permanently delete user ${u.name} (${u.email})? This will remove ALL their orders, transactions, and data. This cannot be undone.`)) return
+                                try {
+                                  await adminApi.deleteUser(u.id)
+                                  toast.success(`User ${u.name} deleted successfully`)
+                                  setUsers((prev) => prev.filter((usr) => usr.id !== u.id))
+                                } catch (err) {
+                                  toast.error(err.response?.data?.message || err.message || 'Failed to delete user')
+                                }
+                              }}
+                              title="Permanently Delete User"
+                              className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 transition-colors"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </>
+                        )}
+                          </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          </div>
+        )}
 
         {/* ═══ User Detail Panel (slide-over) ═══ */}
         {selectedUser && (
@@ -1391,6 +1182,59 @@ export const AdminDashboard = () => {
               ) : (
                 <div className="px-6 py-20 text-center text-gray-500">Failed to load user data</div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ═══ Settings tab — includes ShippingRatesPanel ═══ */}
+        {activeTab === 'settings' && (
+          <div className="space-y-8">
+            {/* Shipping Rates Adjustment Panel */}
+            <div className="card">
+              <ShippingRatesPanel />
+            </div>
+
+            {/* Password Change */}
+            <div className="card">
+              <h3 className="text-lg font-bold text-[#1e3a5f] mb-4 flex items-center gap-2">
+                <Lock size={20} /> Change Password
+              </h3>
+              <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => setPasswordForm((p) => ({ ...p, currentPassword: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm((p) => ({ ...p, newPassword: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm((p) => ({ ...p, confirmPassword: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={changingPassword}
+                  className="bg-[#1e3a5f] hover:bg-[#152d4a] text-white px-6 py-2 rounded-lg font-bold disabled:opacity-50"
+                >
+                  {changingPassword ? 'Changing...' : 'Change Password'}
+                </button>
+              </form>
             </div>
           </div>
         )}
