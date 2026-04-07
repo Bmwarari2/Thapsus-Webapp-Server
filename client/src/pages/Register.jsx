@@ -94,143 +94,157 @@ export const Register = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1e3a5f] to-[#152d4a] flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-xl shadow-xl p-8">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-[#1e3a5f] mb-2">
-              <span>Thapsus</span><span className="text-orange-500">Cargo</span>
-            </h1>
-            <p className="text-gray-600">{t('auth.register')}</p>
+    <div className="min-h-screen relative bg-slate-50 overflow-hidden flex items-center justify-center px-4 py-12 font-sans">
+      {/* Liquid Backgrounds */}
+      <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-blue-300/30 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-orange-300/20 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
+      <div className="absolute top-[40%] left-[50%] -translate-x-1/2 w-[40vw] h-[40vw] max-w-[400px] max-h-[400px] bg-indigo-200/20 rounded-full blur-[120px] animate-morph mix-blend-multiply pointer-events-none" />
+
+      <div className="w-full max-w-md relative z-10">
+        {/* Crystal Border Gradient Container */}
+        <div className="rounded-[24px] p-[1px] bg-gradient-to-br from-blue-300/60 via-white/20 to-orange-300/60 shadow-2xl">
+          <div className="bg-white/60 backdrop-blur-3xl rounded-[23px] p-8 sm:p-10 relative overflow-hidden glass-sheen">
+            {/* Subtle inner light orb */}
+            <div className="absolute top-0 right-0 w-48 h-48 bg-blue-400/10 rounded-full blur-[50px] pointer-events-none" />
+
+            {/* Header */}
+            <div className="text-center mb-8 relative z-10">
+              <h1 className="text-4xl font-black text-[#1e3a5f] mb-3 leading-none tracking-tighter">
+                <span>Thapsus</span><span className="text-orange-500">Cargo</span>
+              </h1>
+              <p className="text-slate-600 font-bold tracking-tight">{t('auth.register')}</p>
+            </div>
+
+            {error && (
+              <div className="mb-6 p-4 bg-red-50/50 backdrop-blur-md border border-red-200/60 rounded-xl flex items-start gap-3 relative z-10">
+                <AlertCircle className="text-red-500 flex-shrink-0 mt-0.5" size={20} />
+                <p className="text-red-700 font-semibold text-sm">{error}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-5 relative z-10">
+              {/* Name */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">{t('auth.name')}</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-3.5 text-slate-400" size={20} />
+                  <input type="text" name="name" value={formData.name} onChange={handleChange}
+                    placeholder="John Doe"
+                    className="w-full pl-12 pr-4 py-3 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-slate-800 font-bold transition-all placeholder-slate-400 shadow-sm" />
+                </div>
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">{t('auth.email')}</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-3.5 text-slate-400" size={20} />
+                  <input type="email" name="email" value={formData.email} onChange={handleChange}
+                    placeholder="you@example.com"
+                    className="w-full pl-12 pr-4 py-3 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-slate-800 font-bold transition-all placeholder-slate-400 shadow-sm" />
+                </div>
+              </div>
+
+              {/* Phone */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">{t('auth.phone')}</label>
+                <div className="relative">
+                  <Phone className="absolute left-4 top-3.5 text-slate-400" size={20} />
+                  <input type="tel" name="phone" value={formData.phone} onChange={handleChange}
+                    placeholder="+254 712 345678"
+                    className="w-full pl-12 pr-4 py-3 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-slate-800 font-bold transition-all placeholder-slate-400 shadow-sm" />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">{t('auth.password')}</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-3.5 text-slate-400" size={20} />
+                  <input type="password" name="password" value={formData.password} onChange={handleChange}
+                    placeholder="••••••••"
+                    className="w-full pl-12 pr-4 py-3 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-slate-800 font-bold transition-all placeholder-slate-400 shadow-sm" />
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">{t('auth.confirmPassword')}</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-3.5 text-slate-400" size={20} />
+                  <input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange}
+                    placeholder="••••••••"
+                    className="w-full pl-12 pr-4 py-3 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-slate-800 font-bold transition-all placeholder-slate-400 shadow-sm" />
+                </div>
+              </div>
+
+              {/* Referral Code */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                  {t('auth.referralCode')}
+                  <span className="ml-2 text-[10px] text-slate-400 tracking-normal">(Optional)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    name="referralCode"
+                    value={formData.referralCode}
+                    onChange={handleChange}
+                    onBlur={handleReferralBlur}
+                    placeholder="e.g. SCAB12XY"
+                    className={`w-full px-4 py-3 bg-white/50 backdrop-blur-md border rounded-xl focus:outline-none focus:ring-2 uppercase tracking-widest font-mono text-slate-800 font-bold transition-all shadow-sm ${
+                      referralValid === true
+                        ? 'border-green-400/60 focus:ring-green-400/50 bg-green-50/30'
+                        : referralValid === false
+                        ? 'border-red-400/60 focus:ring-red-400/50 bg-red-50/30'
+                        : 'border-white/60 focus:ring-orange-500/50'
+                    }`}
+                  />
+                  {referralValid === true && (
+                    <div className="mt-2 flex items-center gap-1.5 text-green-600 text-xs font-bold tracking-tight bg-green-50/50 p-2 rounded-lg border border-green-200/50 w-fit">
+                      <CheckCircle size={14} />
+                      Valid code{referrerName ? ` — referred by ${referrerName}` : ''}
+                    </div>
+                  )}
+                  {referralValid === false && (
+                    <div className="mt-2 flex items-center gap-1.5 text-red-500 text-xs font-bold tracking-tight bg-red-50/50 p-2 rounded-lg border border-red-200/50 w-fit">
+                      <AlertCircle size={14} />
+                      Referral code not found
+                    </div>
+                  )}
+                </div>
+
+                {/* Reward notice */}
+                <div className="mt-3 p-3 bg-gradient-to-br from-orange-50/50 to-white/30 border border-orange-100/50 rounded-xl backdrop-blur-sm">
+                  <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                    <span className="mr-1">🎁</span> Using a referral code? The person who referred you earns <strong className="text-orange-600 font-black">KES 50</strong> in wallet credit after you place your first order.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="group relative overflow-hidden w-full bg-[#1e3a5f] hover:bg-[#152d4a] text-white py-4 rounded-xl font-black tracking-tight transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-8 shadow-xl hover:shadow-2xl hover:-translate-y-0.5 glass-sheen"
+              >
+                <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
+                <span className="relative z-10">{loading ? t('common.loading') : t('auth.register')}</span>
+              </button>
+            </form>
+
+            <div className="my-8 flex items-center gap-4 relative z-10">
+              <div className="flex-1 h-px bg-white/60"></div>
+              <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">OR</span>
+              <div className="flex-1 h-px bg-white/60"></div>
+            </div>
+
+            <p className="text-center text-slate-600 font-semibold relative z-10">
+              {t('auth.haveAccount')}{' '}
+              <Link to="/login" className="text-orange-500 hover:text-orange-600 font-black tracking-tight transition-colors">
+                {t('auth.loginHere')}
+              </Link>
+            </p>
           </div>
-
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-              <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
-              <p className="text-red-700">{error}</p>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t('auth.name')}</label>
-              <div className="relative">
-                <User className="absolute left-3 top-3 text-gray-400" size={20} />
-                <input type="text" name="name" value={formData.name} onChange={handleChange}
-                  placeholder="John Doe"
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]" />
-              </div>
-            </div>
-
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t('auth.email')}</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 text-gray-400" size={20} />
-                <input type="email" name="email" value={formData.email} onChange={handleChange}
-                  placeholder="you@example.com"
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]" />
-              </div>
-            </div>
-
-            {/* Phone */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t('auth.phone')}</label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-3 text-gray-400" size={20} />
-                <input type="tel" name="phone" value={formData.phone} onChange={handleChange}
-                  placeholder="+254 712 345678"
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]" />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t('auth.password')}</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
-                <input type="password" name="password" value={formData.password} onChange={handleChange}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]" />
-              </div>
-            </div>
-
-            {/* Confirm Password */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t('auth.confirmPassword')}</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
-                <input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]" />
-              </div>
-            </div>
-
-            {/* Referral Code */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t('auth.referralCode')}
-                <span className="ml-1 text-xs text-gray-400">(Optional)</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  name="referralCode"
-                  value={formData.referralCode}
-                  onChange={handleChange}
-                  onBlur={handleReferralBlur}
-                  placeholder="e.g. SCAB12XY"
-                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 uppercase tracking-widest font-mono ${
-                    referralValid === true
-                      ? 'border-green-400 focus:ring-green-300'
-                      : referralValid === false
-                      ? 'border-red-400 focus:ring-red-300'
-                      : 'border-gray-300 focus:ring-[#1e3a5f]'
-                  }`}
-                />
-                {referralValid === true && (
-                  <div className="mt-1 flex items-center gap-1 text-green-600 text-xs font-medium">
-                    <CheckCircle size={13} />
-                    Valid code{referrerName ? ` — referred by ${referrerName}` : ''}
-                  </div>
-                )}
-                {referralValid === false && (
-                  <div className="mt-1 flex items-center gap-1 text-red-500 text-xs">
-                    <AlertCircle size={13} />
-                    Referral code not found
-                  </div>
-                )}
-              </div>
-
-              {/* Reward notice */}
-              <p className="mt-2 text-xs text-gray-500">
-                🎁 Using a referral code? The person who referred you earns <strong>KES 50</strong> in wallet credit after you place your first order.
-              </p>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#1e3a5f] hover:bg-[#152d4a] text-white py-3 rounded-lg font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6"
-            >
-              {loading ? t('common.loading') : t('auth.register')}
-            </button>
-          </form>
-
-          <div className="my-6 flex items-center gap-4">
-            <div className="flex-1 h-px bg-gray-300"></div>
-            <span className="text-gray-500 text-sm">OR</span>
-            <div className="flex-1 h-px bg-gray-300"></div>
-          </div>
-
-          <p className="text-center text-gray-600">
-            {t('auth.haveAccount')}{' '}
-            <Link to="/login" className="text-orange-500 hover:text-orange-600 font-bold">
-              {t('auth.loginHere')}
-            </Link>
-          </p>
         </div>
       </div>
     </div>
