@@ -138,69 +138,75 @@ export const Support = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen bg-slate-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+    <div className="min-h-screen relative bg-slate-50 overflow-hidden py-12 px-4 font-sans">
+      {/* Liquid Backgrounds */}
+      <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-blue-300/30 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-orange-300/20 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
+      <div className="absolute top-[40%] left-[50%] -translate-x-1/2 w-[40vw] h-[40vw] max-w-[400px] max-h-[400px] bg-indigo-200/20 rounded-full blur-[120px] animate-morph mix-blend-multiply pointer-events-none" />
+
+      <div className="max-w-7xl mx-auto relative z-10">
+        {/* Header - Refined Typography */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-[#1e3a5f] mb-2">
+            <h1 className="text-4xl md:text-5xl font-black text-[#1e3a5f] mb-3 leading-none tracking-tighter">
               {t('support.title')}
             </h1>
-            <p className="text-gray-600">Get help from our support team</p>
+            <p className="text-slate-600 font-medium text-lg">Get help from our support team</p>
           </div>
           <button
             onClick={() => setShowCreateForm(!showCreateForm)}
-            className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors"
+            className="group relative overflow-hidden bg-orange-500 hover:bg-orange-400 text-white px-6 py-3.5 rounded-2xl font-black tracking-tight flex items-center gap-2 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 glass-sheen"
           >
-            <Plus size={20} />
-            {t('support.create')}
+            <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
+            <Plus size={20} className="relative z-10" />
+            <span className="relative z-10">{t('support.create')}</span>
           </button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Tickets List */}
+          {/* Tickets List - Crystal Borders */}
           <div className="lg:col-span-1">
-            <div className="card">
-              <h2 className="text-lg font-bold text-[#1e3a5f] mb-4">
+            <div className="bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl p-6 relative overflow-hidden glass-sheen h-full">
+              <h2 className="text-2xl font-black text-[#1e3a5f] tracking-tighter leading-none mb-6 relative z-10">
                 {t('support.myTickets')}
               </h2>
 
               {tickets.length > 0 ? (
-                <div className="space-y-2">
+                <div className="space-y-3 relative z-10">
                   {tickets.map((ticket) => (
                     <button
                       key={ticket.id}
                       onClick={() => handleSelectTicket(ticket.id)}
-                      className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                      className={`w-full text-left p-4 rounded-xl border backdrop-blur-md transition-all duration-300 ${
                         selectedTicket?.id === ticket.id
-                          ? 'bg-blue-50 border-blue-300'
-                          : 'bg-white border-gray-200 hover:bg-gray-50'
+                          ? 'bg-white/80 border-orange-300 shadow-md scale-[1.02]'
+                          : 'bg-white/40 border-white/60 hover:bg-white/60 hover:shadow-sm hover:-translate-y-0.5'
                       }`}
                     >
-                      <h3 className="font-semibold text-gray-900 text-sm truncate">
+                      <h3 className="font-bold text-slate-800 text-sm truncate tracking-tight">
                         {ticket.subject}
                       </h3>
-                      <p className="text-xs text-gray-600 mt-1">
-                        {ticket.id.slice(0, 8).toUpperCase()}
+                      <p className="text-xs font-semibold text-slate-500 mt-1 uppercase tracking-widest">
+                        {ticket.id.slice(0, 8)}
                       </p>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs font-medium text-slate-400 mt-1">
                         {ticket.created_at ? new Date(ticket.created_at).toLocaleDateString() : ''}
                       </p>
-                      <div className="mt-2 flex items-center gap-2">
+                      <div className="mt-3 flex items-center gap-2">
                         <span
-                          className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                          className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
                             ticket.status === 'open'
-                              ? 'bg-yellow-100 text-yellow-800'
+                              ? 'bg-yellow-100/80 text-yellow-700 border-yellow-200'
                               : ticket.status === 'in_progress'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-green-100 text-green-800'
+                                ? 'bg-blue-100/80 text-blue-700 border-blue-200'
+                                : 'bg-green-100/80 text-green-700 border-green-200'
                           }`}
                         >
                           {ticket.status.replace(/_/g, ' ')}
@@ -210,7 +216,7 @@ export const Support = () => {
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-600 text-center py-8">
+                <p className="text-slate-500 font-medium text-center py-8 relative z-10">
                   {t('support.noTickets')}
                 </p>
               )}
@@ -220,16 +226,19 @@ export const Support = () => {
           {/* Main Content */}
           <div className="lg:col-span-2">
             {showCreateForm ? (
-              <div className="card">
-                <h2 className="text-2xl font-bold text-[#1e3a5f] mb-6">
+              /* Create Ticket - Dark Glass Bento */
+              <div className="group relative overflow-hidden bg-[#0f172a]/90 backdrop-blur-2xl border border-white/10 rounded-[24px] p-8 md:p-10 text-white shadow-2xl transition-transform duration-500 hover:-rotate-1 hover:scale-[1.02] transform perspective-1000 glass-sheen">
+                <div className="absolute -top-24 -right-24 w-64 h-64 bg-blue-500/30 rounded-full blur-[80px] pointer-events-none" />
+                
+                <h2 className="text-3xl font-black tracking-tighter leading-none mb-8 relative z-10">
                   {t('support.create')}
                 </h2>
 
-                <form onSubmit={handleCreateTicket} className="space-y-4">
+                <form onSubmit={handleCreateTicket} className="space-y-6 relative z-10">
                   {/* Subject */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {t('support.subject')} *
+                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">
+                      {t('support.subject')} <span className="text-orange-400">*</span>
                     </label>
                     <input
                       type="text"
@@ -238,39 +247,40 @@ export const Support = () => {
                       onChange={handleFormChange}
                       placeholder="Brief description of your issue"
                       required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
+                      className="w-full px-4 py-3 bg-white/5 backdrop-blur-md border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-white font-semibold transition-all placeholder-slate-500 shadow-inner"
                     />
                   </div>
 
                   {/* Description */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {t('support.description')} *
+                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">
+                      {t('support.description')} <span className="text-orange-400">*</span>
                     </label>
                     <textarea
                       name="description"
                       value={formData.description}
                       onChange={handleFormChange}
                       placeholder="Provide as much detail as possible"
-                      rows="5"
+                      rows="6"
                       required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
+                      className="w-full px-4 py-3 bg-white/5 backdrop-blur-md border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-white font-semibold transition-all placeholder-slate-500 shadow-inner resize-none"
                     />
                   </div>
 
                   {/* Buttons */}
-                  <div className="flex gap-4">
+                  <div className="flex flex-col sm:flex-row gap-4 pt-4">
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="flex-1 bg-[#1e3a5f] hover:bg-[#152d4a] text-white py-3 rounded-lg font-bold transition-colors disabled:opacity-50"
+                      className="group/btn relative overflow-hidden flex-1 bg-blue-500 hover:bg-blue-400 text-white py-4 rounded-xl font-black tracking-tight transition-all shadow-xl hover:shadow-2xl hover:-translate-y-0.5 glass-sheen disabled:opacity-50"
                     >
-                      {submitting ? t('common.loading') : t('support.submit')}
+                      <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover/btn:animate-[shimmer_1.5s_infinite]" />
+                      <span className="relative z-10">{submitting ? t('common.loading') : t('support.submit')}</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setShowCreateForm(false)}
-                      className="flex-1 border border-gray-300 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-50 transition-colors"
+                      className="flex-1 border border-white/20 bg-white/5 backdrop-blur-md text-slate-300 py-4 rounded-xl font-black tracking-tight hover:bg-white/10 transition-all active:scale-95"
                     >
                       {t('common.cancel')}
                     </button>
@@ -278,24 +288,25 @@ export const Support = () => {
                 </form>
               </div>
             ) : selectedTicket ? (
-              <div className="card flex flex-col h-[480px]">
+              /* Chat View - Crystal Borders */
+              <div className="bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[24px] p-6 md:p-8 flex flex-col h-[600px] relative overflow-hidden glass-sheen">
                 {/* Ticket Header */}
-                <div className="flex items-start justify-between mb-4 pb-4 border-b border-gray-200">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-6 pb-6 border-b border-white/40 relative z-10 gap-4">
                   <div>
-                    <h2 className="text-2xl font-bold text-[#1e3a5f]">
+                    <h2 className="text-3xl font-black text-[#1e3a5f] tracking-tighter leading-none mb-2">
                       {selectedTicket.subject}
                     </h2>
-                    <p className="text-gray-600 mt-1 text-sm">
-                      {t('support.ticketId')}: {selectedTicket.id.slice(0, 8).toUpperCase()}
+                    <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">
+                      {t('support.ticketId')}: <span className="text-slate-700">{selectedTicket.id.slice(0, 8)}</span>
                     </p>
                   </div>
                   <span
-                    className={`px-4 py-2 rounded-lg font-medium text-xs md:text-sm ${
+                    className={`inline-block px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest border backdrop-blur-sm shadow-sm ${
                       selectedTicket.status === 'open'
-                        ? 'bg-yellow-100 text-yellow-800'
+                        ? 'bg-yellow-100/80 text-yellow-700 border-yellow-200'
                         : selectedTicket.status === 'in_progress'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-green-100 text-green-800'
+                          ? 'bg-blue-100/80 text-blue-700 border-blue-200'
+                          : 'bg-green-100/80 text-green-700 border-green-200'
                     }`}
                   >
                     {selectedTicket.status.replace(/_/g, ' ')}
@@ -303,30 +314,30 @@ export const Support = () => {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 space-y-3 mb-4 overflow-y-auto pr-1">
+                <div className="flex-1 space-y-4 mb-6 overflow-y-auto pr-2 custom-scrollbar relative z-10">
                   {selectedTicket.messages?.map((msg, idx) => (
                     <div
                       key={idx}
                       className={`flex ${msg.fromUser ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
+                        className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-4 text-sm shadow-sm backdrop-blur-md border ${
                           msg.fromUser
-                            ? 'bg-orange-500 text-white rounded-br-none'
-                            : 'bg-gray-100 text-gray-900 rounded-bl-none'
+                            ? 'bg-gradient-to-br from-[#1e3a5f] to-[#152d4a] text-white border-blue-800 rounded-br-sm'
+                            : 'bg-white/60 text-slate-800 border-white/80 rounded-bl-sm'
                         }`}
                       >
-                        <p className="text-[11px] opacity-80 mb-1">
+                        <p className={`text-[10px] font-bold uppercase tracking-widest mb-2 ${msg.fromUser ? 'text-blue-200' : 'text-slate-500'}`}>
                           {msg.fromUser ? 'You' : 'Support Team'} •{' '}
                           {new Date(msg.createdAt).toLocaleString()}
                         </p>
-                        <p className="whitespace-pre-wrap break-words">{msg.message}</p>
+                        <p className="whitespace-pre-wrap break-words font-medium leading-relaxed">{msg.message}</p>
                       </div>
                     </div>
                   ))}
 
                   {selectedTicket.messages?.length === 0 && (
-                    <div className="text-center text-gray-500 text-sm py-8">
+                    <div className="text-center text-slate-500 font-medium text-sm py-8">
                       No messages yet. Start the conversation below.
                     </div>
                   )}
@@ -334,33 +345,43 @@ export const Support = () => {
 
                 {/* Reply Form */}
                 {selectedTicket.status !== 'closed' && (
-                  <form onSubmit={handleReply} className="mt-auto pt-2 border-t border-gray-200">
-                    <div className="flex gap-2 items-end">
+                  <form onSubmit={handleReply} className="mt-auto pt-4 border-t border-white/40 relative z-10">
+                    <div className="flex gap-3 items-end">
                       <textarea
                         value={replyText}
                         onChange={(e) => setReplyText(e.target.value)}
                         placeholder="Type your message..."
                         rows="2"
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-sm resize-none"
+                        className="flex-1 px-4 py-3 bg-white/60 backdrop-blur-md border border-white/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/50 text-slate-800 font-medium transition-all placeholder-slate-400 shadow-inner resize-none"
                       />
                       <button
                         type="submit"
                         disabled={submitting || !replyText.trim()}
-                        className="inline-flex items-center justify-center bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-bold gap-2 transition-colors disabled:opacity-50"
+                        className="group relative overflow-hidden inline-flex items-center justify-center bg-[#1e3a5f] hover:bg-[#152d4a] text-white px-6 py-4 rounded-xl font-black tracking-tight gap-2 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed glass-sheen"
                       >
-                        <Send size={18} />
-                        <span className="hidden sm:inline">{t('support.send')}</span>
+                        <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
+                        <Send size={18} className="relative z-10" />
+                        <span className="hidden sm:inline relative z-10">{t('support.send')}</span>
                       </button>
                     </div>
                   </form>
                 )}
               </div>
             ) : (
-              <div className="card text-center py-12">
-                <MessageSquare className="mx-auto text-gray-400 mb-4" size={48} />
-                <p className="text-gray-600 mb-4">
-                  Select a ticket or create a new one to get started
-                </p>
+              /* Empty State - Border Gradient */
+              <div className="rounded-[24px] p-[1px] bg-gradient-to-br from-blue-300/60 via-white/20 to-orange-300/60 shadow-xl h-full min-h-[400px] transform transition-transform hover:scale-[1.01] duration-500">
+                <div className="bg-white/60 backdrop-blur-3xl rounded-[23px] p-12 text-center h-full flex flex-col items-center justify-center relative overflow-hidden glass-sheen">
+                  <div className="absolute top-0 right-0 w-48 h-48 bg-blue-400/10 rounded-full blur-[50px] pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 w-48 h-48 bg-orange-400/10 rounded-full blur-[50px] pointer-events-none" />
+                  
+                  <div className="w-24 h-24 bg-white/40 backdrop-blur-xl border border-white/60 rounded-full flex items-center justify-center mb-6 shadow-sm">
+                    <MessageSquare className="text-slate-400" size={48} />
+                  </div>
+                  <h3 className="text-2xl font-black text-[#1e3a5f] tracking-tighter mb-2">How can we help?</h3>
+                  <p className="text-slate-600 font-medium max-w-sm">
+                    Select a ticket from the sidebar or create a new one to get in touch with our support team.
+                  </p>
+                </div>
               </div>
             )}
           </div>
