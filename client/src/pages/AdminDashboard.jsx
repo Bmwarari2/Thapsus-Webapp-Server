@@ -70,6 +70,11 @@ export const AdminDashboard = () => {
   const [savingRates, setSavingRates] = useState(false)
   const [ratesLastUpdated, setRatesLastUpdated] = useState(null)
 
+  // Shipping rates state
+  const [shippingRates, setShippingRates] = useState({ UK: '', USA: '', China: '' })
+  const [savingShippingRates, setSavingShippingRates] = useState(false)
+  const [shippingRatesLastUpdated, setShippingRatesLastUpdated] = useState(null)
+
   // Create user/admin account state
   const [showCreateUserForm, setShowCreateUserForm] = useState(false)
   const [createUserForm, setCreateUserForm] = useState({
@@ -128,6 +133,7 @@ export const AdminDashboard = () => {
         adminApi.getExchangeRates(),
         adminApi.getPendingPayments(),
         adminApi.listTickets({ page: 1, limit: 20 }),
+        adminApi.getShippingRates(),
       ])
 
       if (results[0].status === 'fulfilled') setStats(results[0].value.data?.stats || null)
@@ -147,6 +153,19 @@ export const AdminDashboard = () => {
       }
       if (results[4].status === 'fulfilled') setPendingPayments(results[4].value.data?.transactions || [])
       if (results[5].status === 'fulfilled') setTickets(results[5].value.data?.tickets || [])
+
+      // Handle shipping rates
+      if (results[6].status === 'fulfilled') {
+        const srData = results[6].value.data
+        if (srData?.rates) {
+          setShippingRates({
+            UK: srData.rates.UK || '',
+            USA: srData.rates.USA || '',
+            China: srData.rates.China || '',
+          })
+          setShippingRatesLastUpdated(srData.updated_at || null)
+        }
+      }
 
       // Also fetch error log stats for the badge
       try {
@@ -234,6 +253,33 @@ export const AdminDashboard = () => {
       toast.error(err.message || 'Failed to update exchange rates')
     } finally {
       setSavingRates(false)
+    }
+  }
+
+  // ─── Shipping rates ────────────────────────────────────────────────
+  const handleShippingRateChange = (market, value) =>
+    setShippingRates((prev) => ({ ...prev, [market]: value }))
+
+  const handleSaveShippingRates = async (e) => {
+    e.preventDefault()
+    const rates = {}
+    for (const [market, val] of Object.entries(shippingRates)) {
+      const num = parseFloat(val)
+      if (isNaN(num) || num <= 0) {
+        toast.error(`Enter a valid rate for ${market}`)
+        return
+      }
+      rates[market] = num
+    }
+    try {
+      setSavingShippingRates(true)
+      await adminApi.setShippingRates(rates)
+      toast.success('Shipping rates updated successfully')
+      setShippingRatesLastUpdated(new Date().toISOString())
+    } catch (err) {
+      toast.error(err.message || 'Failed to update shipping rates')
+    } finally {
+      setSavingShippingRates(false)
     }
   }
 
@@ -557,7 +603,7 @@ export const AdminDashboard = () => {
 
         {/* Tabs */}
         <div className="flex gap-2 mb-8 overflow-x-auto pb-1">
-          {['overview', 'users', 'orders', 'payments', 'revenue', 'tickets', 'exchange', 'settings', 'errorLogs'].map((tab) => (
+          {['overview', 'users', 'orders', 'payments', 'revenue', 'tickets', 'exchange', 'shippingRates', 'settings', 'errorLogs'].map((tab) => (
             <button
               key={tab}
               onClick={() => { setActiveTab(tab); if (tab === 'errorLogs') fetchErrorLogs(1, errorLogFilter); }}
@@ -565,7 +611,7 @@ export const AdminDashboard = () => {
                 activeTab === tab ? 'bg-[#1e3a5f] text-white' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
               }`}
             >
-              {tab === 'exchange' ? 'Exchange Rates' : tab === 'settings' ? 'Settings' : tab === 'payments' ? 'Payments' : tab === 'errorLogs' ? 'Error Logs' : t(`admin.${tab}`)}
+              {tab === 'shippingRates' ? 'Shipping Rates' : tab === 'exchange' ? 'Exchange Rates' : tab === 'settings' ? 'Settings' : tab === 'payments' ? 'Payments' : tab === 'errorLogs' ? 'Error Logs' : t(`admin.${tab}`)}
               {tab === 'errorLogs' && errorLogStats && parseInt(errorLogStats.last_24h) > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
                   {parseInt(errorLogStats.last_24h) > 99 ? '99+' : errorLogStats.last_24h}
@@ -1767,6 +1813,59 @@ export const AdminDashboard = () => {
               ))}
               <button type="submit" disabled={savingRates} className="w-full bg-[#1e3a5f] hover:bg-[#152d4a] text-white px-6 py-3 rounded-lg font-bold disabled:opacity-50 transition-colors">
                 {savingRates ? 'Saving...' : 'Save Exchange Rates'}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* ═══ Shipping Rates ═══ */}
+        {activeTab === 'shippingRates' && (
+          <div className="card max-w-2xl">
+            <div className="flex items-center gap-3 mb-6">
+              <Package className="text-[#1e3a5f]" size={28} />
+              <div>
+                <h2 className="text-2xl font-bold text-[#1e3a5f]">Shipping Rate Management</h2>
+                <p className="text-sm text-gray-500">
+                  Set the per-kg shipping rates (in GBP) for each market. These apply to all new pricing calculations.
+                </p>
+              </div>
+            </div>
+            {shippingRatesLastUpdated && (
+              <p className="text-sm text-gray-500 mb-4">
+                Last updated: {new Date(shippingRatesLastUpdated).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' })}
+              </p>
+            )}
+            <form onSubmit={handleSaveShippingRates} className="space-y-4">
+              {[
+                { market: 'UK',    label: 'United Kingdom', flag: '🇬🇧', default: 8  },
+                { market: 'USA',   label: 'United States',  flag: '🇺🇸', default: 10 },
+                { market: 'China', label: 'China',           flag: '🇨🇳', default: 6  },
+              ].map(({ market, label, flag, default: def }) => (
+                <div key={market}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {flag} {label}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-500">£</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={shippingRates[market]}
+                      onChange={(e) => handleShippingRateChange(market, e.target.value)}
+                      placeholder={`Default: £${def}/kg`}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                    />
+                    <span className="text-sm font-medium text-gray-500">GBP / kg</span>
+                  </div>
+                </div>
+              ))}
+              <button
+                type="submit"
+                disabled={savingShippingRates}
+                className="w-full bg-[#1e3a5f] hover:bg-[#152d4a] text-white px-6 py-3 rounded-lg font-bold disabled:opacity-50 transition-colors"
+              >
+                {savingShippingRates ? 'Saving...' : 'Save Shipping Rates'}
               </button>
             </form>
           </div>
