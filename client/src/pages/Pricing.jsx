@@ -68,48 +68,56 @@ export default function Pricing() {
     : 0
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen relative bg-slate-50 overflow-hidden py-12 px-4 font-sans">
+      {/* Liquid Backgrounds */}
+      <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-blue-300/30 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-orange-300/20 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
+      <div className="absolute top-[40%] left-[50%] -translate-x-1/2 w-[40vw] h-[40vw] max-w-[400px] max-h-[400px] bg-indigo-200/20 rounded-full blur-[120px] animate-morph mix-blend-multiply pointer-events-none" />
 
-        {/* Page header */}
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-[#1e3a5f]">Shipping Price Calculator</h1>
-          <p className="mt-2 text-gray-500">
+      <div className="max-w-2xl mx-auto relative z-10">
+
+        {/* Page header - Refined Typography */}
+        <div className="mb-10 text-center">
+          <h1 className="text-4xl md:text-5xl font-black text-[#1e3a5f] mb-3 leading-none tracking-tighter">Shipping Calculator</h1>
+          <p className="mt-2 text-slate-600 font-medium text-lg">
             Get an instant estimate for your shipment — including any specialist handling fees.
           </p>
         </div>
 
-        {/* Electronics info banner */}
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
-          <p className="font-semibold text-amber-800">Electronics &amp; Device Handling Fees</p>
-          <p className="mt-1 text-sm text-amber-700">
-            Phones, laptops, and screens require specialist handling and incur a flat fee on top of
-            standard shipping. Select your item type below to include this in your estimate.
-          </p>
+        {/* Electronics info banner - Border Gradient Bento */}
+        <div className="rounded-2xl p-[1px] bg-gradient-to-br from-amber-300/60 via-white/20 to-orange-300/60 mb-8 shadow-lg transform transition-transform hover:scale-[1.01] duration-500">
+          <div className="bg-white/60 backdrop-blur-3xl rounded-[15px] p-6 relative overflow-hidden glass-sheen">
+            <div className="absolute top-0 right-0 w-40 h-40 bg-amber-400/10 rounded-full blur-[40px] pointer-events-none" />
+            <p className="font-black text-amber-800 tracking-tight text-lg mb-2 relative z-10">Electronics &amp; Device Handling Fees</p>
+            <p className="text-sm font-medium text-amber-900/80 leading-relaxed relative z-10">
+              Phones, laptops, and screens require specialist handling and incur a flat fee on top of
+              standard shipping. Select your item type below to include this in your estimate.
+            </p>
+          </div>
         </div>
 
-        {/* Calculator form */}
+        {/* Calculator form - Crystal Borders & Dynamic Sheen */}
         <form
           onSubmit={handleSubmit}
-          className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5"
+          className="bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl p-6 md:p-8 space-y-6 relative overflow-hidden glass-sheen"
         >
           {/* Market */}
-          <div className="flex flex-col gap-1">
-            <label htmlFor="market" className="text-sm font-medium text-gray-700">Shipping Market</label>
+          <div className="flex flex-col gap-2 relative z-10">
+            <label htmlFor="market" className="block text-xs font-bold uppercase tracking-widest text-slate-500">Shipping Market</label>
             <select
               id="market"
               name="market"
               value={form.market}
               onChange={handleChange}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+              className="w-full px-4 py-3 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-slate-800 font-bold transition-all shadow-sm appearance-none cursor-pointer hover:bg-white/60"
             >
               {MARKETS.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
 
           {/* Weight */}
-          <div className="flex flex-col gap-1">
-            <label htmlFor="weight_kg" className="text-sm font-medium text-gray-700">Weight (kg)</label>
+          <div className="flex flex-col gap-2 relative z-10">
+            <label htmlFor="weight_kg" className="block text-xs font-bold uppercase tracking-widest text-slate-500">Weight (kg)</label>
             <input
               id="weight_kg"
               name="weight_kg"
@@ -120,17 +128,19 @@ export default function Pricing() {
               value={form.weight_kg}
               onChange={handleChange}
               placeholder="e.g. 2.5"
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+              className="w-full px-4 py-3 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-slate-800 font-bold transition-all placeholder-slate-400 shadow-sm hover:bg-white/60"
             />
           </div>
 
           {/* Dimensions */}
-          <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">Dimensions (cm) <span className="text-gray-400 font-normal">— optional</span></p>
-            <div className="grid grid-cols-3 gap-3">
+          <div className="relative z-10">
+            <p className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+              Dimensions (cm) <span className="text-slate-400 font-semibold tracking-normal normal-case">— optional</span>
+            </p>
+            <div className="grid grid-cols-3 gap-4">
               {['length', 'width', 'height'].map((dim) => (
-                <div key={dim} className="flex flex-col gap-1">
-                  <label htmlFor={dim} className="text-xs text-gray-500 capitalize">{dim}</label>
+                <div key={dim} className="flex flex-col gap-2">
+                  <label htmlFor={dim} className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{dim}</label>
                   <input
                     id={dim}
                     name={dim}
@@ -140,7 +150,7 @@ export default function Pricing() {
                     value={form[dim]}
                     onChange={handleChange}
                     placeholder="0"
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                    className="w-full px-4 py-3 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-slate-800 font-bold transition-all placeholder-slate-400 shadow-sm text-center hover:bg-white/60"
                   />
                 </div>
               ))}
@@ -148,34 +158,35 @@ export default function Pricing() {
           </div>
 
           {/* Service tier */}
-          <div className="flex flex-col gap-1">
-            <label htmlFor="shipping_speed" className="text-sm font-medium text-gray-700">Service Type</label>
+          <div className="flex flex-col gap-2 relative z-10">
+            <label htmlFor="shipping_speed" className="block text-xs font-bold uppercase tracking-widest text-slate-500">Service Type</label>
             <select
               id="shipping_speed"
               name="shipping_speed"
               value={form.shipping_speed}
               onChange={handleChange}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+              className="w-full px-4 py-3 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-slate-800 font-bold transition-all shadow-sm appearance-none cursor-pointer hover:bg-white/60"
             >
               <option value="economy">Economy</option>
               <option value="express">Express</option>
             </select>
           </div>
 
-          {/* Insurance */}
-          <label className="flex items-center gap-2 cursor-pointer">
+          {/* Insurance Checkbox */}
+          <label className="group flex items-center gap-3 cursor-pointer p-4 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl hover:bg-white/70 transition-all shadow-sm relative z-10">
             <input
               type="checkbox"
               name="insurance"
               checked={form.insurance}
               onChange={handleChange}
-              className="w-4 h-4 rounded border-gray-300 text-[#1e3a5f] focus:ring-[#1e3a5f]"
+              className="w-5 h-5 accent-orange-500 rounded cursor-pointer transition-transform group-hover:scale-110"
             />
-            <span className="text-sm text-gray-700">Include insurance</span>
+            <span className="font-bold text-slate-700 tracking-tight">Include insurance coverage</span>
           </label>
+          
           {form.insurance && (
-            <div className="flex flex-col gap-1">
-              <label htmlFor="declared_value" className="text-sm font-medium text-gray-700">Declared Value (KES)</label>
+            <div className="flex flex-col gap-2 relative z-10 animate-fade-in">
+              <label htmlFor="declared_value" className="block text-xs font-bold uppercase tracking-widest text-slate-500">Declared Value (KES)</label>
               <input
                 id="declared_value"
                 name="declared_value"
@@ -184,14 +195,14 @@ export default function Pricing() {
                 value={form.declared_value}
                 onChange={handleChange}
                 placeholder="e.g. 50000"
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                className="w-full px-4 py-3 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-slate-800 font-bold transition-all placeholder-slate-400 shadow-sm hover:bg-white/60"
               />
             </div>
           )}
 
           {/* Electronics item dropdown */}
-          <div className="flex flex-col gap-1">
-            <label htmlFor="electronicsItem" className="text-sm font-medium text-gray-700">
+          <div className="flex flex-col gap-2 relative z-10">
+            <label htmlFor="electronicsItem" className="block text-xs font-bold uppercase tracking-widest text-slate-500">
               Electronic Item Type
             </label>
             <select
@@ -199,7 +210,7 @@ export default function Pricing() {
               name="electronicsItem"
               value={form.electronicsItem}
               onChange={handleChange}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+              className="w-full px-4 py-3 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-slate-800 font-bold transition-all shadow-sm appearance-none cursor-pointer hover:bg-white/60"
             >
               <option value="">None (standard item)</option>
               <option value="phone">Phone (+£75 handling fee)</option>
@@ -207,68 +218,83 @@ export default function Pricing() {
               <option value="tv_monitor">TV / Screen / Monitor (+£65 handling fee)</option>
             </select>
             {electronicsFee > 0 && (
-              <p className="text-xs text-amber-700 mt-1">
-                A flat £{electronicsFee} specialist handling fee will be added to your estimate.
-              </p>
+              <div className="mt-2 p-3 bg-amber-50/50 border border-amber-200/50 rounded-lg backdrop-blur-sm">
+                <p className="text-xs font-bold text-amber-700 flex items-center gap-2">
+                  <span className="text-lg leading-none">⚠️</span> 
+                  A flat £{electronicsFee} specialist handling fee will be added to your estimate.
+                </p>
+              </div>
             )}
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 rounded-lg text-sm disabled:opacity-50 transition-colors"
+            className="group relative overflow-hidden w-full bg-[#1e3a5f] hover:bg-[#152d4a] text-white font-black tracking-tight py-4 rounded-xl text-lg disabled:opacity-50 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-0.5 glass-sheen mt-4 z-10"
           >
-            {loading ? 'Calculating…' : 'Get Estimate'}
+            <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
+            <span className="relative z-10">{loading ? 'Calculating…' : 'Get Estimate'}</span>
           </button>
         </form>
 
-        {/* Error */}
+        {/* Error - Frosted Red */}
         {error && (
-          <div className="mt-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-800">
-            {error}
+          <div className="mt-6 p-4 bg-red-50/80 backdrop-blur-md border border-red-200/60 rounded-xl shadow-sm relative z-10">
+            <p className="text-red-700 font-bold text-sm tracking-tight">{error}</p>
           </div>
         )}
 
-        {/* Result */}
+        {/* Result - Dark Glass Bento & Interactive Element */}
         {result && (
-          <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-[#1e3a5f] mb-4">Your Estimate</h2>
-            <div className="space-y-2 text-sm">
-              {result.base_cost != null && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Base shipping cost</span>
-                  <span className="font-medium">£{Number(result.base_cost).toFixed(2)}</span>
-                </div>
-              )}
-              {result.electronics_fee > 0 && (
-                <div className="flex justify-between text-amber-700">
-                  <span>Electronics handling fee</span>
-                  <span className="font-medium">+£{Number(result.electronics_fee).toFixed(2)}</span>
-                </div>
-              )}
-              {result.fuel_surcharge > 0 && (
-                <div className="flex justify-between text-gray-600">
-                  <span>Fuel surcharge</span>
-                  <span className="font-medium">+£{Number(result.fuel_surcharge).toFixed(2)}</span>
-                </div>
-              )}
-              {(result.total ?? result.total_gbp) != null && (
-                <div className="border-t border-gray-200 pt-3 flex justify-between text-base font-bold text-[#1e3a5f]">
-                  <span>Total estimate</span>
-                  <span>£{Number(result.total ?? result.total_gbp).toFixed(2)}</span>
-                </div>
-              )}
-              {result.total_kes != null && (
-                <div className="flex justify-between text-gray-500 text-xs">
-                  <span>Approx. in KES</span>
-                  <span>KES {Number(result.total_kes).toLocaleString()}</span>
-                </div>
-              )}
+          <div className="group relative overflow-hidden bg-[#0f172a]/80 backdrop-blur-2xl border border-white/10 rounded-2xl p-6 md:p-8 text-white shadow-2xl mt-8 transition-transform duration-500 hover:-rotate-1 hover:scale-[1.02] transform perspective-1000 glass-sheen">
+            {/* Blurred Orange Orb inside Dark Glass */}
+            <div className="absolute -top-12 -right-12 w-48 h-48 bg-orange-500/30 rounded-full blur-[70px] pointer-events-none" />
+
+            <div className="relative z-10">
+              <h2 className="text-2xl font-black tracking-tighter leading-none mb-6">Your Estimate</h2>
+              
+              <div className="space-y-4">
+                {result.base_cost != null && (
+                  <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Base shipping cost</span>
+                    <span className="text-lg font-bold text-slate-300 tracking-tight">£{Number(result.base_cost).toFixed(2)}</span>
+                  </div>
+                )}
+                {result.electronics_fee > 0 && (
+                  <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                    <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">Electronics handling fee</span>
+                    <span className="text-lg font-bold text-amber-400 tracking-tight">+£{Number(result.electronics_fee).toFixed(2)}</span>
+                  </div>
+                )}
+                {result.fuel_surcharge > 0 && (
+                  <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Fuel surcharge</span>
+                    <span className="text-lg font-bold text-slate-300 tracking-tight">+£{Number(result.fuel_surcharge).toFixed(2)}</span>
+                  </div>
+                )}
+                
+                {(result.total ?? result.total_gbp) != null && (
+                  <div className="bg-gradient-to-br from-orange-500/20 to-red-600/10 rounded-xl p-5 border border-orange-500/30 backdrop-blur-md mt-6 flex justify-between items-center">
+                    <span className="text-sm font-bold text-orange-300 uppercase tracking-widest">Total estimate</span>
+                    <span className="text-3xl font-black text-orange-400 tracking-tighter">
+                      £{Number(result.total ?? result.total_gbp).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                
+                {result.total_kes != null && (
+                  <div className="flex justify-between items-center bg-white/5 rounded-xl p-4 border border-white/10 backdrop-blur-sm mt-2">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Approx. in KES</span>
+                    <span className="text-xl font-bold text-white tracking-tight">KES {Number(result.total_kes).toLocaleString()}</span>
+                  </div>
+                )}
+              </div>
+              
+              <p className="mt-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
+                * This is an estimate only. Final charges may vary based on actual weight, dimensions,
+                and customs requirements upon warehouse arrival.
+              </p>
             </div>
-            <p className="mt-4 text-xs text-gray-400">
-              This is an estimate only. Final charges may vary based on actual weight, dimensions,
-              and customs requirements.
-            </p>
           </div>
         )}
       </div>
