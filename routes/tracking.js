@@ -4,34 +4,6 @@ import { sendInAppNotification } from '../utils/notifications.js';
 
 const router = express.Router();
 
-/** GET /api/tracking/:trackingNumber */
-router.get('/:trackingNumber', optionalAuth, async (req, res) => {
-  try {
-    const db = req.db;
-    const { trackingNumber } = req.params;
-
-    const result = await db.query(
-      `SELECT id, user_id, tracking_number, retailer, market, status, description,
-              weight_kg, dimensions_json, shipping_speed, insurance, declared_value,
-              estimated_cost, actual_cost, customs_duty, created_at, updated_at
-       FROM orders WHERE tracking_number = $1`,
-      [trackingNumber]
-    );
-    const order = result.rows[0];
-    if (!order) return res.status(404).json({ success: false, message: 'Tracking number not found' });
-
-    const pkgs = await db.query('SELECT * FROM packages WHERE order_id = $1', [order.id]);
-
-    res.json({
-      success: true,
-      tracking: { ...order, dimensions_json: order.dimensions_json ? JSON.parse(order.dimensions_json) : null, packages: pkgs.rows }
-    });
-  } catch (error) {
-    console.error('Tracking error:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch tracking information' });
-  }
-});
-
 /** GET /api/tracking/user/packages */
 router.get('/user/packages', authMiddleware, async (req, res) => {
   try {
@@ -62,6 +34,34 @@ router.get('/user/packages', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Get packages error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch packages' });
+  }
+});
+
+/** GET /api/tracking/:trackingNumber */
+router.get('/:trackingNumber', optionalAuth, async (req, res) => {
+  try {
+    const db = req.db;
+    const { trackingNumber } = req.params;
+
+    const result = await db.query(
+      `SELECT id, user_id, tracking_number, retailer, market, status, description,
+              weight_kg, dimensions_json, shipping_speed, insurance, declared_value,
+              estimated_cost, actual_cost, customs_duty, created_at, updated_at
+       FROM orders WHERE tracking_number = $1`,
+      [trackingNumber]
+    );
+    const order = result.rows[0];
+    if (!order) return res.status(404).json({ success: false, message: 'Tracking number not found' });
+
+    const pkgs = await db.query('SELECT * FROM packages WHERE order_id = $1', [order.id]);
+
+    res.json({
+      success: true,
+      tracking: { ...order, dimensions_json: order.dimensions_json ? JSON.parse(order.dimensions_json) : null, packages: pkgs.rows }
+    });
+  } catch (error) {
+    console.error('Tracking error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch tracking information' });
   }
 });
 
