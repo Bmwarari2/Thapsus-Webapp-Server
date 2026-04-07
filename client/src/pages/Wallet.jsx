@@ -178,9 +178,9 @@ export const Wallet = () => {
           </div>
         </div>
 
-        {/* ═══ Mpesa Payment Section (Border Gradient & Tilted) ═══ */}
-        <div className="transform lg:-rotate-1 hover:rotate-0 transition-all duration-700 perspective-1000 mb-12 mx-2 md:mx-0">
-          <div className="p-1 bg-gradient-to-br from-green-400 via-emerald-300 to-teal-400 rounded-[3rem] shadow-2xl group transition-all hover:scale-[1.01]">
+       {/* ═══ Mpesa Payment Section (Border Gradient & Tilted) ═══ */}
+        <div className="transform lg:-rotate-[0.5deg] hover:rotate-0 transition-all duration-700 perspective-1000 mb-12 mx-2 md:mx-0">
+          <div className="p-1 bg-gradient-to-br from-green-400 via-emerald-300 to-teal-400 rounded-[3rem] shadow-2xl group transition-all hover:scale-[1.002]">
             <div className="h-full w-full bg-white/95 backdrop-blur-3xl rounded-[2.9rem] p-6 md:p-12">
               
               <div className="flex flex-col md:flex-row items-center md:items-start gap-6 mb-10 text-center md:text-left">
