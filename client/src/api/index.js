@@ -3,8 +3,8 @@
  * Central barrel file – import any API module from '../api' in your pages.
  *
  * Every function returns an Axios Promise so pages can do:
- *   const res = await ordersApi.list()
- *   res.data.orders  ← the data lives here
+ * const res = await ordersApi.list()
+ * res.data.orders  ← the data lives here
  */
 import api from './client'
 
@@ -41,10 +41,9 @@ export const ordersApi = {
 
   /**
    * Track a package by tracking number.
-   * Falls back to searching the orders list if no dedicated track endpoint exists.
    */
   track: (trackingNumber) =>
-    api.get('/tracking', { params: { tracking_number: trackingNumber } }),
+    api.get(`/tracking/${trackingNumber}`),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -98,7 +97,7 @@ export const pricingApi = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ADMIN  →  /api/admin/*  (requires admin role)
+// ADMIN  →  /api/admin/* (requires admin role)
 // ─────────────────────────────────────────────────────────────────────────────
 export const adminApi = {
   /** Dashboard overview stats */
