@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { MessageSquare, Plus, Send } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { supportApi } from '../api'
@@ -17,6 +17,22 @@ export const Support = () => {
   })
   const [replyText, setReplyText] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  // Auto-scroll refs
+  const messagesEndRef   = useRef(null)   // bottom anchor inside the chat window
+  const createFormRef    = useRef(null)   // top of the create-ticket form
+
+  /** Scroll chat to the very last message */
+  const scrollToLatest = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }
+
+  /** Scroll the page so the create-ticket form is visible */
+  const scrollToCreateForm = () => {
+    setTimeout(() => {
+      createFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 80) // tiny delay lets React paint the form first
+  }
 
   const shapeTicketThread = (ticket, messages) => {
     if (!ticket) return null
@@ -50,6 +66,11 @@ export const Support = () => {
     fetchTickets()
   }, [])
 
+  // Scroll to latest message whenever the thread changes (new reply, SSE push, ticket load)
+  useEffect(() => {
+    if (selectedTicket?.messages?.length) scrollToLatest()
+  }, [selectedTicket?.messages?.length])
+
   useTicketUpdates((payload) => {
     if (!payload) return
 
@@ -63,6 +84,8 @@ export const Support = () => {
         .then((res) => {
           const { ticket, messages } = res.data
           setSelectedTicket(shapeTicketThread(ticket, messages))
+          // SSE-driven update → scroll after React re-renders
+          setTimeout(scrollToLatest, 100)
         })
         .catch(() => {})
     }
@@ -126,9 +149,9 @@ export const Support = () => {
       const { ticket, messages } = res.data
 
       setSelectedTicket(shapeTicketThread(ticket, messages))
-
       setReplyText('')
       toast.success('Reply sent!')
+      setTimeout(scrollToLatest, 80)
     } catch (err) {
       toast.error('Failed to send reply')
     } finally {
@@ -161,7 +184,7 @@ export const Support = () => {
             <p className="text-slate-600 font-medium text-lg">Get help from our support team</p>
           </div>
           <button
-            onClick={() => setShowCreateForm(!showCreateForm)}
+            onClick={() => { setShowCreateForm(!showCreateForm); if (!showCreateForm) scrollToCreateForm() }}
             className="group relative overflow-hidden bg-orange-500 hover:bg-orange-400 text-white px-6 py-3.5 rounded-2xl font-black tracking-tight flex items-center gap-2 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 glass-sheen"
           >
             <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
@@ -227,7 +250,7 @@ export const Support = () => {
           <div className="lg:col-span-2">
             {showCreateForm ? (
               /* Create Ticket - Dark Glass Bento */
-              <div className="group relative overflow-hidden bg-[#0f172a]/90 backdrop-blur-2xl border border-white/10 rounded-[24px] p-8 md:p-10 text-white shadow-2xl transition-transform duration-500 hover:-rotate-1 hover:scale-[1.02] transform perspective-1000 glass-sheen">
+              <div ref={createFormRef} className="group relative overflow-hidden bg-[#0f172a]/90 backdrop-blur-2xl border border-white/10 rounded-[24px] p-8 md:p-10 text-white shadow-2xl transition-transform duration-500 hover:-rotate-1 hover:scale-[1.02] transform perspective-1000 glass-sheen">
                 <div className="absolute -top-24 -right-24 w-64 h-64 bg-blue-500/30 rounded-full blur-[80px] pointer-events-none" />
                 
                 <h2 className="text-3xl font-black tracking-tighter leading-none mb-8 relative z-10">
@@ -341,6 +364,8 @@ export const Support = () => {
                       No messages yet. Start the conversation below.
                     </div>
                   )}
+                  {/* Scroll anchor — always sits below the last message */}
+                  <div ref={messagesEndRef} />
                 </div>
 
                 {/* Reply Form */}

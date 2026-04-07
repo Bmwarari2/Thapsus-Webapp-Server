@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS orders (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   tracking_number TEXT UNIQUE NOT NULL,
   retailer TEXT NOT NULL,
-  market TEXT CHECK(market IN ('UK', 'USA', 'China')) NOT NULL,
+  market TEXT CHECK(market IN ('UK', 'China')) NOT NULL,
   status TEXT CHECK(status IN ('pending','received_at_warehouse','consolidating','in_transit','customs','out_for_delivery','delivered','cancelled')) DEFAULT 'pending',
   description TEXT NOT NULL,
   weight_kg REAL,

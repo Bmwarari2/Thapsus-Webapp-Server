@@ -60,8 +60,8 @@ router.post('/', authMiddleware, async (req, res) => {
 
     if (!retailer || !market || !description)
       return res.status(400).json({ success: false, message: 'Missing required fields: retailer, market, description' });
-    if (!['UK', 'USA', 'China'].includes(market))
-      return res.status(400).json({ success: false, message: 'Invalid market. Must be UK, USA, or China' });
+    if (!['UK', 'China'].includes(market))
+      return res.status(400).json({ success: false, message: 'Invalid market. Must be UK or China' });
     const speed = shipping_speed || 'economy';
     if (!['economy', 'express'].includes(speed))
       return res.status(400).json({ success: false, message: 'Invalid shipping speed.' });

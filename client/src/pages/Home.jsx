@@ -14,8 +14,8 @@ import {
 const useLanguage = () => ({
   t: (key) => {
     const translations = {
-      'home.hero.title': 'Ship from UK, USA & China to Kenya',
-      'home.hero.subtitle': 'The most reliable global forwarding service. Shop your favorite brands and we deliver to your doorstep in Kenya.',
+      'home.hero.title': 'Ship from UK & China to Kenya',
+      'home.hero.subtitle': 'The most reliable global forwarding service. Shop your favourite brands and we deliver to your doorstep in Kenya.',
       'home.hero.cta': 'Start Shipping',
       'home.hero.track': 'Track Package',
       'home.howitworks': 'Our Workflow',
@@ -79,33 +79,28 @@ export const Home = () => {
   const { isAuthenticated } = useAuth()
 
   const retailers = [
-    { name: 'Shein', url: 'https://www.shein.com', icon: <ShoppingBag size={24} className="text-pink-500" /> },
-    { name: 'Amazon', url: 'https://www.amazon.com', icon: <Box size={24} className="text-orange-500" /> },
-    { name: 'Walmart', url: 'https://www.walmart.com', icon: <Store size={24} className="text-blue-500" /> },
-    { name: 'AliExpress', url: 'https://www.aliexpress.com', icon: <Zap size={24} className="text-red-500" /> },
-    { name: 'Next', url: 'https://www.next.co.uk', icon: <ShoppingBag size={24} className="text-slate-800" /> },
-    { name: 'eBay', url: 'https://www.ebay.com', icon: <Package size={24} className="text-blue-600" /> },
-    { name: 'ZARA', url: 'https://www.zara.com', icon: <ShoppingBag size={24} className="text-slate-900" /> },
-    { name: 'Target', url: 'https://www.target.com', icon: <CheckCircle2 size={24} className="text-red-600" /> },
-    { name: 'Alibaba', url: 'https://www.alibaba.com', icon: <Globe size={24} className="text-orange-600" /> },
-    { name: 'Temu', url: 'https://www.temu.com', icon: <Zap size={24} className="text-orange-400" /> },
+    { name: 'Shein',      url: 'https://www.shein.com',      icon: <ShoppingBag size={24} className="text-pink-500"   /> },
+    { name: 'Amazon',     url: 'https://www.amazon.co.uk',   icon: <Box          size={24} className="text-orange-500" /> },
+    { name: 'AliExpress', url: 'https://www.aliexpress.com', icon: <Zap          size={24} className="text-red-500"    /> },
+    { name: 'Next',       url: 'https://www.next.co.uk',     icon: <ShoppingBag  size={24} className="text-slate-800"  /> },
+    { name: 'eBay',       url: 'https://www.ebay.co.uk',     icon: <Package      size={24} className="text-blue-600"   /> },
+    { name: 'ZARA',       url: 'https://www.zara.com',       icon: <ShoppingBag  size={24} className="text-slate-900"  /> },
+    { name: 'Alibaba',    url: 'https://www.alibaba.com',    icon: <Globe        size={24} className="text-orange-600" /> },
+    { name: 'Temu',       url: 'https://www.temu.com',       icon: <Zap          size={24} className="text-orange-400" /> },
+    { name: 'ASOS',       url: 'https://www.asos.com',       icon: <ShoppingBag  size={24} className="text-black"      /> },
+    { name: 'Marks & Spencer', url: 'https://www.marksandspencer.com', icon: <Store size={24} className="text-green-700" /> },
   ]
 
   const markets = [
-    { 
-        name: 'United Kingdom', 
-        icon: <div className="w-10 h-7 md:w-12 md:h-8 bg-blue-900 rounded-sm relative overflow-hidden flex items-center justify-center text-white text-[9px] md:text-[10px] font-bold">UK</div>, 
-        desc: '3-5 Day Express' 
+    {
+        name: 'United Kingdom',
+        icon: <div className="w-10 h-7 md:w-12 md:h-8 bg-blue-900 rounded-sm relative overflow-hidden flex items-center justify-center text-white text-[9px] md:text-[10px] font-bold">UK</div>,
+        desc: '5-10 Day Express'
     },
-    { 
-        name: 'United States', 
-        icon: <div className="w-10 h-7 md:w-12 md:h-8 bg-red-600 rounded-sm relative overflow-hidden flex items-center justify-center text-white text-[9px] md:text-[10px] font-bold">USA</div>, 
-        desc: 'Direct Air Freight' 
-    },
-    { 
-        name: 'China', 
-        icon: <div className="w-10 h-7 md:w-12 md:h-8 bg-yellow-500 rounded-sm relative overflow-hidden flex items-center justify-center text-white text-[9px] md:text-[10px] font-bold">CHN</div>, 
-        desc: 'Economy Logistics' 
+    {
+        name: 'China',
+        icon: <div className="w-10 h-7 md:w-12 md:h-8 bg-red-600 rounded-sm relative overflow-hidden flex items-center justify-center text-white text-[9px] md:text-[10px] font-bold">CHN</div>,
+        desc: 'Economy Logistics'
     },
   ]
 
@@ -275,7 +270,7 @@ export const Home = () => {
               <div className="w-14 h-14 md:w-16 md:h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center text-white shadow-xl mb-8 md:mb-10 group-hover:rotate-12 transition-transform"><ShoppingBag size={28} className="md:w-8 md:h-8"/></div>
               <div>
                 <h3 className="text-xl md:text-2xl font-black mb-3 md:mb-4 text-slate-900 leading-tight">01. {t('home.step1')}</h3>
-                <p className="text-slate-500 text-xs md:text-sm font-bold leading-relaxed">Shop any brand in the US, UK, or China. Use our address as yours.</p>
+                <p className="text-slate-500 text-xs md:text-sm font-bold leading-relaxed">Shop any brand in the UK or China. Use our warehouse address as yours.</p>
               </div>
             </GlassCard>
 
@@ -428,9 +423,8 @@ export const Home = () => {
            <div className="pt-20 md:pt-32 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-10 border-t border-slate-200 text-slate-400 font-black text-[8px] md:text-[10px] uppercase tracking-[0.4em]">
              <p>© {new Date().getFullYear()} Thapsus Cargo Global</p>
              <div className="flex gap-6 md:gap-10">
-               <span className="hover:text-slate-900 cursor-pointer transition-colors">Privacy Policy</span>
-               <span className="hover:text-slate-900 cursor-pointer transition-colors">Terms of Service</span>
-               <span className="hover:text-slate-900 cursor-pointer transition-colors">Compliance</span>
+               <Link to="/privacy" className="hover:text-slate-900 transition-colors">Privacy Policy</Link>
+               <Link to="/terms"   className="hover:text-slate-900 transition-colors">Terms of Service</Link>
              </div>
            </div>
         </div>

@@ -27,6 +27,8 @@ import { OrderDetail } from './pages/OrderDetail'
 import { PublicPayment } from './pages/PublicPayment'
 import { NewOrder } from './pages/NewOrder'
 import { OrderConfirmation } from './pages/OrderConfirmation'
+import { PrivacyPolicy } from './pages/PrivacyPolicy'
+import { TermsOfService } from './pages/TermsOfService'
 
 function App() {
   return (
@@ -46,6 +48,8 @@ function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/pay/:orderId" element={<PublicPayment />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms"   element={<TermsOfService />} />
 
           {/* Protected Routes */}
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

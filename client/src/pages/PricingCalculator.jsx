@@ -46,7 +46,7 @@ export const PricingCalculator = () => {
   const [result, setResult] = useState(null)
   const [currentRates, setCurrentRates] = useState(null)
 
-  const markets = ['UK', 'USA', 'China']
+  const markets = ['UK', 'China']
   const shippingSpeeds = [
     { value: 'economy', label: t('pricing.economy') },
     { value: 'express', label: t('pricing.express') },

@@ -169,7 +169,6 @@ export const Orders = () => {
               >
                 <option value="">All Markets</option>
                 <option value="UK">United Kingdom</option>
-                <option value="USA">United States</option>
                 <option value="China">China</option>
               </select>
             </div>
@@ -223,7 +222,7 @@ export const Orders = () => {
                         {order.tracking_number || `#${order.id.slice(0, 8).toUpperCase()}`}
                       </td>
                       <td className="px-6 py-5 text-sm font-semibold text-slate-600">
-                        {order.market === 'UK' ? 'United Kingdom' : order.market === 'USA' ? 'United States' : order.market}
+                        {order.market === 'UK' ? 'United Kingdom' : order.market === 'China' ? 'China' : order.market}
                       </td>
                       <td className="px-6 py-5">
                         <span className={`status-badge shadow-sm border border-white/50 backdrop-blur-sm ${getStatusColor(order.status)}`}>

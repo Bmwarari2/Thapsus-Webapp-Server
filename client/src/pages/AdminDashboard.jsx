@@ -879,7 +879,7 @@ export const AdminDashboard = () => {
                    </div>
                    <div>
                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Market</label>
-                     <select className={inputClass} value={createOrderForm.market} onChange={e=>setCreateOrderForm(p=>({...p,market:e.target.value}))}><option value="UK">UK</option><option value="USA">USA</option><option value="China">China</option></select>
+                     <select className={inputClass} value={createOrderForm.market} onChange={e=>setCreateOrderForm(p=>({...p,market:e.target.value}))}><option value="UK">UK</option><option value="China">China</option></select>
                    </div>
                  </div>
                  <div>

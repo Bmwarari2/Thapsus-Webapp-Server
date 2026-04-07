@@ -14,7 +14,6 @@ export const ELECTRONICS_HANDLING = {
  */
 export const DEFAULT_RATES_GBP = {
   UK:    8,
-  USA:   10,
   China: 6,
 };
 
@@ -24,7 +23,7 @@ export const DEFAULT_RATES_GBP = {
  * @param {Object}  options
  * @param {number}  options.weight_kg        - Actual weight in kg
  * @param {Object}  options.dimensions       - { length, width, height } in cm
- * @param {string}  options.market           - 'UK' | 'USA' | 'China'
+ * @param {string}  options.market           - 'UK' | 'China'
  * @param {string}  options.shipping_speed   - 'economy' | 'express'
  * @param {boolean} options.insurance        - Include insurance?
  * @param {number}  options.declared_value   - Declared value in KES

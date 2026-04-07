@@ -9,7 +9,7 @@ export const Navbar = () => {
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
   const [navBackground, setNavBackground] = useState('bg-[#0f172a]/80')
   const { isAuthenticated, user, isAdmin, logout } = useAuth()
-  const { language, changeLanguage, t } = useLanguage()
+  const { t } = useLanguage()
   const navigate = useNavigate()
 
   const handleLogout = () => {
@@ -57,23 +57,6 @@ export const Navbar = () => {
 
           {/* Right side */}
           <div className="hidden lg:flex items-center gap-5">
-            {/* Language switcher */}
-            <div className="flex gap-1 bg-white/5 backdrop-blur-md border border-white/10 p-1 rounded-xl shadow-inner">
-              {['en', 'sw'].map((lang) => (
-                <button
-                  key={lang}
-                  onClick={() => changeLanguage(lang)}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
-                    language === lang
-                      ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  {lang.toUpperCase()}
-                </button>
-              ))}
-            </div>
-
             {isAuthenticated ? (
               <div className="relative">
                 <button
@@ -162,23 +145,6 @@ export const Navbar = () => {
                   >
                     {link.label}
                   </Link>
-                ))}
-              </div>
-
-              {/* Mobile language switcher */}
-              <div className="flex gap-2 bg-white/5 border border-white/10 p-1.5 rounded-xl">
-                {['en', 'sw'].map((lang) => (
-                  <button
-                    key={lang}
-                    onClick={() => { changeLanguage(lang); setMobileMenuOpen(false) }}
-                    className={`flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
-                      language === lang
-                        ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md'
-                        : 'text-slate-400 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    {lang.toUpperCase()}
-                  </button>
                 ))}
               </div>
 

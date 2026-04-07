@@ -220,7 +220,7 @@ export const OrderDetail = () => {
               <div className="flex flex-col">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Market Origin</span>
                 <span className="font-black text-lg text-[#0f172a]">
-                  {order.market === 'UK' ? 'United Kingdom' : order.market === 'USA' ? 'United States' : order.market}
+                  {order.market === 'UK' ? 'United Kingdom' : order.market === 'China' ? 'China' : order.market}
                 </span>
               </div>
               <div className="h-px w-full bg-slate-200/50" />

@@ -190,7 +190,6 @@ export const NewOrder = () => {
                     <label className={labelClass}>{t('neworder.market')} *</label>
                     <select name="market" value={formData.market} onChange={handleChange} required className={inputClass}>
                       <option value="UK">United Kingdom</option>
-                      <option value="USA">United States</option>
                       <option value="China">China</option>
                     </select>
                   </div>

@@ -1,4 +1,5 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 import { Mail, Phone, MapPin, Facebook, Twitter, Linkedin, Instagram } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 
@@ -20,7 +21,7 @@ export const Footer = () => {
               <span className="text-orange-500 drop-shadow-[0_0_15px_rgba(249,115,22,0.4)]">Cargo</span>
             </h3>
             <p className="text-slate-400 font-medium text-sm leading-relaxed max-w-xs">
-              Your trusted premium shipping and forwarding partner for goods from UK, USA, and China to Kenya.
+              Your trusted premium shipping and forwarding partner for goods from UK and China to Kenya.
             </p>
           </div>
 
@@ -54,11 +55,17 @@ export const Footer = () => {
                 </a>
               </li>
               <li className="flex items-center gap-3 group">
-                 <div className="p-2 bg-white/5 rounded-lg border border-white/10 group-hover:border-orange-500/50 transition-colors">
+                <div className="p-2 bg-white/5 rounded-lg border border-white/10 group-hover:border-orange-500/50 transition-colors">
                   <Phone size={16} className="text-orange-400" />
                 </div>
-                <a href="tel:+441614496000" className="hover:text-orange-400 transition-colors">
-                  +44 161 449 6000
+                <a
+                  href="https://wa.me/447424531483"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-orange-400 transition-colors flex items-center gap-1.5"
+                >
+                  +44 7424 531483
+                  <span className="text-[9px] font-black uppercase tracking-wider text-green-400 bg-green-400/10 border border-green-400/20 px-1.5 py-0.5 rounded-full">WhatsApp</span>
                 </a>
               </li>
             </ul>
@@ -95,12 +102,12 @@ export const Footer = () => {
               {t('common.copyright')}
             </p>
             <div className="flex gap-6 text-sm font-bold text-slate-400">
-              <a href="#" className="hover:text-orange-400 transition-colors">
+              <Link to="/privacy" className="hover:text-orange-400 transition-colors">
                 {t('common.privacy')}
-              </a>
-              <a href="#" className="hover:text-orange-400 transition-colors">
+              </Link>
+              <Link to="/terms" className="hover:text-orange-400 transition-colors">
                 {t('common.terms')}
-              </a>
+              </Link>
             </div>
           </div>
         </div>
