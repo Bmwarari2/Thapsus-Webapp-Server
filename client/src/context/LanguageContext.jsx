@@ -81,11 +81,17 @@ const translations = {
     'orders.actions': 'Actions',
     'orders.view': 'View',
     'orders.pending': 'Pending',
+    'orders.received_at_warehouse': 'Received',
+    'orders.consolidating': 'Consolidating',
+    'orders.in_transit': 'In Transit',
+    'orders.customs': 'Customs',
+    'orders.out_for_delivery': 'Out for Delivery',
+    'orders.delivered': 'Delivered',
+    'orders.cancelled': 'Cancelled',
+    // Legacy aliases kept for backward compatibility
     'orders.processing': 'Processing',
     'orders.inTransit': 'In Transit',
-    'orders.delivered': 'Delivered',
     'orders.failed': 'Failed',
-    'orders.cancelled': 'Cancelled',
 
     // Pricing
     'pricing.title': 'Shipping Calculator',
@@ -369,12 +375,18 @@ const translations = {
     'orders.amount': 'Kiasi',
     'orders.actions': 'Vitendo',
     'orders.view': 'Angalia',
-    'orders.pending': 'Insubiri',
+    'orders.pending': 'Inasubiri',
+    'orders.received_at_warehouse': 'Imepokelewa',
+    'orders.consolidating': 'Inaunganishwa',
+    'orders.in_transit': 'Njiani',
+    'orders.customs': 'Forodha',
+    'orders.out_for_delivery': 'Inatumwa',
+    'orders.delivered': 'Imetolewa',
+    'orders.cancelled': 'Imefutwa',
+    // Legacy aliases
     'orders.processing': 'Inachakatwa',
     'orders.inTransit': 'Njiani',
-    'orders.delivered': 'Imekamatia',
     'orders.failed': 'Imefeli',
-    'orders.cancelled': 'Imefutwa',
 
     // Pricing
     'pricing.title': 'Kikokotoo cha Utoaji',

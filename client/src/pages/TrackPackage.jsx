@@ -1,11 +1,34 @@
 import React, { useState } from 'react'
-import { 
-  Search, Package, Check, Clock, AlertCircle, 
-  ArrowRight, Box, MapPin, Calendar, Info, Zap, Sparkles
+import {
+  Search, Package, Check, Clock, AlertCircle,
+  ArrowRight, Box, MapPin, Truck, Globe, Zap
 } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { ordersApi } from '../api'
 import toast from 'react-hot-toast'
+
+// Human-readable labels for every order status
+const STATUS_LABELS = {
+  pending:               'Order Placed',
+  received_at_warehouse: 'Received at Warehouse',
+  consolidating:         'Consolidating',
+  in_transit:            'In Transit',
+  customs:               'Customs Clearance',
+  out_for_delivery:      'Out for Delivery',
+  delivered:             'Delivered',
+  cancelled:             'Cancelled',
+}
+
+// Estimate delivery date from order data
+function estimateDelivery(order) {
+  if (!order) return null
+  if (order.status === 'delivered') return order.updated_at ? new Date(order.updated_at) : null
+  const base = order.created_at ? new Date(order.created_at) : new Date()
+  const days = order.shipping_speed === 'express' ? 10 : 21
+  const est = new Date(base)
+  est.setDate(est.getDate() + days)
+  return est
+}
 
 /**
  * LIQUID GLASS COMPONENTS
@@ -28,11 +51,15 @@ export const TrackPackage = () => {
   const [package_, setPackage] = useState(null)
   const [error, setError] = useState(null)
 
+  // All 6 user-facing statuses in order — must mirror the DB CHECK constraint
   const statusTimeline = [
-    { status: 'pending', label: 'Order Placed', icon: Package },
-    { status: 'received_at_warehouse', label: 'Warehouse Received', icon: MapPin },
-    { status: 'in_transit', label: 'In Transit', icon: Box },
-    { status: 'delivered', label: 'Delivered', icon: Check },
+    { status: 'pending',               label: 'Order Placed',          icon: Package },
+    { status: 'received_at_warehouse', label: 'Received at Warehouse', icon: MapPin  },
+    { status: 'consolidating',         label: 'Consolidating',         icon: Box     },
+    { status: 'in_transit',            label: 'In Transit',            icon: Truck   },
+    { status: 'customs',               label: 'Customs Clearance',     icon: Globe   },
+    { status: 'out_for_delivery',      label: 'Out for Delivery',      icon: ArrowRight },
+    { status: 'delivered',             label: 'Delivered',             icon: Check   },
   ]
 
   const handleTrack = async (e) => {
@@ -56,9 +83,12 @@ export const TrackPackage = () => {
     }
   }
 
+  // Returns -1 only before a search; after a successful lookup always ≥ 0
   const currentStatusIndex = package_
-    ? statusTimeline.findIndex((s) => s.status === package_.status)
+    ? Math.max(0, statusTimeline.findIndex((s) => s.status === package_.status))
     : -1
+
+  const estimatedDelivery = estimateDelivery(package_)
 
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 overflow-x-hidden relative">
@@ -232,13 +262,17 @@ export const TrackPackage = () => {
                     <div>
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
                       <p className="text-lg font-black text-orange-600 uppercase tracking-tighter">
-                        {t(`orders.${package_.status}`)}
+                        {STATUS_LABELS[package_.status] || package_.status?.replace(/_/g, ' ')}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Est. Delivery</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                        {package_.status === 'delivered' ? 'Delivered On' : 'Est. Delivery'}
+                      </p>
                       <p className="text-lg font-black text-slate-900">
-                        {new Date(package_.estimated_delivery).toLocaleDateString()}
+                        {estimatedDelivery
+                          ? estimatedDelivery.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                          : '—'}
                       </p>
                     </div>
                   </div>

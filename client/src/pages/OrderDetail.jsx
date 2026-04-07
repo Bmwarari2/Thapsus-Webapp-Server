@@ -76,6 +76,18 @@ export const OrderDetail = () => {
     return colors[status] || 'bg-slate-50 text-slate-700 border-slate-200'
   }
 
+  // Human-readable labels that map to the DB status values
+  const STATUS_LABELS = {
+    pending:               'Pending',
+    received_at_warehouse: 'Received',
+    consolidating:         'Consolidating',
+    in_transit:            'In Transit',
+    customs:               'Customs',
+    out_for_delivery:      'Out for Delivery',
+    delivered:             'Delivered',
+    cancelled:             'Cancelled',
+  }
+
   const statusSteps = [
     'pending',
     'received_at_warehouse',
@@ -148,7 +160,7 @@ export const OrderDetail = () => {
               </p>
             </div>
             <span className={`inline-flex items-center px-4 py-2 rounded-2xl text-xs font-black uppercase tracking-widest border shadow-sm ${getStatusColor(order.status)}`}>
-              {order.status?.replace(/_/g, ' ')}
+              {STATUS_LABELS[order.status] || order.status?.replace(/_/g, ' ')}
             </span>
           </div>
         </GlassCard>
@@ -176,7 +188,7 @@ export const OrderDetail = () => {
                       <p className={`text-[9px] uppercase tracking-widest mt-4 text-center ${
                         isCurrent ? 'text-[#0f172a] font-black' : isCompleted ? 'text-green-600 font-bold' : 'text-slate-400 font-bold'
                       }`}>
-                        {step.replace(/_/g, ' ')}
+                        {STATUS_LABELS[step] || step.replace(/_/g, ' ')}
                       </p>
                     </div>
                     {i < statusSteps.length - 1 && (
@@ -328,7 +340,7 @@ export const OrderDetail = () => {
                       <td className="px-6 py-4 text-sm font-bold text-slate-600">{pkg.weight_kg ? `${pkg.weight_kg} kg` : '—'}</td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex px-3 py-1 rounded-full text-[9px] font-black uppercase border shadow-sm ${getStatusColor(pkg.status)}`}>
-                          {pkg.status?.replace(/_/g, ' ')}
+                          {STATUS_LABELS[pkg.status] || pkg.status?.replace(/_/g, ' ')}
                         </span>
                       </td>
                     </tr>

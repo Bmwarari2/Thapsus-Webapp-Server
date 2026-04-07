@@ -547,8 +547,15 @@ export const AdminDashboard = () => {
               <GlassCard className="!p-4 flex flex-col md:flex-row items-center gap-4 bg-blue-50/40 border-blue-200/50">
                 <span className="font-black text-blue-800 text-sm tracking-wide uppercase">{selectedOrders.length} Selected</span>
                 <select value={newStatus} onChange={e => setNewStatus(e.target.value)} className={inputClass + " !w-auto !py-3 !text-sm"}>
-                  <option value="">Update Status...</option>
-                  <option value="pending">Pending</option><option value="received_at_warehouse">Received</option><option value="in_transit">In Transit</option><option value="customs">Customs</option><option value="out_for_delivery">Out for Delivery</option><option value="delivered">Delivered</option>
+                  <option value="">Update Status…</option>
+                  <option value="pending">Pending</option>
+                  <option value="received_at_warehouse">Received</option>
+                  <option value="consolidating">Consolidating</option>
+                  <option value="in_transit">In Transit</option>
+                  <option value="customs">Customs</option>
+                  <option value="out_for_delivery">Out for Delivery</option>
+                  <option value="delivered">Delivered</option>
+                  <option value="cancelled">Cancelled</option>
                 </select>
                 <button onClick={handleBulkUpdateOrders} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-colors shadow-lg">Apply Update</button>
               </GlassCard>
