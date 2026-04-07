@@ -79,6 +79,7 @@ export const AdminDashboard = () => {
   const [reminderModal, setReminderModal] = useState(null)
   const [reminderAmount, setReminderAmount] = useState('')
   const [reminderNotes, setReminderNotes] = useState('')
+  const [testEmail, setTestEmail] = useState(currentUser?.email || '')
   
   // User Panel States
   const [selectedUser, setSelectedUser] = useState(null)
@@ -130,7 +131,7 @@ export const AdminDashboard = () => {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  // --- Handlers from uploaded file ---
+  // --- Handlers ---
   const fetchErrorLogs = async (page = 1, filters = errorLogFilter) => {
     try {
       setLoadingErrorLogs(true)
@@ -296,6 +297,27 @@ export const AdminDashboard = () => {
       const [userRes, emailRes] = await Promise.all([adminApi.getUser(u.id), adminApi.getUserEmails(u.id)])
       setSelectedUserData(userRes.data); setEmailLogs(emailRes.data?.email_logs || [])
     } catch (err) { toast.error('Failed to load details') } finally { setLoadingUser(false) }
+  }
+
+  const handleToggleUserActive = async (u) => {
+    const action = u.is_active ? 'deactivate' : 'reactivate'
+    if (!window.confirm(`${action === 'deactivate' ? 'Deactivate' : 'Reactivate'} user ${u.name}?`)) return
+    try {
+      await adminApi.updateUser(u.id, { is_active: !u.is_active })
+      toast.success(`User ${action}d`)
+      setSelectedUser(prev => ({...prev, is_active: !u.is_active}))
+      fetchData()
+    } catch (err) { toast.error(`Failed to ${action} user`) }
+  }
+
+  const handleDeleteUser = async (u) => {
+    if (!window.confirm(`Permanently delete user ${u.name}? This will remove ALL their orders and data. This cannot be undone.`)) return
+    try {
+      await adminApi.deleteUser(u.id)
+      toast.success('User deleted successfully')
+      setSelectedUser(null)
+      fetchData()
+    } catch (err) { toast.error('Failed to delete user') }
   }
 
   const handleApprovePayment = async (paymentId) => {
@@ -661,10 +683,13 @@ export const AdminDashboard = () => {
             <div className={glassCard}>
                <h3 className="text-2xl font-black text-[#1e3a5f] mb-6 flex items-center gap-3"><Mail/> SMTP Diagnostics</h3>
                <p className="text-sm text-gray-500 font-medium mb-6">Test the Gmail OAuth2 integration to ensure automated receipts and reset links are dispatched correctly.</p>
-               <button onClick={async () => {
-                 try { toast.loading('Dispatching test...', {id:'em'}); await adminApi.testEmail(currentUser?.email); toast.success('Test email delivered', {id:'em'}) }
-                 catch (err) { toast.error(err.response?.data?.message || 'Delivery failed', {id:'em'}) }
-               }} className={btnOutline + " w-full !py-4"}>Send Test Email</button>
+               <div className="space-y-4">
+                 <input type="email" placeholder="Recipient Email" value={testEmail} onChange={e => setTestEmail(e.target.value)} className={inputClass} />
+                 <button onClick={async () => {
+                   try { toast.loading('Dispatching test...', {id:'em'}); await adminApi.testEmail(testEmail || currentUser?.email); toast.success('Test email delivered', {id:'em'}) }
+                   catch (err) { toast.error(err.response?.data?.message || 'Delivery failed', {id:'em'}) }
+                 }} className={btnOutline + " w-full !py-4"}>Send Test Email</button>
+               </div>
             </div>
           </div>
         )}
@@ -729,6 +754,18 @@ export const AdminDashboard = () => {
                    <select className={inputClass} value={createOrderForm.market} onChange={e=>setCreateOrderForm(p=>({...p,market:e.target.value}))}><option value="UK">UK</option><option value="USA">USA</option><option value="China">China</option></select>
                  </div>
                  <textarea placeholder="Item Description" className={inputClass + " resize-none"} rows={2} value={createOrderForm.description} onChange={e=>setCreateOrderForm(p=>({...p,description:e.target.value}))} required />
+                 
+                 {/* New Electronics Select Field */}
+                 <div>
+                   <label className="text-[10px] font-black uppercase text-gray-400 ml-2 mb-1 block">Electronics Handling</label>
+                   <select className={inputClass} value={createOrderForm.electronics_item} onChange={e=>setCreateOrderForm(p=>({...p,electronics_item:e.target.value}))}>
+                     <option value="">No electronics (Standard)</option>
+                     <option value="phone">Phone (+£75 handling)</option>
+                     <option value="laptop">Laptop / Accessories (+£65 handling)</option>
+                     <option value="tv_monitor">TV / Screen / Monitor (+£65 handling)</option>
+                   </select>
+                 </div>
+                 
                  <input type="number" step="0.1" placeholder="Weight (kg)" className={inputClass} value={createOrderForm.weight_kg} onChange={e=>setCreateOrderForm(p=>({...p,weight_kg:e.target.value}))} required />
                  <button type="submit" disabled={creatingOrder} className={btnPrimary + " w-full !py-5 text-lg"}>Finalize Dispatch</button>
                </form>
@@ -750,9 +787,21 @@ export const AdminDashboard = () => {
               </div>
               
               <h4 className="text-xl font-black mb-4 uppercase tracking-widest text-gray-400 text-xs">Admin Actions</h4>
-              <div className="flex gap-4 mb-8">
+              <div className="flex flex-wrap gap-4 mb-8">
                 <button onClick={() => handleResetUserPassword(selectedUser.id, selectedUser.name, selectedUser.email)} className={btnOutline}><Key size={16}/> Push Reset Link</button>
                 <button onClick={() => setShowUserOrderForm(!showUserOrderForm)} className={btnPrimary}><Package size={16}/> Drop Order</button>
+                
+                {/* User Active Toggle and Delete Buttons */}
+                {selectedUser.id !== currentUser?.id && (
+                  <>
+                    <button onClick={() => handleToggleUserActive(selectedUser)} className={btnOutline + (selectedUser.is_active ? " !border-amber-500 !text-amber-600 hover:!bg-amber-50" : " !border-green-500 !text-green-600 hover:!bg-green-50")}>
+                      <RefreshCw size={16}/> {selectedUser.is_active ? 'Deactivate' : 'Reactivate'}
+                    </button>
+                    <button onClick={() => handleDeleteUser(selectedUser)} className={btnOutline + " !border-red-500 !text-red-600 hover:!bg-red-50"}>
+                      <Trash2 size={16}/> Delete Account
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* Order History */}
