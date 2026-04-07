@@ -25,13 +25,16 @@ export const Navbar = () => {
   ].filter(Boolean)
 
   return (
-    <nav className="bg-[#1e3a5f] text-white shadow-lg sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 py-4">
+    <nav className="sticky top-0 z-50 bg-[#0f172a]/80 backdrop-blur-3xl border-b border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.15)] font-sans transition-all duration-500">
+      {/* Subtle interior glow for dark glass effect */}
+      <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+      
+      <div className="max-w-7xl mx-auto px-4 py-4 relative z-10">
         <div className="flex justify-between items-center">
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 font-bold text-2xl">
-            <span className="text-white">Thapsus</span>
-            <span className="text-orange-500">Cargo</span>
+          {/* Logo - Refined Typography */}
+          <Link to="/" className="group flex items-center gap-1 font-black text-2xl md:text-3xl tracking-tighter leading-none transition-transform duration-300 hover:scale-105">
+            <span className="text-white drop-shadow-md">Thapsus</span>
+            <span className="text-orange-500 drop-shadow-[0_0_15px_rgba(249,115,22,0.4)]">Cargo</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -40,33 +43,34 @@ export const Navbar = () => {
               <Link
                 key={link.href}
                 to={link.href}
-                className="hover:text-orange-500 transition-colors font-medium"
+                className="relative group text-xs font-bold uppercase tracking-widest text-slate-300 hover:text-white transition-colors py-2"
               >
                 {link.label}
+                <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-gradient-to-r from-orange-400 to-orange-600 transition-all duration-300 group-hover:w-full rounded-full shadow-[0_0_10px_rgba(249,115,22,0.5)]" />
               </Link>
             ))}
           </div>
 
           {/* Right Side */}
-          <div className="hidden lg:flex items-center gap-6">
-            {/* Language Switcher */}
-            <div className="flex gap-2 bg-[#152d4a] px-3 py-1 rounded-lg">
+          <div className="hidden lg:flex items-center gap-5">
+            {/* Language Switcher - Dark Glass Pill */}
+            <div className="flex gap-1 bg-white/5 backdrop-blur-md border border-white/10 p-1 rounded-xl shadow-inner">
               <button
                 onClick={() => changeLanguage('en')}
-                className={`px-2 py-1 rounded ${
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
                   language === 'en'
-                    ? 'bg-orange-500 text-white'
-                    : 'text-gray-300 hover:text-white'
+                    ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
                 }`}
               >
                 EN
               </button>
               <button
                 onClick={() => changeLanguage('sw')}
-                className={`px-2 py-1 rounded ${
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
                   language === 'sw'
-                    ? 'bg-orange-500 text-white'
-                    : 'text-gray-300 hover:text-white'
+                    ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
                 }`}
               >
                 SW
@@ -77,55 +81,59 @@ export const Navbar = () => {
               <div className="relative">
                 <button
                   onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                  className="flex items-center gap-2 hover:text-orange-500 transition-colors"
+                  className="group flex items-center gap-3 bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md px-2 py-1.5 pr-4 rounded-2xl transition-all duration-300"
                 >
-                  <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-sm font-bold">
+                  <div className="w-9 h-9 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center text-sm font-black text-white shadow-[0_0_15px_rgba(249,115,22,0.4)] group-hover:scale-105 transition-transform">
                     {user?.name?.charAt(0).toUpperCase()}
                   </div>
-                  <span className="hidden sm:inline">{user?.name}</span>
+                  <span className="hidden sm:block text-sm font-bold text-white tracking-tight">{user?.name}</span>
                 </button>
 
-                {/* Dropdown Menu */}
+                {/* Dropdown Menu - Crystal Borders */}
                 {userDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white text-[#1e3a5f] rounded-lg shadow-xl overflow-hidden">
+                  <div className="absolute right-0 mt-4 w-56 bg-white/80 backdrop-blur-3xl border border-white/60 rounded-[20px] shadow-[0_8px_30px_rgb(0,0,0,0.12)] p-2 z-50 animate-fade-in origin-top-right glass-sheen">
                     <Link
                       to="/dashboard"
-                      className="block px-4 py-2 hover:bg-gray-100 transition-colors"
+                      className="block px-4 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-white/60 hover:text-[#1e3a5f] transition-all"
                       onClick={() => setUserDropdownOpen(false)}
                     >
                       {t('nav.dashboard')}
                     </Link>
                     <Link
                       to="/wallet"
-                      className="block px-4 py-2 hover:bg-gray-100 transition-colors"
+                      className="block px-4 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-white/60 hover:text-[#1e3a5f] transition-all"
                       onClick={() => setUserDropdownOpen(false)}
                     >
                       {t('nav.wallet')}
                     </Link>
                     <Link
                       to="/referral"
-                      className="block px-4 py-2 hover:bg-gray-100 transition-colors"
+                      className="block px-4 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-white/60 hover:text-[#1e3a5f] transition-all"
                       onClick={() => setUserDropdownOpen(false)}
                     >
                       {t('nav.referral')}
                     </Link>
                     {isAdmin && (
-                      <Link
-                        to="/admin"
-                        className="block px-4 py-2 hover:bg-gray-100 transition-colors border-t border-gray-200 flex items-center gap-2"
-                        onClick={() => setUserDropdownOpen(false)}
-                      >
-                        <BarChart3 size={16} />
-                        {t('nav.admin')}
-                      </Link>
+                      <div className="my-1 border-t border-white/40">
+                        <Link
+                          to="/admin"
+                          className="mt-1 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-white/60 hover:text-[#1e3a5f] transition-all"
+                          onClick={() => setUserDropdownOpen(false)}
+                        >
+                          <BarChart3 size={16} className="text-orange-500" />
+                          {t('nav.admin')}
+                        </Link>
+                      </div>
                     )}
-                    <button
-                      onClick={handleLogout}
-                      className="w-full text-left px-4 py-2 hover:bg-red-100 transition-colors border-t border-gray-200 flex items-center gap-2 text-red-600"
-                    >
-                      <LogOut size={16} />
-                      {t('nav.logout')}
-                    </button>
+                    <div className="my-1 border-t border-white/40">
+                      <button
+                        onClick={handleLogout}
+                        className="mt-1 w-full text-left px-4 py-2.5 rounded-xl text-sm font-bold text-red-600 hover:bg-red-50/80 transition-all flex items-center gap-2"
+                      >
+                        <LogOut size={16} />
+                        {t('nav.logout')}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -133,15 +141,16 @@ export const Navbar = () => {
               <div className="flex gap-3">
                 <Link
                   to="/login"
-                  className="px-4 py-2 hover:text-orange-500 transition-colors"
+                  className="px-5 py-2.5 bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 rounded-xl text-sm font-bold text-white transition-all hover:shadow-lg active:scale-95"
                 >
                   {t('nav.login')}
                 </Link>
                 <Link
                   to="/register"
-                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg font-bold transition-colors"
+                  className="group relative overflow-hidden px-5 py-2.5 bg-orange-500 hover:bg-orange-400 rounded-xl text-sm font-black tracking-tight text-slate-900 transition-all shadow-[0_0_20px_rgba(249,115,22,0.3)] hover:shadow-[0_0_25px_rgba(249,115,22,0.5)] hover:-translate-y-0.5 active:scale-95 glass-sheen"
                 >
-                  {t('nav.register')}
+                  <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
+                  <span className="relative z-10">{t('nav.register')}</span>
                 </Link>
               </div>
             )}
@@ -150,106 +159,113 @@ export const Navbar = () => {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 hover:bg-[#152d4a] rounded-lg"
+            className="lg:hidden p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-slate-300 hover:text-white transition-all backdrop-blur-md active:scale-95"
           >
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
 
-        {/* Mobile Menu */}
+        {/* Mobile Menu - Dark Glass Bento */}
         {mobileMenuOpen && (
-          <div className="lg:hidden mt-4 space-y-2 border-t border-[#152d4a] pt-4">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                to={link.href}
-                className="block px-4 py-2 hover:bg-[#152d4a] rounded transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                {link.label}
-              </Link>
-            ))}
-
-            {/* Mobile Language Switcher */}
-            <div className="flex gap-2 bg-[#152d4a] px-3 py-2 rounded mx-4">
-              <button
-                onClick={() => {
-                  changeLanguage('en')
-                  setMobileMenuOpen(false)
-                }}
-                className={`flex-1 px-2 py-1 rounded text-sm ${
-                  language === 'en'
-                    ? 'bg-orange-500 text-white'
-                    : 'text-gray-300 hover:text-white'
-                }`}
-              >
-                EN
-              </button>
-              <button
-                onClick={() => {
-                  changeLanguage('sw')
-                  setMobileMenuOpen(false)
-                }}
-                className={`flex-1 px-2 py-1 rounded text-sm ${
-                  language === 'sw'
-                    ? 'bg-orange-500 text-white'
-                    : 'text-gray-300 hover:text-white'
-                }`}
-              >
-                SW
-              </button>
-            </div>
-
-            {isAuthenticated ? (
-              <>
-                <Link
-                  to="/dashboard"
-                  className="block px-4 py-2 hover:bg-[#152d4a] rounded transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {t('nav.dashboard')}
-                </Link>
-                <Link
-                  to="/referral"
-                  className="block px-4 py-2 hover:bg-[#152d4a] rounded transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {t('nav.referral')}
-                </Link>
-                {isAdmin && (
+          <div className="lg:hidden absolute top-full left-0 w-full bg-[#0f172a]/95 backdrop-blur-3xl border-t border-white/10 shadow-2xl animate-fade-in z-50">
+            <div className="p-6 flex flex-col gap-4">
+              <div className="space-y-2">
+                {navLinks.map((link) => (
                   <Link
-                    to="/admin"
-                    className="block px-4 py-2 hover:bg-[#152d4a] rounded transition-colors"
+                    key={link.href}
+                    to={link.href}
+                    className="block px-4 py-3 bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 rounded-xl text-sm font-bold uppercase tracking-widest text-white transition-all"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    {t('nav.admin')}
+                    {link.label}
                   </Link>
-                )}
-                <button
-                  onClick={handleLogout}
-                  className="w-full text-left px-4 py-2 hover:bg-red-900 rounded transition-colors text-red-400"
-                >
-                  {t('nav.logout')}
-                </button>
-              </>
-            ) : (
-              <div className="flex gap-2 px-4">
-                <Link
-                  to="/login"
-                  className="flex-1 px-4 py-2 border border-orange-500 text-orange-500 rounded hover:bg-orange-500 hover:text-white transition-colors text-center"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {t('nav.login')}
-                </Link>
-                <Link
-                  to="/register"
-                  className="flex-1 px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors text-center font-bold"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {t('nav.register')}
-                </Link>
+                ))}
               </div>
-            )}
+
+              {/* Mobile Language Switcher */}
+              <div className="flex gap-2 bg-white/5 border border-white/10 p-1.5 rounded-xl">
+                <button
+                  onClick={() => {
+                    changeLanguage('en')
+                    setMobileMenuOpen(false)
+                  }}
+                  className={`flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+                    language === 'en'
+                      ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  EN
+                </button>
+                <button
+                  onClick={() => {
+                    changeLanguage('sw')
+                    setMobileMenuOpen(false)
+                  }}
+                  className={`flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+                    language === 'sw'
+                      ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  SW
+                </button>
+              </div>
+
+              {isAuthenticated ? (
+                <div className="space-y-2 pt-4 border-t border-white/10">
+                  <Link
+                    to="/dashboard"
+                    className="block px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold uppercase tracking-widest text-slate-300 hover:text-white transition-all"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {t('nav.dashboard')}
+                  </Link>
+                  <Link
+                    to="/referral"
+                    className="block px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold uppercase tracking-widest text-slate-300 hover:text-white transition-all"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {t('nav.referral')}
+                  </Link>
+                  {isAdmin && (
+                    <Link
+                      to="/admin"
+                      className="block px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold uppercase tracking-widest text-orange-400 hover:text-orange-300 transition-all flex items-center gap-2"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <BarChart3 size={16} />
+                      {t('nav.admin')}
+                    </Link>
+                  )}
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-4 py-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-sm font-bold uppercase tracking-widest text-red-400 transition-all flex items-center gap-2 mt-2"
+                  >
+                    <LogOut size={16} />
+                    {t('nav.logout')}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-white/10">
+                  <Link
+                    to="/login"
+                    className="flex-1 py-3.5 bg-white/5 backdrop-blur-md border border-white/20 rounded-xl text-sm font-bold text-white text-center hover:bg-white/10 transition-all"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {t('nav.login')}
+                  </Link>
+                  <Link
+                    to="/register"
+                    className="group relative overflow-hidden flex-1 py-3.5 bg-orange-500 rounded-xl text-sm font-black tracking-tight text-slate-900 text-center shadow-[0_0_15px_rgba(249,115,22,0.3)] glass-sheen"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                     <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
+                    <span className="relative z-10">{t('nav.register')}</span>
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
