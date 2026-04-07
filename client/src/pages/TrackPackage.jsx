@@ -4,11 +4,9 @@ import {
   ArrowRight, Box, MapPin, Calendar, Info, Zap, Sparkles
 } from 'lucide-react'
 
-/**
- * MOCK DEPENDENCIES
- * These replace the relative imports causing build errors
- * in the standalone preview environment.
- */
+import { useLanguage } from '../context/LanguageContext'
+import { ordersApi } from '../api'
+import toast from 'react-hot-toast'
 const useLanguage = () => ({
   t: (key) => {
     const translations = {
