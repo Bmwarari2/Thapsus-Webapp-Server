@@ -14,37 +14,37 @@ const CostBreakdown = ({ order }) => {
   const total = (order.actual_cost ?? order.estimated_cost ?? 0) + customsDuty
   
   return (
-    <div className="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs space-y-1">
+    <div className="mt-3 bg-white/50 backdrop-blur-xl border border-white/60 rounded-xl p-4 text-xs space-y-2 shadow-[0_4px_15px_rgb(0,0,0,0.02)] relative overflow-hidden">
       {shippingCost > 0 && (
-        <div className="flex justify-between text-gray-600">
+        <div className="flex justify-between font-medium text-slate-600">
           <span>Shipping</span>
-          <span>KES {shippingCost.toLocaleString()}</span>
+          <span className="text-slate-800">KES {shippingCost.toLocaleString()}</span>
         </div>
       )}
       {handlingFee > 0 && (
-        <div className="flex justify-between text-gray-600">
+        <div className="flex justify-between font-medium text-slate-600">
           <span>Handling Fee</span>
-          <span>KES {handlingFee.toLocaleString()}</span>
+          <span className="text-slate-800">KES {handlingFee.toLocaleString()}</span>
         </div>
       )}
       {insuranceFee > 0 && (
-        <div className="flex justify-between text-gray-600">
+        <div className="flex justify-between font-medium text-slate-600">
           <span>Insurance</span>
-          <span>KES {insuranceFee.toLocaleString()}</span>
+          <span className="text-slate-800">KES {insuranceFee.toLocaleString()}</span>
         </div>
       )}
       {customsDuty > 0 && (
-        <div className="flex justify-between text-gray-600">
+        <div className="flex justify-between font-medium text-slate-600">
           <span>Customs Duty</span>
-          <span>KES {customsDuty.toLocaleString()}</span>
+          <span className="text-slate-800">KES {customsDuty.toLocaleString()}</span>
         </div>
       )}
-      <div className="flex justify-between font-bold text-[#1e3a5f] pt-1 border-t border-gray-200">
+      <div className="flex justify-between font-black text-[#1e3a5f] tracking-tight pt-2 border-t border-white/40 mt-1">
         <span>Total</span>
-        <span>KES {total.toLocaleString()}</span>
+        <span className="text-orange-600">KES {total.toLocaleString()}</span>
       </div>
       {!order.actual_cost && (
-        <p className="text-orange-500 text-[10px]">* Estimated — final cost confirmed after weighing</p>
+        <p className="text-orange-500 font-semibold text-[10px] mt-1 tracking-tight">* Estimated — final cost confirmed after weighing</p>
       )}
     </div>
   )
@@ -98,36 +98,42 @@ export const Orders = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen bg-slate-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen relative bg-slate-50 overflow-hidden py-8 px-4 font-sans">
+      {/* Liquid Backgrounds */}
+      <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-blue-300/30 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-orange-300/20 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
+      <div className="absolute top-[40%] left-[50%] -translate-x-1/2 w-[40vw] h-[40vw] max-w-[400px] max-h-[400px] bg-indigo-200/20 rounded-full blur-[120px] animate-morph mix-blend-multiply pointer-events-none" />
+
+      <div className="max-w-7xl mx-auto relative z-10">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-[#1e3a5f] mb-2">
+        <div className="mb-10">
+          <h1 className="text-4xl md:text-5xl font-black text-[#1e3a5f] mb-3 leading-none tracking-tighter">
             {t('orders.title')}
           </h1>
-          <p className="text-gray-600">Track and view all your shipments</p>
+          <p className="text-slate-600 font-medium text-lg">Track and view all your shipments</p>
           <button
             onClick={() => navigate('/orders/new')}
-            className="mt-4 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+            className="group relative overflow-hidden mt-6 bg-[#1e3a5f] text-white px-6 py-3.5 rounded-2xl font-black tracking-tight transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 flex items-center gap-2 glass-sheen w-fit"
           >
-            <Package size={18} />
-            New Order
+            <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
+            <Package size={20} className="drop-shadow-sm" />
+            <span className="relative z-10">New Order</span>
           </button>
         </div>
 
-        {/* Filters */}
-        <div className="card mb-8 bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Filters - Crystal Borders */}
+        <div className="bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl p-6 mb-8 relative overflow-hidden glass-sheen">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
             {/* Status Filter */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
                 {t('orders.filterByStatus')}
               </label>
               <select
@@ -136,7 +142,7 @@ export const Orders = () => {
                   setFilters({ ...filters, status: e.target.value })
                   setCurrentPage(1)
                 }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
+                className="w-full px-4 py-3 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-slate-800 font-bold transition-all hover:bg-white/60 shadow-sm appearance-none cursor-pointer"
               >
                 <option value="">All Statuses</option>
                 <option value="pending">Pending</option>
@@ -150,7 +156,7 @@ export const Orders = () => {
 
             {/* Market Filter */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
                 {t('orders.filterByMarket')}
               </label>
               <select
@@ -159,7 +165,7 @@ export const Orders = () => {
                   setFilters({ ...filters, market: e.target.value })
                   setCurrentPage(1)
                 }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
+                className="w-full px-4 py-3 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-slate-800 font-bold transition-all hover:bg-white/60 shadow-sm appearance-none cursor-pointer"
               >
                 <option value="">All Markets</option>
                 <option value="UK">United Kingdom</option>
@@ -175,7 +181,7 @@ export const Orders = () => {
                   setFilters({ status: '', market: '' })
                   setCurrentPage(1)
                 }}
-                className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                className="w-full px-4 py-3 bg-white/40 backdrop-blur-md border border-white/60 text-slate-700 rounded-xl hover:bg-white/60 transition-all font-black tracking-tight shadow-sm active:scale-[0.98]"
               >
                 {t('common.cancel')}
               </button>
@@ -183,66 +189,66 @@ export const Orders = () => {
           </div>
         </div>
 
-        {/* Orders Table */}
+        {/* Orders Table - Crystal Borders */}
         {orders.length > 0 ? (
-          <div className="card overflow-hidden bg-white rounded-lg shadow-sm border border-gray-100">
-            <div className="overflow-x-auto">
+          <div className="bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl overflow-hidden relative glass-sheen">
+            <div className="overflow-x-auto relative z-10">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-white/50 border-b border-white/40 backdrop-blur-md">
                   <tr>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                    <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-widest">
                       {t('orders.orderNumber')}
                     </th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                    <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-widest">
                       {t('orders.market')}
                     </th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                    <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-widest">
                       {t('orders.status')}
                     </th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                    <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-widest">
                       {t('orders.date')}
                     </th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                    <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-widest">
                       {t('orders.amount')}
                     </th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                    <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-widest">
                       {t('orders.actions')}
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-white/30">
                   {paginatedOrders.map((order) => (
-                    <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 font-mono text-sm text-gray-900">
+                    <tr key={order.id} className="hover:bg-white/50 transition-colors duration-200">
+                      <td className="px-6 py-5 font-mono text-sm font-bold text-slate-800">
                         {order.tracking_number || `#${order.id.slice(0, 8).toUpperCase()}`}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
+                      <td className="px-6 py-5 text-sm font-semibold text-slate-600">
                         {order.market === 'UK' ? 'United Kingdom' : order.market === 'USA' ? 'United States' : order.market}
                       </td>
-                      <td className="px-6 py-4">
-                        <span className={`status-badge ${getStatusColor(order.status)}`}>
+                      <td className="px-6 py-5">
+                        <span className={`status-badge shadow-sm border border-white/50 backdrop-blur-sm ${getStatusColor(order.status)}`}>
                           {t(`orders.${order.status.replace('-', '')}`)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
+                      <td className="px-6 py-5 text-sm font-semibold text-slate-600">
                         {order.created_at ? new Date(order.created_at).toLocaleDateString() : '—'}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-5">
                         <div>
                           <button
                             onClick={() => setExpandedCost(expandedCost === order.id ? null : order.id)}
-                            className="text-sm font-semibold text-[#1e3a5f] hover:text-orange-500 flex items-center gap-1"
+                            className="text-sm font-black text-[#1e3a5f] hover:text-orange-500 flex items-center gap-1 transition-colors"
                           >
                             KES {((order.actual_cost ?? order.estimated_cost ?? 0) + (order.customs_duty ?? 0)).toLocaleString()}
-                            <ChevronDown size={14} className={`transition-transform ${expandedCost === order.id ? 'rotate-180' : ''}`} />
+                            <ChevronDown size={16} className={`transition-transform duration-300 ${expandedCost === order.id ? 'rotate-180' : ''}`} />
                           </button>
                           {expandedCost === order.id && <CostBreakdown order={order} />}
                         </div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-5">
                         <Link
                           to={`/orders/${order.id}`}
-                          className="text-orange-500 hover:text-orange-600 font-medium flex items-center gap-1"
+                          className="text-orange-500 hover:text-orange-600 font-black tracking-tight flex items-center gap-1.5 transition-colors bg-orange-50 hover:bg-orange-100/50 px-3 py-1.5 rounded-lg w-fit border border-orange-200/50"
                         >
                           <Eye size={16} />
                           View
@@ -256,22 +262,22 @@ export const Orders = () => {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200">
-                <p className="text-sm text-gray-600">
+              <div className="flex items-center justify-between px-6 py-4 border-t border-white/40 bg-white/30 backdrop-blur-md relative z-10">
+                <p className="text-sm font-bold text-slate-600 tracking-tight">
                   Page {currentPage} of {totalPages}
                 </p>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl text-slate-700 font-black tracking-tight hover:bg-white/70 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
                   >
                     Previous
                   </button>
                   <button
                     onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                     disabled={currentPage === totalPages}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl text-slate-700 font-black tracking-tight hover:bg-white/70 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
                   >
                     Next
                   </button>
@@ -280,10 +286,18 @@ export const Orders = () => {
             )}
           </div>
         ) : (
-          <div className="card text-center py-12 bg-white rounded-lg shadow-sm border border-gray-100">
-            <Package className="mx-auto text-gray-400 mb-4" size={48} />
-            <p className="text-gray-600 mb-2">{t('orders.noOrders')}</p>
-            <p className="text-sm text-gray-400">Create your own orders or contact support for assistance.</p>
+          /* Empty State - Border Gradient (Step 4 style evolution) */
+          <div className="rounded-2xl p-[1px] bg-gradient-to-br from-blue-300/60 via-white/20 to-orange-300/60 shadow-lg mb-8 transform transition-transform hover:scale-[1.01] duration-500">
+            <div className="bg-white/60 backdrop-blur-3xl rounded-[15px] p-12 text-center relative overflow-hidden glass-sheen">
+              <div className="absolute top-0 right-0 w-48 h-48 bg-blue-400/10 rounded-full blur-[50px] pointer-events-none" />
+              <div className="absolute bottom-0 left-0 w-48 h-48 bg-orange-400/10 rounded-full blur-[50px] pointer-events-none" />
+              
+              <div className="w-20 h-20 bg-white/40 backdrop-blur-xl border border-white/60 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
+                <Package className="text-slate-400" size={40} />
+              </div>
+              <p className="text-2xl font-black text-[#1e3a5f] tracking-tighter mb-2">{t('orders.noOrders')}</p>
+              <p className="text-slate-600 font-medium max-w-md mx-auto">Create your own orders or contact support for assistance with your shipments.</p>
+            </div>
           </div>
         )}
       </div>
