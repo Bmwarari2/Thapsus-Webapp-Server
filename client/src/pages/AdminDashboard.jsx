@@ -3,109 +3,16 @@ import {
   Users, Package, DollarSign, BarChart3, MessageSquare, Activity,
   Lock, RefreshCw, Trash2, XCircle, Plus, CreditCard, Search,
   UserPlus, Bell, Mail, Eye, ArrowLeft, Key, Send, AlertTriangle,
-  ChevronLeft, ChevronRight, Filter, ChevronDown, Zap, Sparkles, Box, Globe
+  ChevronLeft, ChevronRight, Filter, ChevronDown, Zap, Sparkles, Box
 } from 'lucide-react'
+import { useLanguage } from '../context/LanguageContext'
+import { useAuth } from '../context/AuthContext'
+import { adminApi, authApi, supportApi } from '../api'
 import {
   LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
 import toast from 'react-hot-toast'
-
-/**
- * MOCK DEPENDENCIES
- * These replace the relative imports causing build errors
- * in the standalone preview environment.
- */
-const useLanguage = () => ({
-  t: (key) => {
-    const translations = {
-      'admin.title': 'Admin Dashboard',
-      'admin.overview': 'Overview',
-      'admin.users': 'Users',
-      'admin.orders': 'Orders',
-      'admin.payments': 'Payments',
-      'admin.revenue': 'Revenue',
-      'admin.tickets': 'Tickets',
-      'admin.exchange': 'Exchange',
-      'admin.shippingRates': 'Shipping',
-      'admin.settings': 'Settings',
-      'admin.errorLogs': 'Logs',
-      'admin.totalUsers': 'Total Network Users',
-      'admin.activeOrders': 'Active Shipments',
-      'admin.totalRevenue': 'Net Platform Revenue',
-      'admin.userManagement': 'Global User Directory',
-      'admin.ordersByMarket': 'Market Distribution',
-      'orders.pending': 'Pending',
-      'orders.in_transit': 'In Transit',
-      'orders.delivered': 'Delivered',
-      'orders.cancelled': 'Cancelled'
-    };
-    return translations[key] || key;
-  }
-});
-
-const useAuth = () => ({ 
-  user: { id: 'admin-1', email: 'admin@thapsus.uk', name: 'Super Admin', role: 'admin' } 
-});
-
-const adminApi = {
-  getDashboardStats: async () => ({
-    data: {
-      stats: {
-        users: { total: 1240, customers: 1235, admins: 5 },
-        orders: { total_orders: 450, pending: 45, in_transit: 120, delivered: 280, total_estimated_value: 1250000 },
-        revenue: { total_revenue: 850000, total_transactions: 120, deposits: 900000, payments: 850000 },
-        order_statuses: [
-          { status: 'pending', count: 45 },
-          { status: 'in_transit', count: 120 },
-          { status: 'delivered', count: 280 },
-          { status: 'cancelled', count: 5 }
-        ],
-        markets: [
-          { market: 'UK', count: 200, value: 450000 },
-          { market: 'USA', count: 150, value: 300000 },
-          { market: 'China', count: 100, value: 100000 }
-        ]
-      }
-    }
-  }),
-  listUsers: async () => ({
-    data: {
-      users: [
-        { id: '1', name: 'John Doe', email: 'john@example.com', phone: '+254712345678', warehouse_id: 'THP-101', role: 'customer', is_active: true, wallet_balance: 5000, created_at: new Date().toISOString() },
-        { id: '2', name: 'Jane Smith', email: 'jane@example.com', phone: '+254787654321', warehouse_id: 'THP-102', role: 'customer', is_active: true, wallet_balance: 12000, created_at: new Date().toISOString() },
-        { id: '3', name: 'Admin User', email: 'admin@thapsus.uk', phone: '+254700000000', warehouse_id: 'THP-ADM', role: 'admin', is_active: true, wallet_balance: 0, created_at: new Date().toISOString() }
-      ]
-    }
-  }),
-  listOrders: async () => ({
-    data: {
-      orders: [
-        { id: 'o1', tracking_number: 'THP-UK-991', name: 'John Doe', retailer: 'Amazon', status: 'in_transit', market: 'UK', estimated_cost: 4500, created_at: new Date().toISOString() },
-        { id: 'o2', tracking_number: 'THP-US-442', name: 'Jane Smith', retailer: 'Shein', status: 'pending', market: 'USA', estimated_cost: 2100, created_at: new Date().toISOString() }
-      ]
-    }
-  }),
-  getExchangeRates: async () => ({
-    data: {
-      rates: { USD_KES: 130.50, GBP_KES: 165.20, EUR_KES: 140.10, CNY_KES: 18.20 },
-      updated_at: new Date().toISOString()
-    }
-  }),
-  getPendingPayments: async () => ({ data: { transactions: [] } }),
-  listTickets: async () => ({ data: { tickets: [] } }),
-  getShippingRates: async () => ({ data: { rates: { UK: 8, USA: 10, China: 6 }, updated_at: new Date().toISOString() } }),
-  getErrorLogStats: async () => ({ data: { stats: { last_24h: 12, fatal_24h: 0 } } }),
-  getErrorLogs: async () => ({ data: { error_logs: [], pagination: { page: 1, total: 0, totalPages: 1 } } })
-};
-
-const authApi = {
-  changePassword: async () => ({ data: { message: 'Success' } })
-};
-
-const supportApi = {
-  getTicket: async () => ({ data: { ticket: {}, messages: [] } })
-};
 
 /**
  * LIQUID GLASS COMPONENTS
@@ -1059,8 +966,4 @@ export const AdminDashboard = () => {
       )}
     </div>
   )
-}
-
-export default function App() {
-  return <AdminDashboard />;
 }
