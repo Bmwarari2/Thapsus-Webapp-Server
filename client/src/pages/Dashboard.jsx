@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { Package, Wallet, TrendingUp, Eye, Copy, CheckCheck } from 'lucide-react'
+import { Package, Wallet, TrendingUp, Eye, Copy, CheckCheck, MapPin, ChevronRight } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
 import { ordersApi, walletApi } from '../api'
@@ -18,14 +18,9 @@ export const Dashboard = () => {
     walletBalance: 0,
   })
 
-  // Fetch once on mount — the auth token is already in storage and is
-  // attached to every request by the axios interceptor in api/client.js.
-  // Depending on [user] caused double (and triple) fetches because
-  // AuthContext sets user twice: optimistic restore → server verification.
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Promise.allSettled so a single failure doesn't block the whole dashboard
         const [ordersResult, walletResult] = await Promise.allSettled([
           ordersApi.list(),
           walletApi.getBalance(),
@@ -39,11 +34,9 @@ export const Dashboard = () => {
         }
 
         if (walletResult.status === 'fulfilled') {
-          // Backend returns { wallet: { balance } } at GET /wallet
           walletBalance = walletResult.value.data?.wallet?.balance ?? 0
         }
 
-        // Filter active orders client-side
         const activeOrders = fetchedOrders.filter((o) =>
           ['pending', 'received_at_warehouse', 'consolidating', 'in_transit', 'customs', 'out_for_delivery'].includes(o.status)
         )
@@ -61,45 +54,26 @@ export const Dashboard = () => {
     }
 
     fetchData()
-  }, []) // ← mount only; referralEarnings is derived from live `user` context below
+  }, [])
 
-  // Live updates: keep active orders and wallet balance in sync with SSE events
   useOrderUpdates(({ action, order }) => {
     if (!order) return
-
-    const isActiveStatus = ['pending', 'received_at_warehouse', 'consolidating', 'in_transit', 'customs', 'out_for_delivery'].includes(
-      order.status,
-    )
-
+    const isActiveStatus = ['pending', 'received_at_warehouse', 'consolidating', 'in_transit', 'customs', 'out_for_delivery'].includes(order.status)
     setOrders((prev) => {
-      // Remove any previous instance of this order
       let next = prev.filter((o) => o.id !== order.id)
-
-      // Only keep it in the dashboard list if it is still an "active" order
       if (isActiveStatus) {
-        next = [order, ...next].sort(
-          (a, b) => new Date(b.created_at || b.createdAt) - new Date(a.created_at || a.createdAt),
-        )
+        next = [order, ...next].sort((a, b) => new Date(b.created_at || b.createdAt) - new Date(a.created_at || a.createdAt))
       }
-
-      setStats((prevStats) => ({
-        ...prevStats,
-        activeOrders: next.length,
-      }))
-
+      setStats((prevStats) => ({ ...prevStats, activeOrders: next.length }))
       return next
     })
   })
 
   useWalletUpdates((payload) => {
     if (!payload || typeof payload.balance !== 'number') return
-    setStats((prevStats) => ({
-      ...prevStats,
-      walletBalance: payload.balance,
-    }))
+    setStats((prevStats) => ({ ...prevStats, walletBalance: payload.balance }))
   })
 
-  // Build the full shipping address lines
   const addressLines = [
     user?.name || '',
     user?.warehouse_id || user?.warehouseId || '',
@@ -119,175 +93,203 @@ export const Dashboard = () => {
 
   const getStatusColor = (status) => {
     const colors = {
-      pending: 'status-pending',
-      received_at_warehouse: 'status-processing',
-      consolidating: 'status-processing',
-      in_transit: 'status-in-transit',
-      customs: 'status-in-transit',
-      out_for_delivery: 'status-in-transit',
-      delivered: 'status-delivered',
-      cancelled: 'status-cancelled',
+      pending: 'bg-amber-100 text-amber-700 border-amber-200',
+      received_at_warehouse: 'bg-blue-100 text-blue-700 border-blue-200',
+      consolidating: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+      in_transit: 'bg-purple-100 text-purple-700 border-purple-200',
+      customs: 'bg-orange-100 text-orange-700 border-orange-200',
+      out_for_delivery: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+      delivered: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+      cancelled: 'bg-rose-100 text-rose-700 border-rose-200',
     }
-    return colors[status] || 'status-pending'
+    return colors[status] || 'bg-gray-100 text-gray-700 border-gray-200'
   }
 
   const formatStatus = (status) => {
     return status?.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'Pending'
   }
 
-  // Derived directly from AuthContext so it stays in sync without an extra fetch
   const referralEarnings = user?.referral_earnings || user?.referralEarnings || 0
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="relative w-16 h-16">
+          <div className="absolute top-0 left-0 w-full h-full border-4 border-gray-200 rounded-full"></div>
+          <div className="absolute top-0 left-0 w-full h-full border-4 border-orange-500 rounded-full animate-spin border-t-transparent"></div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="min-h-screen bg-[#f8fafc]">
+      <div className="max-w-7xl mx-auto px-4 py-10">
+        
         {/* Welcome Section */}
-        <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-[#1e3a5f] mb-2">
-            {t('dashboard.welcome')}, {user?.name}!
-          </h1>
-          <p className="text-gray-600">Here's your shipping overview for today</p>
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-extrabold text-[#1e3a5f] tracking-tight">
+              {t('dashboard.welcome')}, <span className="text-orange-500">{user?.name}</span>!
+            </h1>
+            <p className="text-slate-500 mt-2 font-medium">Logistics simplified. Here is your current cargo status.</p>
+          </div>
+          <div className="text-sm text-slate-400 font-mono bg-white px-3 py-1 rounded-full border border-slate-200 shadow-sm">
+            ID: {user?.warehouse_id || 'N/A'}
+          </div>
         </div>
 
         {/* Warehouse Address Card */}
-        <div className="card mb-8 bg-gradient-to-r from-[#1e3a5f] to-[#152d4a] text-white">
-          <h3 className="text-lg font-bold mb-4">{t('dashboard.warehouseAddress')}</h3>
-          <div className="bg-[#0f1e33] rounded-lg p-4 mb-4 font-mono text-sm leading-relaxed">
-            {addressLines.map((line, i) => (
-              <p key={i} className={i < 2 ? 'text-orange-400 font-semibold' : 'text-gray-200'}>
-                {line}
-              </p>
-            ))}
-          </div>
-          <button
-            onClick={handleCopyAddress}
-            className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 px-4 py-2 rounded-lg font-medium transition-colors"
-          >
-            {copied ? <CheckCheck size={16} /> : <Copy size={16} />}
-            {copied ? 'Copied!' : t('warehouse.copy')}
-          </button>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Active Orders */}
-          <div className="card hover:shadow-xl transition-shadow">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-gray-600 text-sm mb-1">{t('dashboard.activeOrders')}</p>
-                <h3 className="text-3xl font-bold text-[#1e3a5f]">{stats.activeOrders}</h3>
+        <div className="relative overflow-hidden rounded-2xl mb-10 bg-[#1e3a5f] shadow-2xl shadow-blue-900/20">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+          <div className="relative p-6 md:p-8 flex flex-col lg:flex-row lg:items-center gap-8">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-4 text-orange-400">
+                <MapPin size={20} />
+                <h3 className="text-lg font-bold uppercase tracking-wider">{t('dashboard.warehouseAddress')}</h3>
               </div>
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <Package className="text-blue-600" size={24} />
+              <div className="bg-[#0f1e33]/50 backdrop-blur-sm border border-white/5 rounded-xl p-5 font-mono text-sm leading-relaxed shadow-inner">
+                {addressLines.map((line, i) => (
+                  <p key={i} className={i < 2 ? 'text-orange-400 font-bold text-base mb-1' : 'text-slate-300'}>
+                    {line}
+                  </p>
+                ))}
               </div>
             </div>
-          </div>
-
-          {/* Wallet Balance — referral credit only */}
-          <div className="card hover:shadow-xl transition-shadow">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-gray-600 text-sm mb-1">{t('dashboard.walletBalance')}</p>
-                <h3 className="text-3xl font-bold text-[#1e3a5f]">
-                  KES {stats.walletBalance.toLocaleString()}
-                </h3>
-                <p className="text-xs text-gray-400 mt-1">Referral credit</p>
-              </div>
-              <div className="p-3 bg-green-100 rounded-lg">
-                <Wallet className="text-green-600" size={24} />
-              </div>
-            </div>
-          </div>
-
-          {/* Referral Earnings — derived from live AuthContext user */}
-          <div className="card hover:shadow-xl transition-shadow">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-gray-600 text-sm mb-1">{t('dashboard.referralEarnings')}</p>
-                <h3 className="text-3xl font-bold text-[#1e3a5f]">
-                  KES {referralEarnings.toLocaleString()}
-                </h3>
-              </div>
-              <div className="p-3 bg-orange-100 rounded-lg">
-                <TrendingUp className="text-orange-600" size={24} />
-              </div>
+            <div className="lg:w-1/3 flex flex-col gap-3">
+              <p className="text-slate-400 text-xs italic">Use this address as your delivery destination when shopping online in the UK.</p>
+              <button
+                onClick={handleCopyAddress}
+                className="w-full flex items-center justify-center gap-3 bg-orange-500 hover:bg-orange-600 active:scale-[0.98] text-white px-6 py-4 rounded-xl font-bold transition-all shadow-lg shadow-orange-500/30"
+              >
+                {copied ? <CheckCheck size={20} /> : <Copy size={20} />}
+                {copied ? 'Address Copied!' : t('warehouse.copy')}
+              </button>
             </div>
           </div>
         </div>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow group">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-slate-500 text-sm font-bold uppercase tracking-tight mb-1">{t('dashboard.activeOrders')}</p>
+                <h3 className="text-4xl font-black text-[#1e3a5f] group-hover:text-orange-500 transition-colors">{stats.activeOrders}</h3>
+              </div>
+              <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl group-hover:bg-[#1e3a5f] group-hover:text-white transition-all">
+                <Package size={28} />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow group">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-slate-500 text-sm font-bold uppercase tracking-tight mb-1">{t('dashboard.walletBalance')}</p>
+                <h3 className="text-3xl font-black text-[#1e3a5f]">
+                  <span className="text-base font-bold mr-1">KES</span>
+                  {stats.walletBalance.toLocaleString()}
+                </h3>
+                <p className="text-[10px] bg-emerald-50 text-emerald-600 font-bold px-2 py-0.5 rounded mt-2 inline-block">LIVE BALANCE</p>
+              </div>
+              <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                <Wallet size={28} />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow group">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-slate-500 text-sm font-bold uppercase tracking-tight mb-1">{t('dashboard.referralEarnings')}</p>
+                <h3 className="text-3xl font-black text-[#1e3a5f]">
+                  <span className="text-base font-bold mr-1">KES</span>
+                  {referralEarnings.toLocaleString()}
+                </h3>
+                <p className="text-xs text-slate-400 mt-2 font-medium">Earned from invites</p>
+              </div>
+              <div className="p-4 bg-orange-50 text-orange-600 rounded-2xl group-hover:bg-orange-500 group-hover:text-white transition-all">
+                <TrendingUp size={28} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-12">
           <Link
             to="/orders"
-            className="bg-[#1e3a5f] hover:bg-[#152d4a] text-white px-6 py-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
+            className="group bg-[#1e3a5f] text-white p-5 rounded-2xl font-bold flex items-center justify-between transition-all hover:bg-[#152d4a] hover:-translate-y-1 shadow-xl shadow-blue-900/10"
           >
-            <Package size={20} />
-            View My Orders
+            <div className="flex items-center gap-4">
+              <div className="bg-white/10 p-2 rounded-lg"><Package size={20} /></div>
+              <span>Track All Shipments</span>
+            </div>
+            <ChevronRight className="opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
           </Link>
           <Link
             to="/wallet"
-            className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
+            className="group bg-orange-500 text-white p-5 rounded-2xl font-bold flex items-center justify-between transition-all hover:bg-orange-600 hover:-translate-y-1 shadow-xl shadow-orange-500/20"
           >
-            <Wallet size={20} />
-            View Wallet & Referrals
+            <div className="flex items-center gap-4">
+              <div className="bg-white/10 p-2 rounded-lg"><Wallet size={20} /></div>
+              <span>Manage Wallet</span>
+            </div>
+            <ChevronRight className="opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
           </Link>
         </div>
 
-        {/* Recent Orders */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-[#1e3a5f]">{t('dashboard.recentOrders')}</h2>
-            <Link to="/orders" className="text-orange-500 hover:text-orange-600 font-medium">
-              View All
+        {/* Recent Orders Table */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+            <h2 className="text-xl font-bold text-[#1e3a5f]">{t('dashboard.recentOrders')}</h2>
+            <Link to="/orders" className="text-orange-500 hover:text-orange-600 font-bold text-sm flex items-center gap-1 transition-colors">
+              See All Orders <ChevronRight size={16} />
             </Link>
           </div>
 
           {orders.length > 0 ? (
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Tracking #</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">{t('orders.market')}</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">{t('orders.status')}</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">{t('orders.date')}</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">{t('orders.amount')}</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">{t('orders.actions')}</th>
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-white">
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Tracking / ID</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">{t('orders.market')}</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">{t('orders.status')}</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">{t('orders.date')}</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">{t('orders.amount')}</th>
+                    <th className="px-6 py-4"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-slate-50">
                   {orders.slice(0, 5).map((order) => (
-                    <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 font-mono text-sm text-gray-900">
+                    <tr key={order.id} className="hover:bg-slate-50/80 transition-colors group">
+                      <td className="px-6 py-4 font-mono text-xs font-bold text-[#1e3a5f]">
                         {order.tracking_number || `#${order.id.slice(0, 8)}`}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{order.market}</td>
                       <td className="px-6 py-4">
-                        <span className={`status-badge ${getStatusColor(order.status)}`}>
+                        <span className="text-sm font-semibold text-slate-600">{order.market}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-[11px] font-bold border ${getStatusColor(order.status)}`}>
                           {formatStatus(order.status)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {new Date(order.created_at || order.createdAt).toLocaleDateString()}
+                      <td className="px-6 py-4 text-sm text-slate-500">
+                        {new Date(order.created_at || order.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                       </td>
-                      <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                        KES {(order.estimated_cost || order.totalCost || 0).toLocaleString()}
+                      <td className="px-6 py-4 text-sm font-black text-[#1e3a5f] text-right">
+                        <span className="text-[10px] mr-1 text-slate-400 font-bold">KES</span>
+                        {(order.estimated_cost || order.totalCost || 0).toLocaleString()}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 text-right">
                         <Link
                           to={`/orders/${order.id}`}
-                          className="text-orange-500 hover:text-orange-600 font-medium flex items-center gap-1"
+                          className="inline-flex items-center gap-1.5 text-orange-500 hover:text-orange-600 font-bold text-sm bg-orange-50 px-3 py-1.5 rounded-lg transition-all"
                         >
-                          <Eye size={16} />
-                          View
+                          <Eye size={14} />
+                          Details
                         </Link>
                       </td>
                     </tr>
@@ -296,10 +298,14 @@ export const Dashboard = () => {
               </table>
             </div>
           ) : (
-            <div className="text-center py-8">
-              <Package className="mx-auto text-gray-400 mb-4" size={48} />
-              <p className="text-gray-600 mb-2">{t('orders.noOrders')}</p>
-              <p className="text-sm text-gray-400">Orders are created by the Thapsus Cargo team. Contact support if you need help.</p>
+            <div className="text-center py-20">
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-slate-50 text-slate-300 mb-4">
+                <Package size={40} />
+              </div>
+              <p className="text-slate-600 font-bold text-lg mb-1">{t('orders.noOrders')}</p>
+              <p className="text-sm text-slate-400 max-w-xs mx-auto">
+                No active shipments found. Use your warehouse address above to start shipping with Thapsus.
+              </p>
             </div>
           )}
         </div>
