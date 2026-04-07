@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Menu, X, LogOut, Settings, BarChart3 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -7,6 +7,7 @@ import { useLanguage } from '../context/LanguageContext'
 export const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
+  const [navBackground, setNavBackground] = useState('bg-[#0f172a]/80') // Default transparent background
   const { isAuthenticated, user, isAdmin, logout } = useAuth()
   const { language, changeLanguage, t } = useLanguage()
   const navigate = useNavigate()
@@ -15,6 +16,15 @@ export const Navbar = () => {
     logout()
     navigate('/')
   }
+
+  // Effect to handle transparency change when mobile menu toggles
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      setNavBackground('bg-[#0f172a]/100') // Solid background when open
+    } else {
+      setNavBackground('bg-[#0f172a]/80') // Return to transparent when closed
+    }
+  }, [mobileMenuOpen])
 
   const navLinks = [
     { label: t('nav.home'), href: '/' },
@@ -25,7 +35,7 @@ export const Navbar = () => {
   ].filter(Boolean)
 
   return (
-    <nav className="sticky top-0 z-50 bg-[#0f172a]/80 backdrop-blur-3xl border-b border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.15)] font-sans transition-all duration-500">
+    <nav className={`sticky top-0 z-50 ${navBackground} backdrop-blur-3xl border-b border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.15)] font-sans transition-all duration-500`}>
       {/* Subtle interior glow for dark glass effect */}
       <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
       
