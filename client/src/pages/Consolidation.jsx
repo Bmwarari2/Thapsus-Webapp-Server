@@ -67,7 +67,7 @@ export const Consolidation = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen bg-slate-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
       </div>
     )
@@ -80,48 +80,55 @@ export const Consolidation = () => {
   const estimatedSavings = selectedCost * 0.15 // 15% savings estimate
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen relative bg-slate-50 overflow-hidden py-12 px-4 font-sans">
+      {/* Liquid Backgrounds */}
+      <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-blue-300/30 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-orange-300/20 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
+      <div className="absolute top-[40%] left-[50%] -translate-x-1/2 w-[40vw] h-[40vw] max-w-[400px] max-h-[400px] bg-indigo-200/20 rounded-full blur-[120px] animate-morph mix-blend-multiply pointer-events-none" />
+
+      <div className="max-w-7xl mx-auto relative z-10">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-[#1e3a5f] mb-2">
+        <div className="mb-10">
+          <h1 className="text-4xl md:text-5xl font-black text-[#1e3a5f] mb-3 leading-none tracking-tighter">
             {t('consolidation.title')}
           </h1>
-          <p className="text-gray-600">{t('consolidation.description')}</p>
+          <p className="text-slate-600 text-lg font-medium">{t('consolidation.description')}</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Packages List */}
           <div className="lg:col-span-2">
             {packages.length > 0 ? (
-              <div className="card">
-                <h2 className="text-2xl font-bold text-[#1e3a5f] mb-6">
+              <div className="bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl p-6 relative overflow-hidden glass-sheen">
+                <h2 className="text-2xl font-black text-[#1e3a5f] tracking-tighter leading-none mb-6">
                   {t('consolidation.selectPackages')}
                 </h2>
 
-                <div className="space-y-3">
+                <div className="space-y-3 relative z-10">
                   {packages.map((pkg) => (
                     <div
                       key={pkg.id}
-                      className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      className="group flex items-center gap-4 p-4 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl hover:bg-white/70 transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer"
+                      onClick={() => handleSelectPackage(pkg.id)}
                     >
                       <input
                         type="checkbox"
                         checked={selectedPackages.includes(pkg.id)}
                         onChange={() => handleSelectPackage(pkg.id)}
-                        className="w-5 h-5 text-[#1e3a5f] rounded cursor-pointer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-5 h-5 accent-orange-500 rounded cursor-pointer transition-transform group-hover:scale-110"
                       />
                       <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900">
+                        <h3 className="font-bold text-slate-800 tracking-tight">
                           {pkg.id.slice(0, 8).toUpperCase()}
                         </h3>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm font-medium text-slate-500">
                           {pkg.market} • {pkg.weight} kg • Arrived{' '}
                           {new Date(pkg.arrivedAt).toLocaleDateString()}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold text-gray-900">
+                        <p className="font-black text-[#1e3a5f] tracking-tight">
                           KES {pkg.shippingCost?.toLocaleString() || 0}
                         </p>
                       </div>
@@ -130,101 +137,121 @@ export const Consolidation = () => {
                 </div>
               </div>
             ) : (
-              <div className="card text-center py-12">
-                <Package className="mx-auto text-gray-400 mb-4" size={48} />
-                <p className="text-gray-600">
-                  {t('consolidation.noPackages')}
-                </p>
+              /* Empty State - Border Gradient Bento */
+              <div className="rounded-2xl p-[1px] bg-gradient-to-br from-blue-300/60 via-white/20 to-orange-300/60 shadow-lg transform transition-transform hover:scale-[1.01] duration-500">
+                <div className="bg-white/60 backdrop-blur-3xl rounded-[15px] p-12 text-center relative overflow-hidden glass-sheen">
+                  <div className="absolute top-0 right-0 w-48 h-48 bg-blue-400/10 rounded-full blur-[50px] pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 w-48 h-48 bg-orange-400/10 rounded-full blur-[50px] pointer-events-none" />
+                  
+                  <div className="w-20 h-20 bg-white/40 backdrop-blur-xl border border-white/60 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
+                    <Package className="text-slate-400" size={40} />
+                  </div>
+                  <p className="text-2xl font-black text-[#1e3a5f] tracking-tighter mb-2">
+                    {t('consolidation.noPackages')}
+                  </p>
+                  <p className="text-slate-600 font-medium max-w-md mx-auto">
+                    You don't have any packages available for consolidation right now.
+                  </p>
+                </div>
               </div>
             )}
           </div>
 
           {/* Summary Sidebar */}
-          <div className="space-y-6">
-            {/* Savings Card */}
+          <div className="space-y-8">
+            {/* Savings Card - Dark Glass Bento with Green Orb */}
             {selectedPackages.length > 0 && (
-              <div className="card bg-gradient-to-br from-green-50 to-green-100 border border-green-200">
-                <div className="flex items-start gap-3 mb-4">
-                  <Zap className="text-green-600 flex-shrink-0 mt-0.5" size={24} />
-                  <h3 className="text-lg font-bold text-green-900">
-                    {t('consolidation.estimatedSavings')}
-                  </h3>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm text-green-700">Packages Selected</p>
-                    <p className="text-3xl font-bold text-green-900">
-                      {selectedPackages.length}
-                    </p>
+              <div className="group relative overflow-hidden bg-[#0f172a]/80 backdrop-blur-2xl border border-white/10 rounded-2xl p-6 text-white shadow-2xl transition-transform duration-500 hover:-rotate-1 hover:scale-[1.02] transform perspective-1000 glass-sheen">
+                <div className="absolute -top-12 -right-12 w-48 h-48 bg-green-500/30 rounded-full blur-[70px] pointer-events-none" />
+                
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-green-500/20 rounded-lg backdrop-blur-md border border-green-500/30 shadow-sm">
+                      <Zap className="text-green-400" size={20} />
+                    </div>
+                    <h3 className="text-2xl font-black tracking-tighter leading-none">
+                      {t('consolidation.estimatedSavings')}
+                    </h3>
                   </div>
 
-                  <div className="border-t border-green-300 pt-3">
-                    <p className="text-sm text-green-700 mb-1">Current Cost</p>
-                    <p className="text-2xl font-bold text-green-900">
-                      KES {selectedCost.toLocaleString()}
-                    </p>
-                  </div>
+                  <div className="space-y-4">
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/10 backdrop-blur-sm">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Packages Selected</p>
+                      <p className="text-3xl font-black text-white tracking-tighter">
+                        {selectedPackages.length}
+                      </p>
+                    </div>
 
-                  <div className="bg-green-200 rounded-lg p-3">
-                    <p className="text-sm text-green-700 mb-1">
-                      Estimated Savings (15%)
-                    </p>
-                    <p className="text-2xl font-bold text-green-900">
-                      KES {estimatedSavings.toLocaleString()}
-                    </p>
-                  </div>
+                    <div className="border-t border-white/10 pt-4">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Current Cost</p>
+                      <p className="text-xl font-bold text-slate-300 tracking-tight">
+                        KES {selectedCost.toLocaleString()}
+                      </p>
+                    </div>
 
-                  <button
-                    onClick={handleRequestConsolidation}
-                    disabled={consolidating || selectedPackages.length < 2}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold transition-colors disabled:opacity-50 mt-4"
-                  >
-                    {consolidating ? 'Processing...' : t('consolidation.request')}
-                  </button>
+                    <div className="bg-gradient-to-br from-green-500/20 to-emerald-600/10 rounded-xl p-4 border border-green-500/30 backdrop-blur-md">
+                      <p className="text-xs font-bold text-green-300 uppercase tracking-widest mb-1">
+                        Estimated Savings (15%)
+                      </p>
+                      <p className="text-2xl font-black text-green-400 tracking-tighter">
+                        KES {estimatedSavings.toLocaleString()}
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={handleRequestConsolidation}
+                      disabled={consolidating || selectedPackages.length < 2}
+                      className="group/btn relative overflow-hidden w-full bg-green-500 hover:bg-green-400 text-slate-900 py-4 rounded-xl font-black tracking-tight transition-all disabled:opacity-50 mt-6 shadow-lg hover:shadow-xl hover:-translate-y-1 glass-sheen"
+                    >
+                      <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover/btn:animate-[shimmer_1.5s_infinite]" />
+                      <span className="relative z-10">{consolidating ? 'Processing...' : t('consolidation.request')}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Consolidation Requests */}
+            {/* Consolidation Requests - Crystal Borders */}
             {requests.length > 0 && (
-              <div className="card">
-                <h3 className="text-lg font-bold text-[#1e3a5f] mb-4">
+              <div className="bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl p-6 relative overflow-hidden glass-sheen">
+                <h3 className="text-xl font-black text-[#1e3a5f] tracking-tighter leading-none mb-6 relative z-10">
                   {t('consolidation.requests')}
                 </h3>
 
-                <div className="space-y-3">
+                <div className="space-y-3 relative z-10">
                   {requests.map((req) => (
                     <div
                       key={req.id}
-                      className="p-4 border border-gray-200 rounded-lg"
+                      className="bg-white/50 backdrop-blur-md border border-white/60 rounded-xl p-4 shadow-sm hover:bg-white/60 transition-colors"
                     >
                       <div className="flex justify-between items-start mb-2">
-                        <h4 className="font-semibold text-gray-900">
+                        <h4 className="font-bold text-slate-800 tracking-tight">
                           {req.packageCount} packages
                         </h4>
                         <span
-                          className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                          className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
                             req.status === 'completed'
-                              ? 'bg-green-100 text-green-800'
+                              ? 'bg-green-100/80 text-green-700 border-green-200'
                               : req.status === 'pending'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-gray-100 text-gray-800'
+                                ? 'bg-orange-100/80 text-orange-700 border-orange-200'
+                                : 'bg-slate-100/80 text-slate-700 border-slate-200'
                           }`}
                         >
                           {req.status}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600">
-                        Requested{' '}
-                        {new Date(req.createdAt).toLocaleDateString()}
-                      </p>
-                      {req.completedAt && (
-                        <p className="text-sm text-green-600">
-                          Completed{' '}
-                          {new Date(req.completedAt).toLocaleDateString()}
+                      <div className="space-y-1 mt-3">
+                        <p className="text-xs font-semibold text-slate-500">
+                          Requested on{' '}
+                          <span className="text-slate-700">{new Date(req.createdAt).toLocaleDateString()}</span>
                         </p>
-                      )}
+                        {req.completedAt && (
+                          <p className="text-xs font-semibold text-green-600">
+                            Completed on{' '}
+                            <span className="text-green-700">{new Date(req.completedAt).toLocaleDateString()}</span>
+                          </p>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
