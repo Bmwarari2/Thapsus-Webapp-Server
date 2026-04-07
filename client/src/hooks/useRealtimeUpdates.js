@@ -3,9 +3,63 @@
  *
  * Opens a persistent SSE connection to /api/events and dispatches
  * incoming events into React components in real time.
+ *
+ * Also fires browser Notifications (if permission is 'granted') whenever
+ * an order_update: status_changed event arrives.
  */
 import { useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+
+// ── Browser notification helpers ──────────────────────────────────────────────
+
+const STATUS_LABELS = {
+  pending:               'Order Placed',
+  received_at_warehouse: 'Received at Warehouse',
+  consolidating:         'Being Consolidated',
+  in_transit:            'In Transit',
+  customs:               'Customs Clearance',
+  out_for_delivery:      'Out for Delivery',
+  delivered:             'Delivered!',
+};
+
+const STATUS_BODIES = {
+  pending:               'Your order has been created. We\'ll notify you once it reaches our warehouse.',
+  received_at_warehouse: 'Your package has arrived at our warehouse and is being processed.',
+  consolidating:         'Your package is being consolidated. This helps reduce your shipping costs!',
+  in_transit:            'Your package is now in transit to Kenya.',
+  customs:               'Your package is undergoing customs clearance.',
+  out_for_delivery:      'Your package is out for delivery — expect it soon!',
+  delivered:             'Your package has been delivered. Thank you for using Thapsus Cargo!',
+};
+
+function fireBrowserNotification(order) {
+  if (typeof window === 'undefined') return;
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+
+  const status  = order?.status;
+  const tracking = order?.tracking_number || '';
+  const title   = `📦 ${STATUS_LABELS[status] || 'Shipment Update'}`;
+  const body    = STATUS_BODIES[status]
+    ? `${STATUS_BODIES[status]}\n\nTracking: ${tracking}`
+    : `Your package ${tracking} has been updated.`;
+
+  try {
+    const n = new Notification(title, {
+      body,
+      icon:  '/logo.png',
+      badge: '/logo.png',
+      tag:   `order-${order?.id || tracking}`,   // collapses duplicate alerts
+    });
+    n.onclick = () => {
+      window.focus();
+      if (order?.id) window.location.href = `/orders/${order.id}`;
+      n.close();
+    };
+  } catch (err) {
+    console.warn('[Notification] Failed to fire:', err);
+  }
+}
 
 const BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -51,7 +105,15 @@ function connectSSE(token) {
   ['order_update', 'ticket_update', 'notification', 'wallet_update', 'admin_stats', 'package_update']
     .forEach(type => {
       source.addEventListener(type, e => {
-        try { dispatch(type, JSON.parse(e.data)); } catch (_) { /* ignore */ }
+        try {
+          const data = JSON.parse(e.data);
+          dispatch(type, data);
+
+          // Fire a browser notification whenever an order changes status
+          if (type === 'order_update' && data?.action === 'status_changed' && data?.order) {
+            fireBrowserNotification(data.order);
+          }
+        } catch (_) { /* ignore */ }
       });
     });
 

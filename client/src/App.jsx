@@ -4,6 +4,7 @@ import { Navbar } from './components/Navbar'
 import { Footer } from './components/Footer'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { SupportChatWidget } from './components/SupportChatWidget'
+import { NotificationBanner } from './components/NotificationBanner'
 
 // Pages
 import { Home } from './pages/Home'
@@ -75,6 +76,7 @@ function App() {
         </Routes>
 
         <SupportChatWidget />
+        <NotificationBanner />
       </main>
 
       <Footer />
