@@ -1,39 +1,12 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { 
-  ArrowRight, Package, Truck, MapPin, Star, ChevronRight, 
-  Globe, ShieldCheck, Zap, ShoppingBag, Headphones, Sparkles, 
+import {
+  ArrowRight, Package, Truck, MapPin, Star, ChevronRight,
+  Globe, ShieldCheck, Zap, ShoppingBag, Headphones, Sparkles,
   Bell, Store, CreditCard, Search, Box, Plane, CheckCircle2
 } from 'lucide-react'
-
-/**
- * MOCK CONTEXTS
- * Added to ensure the file is self-contained and runnable in this environment.
- * In a production environment, these would be imported from your context folder.
- */
-const useLanguage = () => ({
-  t: (key) => {
-    const translations = {
-      'home.hero.title': 'Ship from UK & China to Kenya',
-      'home.hero.subtitle': 'The most reliable global forwarding service. Shop your favourite brands and we deliver to your doorstep in Kenya.',
-      'home.hero.cta': 'Start Shipping',
-      'home.hero.track': 'Track Package',
-      'home.howitworks': 'Our Workflow',
-      'home.step1': 'Shop Online',
-      'home.step2': 'Warehouse Receipt',
-      'home.step3': 'Global Transit',
-      'home.step4': 'Final Delivery',
-      'home.testimonials': 'Customer Stories',
-      'home.pricing.title': 'Transparent Pricing',
-      'home.pricing.description': 'Simple, clear, and affordable rates for all your shipping needs.',
-      'home.pricing.calculate': 'Calculate Cost',
-      'home.markets': 'Global Hubs'
-    };
-    return translations[key] || key;
-  }
-});
-
-const useAuth = () => ({ isAuthenticated: false });
+import { useLanguage } from '../context/LanguageContext'
+import { useAuth } from '../context/AuthContext'
 
 /**
  * LIQUID GLASS UI COMPONENTS
@@ -185,7 +158,7 @@ export const Home = () => {
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center lg:justify-start gap-4">
                 <Link
-                  to={isAuthenticated ? '/orders/new' : '/register'}
+                  to={isAuthenticated ? '/ship-instructions' : '/register'}
                   className="glass-sheen px-8 py-4 md:px-10 md:py-5 bg-[#0f172a] hover:bg-slate-800 text-white rounded-[1.5rem] md:rounded-[2rem] font-black shadow-2xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-3 group text-base md:text-lg"
                 >
                   {t('home.hero.cta')}
@@ -410,7 +383,7 @@ export const Home = () => {
            
            <div className="flex flex-col sm:flex-row justify-center gap-4 md:gap-6 pt-4">
              <Link
-               to={isAuthenticated ? '/orders/new' : '/register'}
+               to={isAuthenticated ? '/ship-instructions' : '/register'}
                className="glass-sheen px-10 py-5 md:px-12 md:py-6 bg-orange-500 text-white rounded-[1.5rem] md:rounded-[2rem] font-black text-lg shadow-[0_20px_50px_rgba(249,115,22,0.3)] hover:bg-orange-600 hover:scale-105 transition-all"
              >
                {t('home.hero.cta')}

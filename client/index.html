@@ -4,17 +4,29 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#1e3a5f" />
-    <meta name="description" content="Thapsus Cargo - Ship from UK, USA &amp; China to Kenya with ease" />
-    <meta name="keywords" content="shipping, forwarding, Kenya, UK, USA, China" />
+    <!-- Theme color: tints browser/OS chrome — Android Chrome picks the first match,
+         iOS Safari uses the apple-mobile-web-app-status-bar-style meta below.
+         We supply both a light and dark variant so the tint tracks the OS colour scheme. -->
+    <meta name="theme-color" content="#1e3a5f" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
+
+    <meta name="description" content="Thapsus Cargo - Ship from UK &amp; China to Kenya with ease" />
+    <meta name="keywords" content="shipping, forwarding, Kenya, UK, China" />
 
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json" />
+
+    <!-- iOS / iPadOS PWA chrome tinting -->
+    <!-- "yes" lets the app run full-screen when added to Home Screen -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- black-translucent = status bar overlays content and adopts the app's background colour -->
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Thapsus Cargo" />
 
-    <title>Thapsus Cargo - Ship from UK, USA &amp; China to Kenya</title>
+    <!-- MS / Windows tile colour (bonus) -->
+    <meta name="msapplication-TileColor" content="#1e3a5f" />
+
+    <title>Thapsus Cargo - Ship from UK &amp; China to Kenya</title>
   </head>
   <body>
     <div id="root"></div>

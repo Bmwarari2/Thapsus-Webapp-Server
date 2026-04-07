@@ -29,6 +29,7 @@ import { NewOrder } from './pages/NewOrder'
 import { OrderConfirmation } from './pages/OrderConfirmation'
 import { PrivacyPolicy } from './pages/PrivacyPolicy'
 import { TermsOfService } from './pages/TermsOfService'
+import { ShipInstructions } from './pages/ShipInstructions'
 
 function App() {
   return (
@@ -50,6 +51,9 @@ function App() {
           <Route path="/pay/:orderId" element={<PublicPayment />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/terms"   element={<TermsOfService />} />
+
+          {/* Ship Instructions — protected so warehouse code is available */}
+          <Route path="/ship-instructions" element={<ProtectedRoute><ShipInstructions /></ProtectedRoute>} />
 
           {/* Protected Routes */}
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

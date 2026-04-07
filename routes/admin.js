@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import { sendAdminPasswordResetEmail, sendPaymentRequestEmail, sendOrderCreatedEmail, sendWelcomeAccountEmail, sendPaymentReminderEmail, sendPaymentReceiptEmail } from '../utils/email.js';
 import { calculateShippingCost, ELECTRONICS_HANDLING } from '../utils/pricing.js';
 import { sendInAppNotification } from '../utils/notifications.js';
+import { pushToUser, pushToAdmins } from './events.js';
 import { logRouteError } from '../utils/errorLogger.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_change_this_in_production';
@@ -386,10 +387,19 @@ router.put('/orders/bulk-update', authMiddleware, isAdmin, async (req, res) => {
     if (!status) return res.status(400).json({ success: false, message: 'status is required' });
     const validStatuses = ['pending','received_at_warehouse','consolidating','in_transit','customs','out_for_delivery','delivered','cancelled'];
     if (!validStatuses.includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
+
     const updatePlaceholders = order_ids.map((_, i) => `$${i + 2}`).join(',');
     await db.query(`UPDATE orders SET status = $1, updated_at = NOW() WHERE id IN (${updatePlaceholders})`, [status, ...order_ids]);
+
     const selectPlaceholders = order_ids.map((_, i) => `$${i + 1}`).join(',');
-    const updated = await db.query(`SELECT id, tracking_number, status FROM orders WHERE id IN (${selectPlaceholders})`, order_ids);
+    const updated = await db.query(`SELECT * FROM orders WHERE id IN (${selectPlaceholders})`, order_ids);
+
+    // Push real-time SSE notification to each order's owner
+    for (const order of updated.rows) {
+      pushToUser(order.user_id, 'order_update', { action: 'status_changed', order });
+    }
+    pushToAdmins('admin_stats', { action: 'bulk_status_changed', count: updated.rows.length, status });
+
     res.json({ success: true, message: `Updated ${updated.rows.length} orders`, updated_count: updated.rows.length, orders: updated.rows });
   } catch (error) {
     console.error('Bulk update error:', error);
