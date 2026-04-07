@@ -1,9 +1,44 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Package, AlertCircle } from 'lucide-react'
+import { Package, AlertCircle, Zap, Calculator } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { ordersApi, pricingApi } from '../api'
 import toast from 'react-hot-toast'
+
+// --- CUSTOM STYLES & GLASS COMPONENTS ---
+const NewOrderStyles = () => (
+  <style>{`
+    @keyframes morph {
+      0% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; transform: translate(0, 0) scale(1); }
+      33% { transform: translate(30px, -50px) scale(1.05); }
+      66% { transform: translate(-20px, 20px) scale(0.95); }
+      100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; transform: translate(0, 0) scale(1); }
+    }
+    .animate-morph { animation: morph 15s ease-in-out infinite; }
+    
+    @keyframes sheen {
+      0% { transform: translateX(-100%) skewX(-15deg); }
+      100% { transform: translateX(200%) skewX(-15deg); }
+    }
+    .glass-sheen { position: relative; overflow: hidden; }
+    .glass-sheen::after {
+      content: ''; position: absolute; top: 0; left: 0; width: 50%; height: 100%;
+      background: linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent);
+      animation: sheen 4s infinite;
+    }
+  `}</style>
+);
+
+const LiquidBlob = ({ className, color }) => (
+  <div className={`absolute blur-[100px] md:blur-[120px] rounded-full mix-blend-multiply opacity-60 animate-morph pointer-events-none ${className} ${color}`} />
+);
+
+const GlassCard = ({ children, className = "" }) => (
+  <div className={`relative overflow-hidden rounded-[2.5rem] bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] ${className}`}>
+    <div className="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent pointer-events-none" />
+    <div className="relative z-10">{children}</div>
+  </div>
+);
 
 export const NewOrder = () => {
   const { t } = useLanguage()
@@ -90,7 +125,6 @@ export const NewOrder = () => {
       })
 
       toast.success('Order created successfully!')
-      // Navigate to confirmation page, passing the order + pricing data via router state
       navigate('/orders/confirmation', {
         replace: true,
         state: {
@@ -107,190 +141,231 @@ export const NewOrder = () => {
     }
   }
 
+  const inputClass = "w-full px-6 py-4 bg-white/60 backdrop-blur-md border border-white/50 rounded-[1.5rem] focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 text-slate-800 font-bold placeholder-slate-400 transition-all shadow-sm";
+  const labelClass = "block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-2";
+
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 overflow-x-hidden relative pb-24">
+      <NewOrderStyles />
+      
+      {/* --- LIQUID BACKGROUNDS --- */}
+      <LiquidBlob className="top-[-5%] left-[-10%] w-[400px] h-[400px] md:w-[600px] md:h-[600px]" color="bg-blue-200" />
+      <LiquidBlob className="bottom-[10%] right-[-5%] w-[350px] h-[350px] md:w-[500px] md:h-[500px]" color="bg-orange-200" />
+      <div className="absolute inset-0 bg-white/30 backdrop-blur-[2px] pointer-events-none" />
+
+      <div className="max-w-6xl mx-auto px-6 py-12 relative z-10">
+        
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-[#1e3a5f] mb-4">
+        <div className="text-center mb-12 lg:mb-16">
+          <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-md border border-white/50 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 shadow-sm mb-4">
+            <Zap size={12} className="text-orange-500" />
+            Dispatch Order
+          </div>
+          <h1 className="text-4xl md:text-6xl font-black text-[#0f172a] tracking-tighter uppercase leading-none mb-4">
             {t('neworder.title')}
           </h1>
-          <p className="text-gray-600">Provide your package details to create a new order</p>
+          <p className="text-slate-500 font-bold max-w-lg mx-auto">
+            Provide your package details to initialize a new shipment manifest.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Form */}
-          <div className="lg:col-span-2">
-            <div className="card">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          
+          {/* --- LEFT FORM (Tilted Interactive Card) --- */}
+          <div className="lg:col-span-8 transform lg:-rotate-1 hover:rotate-0 transition-all duration-700 perspective-1000">
+            <GlassCard className="p-8 md:p-12 group hover:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] transition-shadow duration-700">
+              
               {error && (
-                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+                <div className="mb-8 p-4 bg-red-50/80 backdrop-blur-md border border-red-200/50 rounded-2xl flex items-start gap-3 shadow-sm animate-in fade-in zoom-in duration-300">
                   <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
-                  <p className="text-red-700">{error}</p>
+                  <p className="text-red-700 text-sm font-bold">{error}</p>
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Market */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {t('neworder.market')} *
-                  </label>
-                  <select name="market" value={formData.market} onChange={handleChange} required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent">
-                    <option value="UK">United Kingdom</option>
-                    <option value="USA">United States</option>
-                    <option value="China">China</option>
-                  </select>
-                </div>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Market */}
+                  <div>
+                    <label className={labelClass}>{t('neworder.market')} *</label>
+                    <select name="market" value={formData.market} onChange={handleChange} required className={inputClass}>
+                      <option value="UK">United Kingdom</option>
+                      <option value="USA">United States</option>
+                      <option value="China">China</option>
+                    </select>
+                  </div>
 
-                {/* Retailer */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {t('neworder.retailer')} *
-                  </label>
-                  <select name="retailer" value={formData.retailer} onChange={handleChange} required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent">
-                    <option value="">{t('neworder.retailerPlaceholder')}</option>
-                    {retailers.map((r) => <option key={r} value={r}>{r}</option>)}
-                    <option value="other">{t('neworder.other')}</option>
-                  </select>
+                  {/* Retailer */}
+                  <div>
+                    <label className={labelClass}>{t('neworder.retailer')} *</label>
+                    <select name="retailer" value={formData.retailer} onChange={handleChange} required className={inputClass}>
+                      <option value="">{t('neworder.retailerPlaceholder')}</option>
+                      {retailers.map((r) => <option key={r} value={r}>{r}</option>)}
+                      <option value="other">{t('neworder.other')}</option>
+                    </select>
+                  </div>
                 </div>
 
                 {formData.retailer === 'other' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Retailer Name *</label>
+                  <div className="animate-in fade-in slide-in-from-top-2">
+                    <label className={labelClass}>Retailer Name *</label>
                     <input type="text" name="retailerOther" value={formData.retailerOther}
-                      onChange={handleChange} placeholder="Enter retailer name"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent" />
+                      onChange={handleChange} placeholder="Enter retailer name" className={inputClass} />
                   </div>
                 )}
 
                 {/* Description */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {t('neworder.description')} *
-                  </label>
+                  <label className={labelClass}>{t('neworder.description')} *</label>
                   <textarea name="description" value={formData.description} onChange={handleChange}
                     placeholder="e.g., Blue hoodie size M, black shoes size 10" rows="3" required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent" />
+                    className={`${inputClass} resize-none`} />
                 </div>
 
-                {/* Weight */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {t('neworder.weight')} *
-                  </label>
-                  <input type="number" name="weight" value={formData.weight} onChange={handleChange}
-                    step="0.1" min="0" placeholder="1.5" required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Weight */}
+                  <div>
+                    <label className={labelClass}>{t('neworder.weight')} *</label>
+                    <input type="number" name="weight" value={formData.weight} onChange={handleChange}
+                      step="0.1" min="0" placeholder="1.5" required className={inputClass} />
+                  </div>
+
+                  {/* Promo Code */}
+                  <div>
+                    <label className={labelClass}>{t('neworder.promoCode')}</label>
+                    <input type="text" name="promoCode" value={formData.promoCode} onChange={handleChange}
+                      placeholder="Optional code" className={inputClass} />
+                  </div>
                 </div>
 
                 {/* Dimensions */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {t('neworder.dimensions')}
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
+                <div className="pt-2">
+                  <label className={labelClass}>{t('neworder.dimensions')}</label>
+                  <div className="grid grid-cols-3 gap-4">
                     {['length', 'width', 'height'].map((dim) => (
                       <input key={dim} type="number" name={dim}
-                        placeholder={`${dim.charAt(0).toUpperCase() + dim.slice(1)} (cm)`}
+                        placeholder={`${dim.charAt(0).toUpperCase() + dim.slice(1)}`}
                         value={formData[dim]} onChange={handleChange} step="0.1" min="0"
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-sm" />
+                        className={inputClass} />
                     ))}
                   </div>
                 </div>
 
-                {/* Shipping Speed */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {t('neworder.shippingSpeed')}
-                  </label>
-                  <div className="flex gap-4">
-                    {[['economy', 'Economy (7-14 days)'], ['express', 'Express (3-5 days)']].map(([val, label]) => (
-                      <label key={val} className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="shippingSpeed" value={val}
-                          checked={formData.shippingSpeed === val} onChange={handleChange}
-                          className="w-4 h-4 text-[#1e3a5f]" />
-                        <span className="text-gray-700">{label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
+                <div className="h-px bg-slate-200/50 w-full my-8" />
 
-                {/* Insurance */}
-                <div>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="insurance" checked={formData.insurance}
-                      onChange={handleChange} className="w-4 h-4 text-[#1e3a5f]" />
-                    <span className="text-sm font-medium text-gray-700">{t('neworder.insurance')}</span>
-                  </label>
-                </div>
-
-                {formData.insurance && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                  {/* Shipping Speed */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Declared Value (KES)</label>
-                    <input type="number" name="declaredValue" value={formData.declaredValue}
-                      onChange={handleChange} min="0" placeholder="0"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent" />
+                    <label className={labelClass}>{t('neworder.shippingSpeed')}</label>
+                    <div className="flex flex-col gap-3 mt-3">
+                      {[['economy', 'Economy (7-14 days)'], ['express', 'Express (3-5 days)']].map(([val, label]) => (
+                        <label key={val} className="flex items-center gap-3 cursor-pointer p-3 rounded-2xl border border-white/50 bg-white/40 hover:bg-white/60 transition-colors">
+                          <input type="radio" name="shippingSpeed" value={val}
+                            checked={formData.shippingSpeed === val} onChange={handleChange}
+                            className="w-5 h-5 accent-[#0f172a]" />
+                          <span className="text-slate-800 font-bold text-sm">{label}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                )}
 
-                {/* Promo Code */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {t('neworder.promoCode')}
-                  </label>
-                  <input type="text" name="promoCode" value={formData.promoCode} onChange={handleChange}
-                    placeholder="Optional"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent" />
+                  {/* Insurance */}
+                  <div>
+                    <label className={labelClass}>Protection</label>
+                    <div className="flex flex-col gap-3 mt-3">
+                      <label className="flex items-center gap-3 cursor-pointer p-3 rounded-2xl border border-white/50 bg-white/40 hover:bg-white/60 transition-colors">
+                        <input type="checkbox" name="insurance" checked={formData.insurance}
+                          onChange={handleChange} className="w-5 h-5 rounded accent-[#0f172a]" />
+                        <span className="text-slate-800 font-bold text-sm">{t('neworder.insurance')}</span>
+                      </label>
+                      {formData.insurance && (
+                        <div className="animate-in fade-in zoom-in-95 duration-200 mt-2">
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-2">Declared Value (KES)</label>
+                          <input type="number" name="declaredValue" value={formData.declaredValue}
+                            onChange={handleChange} min="0" placeholder="0" className={inputClass} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                <button type="button" onClick={handleCalculateEstimate}
-                  className="w-full bg-gray-800 hover:bg-gray-900 text-white py-2 rounded-lg font-bold transition-colors">
-                  Calculate Estimate
-                </button>
+                <div className="pt-6 flex flex-col md:flex-row gap-4">
+                  <button type="button" onClick={handleCalculateEstimate}
+                    className="flex-1 p-1 bg-gradient-to-br from-orange-400 via-orange-300 to-blue-400 rounded-[1.6rem] shadow-lg group/btn transition-all hover:scale-[1.02]">
+                    <div className="bg-white/90 backdrop-blur-3xl px-6 py-4 rounded-[1.5rem] font-black uppercase tracking-widest text-xs text-[#0f172a] h-full flex items-center justify-center gap-2">
+                      <Calculator size={16} /> Calculate Estimate
+                    </div>
+                  </button>
 
-                <button type="submit" disabled={loading}
-                  className="w-full bg-[#1e3a5f] hover:bg-[#152d4a] text-white py-3 rounded-lg font-bold transition-colors disabled:opacity-50">
-                  {loading ? t('common.loading') : t('neworder.submit')}
-                </button>
+                  <button type="submit" disabled={loading}
+                    className="flex-1 glass-sheen bg-[#0f172a] hover:bg-slate-800 text-white px-6 py-5 rounded-[1.5rem] font-black uppercase tracking-widest text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl hover:-translate-y-1 flex items-center justify-center gap-2">
+                    {loading ? (
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                      </svg>
+                    ) : (
+                      <Package size={16} />
+                    )}
+                    {loading ? t('common.loading') : t('neworder.submit')}
+                  </button>
+                </div>
               </form>
-            </div>
+            </GlassCard>
           </div>
 
-          {/* Estimate Sidebar */}
-          {estimate && (
-            <div className="card bg-orange-50 border border-orange-200 h-fit sticky top-20">
-              <h3 className="text-lg font-bold text-[#1e3a5f] mb-4">{t('neworder.costEstimate')}</h3>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-700">Base Shipping:</span>
-                  <span className="font-semibold">KES {estimate.breakdown?.base_shipping?.amount?.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-700">Handling Fee:</span>
-                  <span className="font-semibold">KES {estimate.breakdown?.handling_fee?.amount?.toLocaleString()}</span>
-                </div>
-                {estimate.breakdown?.insurance?.included && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-700">Insurance:</span>
-                    <span className="font-semibold">KES {estimate.breakdown?.insurance?.amount?.toLocaleString()}</span>
-                  </div>
-                )}
-                <div className="flex justify-between pb-3 border-b border-orange-300">
-                  <span className="text-gray-700">Customs Estimate:</span>
-                  <span className="font-semibold">KES {estimate.breakdown?.customs_estimate?.amount?.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-base">
-                  <span className="text-[#1e3a5f] font-bold">Total:</span>
-                  <div className="text-right">
-                    <p className="font-bold text-orange-600">KES {estimate.summary?.total?.toLocaleString()}</p>
-                    <p className="text-xs text-gray-500 mt-1">{estimate.notes?.delivery_time}</p>
+          {/* --- RIGHT SIDEBAR: ESTIMATE (Dark Glass Bento) --- */}
+          <div className="lg:col-span-4">
+            {estimate ? (
+              <div className="relative group overflow-hidden rounded-[2.5rem] bg-[#0f172a] p-8 md:p-10 text-white shadow-2xl flex flex-col transition-all hover:scale-[1.01] h-fit sticky top-24">
+                <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-orange-500/20 blur-[80px] -z-0 pointer-events-none animate-pulse" />
+                <div className="relative z-10 flex flex-col">
+                  <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-tighter mb-8 flex items-center gap-3">
+                    <Calculator className="text-orange-400" size={24} /> {t('neworder.costEstimate')}
+                  </h3>
+                  
+                  <div className="space-y-4 flex-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Base Shipping</span>
+                      <span className="font-black text-sm text-white">KES {estimate.breakdown?.base_shipping?.amount?.toLocaleString()}</span>
+                    </div>
+                    
+                    {estimate.breakdown?.handling_fee?.amount > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Handling Fee</span>
+                        <span className="font-black text-sm text-white">KES {estimate.breakdown?.handling_fee?.amount?.toLocaleString()}</span>
+                      </div>
+                    )}
+                    
+                    {estimate.breakdown?.insurance?.included && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Insurance</span>
+                        <span className="font-black text-sm text-white">KES {estimate.breakdown?.insurance?.amount?.toLocaleString()}</span>
+                      </div>
+                    )}
+                    
+                    <div className="flex justify-between items-center pb-6 border-b border-slate-700/50">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Customs Est.</span>
+                      <span className="font-black text-sm text-white">KES {estimate.breakdown?.customs_estimate?.amount?.toLocaleString()}</span>
+                    </div>
+                    
+                    <div className="pt-2 flex justify-between items-end">
+                      <span className="text-xs font-black uppercase tracking-widest text-orange-400">Total</span>
+                      <div className="text-right">
+                        <p className="text-3xl md:text-4xl font-black text-white leading-none">KES {estimate.summary?.total?.toLocaleString()}</p>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-2">{estimate.notes?.delivery_time}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="relative overflow-hidden rounded-[2.5rem] bg-white/20 backdrop-blur-md border border-white/40 p-8 md:p-10 text-center flex flex-col items-center justify-center h-64 sticky top-24 shadow-sm">
+                <Calculator size={40} className="text-slate-300 mb-4 opacity-50" />
+                <p className="text-slate-500 font-bold text-sm">Fill in weight and market to calculate an instant estimate.</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
