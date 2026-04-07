@@ -240,7 +240,7 @@ export const AdminDashboard = () => {
   const handleCreateUser = async (e) => {
     e.preventDefault()
     const { name, email, phone, role } = createUserForm
-    if (!name || !email || !phone) return toast.error('Fill required fields')
+    if (!name || !email || !phone || !role) return toast.error('Fill required fields')
     try {
       setCreatingUser(true)
       await adminApi.createUser({ name, email, phone, role })
@@ -806,13 +806,33 @@ export const AdminDashboard = () => {
 
               {/* Order History */}
               <h4 className="text-xl font-black mb-4 uppercase tracking-widest text-gray-400 text-xs">Shipment History</h4>
-              <div className="space-y-3">
+              <div className="space-y-3 mb-8">
                 {selectedUserData.user?.orders?.map(o => (
                   <div key={o.id} className="p-4 border-2 border-gray-100 rounded-2xl flex justify-between items-center">
                     <div><p className="font-black">{o.tracking_number}</p><p className="text-xs text-gray-500 font-bold">{o.market} • KES {o.estimated_cost}</p></div>
                     {statusBadge(o.status)}
                   </div>
                 ))}
+              </div>
+
+              {/* Emails Sent */}
+              <h4 className="text-xl font-black mb-4 uppercase tracking-widest text-gray-400 text-xs">Email Communications</h4>
+              <div className="space-y-3">
+                {emailLogs.length === 0 ? (
+                  <p className="text-sm text-gray-400 font-bold">No email logs found</p>
+                ) : (
+                  emailLogs.map(log => (
+                    <div key={log.id} className="p-4 border-2 border-gray-100 rounded-2xl flex justify-between items-center bg-slate-50">
+                      <div>
+                        <p className="font-black text-sm text-[#1e3a5f]">{log.subject}</p>
+                        <p className="text-xs text-gray-500 font-bold mt-1">{log.email_type?.replace(/_/g, ' ')} • {new Date(log.created_at).toLocaleDateString()}</p>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${log.status === 'sent' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {log.status}
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -855,6 +875,30 @@ export const AdminDashboard = () => {
                 <textarea value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} className={inputClass} placeholder="Reason for cancellation" rows={2} />
                 <button onClick={handleCancelOrder} className="bg-red-600 text-white w-full py-5 rounded-[1.5rem] font-black text-lg shadow-xl hover:bg-red-700 transition-all">Terminate Order</button>
               </div>
+            </div>
+          </div>
+        )}
+        
+        {showCreateUserForm && (
+          <div className="fixed inset-0 bg-[#1e3a5f]/60 backdrop-blur-md z-[100] flex items-center justify-center p-6">
+            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg p-10 relative">
+              <button onClick={() => setShowCreateUserForm(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500"><X /></button>
+              <h3 className="text-3xl font-black text-[#1e3a5f] tracking-tighter mb-8">New Account</h3>
+              <form onSubmit={handleCreateUser} className="space-y-4">
+                <input placeholder="Full Name" className={inputClass} value={createUserForm.name} onChange={e => setCreateUserForm({...createUserForm, name: e.target.value})} required />
+                <input type="email" placeholder="Email Address" className={inputClass} value={createUserForm.email} onChange={e => setCreateUserForm({...createUserForm, email: e.target.value})} required />
+                <input placeholder="Phone (+254...)" className={inputClass} value={createUserForm.phone} onChange={e => setCreateUserForm({...createUserForm, phone: e.target.value})} required />
+                
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 ml-2 mb-1 block">Account Role</label>
+                  <select className={inputClass} value={createUserForm.role} onChange={e => setCreateUserForm({...createUserForm, role: e.target.value})}>
+                    <option value="customer">Customer</option>
+                    <option value="admin">Administrator</option>
+                  </select>
+                </div>
+                
+                <button type="submit" disabled={creatingUser} className="bg-[#1e3a5f] text-white w-full py-5 rounded-[1.5rem] font-black text-lg mt-4">{creatingUser ? 'Provisioning...' : 'Create Account'}</button>
+              </form>
             </div>
           </div>
         )}
