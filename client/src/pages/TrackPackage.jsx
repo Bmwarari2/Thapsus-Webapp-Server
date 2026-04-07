@@ -168,7 +168,7 @@ export const TrackPackage = () => {
                 value={trackingNumber}
                 onChange={(e) => setTrackingNumber(e.target.value)}
                 placeholder={t('track.placeholder')}
-                className="w-full px-4 py-4 bg-transparent outline-none text-slate-800 font-bold placeholder:text-slate-300"
+                className="w-full px-4 py-4 bg-transparent border-none outline-none focus:ring-0 text-slate-800 font-bold placeholder:text-slate-300"
               />
               <button
                 type="submit"
