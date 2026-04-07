@@ -3,60 +3,9 @@ import {
   Search, Package, Check, Clock, AlertCircle, 
   ArrowRight, Box, MapPin, Calendar, Info, Zap, Sparkles
 } from 'lucide-react'
-
 import { useLanguage } from '../context/LanguageContext'
 import { ordersApi } from '../api'
 import toast from 'react-hot-toast'
-const useLanguage = () => ({
-  t: (key) => {
-    const translations = {
-      'track.title': 'Track Your Package',
-      'track.placeholder': 'Enter Tracking Number (e.g., THP-789-22)',
-      'track.search': 'Track Order',
-      'track.notFound': 'Invalid tracking number. Please check and try again.',
-      'track.trackingNumber': 'Tracking ID',
-      'track.status': 'Current Status',
-      'track.estimatedDelivery': 'Expected Arrival',
-      'track.lastUpdate': 'Last Scanned At',
-      'track.timeline': 'Journey History',
-      'common.error': 'Tracking Error',
-      'common.loading': 'Locating Package...',
-      'orders.pending': 'Order Placed',
-      'orders.received_at_warehouse': 'At Hub',
-      'orders.in_transit': 'In Transit',
-      'orders.delivered': 'Delivered'
-    };
-    return translations[key] || key;
-  }
-});
-
-const ordersApi = {
-  track: async (id) => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Return mock data for any ID entered
-    return {
-      data: {
-        tracking: {
-          status: 'in_transit',
-          market: 'UK',
-          weight_kg: 2.4,
-          estimated_cost: 3450,
-          description: 'Personal Electronics & Accessories',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          estimated_delivery: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString()
-        }
-      }
-    };
-  }
-};
-
-const toast = {
-  error: (msg) => console.log('Toast Error:', msg),
-  success: (msg) => console.log('Toast Success:', msg)
-};
 
 /**
  * LIQUID GLASS COMPONENTS
@@ -342,6 +291,4 @@ export const TrackPackage = () => {
   )
 }
 
-export default function App() {
-  return <TrackPackage />;
-}
+export default TrackPackage;
