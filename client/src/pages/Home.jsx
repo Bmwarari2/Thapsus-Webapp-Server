@@ -5,8 +5,35 @@ import {
   Globe, ShieldCheck, Zap, ShoppingBag, Headphones, Sparkles, 
   Bell, Store, CreditCard, Search, Box, Plane, CheckCircle2
 } from 'lucide-react'
-import { useLanguage } from '../context/LanguageContext'
-import { useAuth } from '../context/AuthContext'
+
+/**
+ * MOCK CONTEXTS
+ * Added to ensure the file is self-contained and runnable in this environment.
+ * In a production environment, these would be imported from your context folder.
+ */
+const useLanguage = () => ({
+  t: (key) => {
+    const translations = {
+      'home.hero.title': 'Ship from UK, USA & China to Kenya',
+      'home.hero.subtitle': 'The most reliable global forwarding service. Shop your favorite brands and we deliver to your doorstep in Kenya.',
+      'home.hero.cta': 'Start Shipping',
+      'home.hero.track': 'Track Package',
+      'home.howitworks': 'Our Workflow',
+      'home.step1': 'Shop Online',
+      'home.step2': 'Warehouse Receipt',
+      'home.step3': 'Global Transit',
+      'home.step4': 'Final Delivery',
+      'home.testimonials': 'Customer Stories',
+      'home.pricing.title': 'Transparent Pricing',
+      'home.pricing.description': 'Simple, clear, and affordable rates for all your shipping needs.',
+      'home.pricing.calculate': 'Calculate Cost',
+      'home.markets': 'Global Hubs'
+    };
+    return translations[key] || key;
+  }
+});
+
+const useAuth = () => ({ isAuthenticated: false });
 
 /**
  * LIQUID GLASS UI COMPONENTS
@@ -23,7 +50,6 @@ const GlassCard = ({ children, className = "" }) => (
 )
 
 const MarqueeRetailers = ({ retailers }) => {
-  // Triple the list to ensure the gap is never visible during the infinite scroll
   const tripleRetailers = [...retailers, ...retailers, ...retailers];
   
   return (
@@ -146,23 +172,23 @@ export const Home = () => {
 
         <div className="container mx-auto px-4 md:px-6 relative z-10">
           <div className="flex flex-col lg:flex-row items-center gap-10 md:gap-16">
-            <div className="lg:w-1/2 space-y-6 md:space-y-8">
-              <div className="inline-flex items-center space-x-3 px-3 py-1.5 md:px-4 md:py-2 rounded-2xl bg-white/60 backdrop-blur-xl border border-white/50 shadow-sm">
+            <div className="lg:w-1/2 space-y-6 md:space-y-8 text-center lg:text-left">
+              <div className="inline-flex items-center space-x-3 px-3 py-1.5 md:px-4 md:py-2 rounded-2xl bg-white/60 backdrop-blur-xl border border-white/50 shadow-sm mx-auto lg:mx-0">
                 <div className="p-1 bg-orange-500 rounded-lg text-white">
                     <Sparkles size={12} className="md:w-3.5 md:h-3.5"/>
                 </div>
                 <span className="text-[10px] md:text-xs font-black text-slate-700 uppercase tracking-widest">Global Logistics Redefined</span>
               </div>
               
-              <h1 className="text-4xl md:text-6xl lg:text-8xl font-black tracking-tighter text-[#0f172a] leading-[0.95] md:leading-[0.9]">
+              <h1 className="text-4xl md:text-6xl lg:text-8xl font-black tracking-tighter text-[#0f172a] leading-[1.1] lg:leading-[0.9]">
                 {t('home.hero.title')}
               </h1>
               
-              <p className="text-base md:text-xl text-slate-600 max-w-lg leading-relaxed font-medium">
+              <p className="text-base md:text-xl text-slate-600 max-w-lg leading-relaxed font-medium mx-auto lg:mx-0">
                 {t('home.hero.subtitle')}
               </p>
 
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center lg:justify-start gap-4">
                 <Link
                   to={isAuthenticated ? '/orders/new' : '/register'}
                   className="glass-sheen px-8 py-4 md:px-10 md:py-5 bg-[#0f172a] hover:bg-slate-800 text-white rounded-[1.5rem] md:rounded-[2rem] font-black shadow-2xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-3 group text-base md:text-lg"
@@ -176,7 +202,7 @@ export const Home = () => {
                        <input 
                         type="text" 
                         placeholder="Tracking ID..." 
-                        className="w-full px-3 py-4 md:px-4 md:py-5 bg-transparent outline-none text-xs md:text-sm font-bold placeholder:text-slate-400"
+                        className="w-full px-3 py-4 md:px-4 md:py-5 bg-transparent border-none outline-none focus:ring-0 text-xs md:text-sm font-bold placeholder:text-slate-400"
                        />
                        <button className="px-5 py-2.5 md:px-6 md:py-3 bg-orange-500 text-white rounded-full text-[10px] md:text-xs font-black hover:bg-orange-600 transition-all shadow-lg hover:shadow-orange-200 shrink-0">
                          TRACK
@@ -185,15 +211,15 @@ export const Home = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-6 md:gap-8 pt-6 md:pt-8 border-t border-slate-200">
+              <div className="flex items-center justify-center lg:justify-start gap-6 md:gap-8 pt-6 md:pt-8 border-t border-slate-200">
                 <div className="text-sm">
-                  <div className="flex text-orange-500 mb-1">
+                  <div className="flex text-orange-500 mb-1 justify-center lg:justify-start">
                     {[...Array(5)].map((_, i) => <Star key={i} size={14} className="md:w-4 md:h-4" fill="currentColor"/>)}
                   </div>
                   <p className="font-black text-[#0f172a] text-[10px] md:text-xs uppercase tracking-widest">Industry Leader</p>
                 </div>
                 <div className="h-8 md:h-10 w-[1px] bg-slate-200" />
-                <p className="text-[10px] md:text-xs text-slate-500 font-bold max-w-[150px] md:max-w-[200px] leading-relaxed">
+                <p className="text-[10px] md:text-xs text-slate-500 font-bold max-w-[150px] md:max-w-[200px] leading-relaxed text-left">
                   Trusted by <span className="text-slate-900">12,000+</span> shoppers across East Africa.
                 </p>
               </div>
@@ -238,10 +264,10 @@ export const Home = () => {
       {/* --- BENTO PROCESS GRID --- */}
       <section className="py-16 md:py-24 lg:py-40 px-4 md:px-6">
         <div className="container mx-auto">
-          <div className="max-w-xl mb-12 md:mb-20 space-y-4 md:space-y-6">
+          <div className="max-w-xl mb-12 md:mb-20 space-y-4 md:space-y-6 text-center md:text-left mx-auto md:mx-0">
             <span className="text-orange-500 font-black uppercase tracking-[0.4em] text-[10px] md:text-xs">Our Workflow</span>
             <h2 className="text-3xl md:text-5xl lg:text-7xl font-black text-[#0f172a] leading-none tracking-tighter uppercase">{t('home.howitworks')}</h2>
-            <div className="h-1.5 md:h-2 w-16 md:w-24 bg-orange-500 rounded-full" />
+            <div className="h-1.5 md:h-2 w-16 md:w-24 bg-orange-500 rounded-full mx-auto md:mx-0" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
@@ -260,7 +286,7 @@ export const Home = () => {
                     <h3 className="text-2xl md:text-3xl font-black leading-none uppercase tracking-tighter">02. {t('home.step2')}</h3>
                     <p className="text-slate-400 text-xs md:text-sm font-bold">We handle the heavy lifting. Your package is safely received and cataloged.</p>
                   </div>
-                  <div className="w-16 h-16 md:w-20 md:h-20 bg-white/5 backdrop-blur-2xl border border-white/10 rounded-2xl md:rounded-3xl flex items-center justify-center shadow-2xl"><Bell className="text-orange-400" size={30} className="md:w-9 md:h-9"/></div>
+                  <div className="w-16 h-16 md:w-20 md:h-20 bg-white/5 backdrop-blur-2xl border border-white/10 rounded-2xl md:rounded-3xl flex items-center justify-center shadow-2xl"><Bell className="text-orange-400 md:w-9 md:h-9" size={30} /></div>
                </div>
                <div className="relative z-10 flex items-center gap-4 md:gap-6 mt-10 md:mt-16 overflow-x-hidden">
                   {[1,2,3].map(i => (
@@ -310,13 +336,13 @@ export const Home = () => {
       {/* --- PRICING CTA --- */}
       <section className="py-16 md:py-24 lg:py-40 px-4 md:px-6">
         <div className="container mx-auto">
-          <div className="relative overflow-hidden rounded-[2.5rem] md:rounded-[4rem] bg-[#0f172a] p-8 md:p-16 lg:p-28 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.2)] md:shadow-[0_50px_100px_-20px_rgba(0,0,0,0.3)]">
+          <div className="relative overflow-hidden rounded-[2.5rem] md:rounded-[4rem] bg-[#0f172a] p-8 md:p-12 lg:p-20 xl:p-28 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.2)] md:shadow-[0_50px_100px_-20px_rgba(0,0,0,0.3)]">
             <div className="absolute top-[-20%] right-[-10%] w-[300px] md:w-[600px] h-[300px] md:h-[600px] bg-orange-500/20 blur-[100px] md:blur-[150px] animate-morph" />
             <div className="absolute bottom-[-20%] left-[-10%] w-[250px] md:w-[500px] h-[250px] md:h-[500px] bg-blue-500/20 blur-[100px] md:blur-[150px]" />
             
-            <div className="relative z-10 grid lg:grid-cols-2 gap-12 md:gap-20 items-center">
+            <div className="relative z-10 grid lg:grid-cols-2 gap-12 md:gap-16 lg:gap-20 items-center">
               <div className="space-y-6 md:space-y-10 text-center lg:text-left">
-                 <h2 className="text-3xl md:text-5xl lg:text-8xl font-black text-white leading-none tracking-tighter uppercase">{t('home.pricing.title')}</h2>
+                 <h2 className="text-3xl md:text-5xl lg:text-8xl font-black text-white leading-tight md:leading-none tracking-tighter uppercase">{t('home.pricing.title')}</h2>
                  <p className="text-sm md:text-xl text-slate-400 font-bold max-w-md mx-auto lg:mx-0">{t('home.pricing.description')}</p>
                  <Link
                    to="/pricing"
@@ -327,13 +353,13 @@ export const Home = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 md:gap-8">
-                <GlassCard className="p-8 md:p-10 bg-white/5 border-white/10 group hover:bg-white/10 transition-all">
+                <GlassCard className="p-8 md:p-10 bg-white/5 border-white/10 group hover:bg-white/10 transition-all flex flex-col justify-center min-h-[220px]">
                   <div className="text-orange-400 mb-6 md:mb-8"><Plane size={32} className="md:w-10 md:h-10"/></div>
                   <h4 className="text-white font-black text-xl md:text-2xl mb-2">Air Cargo</h4>
                   <p className="text-slate-400 text-[10px] md:text-xs mb-6 md:mb-8 font-bold leading-relaxed">Fastest route. Weekly consolidation.</p>
                   <p className="text-3xl md:text-4xl font-black text-white">$12.00<small className="text-[10px] md:text-sm opacity-50 ml-2">/kg</small></p>
                 </GlassCard>
-                <GlassCard className="p-8 md:p-10 bg-white/5 border-white/10 group hover:bg-white/10 transition-all">
+                <GlassCard className="p-8 md:p-10 bg-white/5 border-white/10 group hover:bg-white/10 transition-all flex flex-col justify-center min-h-[220px]">
                   <div className="text-blue-400 mb-6 md:mb-8"><Truck size={32} className="md:w-10 md:h-10"/></div>
                   <h4 className="text-white font-black text-xl md:text-2xl mb-2">Sea Freight</h4>
                   <p className="text-slate-400 text-[10px] md:text-xs mb-6 md:mb-8 font-bold leading-relaxed">Bulky & heavy items. 45-60 Days.</p>
@@ -348,7 +374,7 @@ export const Home = () => {
       {/* --- TESTIMONIALS --- */}
       <section className="py-16 md:py-24 lg:py-40 px-4 md:px-6">
         <div className="container mx-auto">
-          <div className="mb-12 md:mb-20 space-y-3 md:space-y-4">
+          <div className="mb-12 md:mb-20 space-y-3 md:space-y-4 text-center md:text-left">
             <span className="text-orange-500 font-black uppercase tracking-[0.4em] text-[10px] md:text-xs">Customer Stories</span>
             <h2 className="text-3xl md:text-5xl lg:text-7xl font-black text-[#0f172a] tracking-tighter uppercase">{t('home.testimonials')}</h2>
           </div>
@@ -356,12 +382,12 @@ export const Home = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-10">
             {testimonials.map((test, idx) => (
               <GlassCard key={idx} className="p-8 md:p-12 group hover:-translate-y-3 transition-all duration-500">
-                <div className="flex text-orange-400 mb-6 md:mb-10">
+                <div className="flex text-orange-400 mb-6 md:mb-10 justify-center md:justify-start">
                   {[...Array(5)].map((_, i) => <Star key={i} size={14} className="md:w-[18px] md:h-[18px]" fill="currentColor"/>)}
                 </div>
                 <p className="text-slate-600 font-bold text-sm md:text-lg italic leading-relaxed mb-8 md:mb-10">"{test.text}"</p>
                 <div className="flex items-center gap-4 md:gap-5 pt-8 md:pt-10 border-t border-slate-100">
-                  <div className={`w-12 h-12 md:w-16 md:h-16 rounded-2xl md:rounded-3xl overflow-hidden shadow-inner ${test.color}`}>
+                  <div className={`w-12 h-12 md:w-16 md:h-16 rounded-2xl md:rounded-3xl overflow-hidden shadow-inner shrink-0 ${test.color}`}>
                     {test.avatar}
                   </div>
                   <div>
@@ -411,4 +437,8 @@ export const Home = () => {
       </footer>
     </div>
   )
+}
+
+export default function App() {
+  return <Home />;
 }
