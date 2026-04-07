@@ -18,7 +18,6 @@ import { Wallet } from './pages/Wallet'
 import { Consolidation } from './pages/Consolidation'
 import { ProhibitedItems } from './pages/ProhibitedItems'
 import { Support } from './pages/Support'
-import { Referral } from './pages/Referral'
 import { WarehouseAddresses } from './pages/WarehouseAddresses'
 import { AdminDashboard } from './pages/AdminDashboard'
 import { ResetPassword } from './pages/ResetPassword'
@@ -51,12 +50,11 @@ function App() {
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
           <Route path="/orders/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
-                  <Route path="/orders/new" element={<ProtectedRoute><NewOrder /></ProtectedRoute>} />
-                  <Route path="/orders/confirmation" element={<ProtectedRoute><OrderConfirmation /></ProtectedRoute>} />
+          <Route path="/orders/new" element={<ProtectedRoute><NewOrder /></ProtectedRoute>} />
+          <Route path="/orders/confirmation" element={<ProtectedRoute><OrderConfirmation /></ProtectedRoute>} />
           <Route path="/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
           <Route path="/consolidation" element={<ProtectedRoute><Consolidation /></ProtectedRoute>} />
           <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
-          <Route path="/referral" element={<ProtectedRoute><Referral /></ProtectedRoute>} />
           <Route path="/warehouse" element={<ProtectedRoute><WarehouseAddresses /></ProtectedRoute>} />
 
           {/* Admin Routes */}
@@ -76,7 +74,6 @@ function App() {
           } />
         </Routes>
 
-        {/* Floating support chat launcher */}
         <SupportChatWidget />
       </main>
 

@@ -7,7 +7,7 @@ import { useLanguage } from '../context/LanguageContext'
 export const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
-  const [navBackground, setNavBackground] = useState('bg-[#0f172a]/80') // Default transparent background
+  const [navBackground, setNavBackground] = useState('bg-[#0f172a]/80')
   const { isAuthenticated, user, isAdmin, logout } = useAuth()
   const { language, changeLanguage, t } = useLanguage()
   const navigate = useNavigate()
@@ -17,37 +17,31 @@ export const Navbar = () => {
     navigate('/')
   }
 
-  // Effect to handle transparency change when mobile menu toggles
   useEffect(() => {
-    if (mobileMenuOpen) {
-      setNavBackground('bg-[#0f172a]/100') // Solid background when open
-    } else {
-      setNavBackground('bg-[#0f172a]/80') // Return to transparent when closed
-    }
+    setNavBackground(mobileMenuOpen ? 'bg-[#0f172a]/100' : 'bg-[#0f172a]/80')
   }, [mobileMenuOpen])
 
   const navLinks = [
-    { label: t('nav.home'), href: '/' },
+    { label: t('nav.home'),      href: '/' },
     isAuthenticated && { label: t('nav.dashboard'), href: '/dashboard' },
-    { label: t('nav.track'), href: '/track' },
-    { label: t('nav.pricing'), href: '/pricing' },
-    isAuthenticated && { label: t('nav.wallet'), href: '/wallet' },
+    { label: t('nav.track'),     href: '/track' },
+    { label: t('nav.pricing'),   href: '/pricing' },
+    isAuthenticated && { label: t('nav.wallet'),    href: '/wallet' },
   ].filter(Boolean)
 
   return (
     <nav className={`sticky top-0 z-50 ${navBackground} backdrop-blur-3xl border-b border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.15)] font-sans transition-all duration-500`}>
-      {/* Subtle interior glow for dark glass effect */}
       <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
-      
+
       <div className="max-w-7xl mx-auto px-4 py-4 relative z-10">
         <div className="flex justify-between items-center">
-          {/* Logo - Refined Typography */}
+          {/* Logo */}
           <Link to="/" className="group flex items-center gap-1 font-black text-2xl md:text-3xl tracking-tighter leading-none transition-transform duration-300 hover:scale-105">
             <span className="text-white drop-shadow-md">Thapsus</span>
             <span className="text-orange-500 drop-shadow-[0_0_15px_rgba(249,115,22,0.4)]">Cargo</span>
           </Link>
 
-          {/* Desktop Navigation */}
+          {/* Desktop nav links */}
           <div className="hidden lg:flex items-center gap-8">
             {navLinks.map((link) => (
               <Link
@@ -61,30 +55,23 @@ export const Navbar = () => {
             ))}
           </div>
 
-          {/* Right Side */}
+          {/* Right side */}
           <div className="hidden lg:flex items-center gap-5">
-            {/* Language Switcher - Dark Glass Pill */}
+            {/* Language switcher */}
             <div className="flex gap-1 bg-white/5 backdrop-blur-md border border-white/10 p-1 rounded-xl shadow-inner">
-              <button
-                onClick={() => changeLanguage('en')}
-                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
-                  language === 'en'
-                    ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                EN
-              </button>
-              <button
-                onClick={() => changeLanguage('sw')}
-                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
-                  language === 'sw'
-                    ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                SW
-              </button>
+              {['en', 'sw'].map((lang) => (
+                <button
+                  key={lang}
+                  onClick={() => changeLanguage(lang)}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
+                    language === lang
+                      ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  {lang.toUpperCase()}
+                </button>
+              ))}
             </div>
 
             {isAuthenticated ? (
@@ -99,7 +86,6 @@ export const Navbar = () => {
                   <span className="hidden sm:block text-sm font-bold text-white tracking-tight">{user?.name}</span>
                 </button>
 
-                {/* Dropdown Menu - Crystal Borders */}
                 {userDropdownOpen && (
                   <div className="absolute right-0 mt-4 w-56 bg-white/80 backdrop-blur-3xl border border-white/60 rounded-[20px] shadow-[0_8px_30px_rgb(0,0,0,0.12)] p-2 z-50 animate-fade-in origin-top-right glass-sheen">
                     <Link
@@ -115,13 +101,6 @@ export const Navbar = () => {
                       onClick={() => setUserDropdownOpen(false)}
                     >
                       {t('nav.wallet')}
-                    </Link>
-                    <Link
-                      to="/referral"
-                      className="block px-4 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-white/60 hover:text-[#1e3a5f] transition-all"
-                      onClick={() => setUserDropdownOpen(false)}
-                    >
-                      {t('nav.referral')}
                     </Link>
                     {isAdmin && (
                       <div className="my-1 border-t border-white/40">
@@ -149,16 +128,10 @@ export const Navbar = () => {
               </div>
             ) : (
               <div className="flex gap-3">
-                <Link
-                  to="/login"
-                  className="px-5 py-2.5 bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 rounded-xl text-sm font-bold text-white transition-all hover:shadow-lg active:scale-95"
-                >
+                <Link to="/login" className="px-5 py-2.5 bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 rounded-xl text-sm font-bold text-white transition-all hover:shadow-lg active:scale-95">
                   {t('nav.login')}
                 </Link>
-                <Link
-                  to="/register"
-                  className="group relative overflow-hidden px-5 py-2.5 bg-orange-500 hover:bg-orange-400 rounded-xl text-sm font-black tracking-tight text-slate-900 transition-all shadow-[0_0_20px_rgba(249,115,22,0.3)] hover:shadow-[0_0_25px_rgba(249,115,22,0.5)] hover:-translate-y-0.5 active:scale-95 glass-sheen"
-                >
+                <Link to="/register" className="group relative overflow-hidden px-5 py-2.5 bg-orange-500 hover:bg-orange-400 rounded-xl text-sm font-black tracking-tight text-slate-900 transition-all shadow-[0_0_20px_rgba(249,115,22,0.3)] hover:shadow-[0_0_25px_rgba(249,115,22,0.5)] hover:-translate-y-0.5 active:scale-95 glass-sheen">
                   <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
                   <span className="relative z-10">{t('nav.register')}</span>
                 </Link>
@@ -166,7 +139,7 @@ export const Navbar = () => {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
+          {/* Mobile hamburger button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="lg:hidden p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-slate-300 hover:text-white transition-all backdrop-blur-md active:scale-95"
@@ -175,7 +148,7 @@ export const Navbar = () => {
           </button>
         </div>
 
-        {/* Mobile Menu - Dark Glass Bento */}
+        {/* Mobile menu */}
         {mobileMenuOpen && (
           <div className="lg:hidden absolute top-full left-0 w-full bg-[#0f172a]/95 backdrop-blur-3xl border-t border-white/10 shadow-2xl animate-fade-in z-50">
             <div className="p-6 flex flex-col gap-4">
@@ -192,34 +165,21 @@ export const Navbar = () => {
                 ))}
               </div>
 
-              {/* Mobile Language Switcher */}
+              {/* Mobile language switcher */}
               <div className="flex gap-2 bg-white/5 border border-white/10 p-1.5 rounded-xl">
-                <button
-                  onClick={() => {
-                    changeLanguage('en')
-                    setMobileMenuOpen(false)
-                  }}
-                  className={`flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
-                    language === 'en'
-                      ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  EN
-                </button>
-                <button
-                  onClick={() => {
-                    changeLanguage('sw')
-                    setMobileMenuOpen(false)
-                  }}
-                  className={`flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
-                    language === 'sw'
-                      ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  SW
-                </button>
+                {['en', 'sw'].map((lang) => (
+                  <button
+                    key={lang}
+                    onClick={() => { changeLanguage(lang); setMobileMenuOpen(false) }}
+                    className={`flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+                      language === lang
+                        ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    {lang.toUpperCase()}
+                  </button>
+                ))}
               </div>
 
               {isAuthenticated ? (
@@ -231,17 +191,10 @@ export const Navbar = () => {
                   >
                     {t('nav.dashboard')}
                   </Link>
-                  <Link
-                    to="/referral"
-                    className="block px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold uppercase tracking-widest text-slate-300 hover:text-white transition-all"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    {t('nav.referral')}
-                  </Link>
                   {isAdmin && (
                     <Link
                       to="/admin"
-                      className="block px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold uppercase tracking-widest text-orange-400 hover:text-orange-300 transition-all flex items-center gap-2"
+                      className="flex items-center gap-2 px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold uppercase tracking-widest text-orange-400 hover:text-orange-300 transition-all"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <BarChart3 size={16} />
@@ -270,7 +223,7 @@ export const Navbar = () => {
                     className="group relative overflow-hidden flex-1 py-3.5 bg-orange-500 rounded-xl text-sm font-black tracking-tight text-slate-900 text-center shadow-[0_0_15px_rgba(249,115,22,0.3)] glass-sheen"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                     <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
+                    <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
                     <span className="relative z-10">{t('nav.register')}</span>
                   </Link>
                 </div>
