@@ -1,7 +1,6 @@
 // Thapsus Cargo — Service Worker
-// Copied verbatim to client/dist/sw.js by Vite at build time (public/ dir).
-// Currently a network-first passthrough. Extend caching strategy here once
-// vite-plugin-pwa is added.
+// Served from client/public/sw.js → /sw.js at runtime.
+// Handles: caching (network-first), Web Push notifications, notification clicks.
 
 const CACHE_NAME = 'thapsus-cargo-v1';
 
@@ -22,7 +21,52 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Network-first: always try the network, fall back to cache for GET requests
+// ── Push Notifications ────────────────────────────────────────────────────────
+// Fired when the server sends a Web Push message (background / app-closed state).
+// The payload shape mirrors the SSE order_update event for consistency.
+self.addEventListener('push', event => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch (_) {}
+
+  const title   = payload.title   || '📦 Thapsus Cargo';
+  const body    = payload.body    || 'Your shipment status has been updated.';
+  const orderId = payload.orderId || null;
+  const tag     = payload.tag     || (orderId ? `order-${orderId}` : 'thapsus-update');
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon:  '/logo.png',
+      badge: '/logo.png',
+      tag,
+      data:  { url: orderId ? `/orders/${orderId}` : '/orders' },
+    })
+  );
+});
+
+// ── Notification Click ────────────────────────────────────────────────────────
+// Open / focus the relevant page when the user taps a notification.
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || '/orders';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windows => {
+      // If a tab is already open, focus it and navigate
+      for (const win of windows) {
+        if (win.url.includes(self.location.origin)) {
+          win.focus();
+          return win.navigate(targetUrl);
+        }
+      }
+      // Otherwise open a new tab
+      return self.clients.openWindow(targetUrl);
+    })
+  );
+});
+
+// ── Network-first fetch ───────────────────────────────────────────────────────
+// Always try the network, fall back to cache for GET requests.
 self.addEventListener('fetch', event => {
   // Only handle GET requests; let everything else pass through
   if (event.request.method !== 'GET') return;
