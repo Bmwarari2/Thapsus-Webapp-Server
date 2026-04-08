@@ -4,7 +4,7 @@ import {
   Lock, RefreshCw, Trash2, XCircle, Plus, CreditCard, Search,
   UserPlus, Bell, Mail, Eye, ArrowLeft, Key, Send, AlertTriangle,
   ChevronLeft, ChevronRight, Filter, ChevronDown, Globe, TrendingUp,
-  CheckCircle, X, Box, Pencil, Weight, Ruler, ShoppingCart, Zap,
+  CheckCircle, X, Box, Pencil, Scale, Ruler, ShoppingCart, Zap,
   ArrowUpRight, Clock
 } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
@@ -1285,7 +1285,7 @@ export const AdminDashboard = () => {
                   {/* Weight & Dimensions Section */}
                   <div className="relative overflow-hidden rounded-2xl bg-blue-50/60 backdrop-blur-md border border-blue-200/40 p-5">
                     <div className="absolute inset-0 bg-gradient-to-tr from-blue-100/20 to-transparent pointer-events-none" />
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-4 relative z-10 flex items-center gap-2"><Weight size={14}/> Weight & Dimensions</h4>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-4 relative z-10 flex items-center gap-2"><Scale size={14}/> Weight & Dimensions</h4>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
                       <div>
                         <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Weight (kg)</label>

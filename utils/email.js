@@ -12,8 +12,6 @@ function getOAuth2Client() {
   const clientSecret = process.env.GMAIL_CLIENT_SECRET;
   const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
 
-  // FIX 5: Return null instead of throwing so the server can boot without
-  // Gmail credentials — callers handle null gracefully (see sendWithGmail).
   if (!clientId || !clientSecret || !refreshToken) {
     return null;
   }
@@ -70,7 +68,6 @@ function buildRawEmail({ from, to, subject, html, text }) {
 }
 
 async function sendWithGmail(mailOptions, retries = 2) {
-  // FIX 6: Surface a clean error when env vars are not configured.
   const auth = getOAuth2Client();
   if (!auth) {
     throw new Error(
@@ -106,8 +103,6 @@ async function sendWithGmail(mailOptions, retries = 2) {
       return response.data;
     } catch (err) {
       lastError = err;
-      // FIX 4: Reset the cached client on any auth failure (401 OR 400
-      // invalid_grant) so the next attempt rebuilds it from env vars.
       if (
         err.code === 401 ||
         err.code === 400 ||
@@ -124,7 +119,6 @@ async function sendWithGmail(mailOptions, retries = 2) {
   throw lastError;
 }
 
-// FIX 3: Accept userId so email_logs rows are attributed to the correct user.
 async function logEmailSent({ toEmail, emailType, subject, userId = null, errorMessage = null }) {
   try {
     const pool = getPool();
@@ -273,8 +267,6 @@ async function sendAdminPasswordResetEmail(toEmail, toName, resetLink) {
   }
 }
 
-// FIX 1 & 2 applied at the call-site in routes/admin.js.
-// These functions themselves are correct — they require `order` as the 7th arg.
 async function sendPaymentRequestEmail(toEmail, toName, trackingNumber, amount, notes, paymentLink, order) {
   const bodyHtml = `
     <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment Request</h2>
@@ -282,11 +274,11 @@ async function sendPaymentRequestEmail(toEmail, toName, trackingNumber, amount, 
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       A payment is due for your order <strong>${trackingNumber}</strong>.
     </p>
-    
-    ${costBreakdownTable(order)}
+
+    ${order ? costBreakdownTable(order) : `<p style="font-size:16px;font-weight:bold;color:#1e3a5f;">Amount Due: KES ${amount?.toLocaleString?.() ?? amount}</p>`}
 
     ${notes ? `<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;background-color:#f9fafb;padding:12px 16px;border-left:4px solid #f97316;border-radius:4px;"><em>${notes}</em></p>` : ''}
-    
+
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
       <tr>
         <td style="background-color:#f97316;border-radius:8px;">
@@ -314,10 +306,10 @@ async function sendPaymentReminderEmail(toEmail, toName, trackingNumber, amount,
       This is a friendly reminder that a payment is outstanding for your order <strong>${trackingNumber}</strong>.
     </p>
 
-    ${costBreakdownTable(order)}
+    ${order ? costBreakdownTable(order) : `<p style="font-size:16px;font-weight:bold;color:#1e3a5f;">Amount Due: KES ${amount?.toLocaleString?.() ?? amount}</p>`}
 
     ${notes ? `<div style="margin:0 0 24px;background-color:#fef9c3;padding:12px 16px;border-left:4px solid #f59e0b;border-radius:4px;"><p style="margin:0;color:#92400e;font-size:14px;line-height:1.6;"><strong>Note from admin:</strong> ${notes}</p></div>` : ''}
-    
+
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
       <tr>
         <td style="background-color:#f97316;border-radius:8px;">
@@ -337,9 +329,9 @@ async function sendPaymentReminderEmail(toEmail, toName, trackingNumber, amount,
   }
 }
 
-async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, market, description, shippingSpeed, ordersLink) {
-  const speedLabel   = shippingSpeed === 'express' ? 'Express' : 'Economy';
-  const marketFlags  = { UK: '🇬🇧', USA: '🇺🇸', China: '🇨🇳' };
+async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, market, description, shippingSpeed, ordersLink, order = null) {
+  const speedLabel    = shippingSpeed === 'express' ? 'Express' : 'Economy';
+  const marketFlags   = { UK: '🇬🇧', USA: '🇺🇸', China: '🇨🇳' };
   const marketDisplay = `${marketFlags[market] || ''} ${market}`.trim();
 
   const bodyHtml = `
@@ -372,6 +364,18 @@ async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, 
         </tr>
       </tbody>
     </table>
+
+    ${order ? `
+    <h3 style="margin:0 0 8px;color:#1e3a5f;font-size:16px;font-weight:700;">Cost Breakdown</h3>
+    ${costBreakdownTable(order)}
+    ` : `
+    <div style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;margin:0 0 24px;">
+      <p style="margin:0;color:#92400e;font-size:14px;line-height:1.6;">
+        💡 Your order cost will be calculated once our warehouse team weighs and measures your package. You'll receive a payment request once it arrives.
+      </p>
+    </div>
+    `}
+
     <p style="margin:0 0 24px;color:#4b5563;font-size:14px;line-height:1.6;">
       You will receive further updates as your order progresses. You can track your order at any time using the button below.
     </p>
@@ -386,10 +390,10 @@ async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, 
   const subject = `New Order Created — ${trackingNumber}`;
   try {
     const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
-    await logEmailSent({ toEmail, emailType: 'order_created', subject });
+    await logEmailSent({ toEmail, emailType: 'order_created', subject, userId: order?.user_id ?? null });
     return result;
   } catch (error) {
-    await logEmailSent({ toEmail, emailType: 'order_created', subject, errorMessage: error.message });
+    await logEmailSent({ toEmail, emailType: 'order_created', subject, userId: order?.user_id ?? null, errorMessage: error.message });
     throw error;
   }
 }
@@ -489,11 +493,11 @@ async function sendPaymentReceiptEmail(toEmail, toName, trackingNumber, amount, 
   }
 }
 
-// ── Ticket emails (stubs retained — not yet called in production routes) ──
+// ── Ticket emails (stubs retained) ────────────────────────────────────────────
 async function sendTicketCreatedEmail() { /* TODO: implement when ticket email flow is added */ }
 async function sendTicketReplyEmail()   { /* TODO: implement when ticket email flow is added */ }
 
-// ── Exports ────────────────────────────────────────────────────────────────
+// ── Exports ────────────────────────────────────────────────────────────────────
 
 export {
   sendPasswordResetEmail,

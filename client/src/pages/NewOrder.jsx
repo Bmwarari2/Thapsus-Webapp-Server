@@ -54,7 +54,6 @@ export const NewOrder = () => {
     shippingSpeed: 'economy',
     insurance: false,
     declaredValue: '',
-    promoCode: '',
   })
   const [estimate, setEstimate] = useState(null)
 
@@ -189,13 +188,6 @@ export const NewOrder = () => {
                   <textarea name="description" value={formData.description} onChange={handleChange}
                     placeholder="e.g., Blue hoodie size M, black shoes size 10" rows="3" required
                     className={`${inputClass} resize-none`} />
-                </div>
-
-                {/* Promo Code */}
-                <div>
-                  <label className={labelClass}>{t('neworder.promoCode')}</label>
-                  <input type="text" name="promoCode" value={formData.promoCode} onChange={handleChange}
-                    placeholder="Optional code" className={inputClass} />
                 </div>
 
                 {/* Info notice about weight/dimensions */}

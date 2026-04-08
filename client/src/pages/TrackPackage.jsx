@@ -1,11 +1,13 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Search, Package, Check, Clock, AlertCircle,
-  ArrowRight, Box, MapPin, Truck, Globe, Zap
+  ArrowRight, Box, MapPin, Truck, Globe, Zap, LogIn
 } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
+import { useAuth } from '../context/AuthContext'
 import { ordersApi } from '../api'
 import { SEO } from '../components/SEO'
+import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 
 // Human-readable labels for every order status
@@ -18,6 +20,17 @@ const STATUS_LABELS = {
   out_for_delivery:      'Out for Delivery',
   delivered:             'Delivered',
   cancelled:             'Cancelled',
+}
+
+const STATUS_COLORS = {
+  pending:               'bg-slate-100 text-slate-600 border-slate-200',
+  received_at_warehouse: 'bg-blue-50 text-blue-700 border-blue-200',
+  consolidating:         'bg-indigo-50 text-indigo-700 border-indigo-200',
+  in_transit:            'bg-orange-50 text-orange-700 border-orange-200',
+  customs:               'bg-amber-50 text-amber-700 border-amber-200',
+  out_for_delivery:      'bg-green-50 text-green-700 border-green-200',
+  delivered:             'bg-emerald-50 text-emerald-700 border-emerald-200',
+  cancelled:             'bg-red-50 text-red-600 border-red-200',
 }
 
 // Estimate delivery date from order data
@@ -47,10 +60,15 @@ const GlassCard = ({ children, className = "" }) => (
 
 export const TrackPackage = () => {
   const { t } = useLanguage()
+  const { user, isAuthenticated } = useAuth()
   const [trackingNumber, setTrackingNumber] = useState('')
   const [loading, setLoading] = useState(false)
   const [package_, setPackage] = useState(null)
   const [error, setError] = useState(null)
+
+  // Signed-in user's orders
+  const [myOrders, setMyOrders] = useState([])
+  const [loadingOrders, setLoadingOrders] = useState(false)
 
   // All 6 user-facing statuses in order — must mirror the DB CHECK constraint
   const statusTimeline = [
@@ -62,6 +80,25 @@ export const TrackPackage = () => {
     { status: 'out_for_delivery',      label: 'Out for Delivery',      icon: ArrowRight },
     { status: 'delivered',             label: 'Delivered',             icon: Check   },
   ]
+
+  // Load user's orders when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchMyOrders()
+    }
+  }, [isAuthenticated])
+
+  const fetchMyOrders = async () => {
+    try {
+      setLoadingOrders(true)
+      const res = await ordersApi.list({ limit: 20 })
+      setMyOrders(res.data.orders || [])
+    } catch (err) {
+      console.error('Failed to load orders:', err)
+    } finally {
+      setLoadingOrders(false)
+    }
+  }
 
   const handleTrack = async (e) => {
     e.preventDefault()
@@ -82,6 +119,17 @@ export const TrackPackage = () => {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleQuickTrack = (trackNum) => {
+    setTrackingNumber(trackNum)
+    setPackage(null)
+    setError(null)
+    // Trigger search automatically
+    setLoading(true)
+    ordersApi.track(trackNum)
+      .then(res => { setPackage(res.data.tracking); setLoading(false) })
+      .catch(() => { setError(t('track.notFound')); setLoading(false) })
   }
 
   // Returns -1 only before a search; after a successful lookup always ≥ 0
@@ -175,8 +223,8 @@ export const TrackPackage = () => {
 
         {/* Package Details Display */}
         {package_ && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-in fade-in slide-in-from-bottom-8 duration-700">
-            
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-in fade-in slide-in-from-bottom-8 duration-700 mb-16">
+
             {/* Left Column: Timeline */}
             <div className="lg:col-span-7">
               <GlassCard className="p-8 lg:p-10">
@@ -195,10 +243,10 @@ export const TrackPackage = () => {
                         {/* Vertical Line */}
                         {idx < statusTimeline.length - 1 && (
                           <div className="absolute left-6 top-14 w-[2px] h-10 bg-slate-100 rounded-full overflow-hidden">
-                            <div 
+                            <div
                               className={`h-full bg-gradient-to-b from-green-500 to-green-400 transition-all duration-1000 delay-300 ${
                                 isCompleted ? 'translate-y-0' : '-translate-y-full'
-                              }`} 
+                              }`}
                             />
                           </div>
                         )}
@@ -324,6 +372,116 @@ export const TrackPackage = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ── MY PACKAGES (signed-in users) ── */}
+        {isAuthenticated ? (
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-black text-[#0f172a] uppercase tracking-tighter">My Packages</h2>
+                <p className="text-sm text-slate-500 font-bold mt-1">All your active and past shipments</p>
+              </div>
+              {loadingOrders && (
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400">
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                  Loading...
+                </div>
+              )}
+            </div>
+
+            {!loadingOrders && myOrders.length === 0 && (
+              <GlassCard className="p-12 text-center">
+                <Package size={48} className="text-slate-200 mx-auto mb-4" />
+                <p className="text-slate-500 font-bold">You don't have any packages yet.</p>
+                <Link to="/orders/new" className="inline-block mt-4 px-6 py-3 bg-[#0f172a] text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 transition-all">
+                  Create First Order
+                </Link>
+              </GlassCard>
+            )}
+
+            {!loadingOrders && myOrders.length > 0 && (
+              <div className="space-y-4">
+                {myOrders.map((order) => {
+                  const statusColor = STATUS_COLORS[order.status] || 'bg-slate-100 text-slate-600 border-slate-200'
+                  const delivery = estimateDelivery(order)
+                  const isActive = !['delivered', 'cancelled'].includes(order.status)
+
+                  return (
+                    <GlassCard key={order.id} className="p-6 hover:shadow-lg transition-all cursor-pointer group" onClick={() => handleQuickTrack(order.tracking_number)}>
+                      <div className="flex items-center justify-between gap-4 flex-wrap">
+                        {/* Left: icon + tracking */}
+                        <div className="flex items-center gap-4">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${isActive ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-400'}`}>
+                            <Package size={22} />
+                          </div>
+                          <div>
+                            <p className="font-black text-[#0f172a] tracking-tighter text-lg">{order.tracking_number}</p>
+                            <p className="text-xs text-slate-400 font-bold mt-0.5">{order.retailer} · {order.market} Hub</p>
+                          </div>
+                        </div>
+
+                        {/* Middle: description */}
+                        <div className="hidden md:block flex-1 min-w-0 px-4">
+                          <p className="text-sm text-slate-600 font-bold truncate">{order.description}</p>
+                          {order.weight_kg && (
+                            <p className="text-xs text-slate-400 font-bold mt-0.5">{order.weight_kg} kg</p>
+                          )}
+                        </div>
+
+                        {/* Right: status + cost + date */}
+                        <div className="flex items-center gap-3 flex-wrap justify-end">
+                          <span className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${statusColor}`}>
+                            {STATUS_LABELS[order.status] || order.status?.replace(/_/g, ' ')}
+                          </span>
+                          {(order.actual_cost || order.estimated_cost) && (
+                            <span className="text-sm font-black text-slate-900">
+                              KES {(order.actual_cost || order.estimated_cost)?.toLocaleString()}
+                              {!order.actual_cost && <span className="text-[9px] text-slate-400 font-bold ml-1">est.</span>}
+                            </span>
+                          )}
+                          <div className="text-right">
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                              {order.status === 'delivered' ? 'Delivered' : 'Est. Arrival'}
+                            </p>
+                            <p className="text-xs font-black text-slate-700">
+                              {delivery
+                                ? delivery.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+                                : '—'}
+                            </p>
+                          </div>
+                          <div className="w-8 h-8 bg-white/80 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-orange-500 group-hover:text-white transition-all">
+                            <ArrowRight size={14} />
+                          </div>
+                        </div>
+                      </div>
+                    </GlassCard>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Not signed in — prompt to login */
+          !package_ && (
+            <div className="mt-4">
+              <GlassCard className="p-10 flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
+                <div className="w-16 h-16 bg-orange-100 rounded-3xl flex items-center justify-center shrink-0">
+                  <LogIn size={28} className="text-orange-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tighter mb-2">See All Your Packages</h3>
+                  <p className="text-slate-500 font-bold text-sm">Sign in to view all your active and past shipments, their statuses, and delivery estimates in one place.</p>
+                </div>
+                <Link to="/login" className="glass-sheen shrink-0 bg-[#0f172a] text-white px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-slate-800 transition-all">
+                  Sign In
+                </Link>
+              </GlassCard>
+            </div>
+          )
         )}
       </div>
     </div>

@@ -217,7 +217,7 @@ export const Register = () => {
                 {/* Reward notice */}
                 <div className="mt-3 p-3 bg-gradient-to-br from-orange-50/50 to-white/30 border border-orange-100/50 rounded-xl backdrop-blur-sm">
                   <p className="text-xs text-slate-600 font-medium leading-relaxed">
-                    <span className="mr-1">🎁</span> Using a referral code? The person who referred you earns <strong className="text-orange-600 font-black">KES 50</strong> in wallet credit after you place your first order.
+                    <span className="mr-1">🎁</span> Using a referral code? <strong className="text-orange-600 font-black">Both you AND the person who referred you</strong> each earn <strong className="text-orange-600 font-black">KES 50</strong> in wallet credit when you place your first order that gets shipped!
                   </p>
                 </div>
               </div>

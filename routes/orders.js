@@ -107,8 +107,8 @@ router.post('/', authMiddleware, async (req, res) => {
           await db.query('UPDATE users  SET wallet_balance = wallet_balance + $1 WHERE id = $2', [reward, pendingReferral.referrer_id]);
           await db.query('UPDATE wallet SET balance = balance + $1, last_updated = NOW() WHERE user_id = $2', [reward, pendingReferral.referrer_id]);
           await db.query(
-            `INSERT INTO transactions (id, user_id, type, amount, currency, payment_method, status)
-             VALUES ($1,$2,'referral_reward',$3,'KES','system','completed')`,
+            `INSERT INTO transactions (id, user_id, type, amount, currency, status)
+             VALUES ($1,$2,'referral_credit',$3,'KES','completed')`,
             [uuidv4(), pendingReferral.referrer_id, reward]
           );
 
@@ -116,8 +116,8 @@ router.post('/', authMiddleware, async (req, res) => {
           await db.query('UPDATE users  SET wallet_balance = wallet_balance + $1 WHERE id = $2', [reward, userId]);
           await db.query('UPDATE wallet SET balance = balance + $1, last_updated = NOW() WHERE user_id = $2', [reward, userId]);
           await db.query(
-            `INSERT INTO transactions (id, user_id, type, amount, currency, payment_method, status)
-             VALUES ($1,$2,'referral_reward',$3,'KES','system','completed')`,
+            `INSERT INTO transactions (id, user_id, type, amount, currency, status)
+             VALUES ($1,$2,'referral_credit',$3,'KES','completed')`,
             [uuidv4(), userId, reward]
           );
 
