@@ -46,10 +46,24 @@ const GlassCard = ({ children, className = '' }) => (
 
 // ─── WALLET TAB ────────────────────────────────────────────────────────────────
 const WalletTab = ({ balance, transactions }) => {
+  // DB transaction types: 'deposit', 'payment', 'refund', 'referral_credit'
+  const CREDIT_TYPES = ['deposit', 'refund', 'referral_credit']
+  const isCredit = (type) => CREDIT_TYPES.includes(type)
+
   const txTypeIcon = (type) => {
-    if (type === 'credit') return <TrendingUp size={16} className="text-green-500" />
-    if (type === 'debit')  return <CreditCard  size={16} className="text-red-400"   />
+    if (type === 'referral_credit') return <Gift        size={16} className="text-orange-500" />
+    if (type === 'deposit')         return <TrendingUp  size={16} className="text-green-500"  />
+    if (type === 'refund')          return <CheckCircle size={16} className="text-blue-500"   />
+    if (type === 'payment')         return <CreditCard  size={16} className="text-red-400"    />
     return <Info size={16} className="text-slate-400" />
+  }
+
+  const txLabel = (tx) => {
+    if (tx.type === 'referral_credit') return 'Referral Bonus'
+    if (tx.type === 'deposit')         return tx.payment_method === 'mpesa' ? 'M-Pesa Deposit' : 'Deposit'
+    if (tx.type === 'refund')          return 'Refund'
+    if (tx.type === 'payment')         return tx.payment_method === 'wallet' ? 'Wallet Payment' : 'Payment'
+    return tx.type?.replace(/_/g, ' ') ?? '—'
   }
 
   return (
@@ -102,14 +116,16 @@ const WalletTab = ({ balance, transactions }) => {
                     <td className="px-8 py-5">
                       <span className="inline-flex items-center gap-2 text-sm font-bold text-slate-700">
                         {txTypeIcon(tx.type)}
-                        <span className="capitalize">{tx.type}</span>
+                        <span className="capitalize">{txLabel(tx)}</span>
                       </span>
                     </td>
-                    <td className="px-8 py-5 text-sm font-medium text-slate-600 max-w-xs truncate">{tx.description || '—'}</td>
+                    <td className="px-8 py-5 text-sm font-medium text-slate-600 max-w-xs truncate">
+                      {tx.payment_reference || (tx.type === 'referral_credit' ? 'Referral reward' : '—')}
+                    </td>
                     <td className={`px-8 py-5 text-right text-sm font-black ${
-                      tx.type === 'credit' ? 'text-green-600' : 'text-red-500'
+                      isCredit(tx.type) ? 'text-green-600' : 'text-red-500'
                     }`}>
-                      {tx.type === 'credit' ? '+' : '-'}KES {Number(tx.amount).toLocaleString()}
+                      {isCredit(tx.type) ? '+' : '-'}KES {Number(tx.amount).toLocaleString()}
                     </td>
                     <td className="px-8 py-5 text-right text-xs font-bold text-slate-500">
                       {new Date(tx.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}

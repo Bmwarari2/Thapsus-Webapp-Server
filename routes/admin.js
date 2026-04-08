@@ -811,8 +811,8 @@ router.delete('/orders/:id', authMiddleware, isAdmin, async (req, res) => {
   }
 });
 
-/** PUT /api/admin/orders/:id/cancel */
-router.put('/orders/:id/cancel', authMiddleware, isAdmin, async (req, res) => {
+/** POST /api/admin/orders/:id/cancel */
+router.post('/orders/:id/cancel', authMiddleware, isAdmin, async (req, res) => {
   try {
     const db = req.db;
     const { id } = req.params;
@@ -857,23 +857,13 @@ router.post('/orders/:id/request-payment', authMiddleware, isAdmin, async (req, 
       return res.status(400).json({ success: false, message: 'A valid payment amount is required.' });
     const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
 
-    // FIX 1: Pass the full `order` object as the 7th argument so that
-    // costBreakdownTable(order) inside sendPaymentRequestEmail does not
-    // throw "Cannot read properties of undefined".
-    sendPaymentRequestEmail(
-      order.email,
-      order.customer_name,
-      order.tracking_number,
-      paymentAmount,
-      notes || '',
-      `${frontendUrl}/pay/${id}?amount=${paymentAmount}`,
-      order                           // ← was missing
-    ).catch(console.error);
-
+    // Send in-app notification first (always works, no external dependency)
     sendInAppNotification(
       order.user_id,
       `Payment of KES ${paymentAmount.toLocaleString()} requested for order ${order.tracking_number}.${notes ? ` Note: ${notes}` : ''}`
     );
+
+    // Log the action regardless of email outcome
     await db.query(
       'INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)',
       [uuidv4(), adminId, 'request_payment', JSON.stringify({
@@ -881,9 +871,30 @@ router.post('/orders/:id/request-payment', authMiddleware, isAdmin, async (req, 
         customer_email: order.email, amount: paymentAmount, notes: notes || ''
       })]
     );
+
+    // Attempt to send email — surface failures to the admin instead of swallowing them
+    let emailWarning = null;
+    try {
+      await sendPaymentRequestEmail(
+        order.email,
+        order.customer_name,
+        order.tracking_number,
+        paymentAmount,
+        notes || '',
+        `${frontendUrl}/pay/${id}?amount=${paymentAmount}`,
+        order
+      );
+    } catch (emailErr) {
+      console.error('Payment request email failed:', emailErr.message || emailErr);
+      emailWarning = `Email delivery failed: ${emailErr.message || 'Unknown error'}. In-app notification was sent.`;
+    }
+
     res.json({
       success: true,
-      message: `Payment request of KES ${paymentAmount.toLocaleString()} sent to ${order.email}`,
+      message: emailWarning
+        ? `In-app notification sent to ${order.customer_name}, but email to ${order.email} failed.`
+        : `Payment request of KES ${paymentAmount.toLocaleString()} sent to ${order.email}`,
+      email_warning: emailWarning || null,
       payment_request: {
         order_id: id, tracking_number: order.tracking_number,
         customer: { email: order.email, name: order.customer_name },
@@ -973,23 +984,13 @@ router.post('/orders/:id/send-reminder', authMiddleware, isAdmin, async (req, re
       return res.status(400).json({ success: false, message: 'A valid payment amount is required.' });
     const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
 
-    // FIX 2: Pass the full `order` object as the 7th argument so that
-    // costBreakdownTable(order) inside sendPaymentReminderEmail does not
-    // throw "Cannot read properties of undefined".
-    sendPaymentReminderEmail(
-      order.email,
-      order.customer_name,
-      order.tracking_number,
-      reminderAmount,
-      notes || '',
-      `${frontendUrl}/pay/${id}?amount=${reminderAmount}`,
-      order                           // ← was missing
-    ).catch(console.error);
-
+    // Send in-app notification first (always works, no external dependency)
     sendInAppNotification(
       order.user_id,
       `Reminder: Payment of KES ${reminderAmount.toLocaleString()} is due for order ${order.tracking_number}.${notes ? ` Note: ${notes}` : ''}`
     );
+
+    // Log the action regardless of email outcome
     await db.query(
       'INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1, $2, $3, $4)',
       [uuidv4(), adminId, 'send_payment_reminder', JSON.stringify({
@@ -997,9 +998,30 @@ router.post('/orders/:id/send-reminder', authMiddleware, isAdmin, async (req, re
         customer_email: order.email, amount: reminderAmount, notes: notes || ''
       })]
     );
+
+    // Attempt to send email — surface failures to admin instead of swallowing them
+    let emailWarning = null;
+    try {
+      await sendPaymentReminderEmail(
+        order.email,
+        order.customer_name,
+        order.tracking_number,
+        reminderAmount,
+        notes || '',
+        `${frontendUrl}/pay/${id}?amount=${reminderAmount}`,
+        order
+      );
+    } catch (emailErr) {
+      console.error('Payment reminder email failed:', emailErr.message || emailErr);
+      emailWarning = `Email delivery failed: ${emailErr.message || 'Unknown error'}. In-app notification was sent.`;
+    }
+
     res.json({
       success: true,
-      message: `Payment reminder sent to ${order.email} for KES ${reminderAmount.toLocaleString()}`,
+      message: emailWarning
+        ? `In-app notification sent to ${order.customer_name}, but email to ${order.email} failed.`
+        : `Payment reminder sent to ${order.email} for KES ${reminderAmount.toLocaleString()}`,
+      email_warning: emailWarning || null,
       reminder: {
         order_id: id, tracking_number: order.tracking_number,
         customer: { email: order.email, name: order.customer_name },

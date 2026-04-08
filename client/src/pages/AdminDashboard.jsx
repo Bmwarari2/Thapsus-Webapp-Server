@@ -250,8 +250,12 @@ export const AdminDashboard = () => {
     const amount = parseFloat(paymentAmount)
     if (!amount || amount <= 0) return toast.error('Enter a valid amount')
     try {
-      await adminApi.requestPayment(paymentModal.orderId, amount, paymentNotes)
-      toast.success('Payment request sent')
+      const res = await adminApi.requestPayment(paymentModal.orderId, amount, paymentNotes)
+      if (res.data?.email_warning) {
+        toast.error(`⚠️ ${res.data.email_warning}`, { duration: 8000 })
+      } else {
+        toast.success('Payment request sent via email & in-app notification')
+      }
       setPaymentModal(null)
       setPaymentAmount(''); setPaymentNotes('')
     } catch (err) { toast.error('Failed to send request') }
@@ -276,8 +280,12 @@ export const AdminDashboard = () => {
     const amount = parseFloat(reminderAmount)
     if (!amount || amount <= 0) return toast.error('Valid amount required')
     try {
-      await adminApi.sendPaymentReminder(reminderModal.orderId, amount, reminderNotes)
-      toast.success('Reminder sent')
+      const res = await adminApi.sendPaymentReminder(reminderModal.orderId, amount, reminderNotes)
+      if (res.data?.email_warning) {
+        toast.error(`⚠️ ${res.data.email_warning}`, { duration: 8000 })
+      } else {
+        toast.success('Reminder sent via email & in-app notification')
+      }
       setReminderModal(null); setReminderAmount(''); setReminderNotes('')
     } catch (err) { toast.error('Failed to send reminder') }
   }
@@ -404,7 +412,7 @@ export const AdminDashboard = () => {
 
   const handleSaveEditOrder = async (e) => {
     e.preventDefault()
-    if (!editOrderModal) return
+    if (!editOrderModal?.id) return
     try {
       setSavingOrder(true)
       const data = {}
@@ -416,11 +424,19 @@ export const AdminDashboard = () => {
       if (editOrderForm.status) data.status = editOrderForm.status
       if (editOrderForm.description) data.description = editOrderForm.description
 
+      if (typeof adminApi.editOrder !== 'function') {
+        throw new Error('Edit order function unavailable — please refresh the page and try again.')
+      }
+
       const res = await adminApi.editOrder(editOrderModal.id, data)
-      toast.success('Order updated successfully')
+      toast.success(`Order ${editOrderModal.tracking_number} updated successfully`)
       setOrders(prev => prev.map(o => o.id === editOrderModal.id ? { ...o, ...res.data.order } : o))
       setEditOrderModal(null)
-    } catch (err) { toast.error(err.message || 'Failed to update order') } finally { setSavingOrder(false) }
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to update order'
+      toast.error(msg)
+      console.error('Edit order error:', err)
+    } finally { setSavingOrder(false) }
   }
 
   // --- UI Styles & Helpers ---
