@@ -37,14 +37,8 @@ export default defineConfig(({ mode }) => {
       },
       // Reduce CSS size
       cssMinify: true,
-      // Better minification
-      minify: 'terser',
-      terserOptions: {
-        compress: {
-          drop_console: mode === 'production',
-          drop_debugger: true,
-        },
-      },
+      // esbuild is Vite's built-in minifier — no extra dependency needed
+      minify: 'esbuild',
     },
     define: {
       __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
