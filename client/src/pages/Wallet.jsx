@@ -183,13 +183,13 @@ const ReferralTab = () => {
   }
 
   const handleShareWhatsApp = () => {
-    const msg = `Join Thapsus Cargo and ship from UK, USA & China to Kenya! Sign up using my code and we both benefit.\n\nReferral code: ${referralCode}\n👉 ${window.location.origin}/register?ref=${referralCode}`
+    const msg = `Join Thapsus Cargo and ship from UK & China to Kenya! Sign up using my code and we both benefit.\n\nReferral code: ${referralCode}\n👉 ${window.location.origin}/register?ref=${referralCode}`
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
   const handleShareEmail = () => {
     const subject = 'Join Thapsus Cargo – use my referral code'
-    const body = `Hey!\n\nI use Thapsus Cargo to ship from the UK, USA & China to Kenya. Sign up with my referral code ${referralCode} and I get KES 50 wallet credit after you place your first order.\n\nhttps://thapsus.uk/register?ref=${referralCode}`
+    const body = `Hey!\n\nI use Thapsus Cargo to ship from the UK & China to Kenya. Sign up with my referral code ${referralCode} and we BOTH get KES 50 wallet credit when you place your first order!\n\nhttps://thapsus.uk/register?ref=${referralCode}`
     window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
   }
 

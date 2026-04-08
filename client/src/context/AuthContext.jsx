@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { authApi } from '../api'
 import { saveSession, getSession, clearSession } from '../api/client'
-import { useInactivityLogout } from '../hooks/useInactivityLogout'
+// Inactivity logout removed — users on personal devices should stay logged in
 
 const AuthContext = createContext(null)
 
@@ -83,8 +83,7 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  // ── Auto-logout after 10 minutes of inactivity ───────────────────────────
-  useInactivityLogout(logout, 10 * 60 * 1000, !!user)
+  // Inactivity auto-logout removed to keep users signed in on personal devices
 
   // ── updateProfile ─────────────────────────────────────────────────────────
   const updateProfile = useCallback(async (data) => {

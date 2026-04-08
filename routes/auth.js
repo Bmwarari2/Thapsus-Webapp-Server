@@ -7,7 +7,7 @@ import { logRouteError } from '../utils/errorLogger.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_change_this_in_production';
-const JWT_EXPIRY = process.env.JWT_EXPIRY || '7d';
+const JWT_EXPIRY = process.env.JWT_EXPIRY || '30d';
 
 function generateWarehouseId() {
   const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';

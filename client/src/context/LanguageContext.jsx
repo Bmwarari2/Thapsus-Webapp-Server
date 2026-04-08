@@ -20,7 +20,7 @@ const translations = {
     'nav.admin': 'Admin',
 
     // Home Page
-    'home.hero.title': 'Ship from UK, USA & China to Kenya',
+    'home.hero.title': 'Ship from UK & China to Kenya',
     'home.hero.subtitle': 'Fast, affordable, and reliable shipping services',
     'home.hero.cta': 'Get Started',
     'home.hero.track': 'Track Package',
@@ -315,7 +315,7 @@ const translations = {
     'nav.admin': 'Msimamizi',
 
     // Home Page
-    'home.hero.title': 'Tuma kutoka UK, USA na China hadi Kenya',
+    'home.hero.title': 'Tuma kutoka UK na China hadi Kenya',
     'home.hero.subtitle': 'Huduma ya utoaji ya haraka, nafuu, na kutegemewa',
     'home.hero.cta': 'Anza',
     'home.hero.track': 'Fuatilia Pakiti',

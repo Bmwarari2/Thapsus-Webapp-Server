@@ -424,10 +424,6 @@ export const AdminDashboard = () => {
       if (editOrderForm.status) data.status = editOrderForm.status
       if (editOrderForm.description) data.description = editOrderForm.description
 
-      if (typeof adminApi.editOrder !== 'function') {
-        throw new Error('Edit order function unavailable — please refresh the page and try again.')
-      }
-
       const res = await adminApi.editOrder(editOrderModal.id, data)
       toast.success(`Order ${editOrderModal.tracking_number} updated successfully`)
       setOrders(prev => prev.map(o => o.id === editOrderModal.id ? { ...o, ...res.data.order } : o))

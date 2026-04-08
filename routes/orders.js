@@ -75,9 +75,14 @@ router.post('/', authMiddleware, async (req, res) => {
     const orderId        = uuidv4();
     const trackingNumber = generateTrackingNumber();
 
-    await db.query('BEGIN');
+    // Use a dedicated client so all queries run on the SAME connection
+    // (pool.query() can dispatch each query to a different connection,
+    //  which breaks BEGIN/COMMIT and makes uncommitted rows invisible)
+    const client = await db.connect();
     try {
-      await db.query(
+      await client.query('BEGIN');
+
+      await client.query(
         `INSERT INTO orders (id, user_id, tracking_number, retailer, market, status, description,
           weight_kg, dimensions_json, shipping_speed, insurance, declared_value, estimated_cost)
          VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12)`,
@@ -85,54 +90,56 @@ router.post('/', authMiddleware, async (req, res) => {
           weight_kg || null, dimensions ? JSON.stringify(dimensions) : null,
           speed, insurance ? true : false, declared_value || 0, costBreakdown.total]
       );
-      await db.query(
+      await client.query(
         `INSERT INTO packages (id, order_id, user_id, description, weight_kg, status) VALUES ($1,$2,$3,$4,$5,'pending')`,
         [uuidv4(), orderId, userId, description, weight_kg || null]
       );
 
       // referral reward check — both referrer AND referee get KES 50
-      const refResult = await db.query(
+      const refResult = await client.query(
         `SELECT id, referrer_id, reward_amount FROM referrals WHERE referee_id = $1 AND status = 'pending' LIMIT 1`,
         [userId]
       );
       const pendingReferral = refResult.rows[0];
       if (pendingReferral) {
-        const countRes = await db.query('SELECT COUNT(*) AS cnt FROM orders WHERE user_id = $1', [userId]);
+        const countRes = await client.query('SELECT COUNT(*) AS cnt FROM orders WHERE user_id = $1', [userId]);
         if (parseInt(countRes.rows[0].cnt) === 1) {
           const reward = 50; // KES 50 for each party
 
-          await db.query(`UPDATE referrals SET status = 'completed', completed_at = NOW(), reward_amount = $1 WHERE id = $2`, [reward, pendingReferral.id]);
+          await client.query(`UPDATE referrals SET status = 'completed', completed_at = NOW(), reward_amount = $1 WHERE id = $2`, [reward, pendingReferral.id]);
 
           // Reward the REFERRER (person who shared the code)
-          await db.query('UPDATE users  SET wallet_balance = wallet_balance + $1 WHERE id = $2', [reward, pendingReferral.referrer_id]);
-          await db.query('UPDATE wallet SET balance = balance + $1, last_updated = NOW() WHERE user_id = $2', [reward, pendingReferral.referrer_id]);
-          await db.query(
+          await client.query('UPDATE users  SET wallet_balance = wallet_balance + $1 WHERE id = $2', [reward, pendingReferral.referrer_id]);
+          await client.query('UPDATE wallet SET balance = balance + $1, last_updated = NOW() WHERE user_id = $2', [reward, pendingReferral.referrer_id]);
+          await client.query(
             `INSERT INTO transactions (id, user_id, type, amount, currency, status)
              VALUES ($1,$2,'referral_credit',$3,'KES','completed')`,
             [uuidv4(), pendingReferral.referrer_id, reward]
           );
 
           // Reward the REFEREE (person who was referred)
-          await db.query('UPDATE users  SET wallet_balance = wallet_balance + $1 WHERE id = $2', [reward, userId]);
-          await db.query('UPDATE wallet SET balance = balance + $1, last_updated = NOW() WHERE user_id = $2', [reward, userId]);
-          await db.query(
+          await client.query('UPDATE users  SET wallet_balance = wallet_balance + $1 WHERE id = $2', [reward, userId]);
+          await client.query('UPDATE wallet SET balance = balance + $1, last_updated = NOW() WHERE user_id = $2', [reward, userId]);
+          await client.query(
             `INSERT INTO transactions (id, user_id, type, amount, currency, status)
              VALUES ($1,$2,'referral_credit',$3,'KES','completed')`,
             [uuidv4(), userId, reward]
           );
 
-          // Push wallet updates to both users
-          const referrerWallet = await db.query('SELECT balance FROM wallet WHERE user_id = $1', [pendingReferral.referrer_id]);
+          // Push wallet updates to both users (read inside the txn so values are accurate)
+          const referrerWallet = await client.query('SELECT balance FROM wallet WHERE user_id = $1', [pendingReferral.referrer_id]);
           pushToUser(pendingReferral.referrer_id, 'wallet_update', { balance: referrerWallet.rows[0]?.balance });
-          const refereeWallet = await db.query('SELECT balance FROM wallet WHERE user_id = $1', [userId]);
+          const refereeWallet = await client.query('SELECT balance FROM wallet WHERE user_id = $1', [userId]);
           pushToUser(userId, 'wallet_update', { balance: refereeWallet.rows[0]?.balance });
         }
       }
 
-      await db.query('COMMIT');
+      await client.query('COMMIT');
     } catch (e) {
-      await db.query('ROLLBACK');
+      await client.query('ROLLBACK');
       throw e;
+    } finally {
+      client.release();
     }
 
     const newOrder = await db.query('SELECT * FROM orders WHERE id = $1', [orderId]);
