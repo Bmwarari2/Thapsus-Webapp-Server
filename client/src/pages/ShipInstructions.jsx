@@ -30,7 +30,6 @@ const UK_WAREHOUSE = {
   country: 'United Kingdom',
 }
 
-/* ─── Helper: copy text ─────────────────────────────────────────────────── */
 function copyToClipboard(text, label) {
   navigator.clipboard.writeText(text).then(() => {
     toast.success(`${label} copied!`, { duration: 2000, icon: '📋' })
@@ -39,10 +38,8 @@ function copyToClipboard(text, label) {
   })
 }
 
-/* ─── Retailer Carousel ─────────────────────────────────────────────────── */
 const RetailerCarousel = () => {
   const scrollRef = useRef(null)
-
   const scroll = (dir) => {
     if (!scrollRef.current) return
     const amount = 280
@@ -51,50 +48,17 @@ const RetailerCarousel = () => {
 
   return (
     <div className="relative">
-      {/* Fade edges */}
-      <div className="absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white/80 to-transparent z-10 pointer-events-none rounded-l-2xl" />
-      <div className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white/80 to-transparent z-10 pointer-events-none rounded-r-2xl" />
+      <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-white/40 to-transparent z-10 pointer-events-none" />
+      <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-white/40 to-transparent z-10 pointer-events-none" />
+      
+      <button onClick={() => scroll('left')} className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-20 w-10 h-10 bg-white/60 backdrop-blur-xl border border-white/40 shadow-xl rounded-full flex items-center justify-center text-slate-800 hover:scale-110 transition-all"><ChevronLeft size={20}/></button>
+      <button onClick={() => scroll('right')} className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-20 w-10 h-10 bg-white/60 backdrop-blur-xl border border-white/40 shadow-xl rounded-full flex items-center justify-center text-slate-800 hover:scale-110 transition-all"><ChevronRight size={20}/></button>
 
-      {/* Scroll buttons */}
-      <button
-        onClick={() => scroll('left')}
-        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-20 w-9 h-9 bg-white/80 backdrop-blur-md border border-white/60 shadow-md rounded-full flex items-center justify-center text-slate-600 hover:bg-white hover:text-orange-500 transition-all active:scale-95"
-        aria-label="Scroll left"
-      >
-        <ChevronLeft size={18} />
-      </button>
-      <button
-        onClick={() => scroll('right')}
-        className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-20 w-9 h-9 bg-white/80 backdrop-blur-md border border-white/60 shadow-md rounded-full flex items-center justify-center text-slate-600 hover:bg-white hover:text-orange-500 transition-all active:scale-95"
-        aria-label="Scroll right"
-      >
-        <ChevronRight size={18} />
-      </button>
-
-      {/* Cards */}
-      <div
-        ref={scrollRef}
-        className="flex gap-4 overflow-x-auto scroll-smooth snap-x snap-mandatory px-2 py-2 scrollbar-hide"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-      >
+      <div ref={scrollRef} className="flex gap-4 overflow-x-auto scroll-smooth px-2 py-4 scrollbar-hide">
         {RETAILERS.map((r) => (
-          <a
-            key={r.name}
-            href={r.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`flex-none snap-start w-[220px] bg-gradient-to-br ${r.color} border ${r.border} backdrop-blur-md rounded-2xl p-5 flex flex-col items-center gap-3 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200 group`}
-          >
-            <div className="w-14 h-14 bg-white/70 rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-              {r.icon}
-            </div>
-            <div className="text-center">
-              <p className="font-black text-slate-800 tracking-tight text-sm leading-tight">{r.name}</p>
-              <p className="text-xs text-slate-500 mt-0.5">{r.flag}</p>
-            </div>
-            <span className="text-[10px] font-bold text-orange-500 bg-orange-50 border border-orange-200/50 px-2 py-0.5 rounded-full flex items-center gap-1">
-              Shop now <ArrowRight size={9} />
-            </span>
+          <a key={r.name} href={r.url} target="_blank" rel="noopener noreferrer" className={`flex-none w-[200px] bg-white/40 backdrop-blur-2xl border border-white/40 rounded-3xl p-6 flex flex-col items-center gap-4 shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 glass-sheen`}>
+            <div className="w-16 h-16 bg-white/80 rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">{r.icon}</div>
+            <div className="text-center"><p className="font-black text-slate-900 tracking-tighter text-sm uppercase">{r.name}</p></div>
           </a>
         ))}
       </div>
@@ -102,279 +66,177 @@ const RetailerCarousel = () => {
   )
 }
 
-/* ─── Address Card ──────────────────────────────────────────────────────── */
 const AddressCard = ({ user }) => {
-  const userName    = user?.name || 'Your Name'
+  const userName = user?.name || 'Your Name'
   const warehouseId = user?.warehouse_id || 'TC-XXXX'
-
-  const fullAddress = [
-    `${userName} — ${warehouseId}`,
-    UK_WAREHOUSE.line1,
-    UK_WAREHOUSE.line2,
-    UK_WAREHOUSE.postcode,
-    UK_WAREHOUSE.country,
-  ].join('\n')
+  const fullAddress = [`${userName} — ${warehouseId}`, UK_WAREHOUSE.line1, UK_WAREHOUSE.line2, UK_WAREHOUSE.postcode, UK_WAREHOUSE.country].join('\n')
 
   return (
-    <div className="bg-white/50 backdrop-blur-xl border border-white/60 rounded-2xl p-6 shadow-[0_4px_20px_rgb(0,0,0,0.04)] relative overflow-hidden">
-      {/* Accent blob */}
-      <div className="absolute -top-8 -right-8 w-32 h-32 bg-orange-300/20 rounded-full blur-[40px] pointer-events-none" />
-
-      <div className="flex items-start justify-between gap-4 relative z-10">
-        <div className="space-y-1.5">
-          {/* Name + ID */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-black text-[#1e3a5f] text-lg tracking-tight leading-tight">{userName}</span>
-            <span className="bg-orange-100 text-orange-600 border border-orange-200/60 font-black text-xs px-2 py-0.5 rounded-full tracking-wide">
-              {warehouseId}
-            </span>
+    <div className="group relative perspective-1000">
+      <div className="bg-white/40 backdrop-blur-3xl border border-white/40 rounded-[2rem] p-8 shadow-2xl transition-all duration-500 hover:rotate-x-2 hover:rotate-y-2 glass-sheen relative overflow-hidden">
+        <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-orange-400/10 rounded-full blur-[80px] pointer-events-none animate-morph" />
+        
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <span className="font-black text-4xl text-[#1e3a5f] tracking-tighter leading-none">{userName}</span>
+              <span className="bg-[#1e3a5f] text-white font-black text-xs px-3 py-1 rounded-full tracking-widest">{warehouseId}</span>
+            </div>
+            <div className="text-slate-700 font-bold text-lg tracking-tight">
+              <p>{UK_WAREHOUSE.line1}</p>
+              <p>{UK_WAREHOUSE.line2}</p>
+              <p>{UK_WAREHOUSE.postcode}</p>
+              <p className="text-orange-600 uppercase text-sm mt-1 tracking-widest">{UK_WAREHOUSE.country}</p>
+            </div>
           </div>
-          {/* Street */}
-          <p className="text-slate-700 font-semibold text-sm">{UK_WAREHOUSE.line1}</p>
-          <p className="text-slate-700 font-semibold text-sm">{UK_WAREHOUSE.line2}</p>
-          <p className="text-slate-700 font-semibold text-sm">{UK_WAREHOUSE.postcode}</p>
-          <p className="text-slate-600 font-medium text-sm">{UK_WAREHOUSE.country}</p>
+          <button onClick={() => copyToClipboard(fullAddress, 'Address')} className="bg-[#1e3a5f] text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-2 hover:scale-105 transition-all shadow-xl active:scale-95">
+            <Copy size={16} /> COPY ADDRESS
+          </button>
         </div>
-
-        {/* Copy button */}
-        <button
-          onClick={() => copyToClipboard(fullAddress, 'Address')}
-          className="flex-none flex items-center gap-1.5 text-xs font-black text-slate-600 bg-white/70 hover:bg-orange-50 hover:text-orange-500 border border-white/60 hover:border-orange-200/60 px-3 py-2 rounded-xl transition-all active:scale-95 shadow-sm"
-        >
-          <Copy size={13} />
-          Copy
-        </button>
-      </div>
-
-      {/* Important note */}
-      <div className="mt-4 bg-orange-50/80 border border-orange-200/50 rounded-xl p-3 flex gap-2.5 items-start relative z-10">
-        <Star size={14} className="text-orange-500 mt-0.5 flex-none" />
-        <p className="text-xs font-semibold text-orange-700 leading-relaxed">
-          Always include your full name and warehouse code <strong>{warehouseId}</strong> exactly as shown — this is how we match your parcel to your account.
-        </p>
       </div>
     </div>
   )
 }
 
-/* ─── Main Page ─────────────────────────────────────────────────────────── */
 export const ShipInstructions = () => {
   const { user } = useAuth()
-
   const steps = [
-    {
-      number: '01',
-      title: 'Choose your retailer',
-      description: 'Browse and shop from any of our supported UK or China retailers. Add items to your cart as normal.',
-      icon: <ShoppingBag size={22} className="text-orange-500" />,
-      color: 'from-orange-50 to-amber-50',
-      accent: 'border-orange-200/60',
-    },
-    {
-      number: '02',
-      title: 'Ship to your warehouse address',
-      description: 'At checkout, enter the UK warehouse address below as the delivery address. Make sure your name and warehouse code are included exactly as shown.',
-      icon: <MapPin size={22} className="text-blue-500" />,
-      color: 'from-blue-50 to-sky-50',
-      accent: 'border-blue-200/60',
-    },
-    {
-      number: '03',
-      title: 'Tell us about your order',
-      description: 'Once you have placed your order, contact us via WhatsApp or create a new order in your dashboard so we can prepare for your parcel\'s arrival.',
-      icon: <MessageCircle size={22} className="text-green-500" />,
-      color: 'from-green-50 to-emerald-50',
-      accent: 'border-green-200/60',
-    },
-    {
-      number: '04',
-      title: 'We handle the rest',
-      description: 'We receive, consolidate, and ship your parcels to Kenya. You\'ll get real-time tracking updates at every step of the journey.',
-      icon: <Truck size={22} className="text-purple-500" />,
-      color: 'from-purple-50 to-violet-50',
-      accent: 'border-purple-200/60',
-    },
+    { number: '01', title: 'Choose your retailer', description: 'Browse and shop from any of our supported UK or China retailers.', icon: <ShoppingBag size={24} className="text-orange-500" /> },
+    { number: '02', title: 'Ship to warehouse', description: 'At checkout, use our London address with your unique ID.', icon: <MapPin size={24} className="text-blue-400" /> },
+    { number: '03', title: 'Tell us about it', description: 'Log your order in the dashboard or via WhatsApp.', icon: <MessageCircle size={24} className="text-emerald-400" /> },
+    { number: '04', title: 'We handle the rest', description: 'We consolidate and ship your parcels directly to Kenya.', icon: <Truck size={24} className="text-purple-400" /> },
   ]
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4 font-sans">
+    <div className="min-h-screen bg-[#f8fafc] py-12 px-6 font-sans overflow-x-hidden">
       <style>{`
         @keyframes morph {
-          0%   { transform: translate(0, 0) scale(1); }
-          33%  { transform: translate(30px, -50px) scale(1.1); }
-          66%  { transform: translate(-20px, 20px) scale(0.9); }
-          100% { transform: translate(0, 0) scale(1); }
+          0%, 100% { border-radius: 40% 60% 70% 30% / 40% 40% 60% 50%; transform: translate(0,0) rotate(0deg); }
+          33% { border-radius: 70% 30% 50% 50% / 30% 30% 70% 70%; transform: translate(20px, -30px) rotate(5deg); }
+          66% { border-radius: 100% 60% 60% 100% / 100% 100% 60% 60%; transform: translate(-20px, 20px) rotate(-5deg); }
         }
         @keyframes sheen {
-          0%   { transform: translateX(-100%) skewX(-15deg); }
-          100% { transform: translateX(200%) skewX(-15deg); }
+          0% { transform: translateX(-200%) skewX(-15deg); }
+          100% { transform: translateX(300%) skewX(-15deg); }
         }
-        .animate-morph  { animation: morph 12s ease-in-out infinite; }
-        .glass-sheen    { position: relative; overflow: hidden; }
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        .animate-morph { animation: morph 15s ease-in-out infinite; }
+        .glass-sheen { position: relative; overflow: hidden; }
         .glass-sheen::after {
-          content: '';
-          position: absolute;
-          top: 0; left: 0; width: 50%; height: 100%;
-          background: linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent);
-          animation: sheen 4s infinite;
+          content: ''; position: absolute; top: 0; left: 0; width: 40%; height: 100%;
+          background: linear-gradient(to right, transparent, rgba(255,255,255,0.4), transparent);
+          animation: sheen 6s infinite;
         }
-        /* Hide scrollbar in carousel while keeping scroll behaviour */
+        .perspective-1000 { perspective: 1000px; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      {/* Liquid blobs — fixed overlay so they never trigger overflow-x clipping
-          (overflow-x:hidden on a scrollable ancestor breaks y-scroll on iOS Safari) */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[500px] max-h-[500px] bg-blue-300/25 rounded-full blur-[100px] animate-morph mix-blend-multiply" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] max-w-[500px] max-h-[500px] bg-orange-300/20 rounded-full blur-[100px] animate-morph mix-blend-multiply" />
-        <div className="absolute top-[40%] left-[50%] -translate-x-1/2 w-[40vw] h-[40vw] max-w-[350px] max-h-[350px] bg-indigo-200/15 rounded-full blur-[120px] animate-morph mix-blend-multiply" />
+      {/* Liquid Backgrounds */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div className="absolute top-[-10%] left-[-5%] w-[700px] h-[700px] bg-blue-400/10 rounded-full blur-[120px] animate-morph" />
+        <div className="absolute bottom-[-10%] right-[-5%] w-[600px] h-[600px] bg-orange-400/10 rounded-full blur-[120px] animate-morph" />
       </div>
 
-      <div className="max-w-4xl mx-auto relative z-10">
-
-        {/* Back link */}
-        <Link
-          to="/"
-          className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-500 hover:text-orange-500 transition-colors mb-8"
-        >
-          <ChevronLeft size={16} />
-          Back to Home
+      <div className="max-w-6xl mx-auto relative z-10">
+        <Link to="/" className="inline-flex items-center gap-2 text-xs font-black text-slate-400 hover:text-[#1e3a5f] transition-all mb-12 uppercase tracking-widest">
+          <ChevronLeft size={14} /> Back to Dashboard
         </Link>
 
-        {/* Header */}
-        <div className="mb-10">
-          <div className="inline-flex items-center gap-2 bg-orange-100/80 text-orange-600 border border-orange-200/60 px-3 py-1 rounded-full text-xs font-black tracking-wider uppercase mb-4">
-            <Package size={12} />
-            How to ship
+        {/* Hero Section */}
+        <header className="mb-20">
+          <div className="inline-block bg-orange-500 text-white text-[10px] font-black px-3 py-1 rounded-full tracking-[0.2em] uppercase mb-6 shadow-lg shadow-orange-500/20">
+            Global Shipping
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-[#1e3a5f] leading-none tracking-tighter mb-3">
-            Start Shipping
+          <h1 className="text-6xl md:text-8xl font-black text-[#1e3a5f] leading-[0.85] tracking-tighter mb-6">
+            Faster.<br/>Simpler.<br/><span className="text-slate-400">Reliable.</span>
           </h1>
-          <p className="text-slate-600 font-medium text-lg max-w-xl">
-            Four simple steps to get your international parcels delivered to Kenya.
+          <p className="text-slate-500 font-bold text-xl max-w-lg leading-tight tracking-tight">
+            The next evolution of package forwarding from the UK & China to Kenya.
           </p>
+        </header>
+
+        {/* Bento Steps */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-20">
+          {steps.map((step, i) => {
+            if (i === 1) { // Step 2: Dark Glass
+              return (
+                <div key={i} className="md:col-span-1 relative group bg-slate-900/90 backdrop-blur-3xl border border-white/10 rounded-[2rem] p-8 overflow-hidden shadow-2xl transition-all duration-500 hover:-translate-y-2">
+                  <div className="absolute -top-10 -right-10 w-32 h-32 bg-orange-500/30 rounded-full blur-[40px] animate-pulse" />
+                  <div className="relative z-10 flex flex-col h-full justify-between">
+                    <div>
+                      <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center mb-6">{step.icon}</div>
+                      <h3 className="font-black text-white tracking-tighter text-2xl mb-2 leading-none">{step.title}</h3>
+                      <p className="text-slate-400 font-medium text-sm leading-snug">{step.description}</p>
+                    </div>
+                    <div className="mt-8 text-5xl font-black text-white/5">{step.number}</div>
+                  </div>
+                </div>
+              )
+            }
+            if (i === 3) { // Step 4: Border Gradient
+              return (
+                <div key={i} className="md:col-span-1 p-[1.5px] rounded-[2rem] bg-gradient-to-tr from-purple-500 via-blue-400 to-emerald-400 shadow-xl transition-all duration-500 hover:-translate-y-2">
+                  <div className="h-full bg-white/60 backdrop-blur-2xl rounded-[1.9rem] p-8 flex flex-col justify-between">
+                    <div>
+                      <div className="w-12 h-12 bg-purple-100 rounded-2xl flex items-center justify-center mb-6">{step.icon}</div>
+                      <h3 className="font-black text-[#1e3a5f] tracking-tighter text-2xl mb-2 leading-none">{step.title}</h3>
+                      <p className="text-slate-600 font-medium text-sm leading-snug">{step.description}</p>
+                    </div>
+                    <div className="mt-8 text-5xl font-black text-black/5">{step.number}</div>
+                  </div>
+                </div>
+              )
+            }
+            return (
+              <div key={i} className="bg-white/40 backdrop-blur-2xl border border-white/40 rounded-[2rem] p-8 shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2 flex flex-col justify-between">
+                <div>
+                  <div className="w-12 h-12 bg-white/80 rounded-2xl flex items-center justify-center shadow-sm mb-6">{step.icon}</div>
+                  <h3 className="font-black text-[#1e3a5f] tracking-tighter text-2xl mb-2 leading-none">{step.title}</h3>
+                  <p className="text-slate-500 font-medium text-sm leading-snug">{step.description}</p>
+                </div>
+                <div className="mt-8 text-5xl font-black text-black/5">{step.number}</div>
+              </div>
+            )
+          })}
         </div>
 
-        {/* Steps */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
-          {steps.map((step, i) => (
-            <div
-              key={i}
-              className={`bg-gradient-to-br ${step.color} border ${step.accent} backdrop-blur-md rounded-2xl p-6 relative overflow-hidden shadow-sm hover:shadow-md transition-shadow`}
-            >
-              <div className="absolute top-4 right-4 text-5xl font-black text-black/5 leading-none select-none">
-                {step.number}
-              </div>
-              <div className="w-10 h-10 bg-white/70 rounded-xl flex items-center justify-center shadow-sm mb-4">
-                {step.icon}
-              </div>
-              <h3 className="font-black text-[#1e3a5f] tracking-tight text-base mb-1.5">
-                {step.title}
-              </h3>
-              <p className="text-slate-600 font-medium text-sm leading-relaxed">
-                {step.description}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {/* Warehouse Address */}
-        <div className="mb-10">
-          <div className="flex items-center gap-2 mb-4">
-            <MapPin size={18} className="text-[#1e3a5f]" />
-            <h2 className="text-xl font-black text-[#1e3a5f] tracking-tighter">
-              Your Warehouse Address
-            </h2>
-          </div>
+        {/* Warehouse Card */}
+        <div className="mb-20">
+          <h2 className="text-2xl font-black text-[#1e3a5f] tracking-tighter mb-8 flex items-center gap-3">
+            <div className="w-2 h-2 bg-orange-500 rounded-full" /> YOUR SHIPPING HUB
+          </h2>
           <AddressCard user={user} />
         </div>
 
-        {/* Contact Us */}
-        <div className="bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl p-6 mb-10 relative overflow-hidden glass-sheen">
-          <div className="absolute top-0 right-0 w-48 h-48 bg-blue-400/10 rounded-full blur-[60px] pointer-events-none" />
-          <div className="relative z-10">
-            <h2 className="text-xl font-black text-[#1e3a5f] tracking-tighter mb-1">Contact Us</h2>
-            <p className="text-slate-600 font-medium text-sm mb-5">
-              Once you have placed your order, let us know via WhatsApp or email so we can log it.
-            </p>
+        {/* Retailer Section */}
+        <div className="mb-20">
+          <div className="bg-white/40 backdrop-blur-3xl border border-white/40 rounded-[2.5rem] p-10 relative overflow-hidden">
+             <div className="mb-8">
+                <h2 className="text-3xl font-black text-[#1e3a5f] tracking-tighter leading-none">Global Catalog</h2>
+                <p className="text-slate-500 font-bold mt-2">Shop any UK or China store. We handle the rest.</p>
+             </div>
+             <RetailerCarousel />
+          </div>
+        </div>
 
-            <div className="flex flex-col sm:flex-row gap-3">
-              {/* WhatsApp */}
-              <a
-                href="https://wa.me/447424531483"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 bg-green-50 hover:bg-green-100/70 border border-green-200/60 text-green-700 px-5 py-3.5 rounded-2xl font-black transition-all hover:-translate-y-0.5 shadow-sm hover:shadow-md active:scale-95 flex-1"
-              >
-                <div className="w-9 h-9 bg-green-500 rounded-xl flex items-center justify-center shadow-sm">
-                  <MessageCircle size={18} className="text-white" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-green-600 tracking-wide uppercase leading-none mb-0.5">WhatsApp</p>
-                  <p className="font-black tracking-tight">+44 7424 531483</p>
-                </div>
-              </a>
-
-              {/* Email */}
-              <a
-                href="mailto:support@thapsus.uk"
-                className="flex items-center gap-3 bg-blue-50 hover:bg-blue-100/70 border border-blue-200/60 text-blue-700 px-5 py-3.5 rounded-2xl font-black transition-all hover:-translate-y-0.5 shadow-sm hover:shadow-md active:scale-95 flex-1"
-              >
-                <div className="w-9 h-9 bg-blue-500 rounded-xl flex items-center justify-center shadow-sm">
-                  <Mail size={18} className="text-white" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-blue-600 tracking-wide uppercase leading-none mb-0.5">Email</p>
-                  <p className="font-black tracking-tight">support@thapsus.uk</p>
-                </div>
-              </a>
+        {/* Footer CTA */}
+        <footer className="relative group">
+          <div className="p-[1.5px] rounded-[3rem] bg-gradient-to-r from-orange-400 via-[#1e3a5f] to-blue-500 shadow-2xl">
+            <div className="bg-white/80 backdrop-blur-3xl rounded-[2.9rem] p-12 text-center relative overflow-hidden">
+               <div className="absolute top-0 right-0 w-64 h-64 bg-blue-400/10 rounded-full blur-[80px] pointer-events-none animate-morph" />
+               <h2 className="text-5xl md:text-6xl font-black text-[#1e3a5f] tracking-tighter mb-4 leading-none">Ready to Ship?</h2>
+               <p className="text-slate-500 font-bold text-lg mb-10 max-w-md mx-auto leading-tight">Join thousands of Kenyans shopping globally with zero stress.</p>
+               
+               <Link to="/orders/new" className="group relative overflow-hidden inline-flex items-center gap-4 bg-[#1e3a5f] text-white px-12 py-6 rounded-3xl font-black tracking-widest text-sm transition-all hover:scale-105 active:scale-95 shadow-2xl">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
+                  <Package size={20} /> CREATE NEW ORDER <ArrowRight size={20} />
+               </Link>
             </div>
           </div>
-        </div>
-
-        {/* Retailer Carousel */}
-        <div className="mb-10">
-          <div className="flex items-center gap-2 mb-4">
-            <ShoppingBag size={18} className="text-[#1e3a5f]" />
-            <h2 className="text-xl font-black text-[#1e3a5f] tracking-tighter">
-              Trusted Retailers
-            </h2>
-          </div>
-          <p className="text-slate-600 font-medium text-sm mb-5">
-            We support shipping from all major UK and China retailers. Tap a retailer to start shopping.
-          </p>
-          <div className="bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl p-6 relative overflow-hidden">
-            <RetailerCarousel />
-          </div>
-        </div>
-
-        {/* CTA — create order */}
-        <div className="rounded-2xl p-[1px] bg-gradient-to-br from-blue-300/60 via-white/20 to-orange-300/60 shadow-lg">
-          <div className="bg-white/60 backdrop-blur-3xl rounded-[15px] p-8 text-center relative overflow-hidden glass-sheen">
-            <div className="absolute top-0 right-0 w-48 h-48 bg-orange-400/10 rounded-full blur-[50px] pointer-events-none" />
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-400/10 rounded-full blur-[50px] pointer-events-none" />
-            <div className="relative z-10">
-              <div className="w-14 h-14 bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
-                <CheckCircle2 size={28} className="text-orange-500" />
-              </div>
-              <h3 className="text-2xl font-black text-[#1e3a5f] tracking-tighter mb-2">Ready to go?</h3>
-              <p className="text-slate-600 font-medium mb-6 max-w-sm mx-auto text-sm">
-                Create an order in your dashboard to let us know what's on its way.
-              </p>
-              <Link
-                to="/orders/new"
-                className="group relative overflow-hidden inline-flex items-center gap-2 bg-[#1e3a5f] text-white px-8 py-4 rounded-2xl font-black tracking-tight transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1"
-              >
-                <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
-                <Package size={18} className="drop-shadow-sm" />
-                <span className="relative z-10">Create New Order</span>
-                <ArrowRight size={16} className="relative z-10" />
-              </Link>
-            </div>
-          </div>
-        </div>
-
+        </footer>
       </div>
     </div>
   )
