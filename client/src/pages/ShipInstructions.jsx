@@ -197,11 +197,39 @@ export const ShipInstructions = () => {
   ]
 
   return (
-    <div className="min-h-screen relative bg-slate-50 overflow-x-hidden py-8 px-4 font-sans">
-      {/* Liquid blobs */}
-      <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[500px] max-h-[500px] bg-blue-300/25 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] max-w-[500px] max-h-[500px] bg-orange-300/20 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
-      <div className="absolute top-[40%] left-[50%] -translate-x-1/2 w-[40vw] h-[40vw] max-w-[350px] max-h-[350px] bg-indigo-200/15 rounded-full blur-[120px] animate-morph mix-blend-multiply pointer-events-none" />
+    <div className="min-h-screen bg-slate-50 py-8 px-4 font-sans">
+      <style>{`
+        @keyframes morph {
+          0%   { transform: translate(0, 0) scale(1); }
+          33%  { transform: translate(30px, -50px) scale(1.1); }
+          66%  { transform: translate(-20px, 20px) scale(0.9); }
+          100% { transform: translate(0, 0) scale(1); }
+        }
+        @keyframes sheen {
+          0%   { transform: translateX(-100%) skewX(-15deg); }
+          100% { transform: translateX(200%) skewX(-15deg); }
+        }
+        .animate-morph  { animation: morph 12s ease-in-out infinite; }
+        .glass-sheen    { position: relative; overflow: hidden; }
+        .glass-sheen::after {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; width: 50%; height: 100%;
+          background: linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent);
+          animation: sheen 4s infinite;
+        }
+        /* Hide scrollbar in carousel while keeping scroll behaviour */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
+
+      {/* Liquid blobs — fixed overlay so they never trigger overflow-x clipping
+          (overflow-x:hidden on a scrollable ancestor breaks y-scroll on iOS Safari) */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[500px] max-h-[500px] bg-blue-300/25 rounded-full blur-[100px] animate-morph mix-blend-multiply" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] max-w-[500px] max-h-[500px] bg-orange-300/20 rounded-full blur-[100px] animate-morph mix-blend-multiply" />
+        <div className="absolute top-[40%] left-[50%] -translate-x-1/2 w-[40vw] h-[40vw] max-w-[350px] max-h-[350px] bg-indigo-200/15 rounded-full blur-[120px] animate-morph mix-blend-multiply" />
+      </div>
 
       <div className="max-w-4xl mx-auto relative z-10">
 
