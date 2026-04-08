@@ -79,6 +79,7 @@ import prohibitedRoutes    from './routes/prohibited.js';
 import backupRoutes        from './routes/backup.js';
 import eventsRoutes        from './routes/events.js';
 import paymentRoutes       from './routes/payment.js';
+import sitemapRoutes       from './routes/sitemap.js';
 
 const app      = express();
 const PORT     = process.env.PORT     || 5000;
@@ -155,6 +156,9 @@ app.get('/sw.js', (req, res) => {
     res.send(SW_NO_OP);
   }
 });
+
+// ── Sitemap & Robots (dynamic, before static so they take precedence) ────────
+app.use(sitemapRoutes);
 
 app.use(express.static(path.join(__dirname, 'client', 'dist')));
 

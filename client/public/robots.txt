@@ -10,4 +10,4 @@ Disallow: /consolidation
 Disallow: /support
 Disallow: /api/
 
-Sitemap: https://thapsuscargo.com/sitemap.xml
+Sitemap: https://thapsus.uk/sitemap.xml
