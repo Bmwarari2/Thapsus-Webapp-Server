@@ -209,6 +209,9 @@ export const adminApi = {
   cancelOrder: (orderId, reason) =>
     api.post(`/admin/orders/${orderId}/cancel`, { reason }),
 
+  /** Edit an order (weight, dimensions, cost, status, etc.) */
+  editOrder: (orderId, data) => api.put(`/admin/orders/${orderId}/edit`, data),
+
   /** Delete an order permanently */
   deleteOrder: (orderId) => api.delete(`/admin/orders/${orderId}`),
 

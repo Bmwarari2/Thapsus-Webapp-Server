@@ -365,12 +365,19 @@ router.get('/orders', authMiddleware, isAdmin, async (req, res) => {
     params.push(limit, offset);
     const orders = await db.query(
       `SELECT o.id, o.tracking_number, o.retailer, o.market, o.status,
-              o.estimated_cost, o.actual_cost, o.created_at, u.name, u.email
+              o.estimated_cost, o.actual_cost, o.created_at, o.description,
+              o.weight_kg, o.dimensions_json, o.shipping_speed, o.insurance,
+              o.declared_value, o.customs_duty, o.user_id,
+              u.name, u.email
        FROM orders o JOIN users u ON o.user_id = u.id
        ${conditions} ORDER BY o.created_at DESC LIMIT $${params.length-1} OFFSET $${params.length}`,
       params
     );
-    res.json({ success: true, orders: orders.rows, pagination: { page, limit, total, totalPages } });
+    res.json({
+      success: true,
+      orders: orders.rows.map(o => ({ ...o, dimensions_json: o.dimensions_json ? JSON.parse(o.dimensions_json) : null })),
+      pagination: { page, limit, total, totalPages }
+    });
   } catch (error) {
     console.error('Get orders error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch orders' });
@@ -407,22 +414,109 @@ router.put('/orders/bulk-update', authMiddleware, isAdmin, async (req, res) => {
   }
 });
 
+/** PUT /api/admin/orders/:id/edit — Admin can edit order details (weight, dimensions, etc.) */
+router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+    const { id } = req.params;
+    const adminId = req.user.id;
+    const { weight_kg, dimensions, actual_cost, customs_duty, status, description, retailer } = req.body;
+
+    const orderRes = await db.query('SELECT * FROM orders WHERE id = $1', [id]);
+    if (!orderRes.rows[0]) return res.status(404).json({ success: false, message: 'Order not found' });
+    const order = orderRes.rows[0];
+
+    const params = [];
+    const updates = [];
+
+    if (weight_kg !== undefined) { params.push(weight_kg); updates.push(`weight_kg = $${params.length}`); }
+    if (dimensions !== undefined) { params.push(JSON.stringify(dimensions)); updates.push(`dimensions_json = $${params.length}`); }
+    if (actual_cost !== undefined) { params.push(actual_cost); updates.push(`actual_cost = $${params.length}`); }
+    if (customs_duty !== undefined) { params.push(customs_duty); updates.push(`customs_duty = $${params.length}`); }
+    if (status !== undefined) {
+      const validStatuses = ['pending','received_at_warehouse','consolidating','in_transit','customs','out_for_delivery','delivered','cancelled'];
+      if (!validStatuses.includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
+      params.push(status); updates.push(`status = $${params.length}`);
+    }
+    if (description !== undefined) { params.push(description); updates.push(`description = $${params.length}`); }
+    if (retailer !== undefined) { params.push(retailer); updates.push(`retailer = $${params.length}`); }
+
+    if (updates.length === 0) return res.status(400).json({ success: false, message: 'No fields to update' });
+
+    updates.push('updated_at = NOW()');
+
+    // If weight was updated, recalculate estimated cost
+    if (weight_kg !== undefined) {
+      const dims = dimensions || (order.dimensions_json ? JSON.parse(order.dimensions_json) : null);
+      const costBreakdown = calculateShippingCost({
+        weight_kg, dimensions: dims, market: order.market,
+        shipping_speed: order.shipping_speed || 'economy',
+        insurance: order.insurance || false,
+        declared_value: order.declared_value || 0,
+      });
+      params.push(costBreakdown.total);
+      updates.push(`estimated_cost = $${params.length}`);
+    }
+
+    params.push(id);
+    await db.query(`UPDATE orders SET ${updates.join(', ')} WHERE id = $${params.length}`, params);
+
+    // Also update the package weight if weight changed
+    if (weight_kg !== undefined) {
+      await db.query('UPDATE packages SET weight_kg = $1, updated_at = NOW() WHERE order_id = $2', [weight_kg, id]);
+    }
+
+    await db.query('INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)',
+      [uuidv4(), adminId, 'edit_order', JSON.stringify({ order_id: id, tracking_number: order.tracking_number, changes: req.body })]);
+
+    const updated = await db.query(
+      `SELECT o.*, u.name, u.email FROM orders o JOIN users u ON o.user_id = u.id WHERE o.id = $1`, [id]
+    );
+    const updatedOrder = updated.rows[0];
+
+    // Push update to customer
+    pushToUser(order.user_id, 'order_update', { action: 'order_edited', order: updatedOrder });
+    pushToAdmins('admin_stats', { action: 'order_edited', order: updatedOrder });
+
+    res.json({ success: true, message: 'Order updated successfully', order: { ...updatedOrder, dimensions_json: updatedOrder.dimensions_json ? JSON.parse(updatedOrder.dimensions_json) : null } });
+  } catch (error) {
+    console.error('Edit order error:', error);
+    logRouteError(req, res, error, 'Edit order error');
+    res.status(500).json({ success: false, message: 'Failed to edit order' });
+  }
+});
+
 /** GET /api/admin/stats */
 router.get('/stats', authMiddleware, isAdmin, async (req, res) => {
   try {
     const db = req.db;
-    const [userStats, orderStats, marketStats, statusStats, revenueStats, referralStats] = await Promise.all([
+    const [userStats, orderStats, marketStats, statusStats, revenueStats, referralStats, newUsersToday, newOrdersToday, activeOrders, recentOrders] = await Promise.all([
       db.query(`SELECT COUNT(*) AS total, SUM(CASE WHEN role='customer' THEN 1 ELSE 0 END) AS customers, SUM(CASE WHEN role='admin' THEN 1 ELSE 0 END) AS admins, SUM(CASE WHEN is_active=true THEN 1 ELSE 0 END) AS active_users FROM users`),
       db.query(`SELECT COUNT(*) AS total_orders, SUM(CASE WHEN status='delivered' THEN 1 ELSE 0 END) AS delivered, SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) AS pending, SUM(CASE WHEN status='in_transit' THEN 1 ELSE 0 END) AS in_transit, AVG(estimated_cost) AS avg_estimated_cost, SUM(estimated_cost) AS total_estimated_value FROM orders`),
       db.query(`SELECT market, COUNT(*) AS count, SUM(estimated_cost) AS value FROM orders GROUP BY market`),
       db.query(`SELECT status, COUNT(*) AS count FROM orders GROUP BY status`),
       db.query(`SELECT COUNT(*) AS total_transactions, SUM(CASE WHEN status='completed' THEN amount ELSE 0 END) AS total_revenue, SUM(CASE WHEN type='deposit' AND status='completed' THEN amount ELSE 0 END) AS deposits, SUM(CASE WHEN type='payment' AND status='completed' THEN amount ELSE 0 END) AS payments FROM transactions`),
-      db.query(`SELECT COUNT(*) AS total_referrals, SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) AS completed_referrals, SUM(CASE WHEN status='completed' THEN reward_amount ELSE 0 END) AS total_rewards_paid FROM referrals`)
+      db.query(`SELECT COUNT(*) AS total_referrals, SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) AS completed_referrals, SUM(CASE WHEN status='completed' THEN reward_amount ELSE 0 END) AS total_rewards_paid FROM referrals`),
+      // New users registered today
+      db.query(`SELECT COUNT(*) AS count FROM users WHERE DATE(created_at) = CURRENT_DATE`),
+      // New orders created today
+      db.query(`SELECT COUNT(*) AS count FROM orders WHERE DATE(created_at) = CURRENT_DATE`),
+      // Active orders (not delivered, not cancelled)
+      db.query(`SELECT COUNT(*) AS count FROM orders WHERE status NOT IN ('delivered', 'cancelled')`),
+      // Recent orders with daily counts (last 14 days)
+      db.query(`SELECT DATE(created_at) AS date, COUNT(*) AS count, SUM(estimated_cost) AS revenue FROM orders WHERE created_at >= NOW() - INTERVAL '14 days' GROUP BY DATE(created_at) ORDER BY date ASC`)
     ]);
     res.json({
       success: true,
-      stats: { users: userStats.rows[0], orders: orderStats.rows[0], markets: marketStats.rows,
-        order_statuses: statusStats.rows, revenue: revenueStats.rows[0], referrals: referralStats.rows[0] }
+      stats: {
+        users: { ...userStats.rows[0], new_today: parseInt(newUsersToday.rows[0].count) || 0 },
+        orders: { ...orderStats.rows[0], new_today: parseInt(newOrdersToday.rows[0].count) || 0, active_orders: parseInt(activeOrders.rows[0].count) || 0 },
+        markets: marketStats.rows,
+        order_statuses: statusStats.rows,
+        revenue: revenueStats.rows[0],
+        referrals: referralStats.rows[0],
+        daily_orders: recentOrders.rows
+      }
     });
   } catch (error) {
     console.error('Get stats error:', error);

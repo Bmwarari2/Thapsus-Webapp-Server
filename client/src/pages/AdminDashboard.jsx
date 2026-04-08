@@ -4,7 +4,8 @@ import {
   Lock, RefreshCw, Trash2, XCircle, Plus, CreditCard, Search,
   UserPlus, Bell, Mail, Eye, ArrowLeft, Key, Send, AlertTriangle,
   ChevronLeft, ChevronRight, Filter, ChevronDown, Globe, TrendingUp,
-  CheckCircle, X, Box
+  CheckCircle, X, Box, Pencil, Weight, Ruler, ShoppingCart, Zap,
+  ArrowUpRight, Clock
 } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
@@ -98,6 +99,9 @@ export const AdminDashboard = () => {
   const [reminderModal, setReminderModal] = useState(null)
   const [reminderAmount, setReminderAmount] = useState('')
   const [reminderNotes, setReminderNotes] = useState('')
+  const [editOrderModal, setEditOrderModal] = useState(null)
+  const [editOrderForm, setEditOrderForm] = useState({ weight_kg: '', length: '', width: '', height: '', actual_cost: '', customs_duty: '', status: '', description: '' })
+  const [savingOrder, setSavingOrder] = useState(false)
   const [testEmail, setTestEmail] = useState(currentUser?.email || '')
   
   // User Panel States
@@ -383,6 +387,42 @@ export const AdminDashboard = () => {
     } catch (err) { toast.error('Failed to create order') } finally { setCreatingOrder(false) }
   }
 
+  const handleOpenEditOrder = (order) => {
+    const dims = order.dimensions_json || {}
+    setEditOrderForm({
+      weight_kg: order.weight_kg || '',
+      length: dims.length || '',
+      width: dims.width || '',
+      height: dims.height || '',
+      actual_cost: order.actual_cost || '',
+      customs_duty: order.customs_duty || '',
+      status: order.status || 'pending',
+      description: order.description || ''
+    })
+    setEditOrderModal(order)
+  }
+
+  const handleSaveEditOrder = async (e) => {
+    e.preventDefault()
+    if (!editOrderModal) return
+    try {
+      setSavingOrder(true)
+      const data = {}
+      if (editOrderForm.weight_kg !== '' && editOrderForm.weight_kg !== null) data.weight_kg = parseFloat(editOrderForm.weight_kg)
+      const hasDims = editOrderForm.length || editOrderForm.width || editOrderForm.height
+      if (hasDims) data.dimensions = { length: parseFloat(editOrderForm.length)||0, width: parseFloat(editOrderForm.width)||0, height: parseFloat(editOrderForm.height)||0 }
+      if (editOrderForm.actual_cost !== '' && editOrderForm.actual_cost !== null) data.actual_cost = parseFloat(editOrderForm.actual_cost)
+      if (editOrderForm.customs_duty !== '' && editOrderForm.customs_duty !== null) data.customs_duty = parseFloat(editOrderForm.customs_duty)
+      if (editOrderForm.status) data.status = editOrderForm.status
+      if (editOrderForm.description) data.description = editOrderForm.description
+
+      const res = await adminApi.editOrder(editOrderModal.id, data)
+      toast.success('Order updated successfully')
+      setOrders(prev => prev.map(o => o.id === editOrderModal.id ? { ...o, ...res.data.order } : o))
+      setEditOrderModal(null)
+    } catch (err) { toast.error(err.message || 'Failed to update order') } finally { setSavingOrder(false) }
+  }
+
   // --- UI Styles & Helpers ---
   const COLORS = ['#1e3a5f', '#f97316', '#10b981', '#6366f1']
   const tableWrapper = "bg-white/40 backdrop-blur-2xl border border-white/40 rounded-[2.5rem] shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] overflow-hidden overflow-x-auto"
@@ -441,59 +481,183 @@ export const AdminDashboard = () => {
 
         {/* --- OVERVIEW --- */}
         {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 auto-rows-[240px]">
-            {/* Dark Glass + Tilted Interactive Card */}
-            <div className="relative group overflow-hidden rounded-[2.5rem] bg-[#0f172a] p-10 text-white shadow-2xl flex flex-col justify-between transition-all hover:scale-[1.01] transform lg:rotate-1 hover:rotate-0 duration-700 md:col-span-2 md:row-span-2 glass-sheen">
-              <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-orange-500/20 blur-[80px] -z-0 pointer-events-none" />
-              <div className="relative z-10">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Global Revenue (Completed)</span>
-                <h3 className="text-5xl lg:text-7xl font-black tracking-tighter mt-2 leading-none">KES {(stats?.revenue?.total_revenue || 0).toLocaleString()}</h3>
-                <p className="text-xs mt-3 font-bold text-orange-400 uppercase tracking-widest">{stats?.revenue?.total_transactions || 0} secure transactions</p>
+          <div className="space-y-8 animate-in fade-in duration-500">
+            {/* Top Row: Revenue + Key Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              {/* Revenue Card — Large Dark Glass */}
+              <div className="relative group overflow-hidden rounded-[2.5rem] bg-[#0f172a] p-10 text-white shadow-2xl flex flex-col justify-between transition-all hover:scale-[1.01] transform lg:rotate-1 hover:rotate-0 duration-700 md:col-span-2 md:row-span-2 glass-sheen min-h-[320px]">
+                <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-orange-500/20 blur-[80px] -z-0 pointer-events-none animate-morph" />
+                <div className="relative z-10">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Global Revenue (Completed)</span>
+                  <h3 className="text-5xl lg:text-7xl font-black tracking-tighter mt-2 leading-none">KES {(stats?.revenue?.total_revenue || 0).toLocaleString()}</h3>
+                  <p className="text-xs mt-3 font-bold text-orange-400 uppercase tracking-widest">{stats?.revenue?.total_transactions || 0} secure transactions</p>
+                </div>
+                <div className="h-40 w-full mt-4 relative z-10">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={stats?.daily_orders || []}>
+                      <defs>
+                        <linearGradient id="colorDailyRev" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#f97316" stopOpacity={0.8}/>
+                          <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }} formatter={(val) => [`KES ${Number(val).toLocaleString()}`, 'Revenue']} labelFormatter={(label) => new Date(label).toLocaleDateString()} />
+                      <Area type="monotone" dataKey="revenue" stroke="#f97316" strokeWidth={3} fillOpacity={1} fill="url(#colorDailyRev)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
-              <div className="h-56 w-full mt-4 relative z-10">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={marketChartData}>
-                    <defs>
-                      <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }} />
-                    <Area type="monotone" dataKey="revenue" stroke="#f97316" strokeWidth={4} fillOpacity={1} fill="url(#colorRev)" />
-                  </AreaChart>
-                </ResponsiveContainer>
+
+              {/* New Users Today */}
+              <GlassCard className="flex flex-col justify-center p-8 group hover:-translate-y-2 transition-all duration-500">
+                <div className="flex items-center justify-between mb-4">
+                  <UserPlus className="text-emerald-500" size={32}/>
+                  <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-full text-[9px] font-black uppercase tracking-widest">Today</span>
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">New Users</span>
+                <h3 className="text-4xl font-black text-[#0f172a] tracking-tighter">{stats?.users?.new_today || 0}</h3>
+                <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-wider">{stats?.users?.total || 0} total users</p>
+              </GlassCard>
+
+              {/* New Orders Today */}
+              <GlassCard className="flex flex-col justify-center p-8 border-orange-200/50 bg-orange-50/30 group hover:-translate-y-2 transition-all duration-500">
+                <div className="flex items-center justify-between mb-4">
+                  <ShoppingCart className="text-orange-500" size={32}/>
+                  <span className="px-2.5 py-1 bg-orange-50 text-orange-600 border border-orange-200 rounded-full text-[9px] font-black uppercase tracking-widest">Today</span>
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-orange-600/60 mb-1">New Orders</span>
+                <h3 className="text-4xl font-black text-[#0f172a] tracking-tighter">{stats?.orders?.new_today || 0}</h3>
+                <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-wider">{stats?.orders?.total_orders || 0} total orders</p>
+              </GlassCard>
+
+              {/* Active Orders */}
+              <GlassCard className="flex flex-col justify-center p-8 group hover:-translate-y-2 transition-all duration-500">
+                <div className="flex items-center justify-between mb-4">
+                  <Zap className="text-blue-500" size={32}/>
+                  <span className="px-2.5 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-full text-[9px] font-black uppercase tracking-widest animate-pulse">Live</span>
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Active Orders</span>
+                <h3 className="text-4xl font-black text-[#0f172a] tracking-tighter">{stats?.orders?.active_orders || 0}</h3>
+                <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-wider">In pipeline now</p>
+              </GlassCard>
+
+              {/* Total Users */}
+              <GlassCard className="flex flex-col justify-center p-8 group hover:-translate-y-2 transition-all duration-500">
+                <Users className="text-indigo-500 mb-4" size={32}/>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Users</span>
+                <h3 className="text-4xl font-black text-[#0f172a] tracking-tighter">{stats?.users?.total || 0}</h3>
+                <div className="flex gap-3 mt-2">
+                  <span className="text-[9px] font-black text-slate-400 uppercase">{stats?.users?.customers || 0} customers</span>
+                  <span className="text-[9px] font-black text-orange-500 uppercase">{stats?.users?.admins || 0} admins</span>
+                </div>
+              </GlassCard>
+            </div>
+
+            {/* Middle Row: Order Status Breakdown + Market Pie */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Order Status Breakdown */}
+              <GlassCard className="md:col-span-2 p-8">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2"><BarChart3 size={14} className="text-orange-500" /> Orders by Status</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {(stats?.order_statuses || []).map(s => {
+                    const statusColors = {
+                      pending: { bg: 'bg-amber-50/80', text: 'text-amber-700', border: 'border-amber-200/50', icon: <Clock size={18} className="text-amber-500" /> },
+                      received_at_warehouse: { bg: 'bg-blue-50/80', text: 'text-blue-700', border: 'border-blue-200/50', icon: <Box size={18} className="text-blue-500" /> },
+                      consolidating: { bg: 'bg-purple-50/80', text: 'text-purple-700', border: 'border-purple-200/50', icon: <Package size={18} className="text-purple-500" /> },
+                      in_transit: { bg: 'bg-indigo-50/80', text: 'text-indigo-700', border: 'border-indigo-200/50', icon: <ArrowUpRight size={18} className="text-indigo-500" /> },
+                      customs: { bg: 'bg-yellow-50/80', text: 'text-yellow-700', border: 'border-yellow-200/50', icon: <Globe size={18} className="text-yellow-600" /> },
+                      out_for_delivery: { bg: 'bg-teal-50/80', text: 'text-teal-700', border: 'border-teal-200/50', icon: <TrendingUp size={18} className="text-teal-500" /> },
+                      delivered: { bg: 'bg-emerald-50/80', text: 'text-emerald-700', border: 'border-emerald-200/50', icon: <CheckCircle size={18} className="text-emerald-500" /> },
+                      cancelled: { bg: 'bg-red-50/80', text: 'text-red-700', border: 'border-red-200/50', icon: <XCircle size={18} className="text-red-500" /> },
+                    }
+                    const c = statusColors[s.status] || { bg: 'bg-slate-50/80', text: 'text-slate-700', border: 'border-slate-200/50', icon: <Package size={18} className="text-slate-400" /> }
+                    return (
+                      <div key={s.status} className={`relative overflow-hidden rounded-2xl ${c.bg} backdrop-blur-md border ${c.border} p-4 hover:scale-[1.02] transition-all duration-300 group/card`}>
+                        <div className="absolute inset-0 bg-gradient-to-tr from-white/30 to-transparent pointer-events-none" />
+                        <div className="relative z-10">
+                          <div className="flex items-center justify-between mb-2">{c.icon}<span className={`text-2xl font-black ${c.text} tracking-tighter`}>{parseInt(s.count) || 0}</span></div>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">{s.status?.replace(/_/g, ' ')}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </GlassCard>
+
+              {/* Market Volume Pie Chart */}
+              <GlassCard className="flex flex-col p-8">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2"><Globe size={14} className="text-blue-500" /> Volume by Market</h4>
+                <div className="flex-1 min-h-[200px] flex items-center justify-center">
+                  {marketChartData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={marketChartData} innerRadius={55} outerRadius={80} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
+                          {marketChartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : <p className="text-slate-400 font-bold text-sm uppercase tracking-widest">No Market Data</p>}
+                </div>
+              </GlassCard>
+            </div>
+
+            {/* Bottom Row: Daily Orders Chart + Quick Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Daily Orders Trend */}
+              <GlassCard className="md:col-span-2 p-8">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2"><TrendingUp size={14} className="text-green-500" /> Orders Trend (14 Days)</h4>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={stats?.daily_orders || []}>
+                      <defs>
+                        <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#1e3a5f" stopOpacity={0.8}/>
+                          <stop offset="95%" stopColor="#1e3a5f" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
+                      <Tooltip contentStyle={{ borderRadius: '1rem', border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }} formatter={(val) => [val, 'Orders']} labelFormatter={(label) => new Date(label).toLocaleDateString()} />
+                      <Area type="monotone" dataKey="count" stroke="#1e3a5f" strokeWidth={3} fillOpacity={1} fill="url(#colorOrders)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </GlassCard>
+
+              {/* Quick Stats Stack */}
+              <div className="space-y-4">
+                <GlassCard className="p-6 flex items-center gap-4 group hover:-translate-y-1 transition-all duration-300">
+                  <div className="p-3 bg-green-50/80 rounded-2xl border border-green-200/50"><DollarSign size={20} className="text-green-600" /></div>
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Deposits</p>
+                    <p className="text-xl font-black text-[#0f172a] tracking-tighter">KES {(parseFloat(stats?.revenue?.deposits) || 0).toLocaleString()}</p>
+                  </div>
+                </GlassCard>
+                <GlassCard className="p-6 flex items-center gap-4 group hover:-translate-y-1 transition-all duration-300">
+                  <div className="p-3 bg-blue-50/80 rounded-2xl border border-blue-200/50"><CreditCard size={20} className="text-blue-600" /></div>
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Payments</p>
+                    <p className="text-xl font-black text-[#0f172a] tracking-tighter">KES {(parseFloat(stats?.revenue?.payments) || 0).toLocaleString()}</p>
+                  </div>
+                </GlassCard>
+                <GlassCard className="p-6 flex items-center gap-4 group hover:-translate-y-1 transition-all duration-300">
+                  <div className="p-3 bg-purple-50/80 rounded-2xl border border-purple-200/50"><Users size={20} className="text-purple-600" /></div>
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Referrals</p>
+                    <p className="text-xl font-black text-[#0f172a] tracking-tighter">{parseInt(stats?.referrals?.completed_referrals) || 0} / {parseInt(stats?.referrals?.total_referrals) || 0}</p>
+                    <p className="text-[9px] font-bold text-orange-500">KES {(parseFloat(stats?.referrals?.total_rewards_paid) || 0).toLocaleString()} paid</p>
+                  </div>
+                </GlassCard>
+                <GlassCard className="p-6 flex items-center gap-4 group hover:-translate-y-1 transition-all duration-300">
+                  <div className="p-3 bg-amber-50/80 rounded-2xl border border-amber-200/50"><Package size={20} className="text-amber-600" /></div>
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Pending Orders</p>
+                    <p className="text-xl font-black text-[#0f172a] tracking-tighter">{parseInt(stats?.orders?.pending) || 0}</p>
+                  </div>
+                </GlassCard>
               </div>
             </div>
-            
-            <GlassCard className="flex flex-col justify-center p-8 group hover:-translate-y-2 transition-all duration-500">
-              <Users className="text-blue-500 mb-4" size={36}/>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Users</span>
-              <h3 className="text-5xl font-black text-[#0f172a] tracking-tighter">{stats?.users?.total || 0}</h3>
-            </GlassCard>
-            
-            <GlassCard className="flex flex-col justify-center p-8 border-orange-200/50 bg-orange-50/30 group hover:-translate-y-2 transition-all duration-500">
-              <Package className="text-orange-500 mb-4" size={36}/>
-              <span className="text-[10px] font-black uppercase tracking-widest text-orange-600/60 mb-1">Active Orders</span>
-              <h3 className="text-5xl font-black text-[#0f172a] tracking-tighter">{stats?.orders?.total_orders || 0}</h3>
-            </GlassCard>
-            
-            <GlassCard className="md:col-span-2 flex flex-col p-8">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Volume by Market</h4>
-              <div className="flex-1 min-h-[150px] flex items-center justify-center">
-                {marketChartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={marketChartData} innerRadius={60} outerRadius={80} dataKey="value" label>
-                        {marketChartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : <p className="text-slate-400 font-bold text-sm uppercase tracking-widest">No Market Data</p>}
-              </div>
-            </GlassCard>
           </div>
         )}
 
@@ -568,25 +732,42 @@ export const AdminDashboard = () => {
                     <th className={thClass}><input type="checkbox" onChange={e => e.target.checked ? setSelectedOrders(orders.map(o=>o.id)) : setSelectedOrders([])} className="w-4 h-4 rounded accent-[#0f172a]" /></th>
                     <th className={thClass}>Dispatch ID</th>
                     <th className={thClass}>Client / Item</th>
+                    <th className={thClass}>Weight / Dims</th>
                     <th className={thClass}>Stage</th>
                     <th className={thClass + " text-right"}>Operations</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/50">
-                  {orders.map(o => (
+                  {orders.map(o => {
+                    const dims = o.dimensions_json
+                    return (
                     <tr key={o.id} className="hover:bg-white/40 transition-colors group">
                       <td className={tdClass}><input type="checkbox" checked={selectedOrders.includes(o.id)} onChange={() => handleToggleOrderSelection(o.id)} className="w-4 h-4 rounded accent-[#0f172a]" /></td>
                       <td className={tdClass}><p className="font-black text-[#0f172a]">{o.tracking_number}</p><p className="text-[10px] text-slate-400 font-black uppercase mt-1 tracking-widest">{o.market}</p></td>
                       <td className={tdClass}><p className="font-bold text-slate-800">{o.name || o.email}</p><p className="text-xs text-slate-500 font-medium max-w-[200px] truncate mt-1">{o.retailer}: {o.description}</p></td>
+                      <td className={tdClass}>
+                        {o.weight_kg ? (
+                          <div>
+                            <p className="font-black text-[#0f172a]">{o.weight_kg} kg</p>
+                            {dims && <p className="text-[10px] text-slate-400 font-bold mt-1">{dims.length}×{dims.width}×{dims.height} cm</p>}
+                          </div>
+                        ) : (
+                          <span className="px-2 py-1 bg-amber-50 text-amber-600 border border-amber-200 rounded-full text-[9px] font-black uppercase tracking-widest">Pending</span>
+                        )}
+                      </td>
                       <td className={tdClass}>{statusBadge(o.status)}</td>
-                      <td className={tdClass + " text-right flex justify-end gap-2"}>
-                        <button onClick={() => { setPaymentModal({orderId: o.id, trackingNumber: o.tracking_number}); setPaymentAmount(String(o.estimated_cost||'')) }} className="p-2 bg-white hover:bg-green-100 text-green-600 border border-green-100 rounded-xl shadow-sm transition-colors" title="Request Payment"><DollarSign size={16}/></button>
-                        <button onClick={() => { setReminderModal({orderId: o.id, trackingNumber: o.tracking_number}); setReminderAmount(String(o.estimated_cost||'')) }} className="p-2 bg-white hover:bg-orange-100 text-orange-500 border border-orange-100 rounded-xl shadow-sm transition-colors" title="Payment Reminder"><Bell size={16}/></button>
-                        <button onClick={() => { setCancelModal({orderId: o.id, trackingNumber: o.tracking_number}) }} className="p-2 bg-white hover:bg-amber-100 text-amber-600 border border-amber-100 rounded-xl shadow-sm transition-colors" title="Cancel"><XCircle size={16}/></button>
-                        <button onClick={() => handleDeleteOrder(o.id, o.tracking_number)} className="p-2 bg-white hover:bg-red-100 text-red-600 border border-red-100 rounded-xl shadow-sm transition-colors" title="Delete"><Trash2 size={16}/></button>
+                      <td className={tdClass + " text-right"}>
+                        <div className="flex justify-end gap-2">
+                          <button onClick={() => handleOpenEditOrder(o)} className="p-2 bg-white hover:bg-blue-100 text-blue-600 border border-blue-100 rounded-xl shadow-sm transition-colors" title="Edit Order"><Pencil size={16}/></button>
+                          <button onClick={() => { setPaymentModal({orderId: o.id, trackingNumber: o.tracking_number}); setPaymentAmount(String(o.estimated_cost||'')) }} className="p-2 bg-white hover:bg-green-100 text-green-600 border border-green-100 rounded-xl shadow-sm transition-colors" title="Request Payment"><DollarSign size={16}/></button>
+                          <button onClick={() => { setReminderModal({orderId: o.id, trackingNumber: o.tracking_number}); setReminderAmount(String(o.estimated_cost||'')) }} className="p-2 bg-white hover:bg-orange-100 text-orange-500 border border-orange-100 rounded-xl shadow-sm transition-colors" title="Payment Reminder"><Bell size={16}/></button>
+                          <button onClick={() => { setCancelModal({orderId: o.id, trackingNumber: o.tracking_number}) }} className="p-2 bg-white hover:bg-amber-100 text-amber-600 border border-amber-100 rounded-xl shadow-sm transition-colors" title="Cancel"><XCircle size={16}/></button>
+                          <button onClick={() => handleDeleteOrder(o.id, o.tracking_number)} className="p-2 bg-white hover:bg-red-100 text-red-600 border border-red-100 rounded-xl shadow-sm transition-colors" title="Delete"><Trash2 size={16}/></button>
+                        </div>
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -604,7 +785,7 @@ export const AdminDashboard = () => {
                   <p className="font-black text-slate-400 uppercase text-xs tracking-widest">No pending transactions</p>
                 </GlassCard>
               ) : pendingPayments.map(p => (
-                <GlassCard key={p.id} className="flex flex-col gap-6">
+                <GlassCard key={p.id} className="flex flex-col gap-6 p-8">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div>
                       <div className="flex items-center gap-4 mb-2">
@@ -618,13 +799,27 @@ export const AdminDashboard = () => {
                       <button onClick={() => handleRejectPayment(p.id)} disabled={approvingPayment===p.id} className="bg-red-50 text-red-600 border border-red-200 px-8 py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest hover:bg-red-100 transition-colors shadow-sm">Reject</button>
                     </div>
                   </div>
-                  <button onClick={() => setExpandedProof(expandedProof === p.id ? null : p.id)} className="text-blue-500 text-[10px] font-black uppercase tracking-widest hover:text-blue-700 transition-colors w-fit flex items-center gap-1">
-                    <Search size={12}/> {expandedProof === p.id ? 'Hide Raw SMS' : 'View Raw M-Pesa SMS'}
-                  </button>
-                  {expandedProof === p.id && (
-                     <div className="bg-slate-900/5 border border-white/50 p-6 rounded-3xl font-mono text-sm text-slate-700 whitespace-pre-wrap shadow-inner animate-in fade-in slide-in-from-top-4 duration-300">
-                       {p.mpesa_message || 'No message logged.'}
-                     </div>
+
+                  {/* Full M-Pesa Message — Always Visible */}
+                  <div className="relative overflow-hidden rounded-2xl bg-slate-900/5 backdrop-blur-md border border-white/50 p-6 shadow-inner">
+                    <div className="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent pointer-events-none" />
+                    <div className="relative z-10">
+                      <div className="flex items-center gap-2 mb-3">
+                        <MessageSquare size={14} className="text-blue-500" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">Full M-Pesa SMS</span>
+                      </div>
+                      <div className="font-mono text-sm text-slate-700 whitespace-pre-wrap leading-relaxed bg-white/40 p-4 rounded-xl border border-white/50">
+                        {p.mpesa_message || 'No message logged. Check admin logs for transaction proof.'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payer details if available */}
+                  {(p.payer_name || p.payer_phone) && (
+                    <div className="flex flex-wrap gap-3">
+                      {p.payer_name && <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500">Payer: {p.payer_name}</span>}
+                      {p.payer_phone && <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500">Phone: {p.payer_phone}</span>}
+                    </div>
                   )}
                 </GlassCard>
               ))}
@@ -1070,6 +1265,92 @@ export const AdminDashboard = () => {
                 <button type="submit" disabled={creatingUser} className={btnPrimary + " w-full !py-5 mt-4"}>{creatingUser ? 'Provisioning...' : 'Deploy Account'}</button>
               </form>
             </GlassCard>
+          </div>
+        )}
+
+        {/* --- EDIT ORDER MODAL --- */}
+        {editOrderModal && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6 animate-in fade-in duration-200" onClick={() => setEditOrderModal(null)}>
+            <div onClick={e => e.stopPropagation()} className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <GlassCard className="!bg-white/90 backdrop-blur-3xl p-8 md:p-10 shadow-2xl">
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <h3 className="text-2xl font-black text-[#0f172a] uppercase tracking-tighter">Edit Order</h3>
+                    <p className="text-sm font-bold text-orange-500 mt-1">{editOrderModal.tracking_number}</p>
+                  </div>
+                  <button onClick={() => setEditOrderModal(null)} className="p-2 hover:bg-red-100 text-red-500 rounded-xl transition-colors"><X size={20}/></button>
+                </div>
+
+                <form onSubmit={handleSaveEditOrder} className="space-y-6">
+                  {/* Weight & Dimensions Section */}
+                  <div className="relative overflow-hidden rounded-2xl bg-blue-50/60 backdrop-blur-md border border-blue-200/40 p-5">
+                    <div className="absolute inset-0 bg-gradient-to-tr from-blue-100/20 to-transparent pointer-events-none" />
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-4 relative z-10 flex items-center gap-2"><Weight size={14}/> Weight & Dimensions</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
+                      <div>
+                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Weight (kg)</label>
+                        <input type="number" step="0.01" min="0" className={inputClass} placeholder="0.00" value={editOrderForm.weight_kg} onChange={e => setEditOrderForm({...editOrderForm, weight_kg: e.target.value})} />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Length (cm)</label>
+                        <input type="number" step="0.1" min="0" className={inputClass} placeholder="0" value={editOrderForm.length} onChange={e => setEditOrderForm({...editOrderForm, length: e.target.value})} />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Width (cm)</label>
+                        <input type="number" step="0.1" min="0" className={inputClass} placeholder="0" value={editOrderForm.width} onChange={e => setEditOrderForm({...editOrderForm, width: e.target.value})} />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Height (cm)</label>
+                        <input type="number" step="0.1" min="0" className={inputClass} placeholder="0" value={editOrderForm.height} onChange={e => setEditOrderForm({...editOrderForm, height: e.target.value})} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Status & Costs */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Status</label>
+                      <select className={inputClass} value={editOrderForm.status} onChange={e => setEditOrderForm({...editOrderForm, status: e.target.value})}>
+                        <option value="pending">Pending</option>
+                        <option value="received_at_warehouse">Received at Warehouse</option>
+                        <option value="consolidating">Consolidating</option>
+                        <option value="in_transit">In Transit</option>
+                        <option value="customs">Customs</option>
+                        <option value="out_for_delivery">Out for Delivery</option>
+                        <option value="delivered">Delivered</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Actual Cost (KES)</label>
+                      <input type="number" step="0.01" min="0" className={inputClass} placeholder="0.00" value={editOrderForm.actual_cost} onChange={e => setEditOrderForm({...editOrderForm, actual_cost: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Customs Duty (KES)</label>
+                      <input type="number" step="0.01" min="0" className={inputClass} placeholder="0.00" value={editOrderForm.customs_duty} onChange={e => setEditOrderForm({...editOrderForm, customs_duty: e.target.value})} />
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Description</label>
+                    <textarea className={inputClass + " resize-none"} rows="3" value={editOrderForm.description} onChange={e => setEditOrderForm({...editOrderForm, description: e.target.value})} />
+                  </div>
+
+                  {/* Current Info Display */}
+                  <div className="flex flex-wrap gap-3 text-[10px] font-black uppercase tracking-widest">
+                    <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-slate-500">Est. Cost: KES {(editOrderModal.estimated_cost || 0).toLocaleString()}</span>
+                    <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-slate-500">Market: {editOrderModal.market}</span>
+                    <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-slate-500">Speed: {editOrderModal.shipping_speed}</span>
+                  </div>
+
+                  <div className="flex gap-4 pt-2">
+                    <button type="submit" disabled={savingOrder} className={btnPrimary + " flex-1 !py-5"}>{savingOrder ? 'Saving...' : 'Save Changes'}</button>
+                    <button type="button" onClick={() => setEditOrderModal(null)} className={btnOutline + " flex-1 !py-5"}>Cancel</button>
+                  </div>
+                </form>
+              </GlassCard>
+            </div>
           </div>
         )}
 

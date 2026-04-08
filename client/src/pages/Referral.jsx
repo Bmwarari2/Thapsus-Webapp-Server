@@ -88,13 +88,13 @@ export const Referral = () => {
   }
 
   const handleShareWhatsApp = () => {
-    const msg = `Join Thapsus Cargo and ship from UK, USA & China to Kenya! Sign up using my code and we both benefit.\n\nReferral code: ${referralCode}\n👉 ${window.location.origin}/register?ref=${referralCode}`
+    const msg = `Join Thapsus Cargo and ship from UK, USA & China to Kenya! Sign up using my code and we BOTH get KES 50 wallet credit when you place your first order!\n\nReferral code: ${referralCode}\n👉 ${window.location.origin}/register?ref=${referralCode}`
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
   const handleShareEmail = () => {
     const subject = 'Join Thapsus Cargo – use my referral code'
-    const body = `Hey!\n\nI use Thapsus Cargo to ship from the UK, USA & China to Kenya. Sign up with my referral code ${referralCode} and I get KES 50 wallet credit after you place your first order.\n\nhttps://thapsus.uk/register?ref=${referralCode}`
+    const body = `Hey!\n\nI use Thapsus Cargo to ship from the UK, USA & China to Kenya. Sign up with my referral code ${referralCode} and we BOTH get KES 50 wallet credit when you place your first order!\n\nhttps://thapsus.uk/register?ref=${referralCode}`
     window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
   }
 
@@ -128,7 +128,7 @@ export const Referral = () => {
             Refer & Earn
           </h1>
           <p className="text-slate-500 font-bold max-w-2xl mx-auto leading-relaxed text-sm md:text-base lg:text-lg">
-            Share your unique code. Every time someone you refer places their <strong className="text-[#0f172a]">first order</strong>, you earn <strong className="text-orange-500">KES 50</strong> in wallet credit automatically.
+            Share your unique code. When someone you refer places their <strong className="text-[#0f172a]">first order</strong>, you <strong className="text-orange-500">both earn KES 50</strong> in wallet credit automatically.
           </p>
         </div>
 
@@ -233,7 +233,7 @@ export const Referral = () => {
           <div className="px-8 md:px-10 py-8 border-b border-white/50 bg-white/30 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-6">
             <div>
               <h2 className="text-2xl md:text-3xl font-black text-[#0f172a] uppercase tracking-tighter">Your Network</h2>
-              <p className="text-sm md:text-base font-bold text-slate-500 mt-2">Track their progress towards earning you KES 50.</p>
+              <p className="text-sm md:text-base font-bold text-slate-500 mt-2">Track their progress — you both earn KES 50 on their first order.</p>
             </div>
             <Users size={40} className="text-slate-300 hidden sm:block shrink-0" />
           </div>
@@ -338,7 +338,7 @@ export const Referral = () => {
                 <div className="w-14 h-14 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl flex items-center justify-center font-black text-xl shrink-0 text-orange-400 shadow-inner">3</div>
                 <div>
                   <p className="font-black text-xl mb-3 tracking-tight">They Place Order</p>
-                  <p className="text-sm md:text-base text-slate-400 font-medium leading-relaxed">Once they place their first shipment, <strong className="text-white">KES 50</strong> is instantly added to your wallet.</p>
+                  <p className="text-sm md:text-base text-slate-400 font-medium leading-relaxed">Once they place their first shipment, <strong className="text-white">KES 50</strong> is instantly added to both your wallet and theirs!</p>
                 </div>
               </div>
             </div>

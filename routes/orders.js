@@ -66,10 +66,11 @@ router.post('/', authMiddleware, async (req, res) => {
     if (!['economy', 'express'].includes(speed))
       return res.status(400).json({ success: false, message: 'Invalid shipping speed.' });
 
-    const costBreakdown = calculateShippingCost({
+    // Weight and dimensions are now optional at order creation (added by admin later)
+    const costBreakdown = weight_kg ? calculateShippingCost({
       weight_kg: weight_kg || 0, dimensions, market, shipping_speed: speed,
       insurance: insurance || false, declared_value: declared_value || 0,
-    });
+    }) : { total: 0, breakdown: {} };
 
     const orderId        = uuidv4();
     const trackingNumber = generateTrackingNumber();
@@ -89,8 +90,8 @@ router.post('/', authMiddleware, async (req, res) => {
         [uuidv4(), orderId, userId, description, weight_kg || null]
       );
 
-      // referral reward check
-      const refResult     = await db.query(
+      // referral reward check — both referrer AND referee get KES 50
+      const refResult = await db.query(
         `SELECT id, referrer_id, reward_amount FROM referrals WHERE referee_id = $1 AND status = 'pending' LIMIT 1`,
         [userId]
       );
@@ -98,8 +99,11 @@ router.post('/', authMiddleware, async (req, res) => {
       if (pendingReferral) {
         const countRes = await db.query('SELECT COUNT(*) AS cnt FROM orders WHERE user_id = $1', [userId]);
         if (parseInt(countRes.rows[0].cnt) === 1) {
-          const reward = pendingReferral.reward_amount || 50;
-          await db.query(`UPDATE referrals SET status = 'completed', completed_at = NOW() WHERE id = $1`, [pendingReferral.id]);
+          const reward = 50; // KES 50 for each party
+
+          await db.query(`UPDATE referrals SET status = 'completed', completed_at = NOW(), reward_amount = $1 WHERE id = $2`, [reward, pendingReferral.id]);
+
+          // Reward the REFERRER (person who shared the code)
           await db.query('UPDATE users  SET wallet_balance = wallet_balance + $1 WHERE id = $2', [reward, pendingReferral.referrer_id]);
           await db.query('UPDATE wallet SET balance = balance + $1, last_updated = NOW() WHERE user_id = $2', [reward, pendingReferral.referrer_id]);
           await db.query(
@@ -107,9 +111,21 @@ router.post('/', authMiddleware, async (req, res) => {
              VALUES ($1,$2,'referral_reward',$3,'KES','system','completed')`,
             [uuidv4(), pendingReferral.referrer_id, reward]
           );
-          // Push wallet update to referrer
-          const walletRes = await db.query('SELECT balance FROM wallet WHERE user_id = $1', [pendingReferral.referrer_id]);
-          pushToUser(pendingReferral.referrer_id, 'wallet_update', { balance: walletRes.rows[0]?.balance });
+
+          // Reward the REFEREE (person who was referred)
+          await db.query('UPDATE users  SET wallet_balance = wallet_balance + $1 WHERE id = $2', [reward, userId]);
+          await db.query('UPDATE wallet SET balance = balance + $1, last_updated = NOW() WHERE user_id = $2', [reward, userId]);
+          await db.query(
+            `INSERT INTO transactions (id, user_id, type, amount, currency, payment_method, status)
+             VALUES ($1,$2,'referral_reward',$3,'KES','system','completed')`,
+            [uuidv4(), userId, reward]
+          );
+
+          // Push wallet updates to both users
+          const referrerWallet = await db.query('SELECT balance FROM wallet WHERE user_id = $1', [pendingReferral.referrer_id]);
+          pushToUser(pendingReferral.referrer_id, 'wallet_update', { balance: referrerWallet.rows[0]?.balance });
+          const refereeWallet = await db.query('SELECT balance FROM wallet WHERE user_id = $1', [userId]);
+          pushToUser(userId, 'wallet_update', { balance: refereeWallet.rows[0]?.balance });
         }
       }
 

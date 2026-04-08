@@ -50,8 +50,8 @@ export const Footer = () => {
                 <div className="p-2 bg-white/5 rounded-lg border border-white/10 group-hover:border-orange-500/50 transition-colors">
                   <Mail size={16} className="text-orange-400" />
                 </div>
-                <a href="mailto:support@thapsus.uk" className="hover:text-orange-400 transition-colors">
-                  support@thapsus.uk
+                <a href="mailto:admin@thapsus.uk" className="hover:text-orange-400 transition-colors">
+                  admin@thapsus.uk
                 </a>
               </li>
               <li className="flex items-center gap-3 group">

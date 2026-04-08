@@ -157,7 +157,7 @@ export const TermsOfService = () => {
           <Section title="13. Contact Us">
             <p>If you have any questions about these Terms, please contact us:</p>
             <ul className="list-none mt-3 space-y-1.5">
-              <li><strong className="text-slate-800">Email:</strong> <a href="mailto:support@thapsus.uk" className="text-orange-500 hover:underline font-bold">support@thapsus.uk</a></li>
+              <li><strong className="text-slate-800">Email:</strong> <a href="mailto:admin@thapsus.uk" className="text-orange-500 hover:underline font-bold">admin@thapsus.uk</a></li>
               <li><strong className="text-slate-800">Phone / WhatsApp:</strong> <a href="https://wa.me/447424531483" target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:underline font-bold">+44 7424 531483</a></li>
               <li><strong className="text-slate-800">Address:</strong> 31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB, United Kingdom</li>
             </ul>

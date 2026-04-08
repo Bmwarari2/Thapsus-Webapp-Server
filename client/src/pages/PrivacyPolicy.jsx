@@ -117,7 +117,7 @@ export const PrivacyPolicy = () => {
           </Section>
 
           <Section title="4. Data Retention">
-            <p>We retain your personal information for as long as your account is active or as needed to provide you with services. Order records are retained for a minimum of seven (7) years in compliance with UK accounting and tax regulations. You may request deletion of your account and associated data by contacting us at <a href="mailto:support@thapsus.uk" className="text-orange-500 hover:underline font-bold">support@thapsus.uk</a>.</p>
+            <p>We retain your personal information for as long as your account is active or as needed to provide you with services. Order records are retained for a minimum of seven (7) years in compliance with UK accounting and tax regulations. You may request deletion of your account and associated data by contacting us at <a href="mailto:admin@thapsus.uk" className="text-orange-500 hover:underline font-bold">admin@thapsus.uk</a>.</p>
           </Section>
 
           <Section title="5. Cookies">
@@ -133,7 +133,7 @@ export const PrivacyPolicy = () => {
               <li>Object to or restrict certain processing activities.</li>
               <li>Data portability — receive a copy of your data in a machine-readable format.</li>
             </ul>
-            <p className="mt-3">To exercise any of these rights, contact us at <a href="mailto:support@thapsus.uk" className="text-orange-500 hover:underline font-bold">support@thapsus.uk</a>.</p>
+            <p className="mt-3">To exercise any of these rights, contact us at <a href="mailto:admin@thapsus.uk" className="text-orange-500 hover:underline font-bold">admin@thapsus.uk</a>.</p>
           </Section>
 
           <Section title="7. Security">
@@ -151,7 +151,7 @@ export const PrivacyPolicy = () => {
           <Section title="10. Contact Us">
             <p>If you have any questions about this Privacy Policy, please contact us:</p>
             <ul className="list-none mt-3 space-y-1.5">
-              <li><strong className="text-slate-800">Email:</strong> <a href="mailto:support@thapsus.uk" className="text-orange-500 hover:underline font-bold">support@thapsus.uk</a></li>
+              <li><strong className="text-slate-800">Email:</strong> <a href="mailto:admin@thapsus.uk" className="text-orange-500 hover:underline font-bold">admin@thapsus.uk</a></li>
               <li><strong className="text-slate-800">Phone / WhatsApp:</strong> <a href="https://wa.me/447424531483" target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:underline font-bold">+44 7424 531483</a></li>
               <li><strong className="text-slate-800">Address:</strong> 31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB, United Kingdom</li>
             </ul>

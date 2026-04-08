@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Package, AlertCircle, Zap, Calculator } from 'lucide-react'
+import { Package, AlertCircle, Zap } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
-import { ordersApi, pricingApi } from '../api'
+import { ordersApi } from '../api'
 import { SEO } from '../components/SEO'
 import toast from 'react-hot-toast'
 
@@ -51,10 +51,6 @@ export const NewOrder = () => {
     retailer: '',
     retailerOther: '',
     description: '',
-    weight: '',
-    length: '',
-    width: '',
-    height: '',
     shippingSpeed: 'economy',
     insurance: false,
     declaredValue: '',
@@ -73,29 +69,8 @@ export const NewOrder = () => {
   }
 
   const handleCalculateEstimate = async () => {
-    if (!formData.weight) {
-      setError('Please enter a weight to calculate the estimate')
-      return
-    }
     setError(null)
-    try {
-      const response = await pricingApi.calculate(
-        formData.market,
-        parseFloat(formData.weight),
-        {
-          length: parseFloat(formData.length) || 0,
-          width: parseFloat(formData.width) || 0,
-          height: parseFloat(formData.height) || 0,
-        },
-        formData.shippingSpeed,
-        formData.insurance
-          ? { enabled: true, declaredValue: parseFloat(formData.declaredValue) || 0 }
-          : { enabled: false }
-      )
-      setEstimate(response.data.pricing)
-    } catch (err) {
-      toast.error('Failed to calculate estimate')
-    }
+    toast('Weight & dimensions will be added by our warehouse team after receiving your package.', { icon: 'ℹ️' })
   }
 
   const handleSubmit = async (e) => {
@@ -105,7 +80,6 @@ export const NewOrder = () => {
     if (!formData.market) { setError(t('common.required')); return }
     if (!formData.retailer && !formData.retailerOther) { setError(t('common.required')); return }
     if (!formData.description) { setError(t('common.required')); return }
-    if (!formData.weight) { setError(t('common.required')); return }
 
     try {
       setLoading(true)
@@ -114,12 +88,6 @@ export const NewOrder = () => {
         market: formData.market,
         retailer: retailerName,
         description: formData.description,
-        weight_kg: parseFloat(formData.weight),
-        dimensions: {
-          length: parseFloat(formData.length) || 0,
-          width: parseFloat(formData.width) || 0,
-          height: parseFloat(formData.height) || 0,
-        },
         shipping_speed: formData.shippingSpeed,
         insurance: formData.insurance,
         declared_value: formData.insurance ? parseFloat(formData.declaredValue) || 0 : 0,
@@ -223,33 +191,18 @@ export const NewOrder = () => {
                     className={`${inputClass} resize-none`} />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Weight */}
-                  <div>
-                    <label className={labelClass}>{t('neworder.weight')} *</label>
-                    <input type="number" name="weight" value={formData.weight} onChange={handleChange}
-                      step="0.1" min="0" placeholder="1.5" required className={inputClass} />
-                  </div>
-
-                  {/* Promo Code */}
-                  <div>
-                    <label className={labelClass}>{t('neworder.promoCode')}</label>
-                    <input type="text" name="promoCode" value={formData.promoCode} onChange={handleChange}
-                      placeholder="Optional code" className={inputClass} />
-                  </div>
+                {/* Promo Code */}
+                <div>
+                  <label className={labelClass}>{t('neworder.promoCode')}</label>
+                  <input type="text" name="promoCode" value={formData.promoCode} onChange={handleChange}
+                    placeholder="Optional code" className={inputClass} />
                 </div>
 
-                {/* Dimensions */}
-                <div className="pt-2">
-                  <label className={labelClass}>{t('neworder.dimensions')}</label>
-                  <div className="grid grid-cols-3 gap-4">
-                    {['length', 'width', 'height'].map((dim) => (
-                      <input key={dim} type="number" name={dim}
-                        placeholder={`${dim.charAt(0).toUpperCase() + dim.slice(1)}`}
-                        value={formData[dim]} onChange={handleChange} step="0.1" min="0"
-                        className={inputClass} />
-                    ))}
-                  </div>
+                {/* Info notice about weight/dimensions */}
+                <div className="relative overflow-hidden rounded-2xl bg-blue-50/60 backdrop-blur-md border border-blue-200/40 p-4 flex items-start gap-3">
+                  <div className="absolute inset-0 bg-gradient-to-tr from-blue-100/20 to-transparent pointer-events-none" />
+                  <AlertCircle className="text-blue-500 flex-shrink-0 mt-0.5 relative z-10" size={18} />
+                  <p className="text-blue-700 text-sm font-bold relative z-10">Weight and dimensions will be measured by our warehouse team once your package arrives. You'll be notified with the final cost.</p>
                 </div>
 
                 <div className="h-px bg-slate-200/50 w-full my-8" />
@@ -290,16 +243,9 @@ export const NewOrder = () => {
                   </div>
                 </div>
 
-                <div className="pt-6 flex flex-col md:flex-row gap-4">
-                  <button type="button" onClick={handleCalculateEstimate}
-                    className="flex-1 p-1 bg-gradient-to-br from-orange-400 via-orange-300 to-blue-400 rounded-[1.6rem] shadow-lg group/btn transition-all hover:scale-[1.02]">
-                    <div className="bg-white/90 backdrop-blur-3xl px-6 py-4 rounded-[1.5rem] font-black uppercase tracking-widest text-xs text-[#0f172a] h-full flex items-center justify-center gap-2">
-                      <Calculator size={16} /> Calculate Estimate
-                    </div>
-                  </button>
-
+                <div className="pt-6">
                   <button type="submit" disabled={loading}
-                    className="flex-1 glass-sheen bg-[#0f172a] hover:bg-slate-800 text-white px-6 py-5 rounded-[1.5rem] font-black uppercase tracking-widest text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl hover:-translate-y-1 flex items-center justify-center gap-2">
+                    className="w-full glass-sheen bg-[#0f172a] hover:bg-slate-800 text-white px-6 py-5 rounded-[1.5rem] font-black uppercase tracking-widest text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl hover:-translate-y-1 flex items-center justify-center gap-2">
                     {loading ? (
                       <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -362,8 +308,8 @@ export const NewOrder = () => {
               </div>
             ) : (
               <div className="relative overflow-hidden rounded-[2.5rem] bg-white/20 backdrop-blur-md border border-white/40 p-8 md:p-10 text-center flex flex-col items-center justify-center h-64 sticky top-24 shadow-sm">
-                <Calculator size={40} className="text-slate-300 mb-4 opacity-50" />
-                <p className="text-slate-500 font-bold text-sm">Fill in weight and market to calculate an instant estimate.</p>
+                <Package size={40} className="text-slate-300 mb-4 opacity-50" />
+                <p className="text-slate-500 font-bold text-sm">Your final cost will be calculated once our warehouse team measures and weighs your package.</p>
               </div>
             )}
           </div>
