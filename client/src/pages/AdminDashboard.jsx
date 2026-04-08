@@ -1171,6 +1171,37 @@ export const AdminDashboard = () => {
                 ))}
               </div>
 
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Payment History</h4>
+              <div className="space-y-3 mb-12">
+                {(!selectedUserData.recentTransactions || selectedUserData.recentTransactions.length === 0) ? (
+                  <p className="text-sm font-bold text-slate-400">No transactions found.</p>
+                ) : (
+                  selectedUserData.recentTransactions.map(tx => {
+                    const isCredit = ['deposit', 'refund', 'referral_credit'].includes(tx.type)
+                    const typeLabels = { deposit: 'M-Pesa Deposit', payment: 'Order Payment', refund: 'Refund', referral_credit: 'Referral Bonus' }
+                    return (
+                      <div key={tx.id} className="p-5 bg-white border border-slate-100 rounded-2xl flex justify-between items-center shadow-sm">
+                        <div>
+                          <p className="font-black text-sm text-[#0f172a]">{typeLabels[tx.type] || tx.type}</p>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                            {tx.currency || 'KES'} • {new Date(tx.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            {tx.payment_method ? ` • ${tx.payment_method}` : ''}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className={`font-black text-lg ${isCredit ? 'text-green-600' : 'text-red-500'}`}>
+                            {isCredit ? '+' : '-'}KES {Math.abs(tx.amount || 0).toLocaleString()}
+                          </p>
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest border ${tx.status === 'completed' ? 'bg-green-50 text-green-700 border-green-200' : tx.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                            {tx.status}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+
               <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Email Communications</h4>
               <div className="space-y-3">
                 {emailLogs.length === 0 ? (

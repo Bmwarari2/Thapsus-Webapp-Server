@@ -695,8 +695,8 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
 
     if (!retailer || !market || !description)
       return res.status(400).json({ success: false, message: 'Missing required fields' });
-    if (!['UK','USA','China'].includes(market))
-      return res.status(400).json({ success: false, message: 'Invalid market' });
+    if (!['UK','China'].includes(market))
+      return res.status(400).json({ success: false, message: 'Invalid market. Must be UK or China' });
     const speed = shipping_speed || 'economy';
     if (!['economy','express'].includes(speed))
       return res.status(400).json({ success: false, message: 'Invalid shipping speed' });
@@ -725,18 +725,20 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
     const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
     const trackingNumber = `TC-${date}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
 
-    await db.query('BEGIN');
+    // Use a dedicated client for proper transaction isolation
+    const client = await db.connect();
     try {
-      await db.query(
+      await client.query('BEGIN');
+      await client.query(
         `INSERT INTO orders (id, user_id, tracking_number, retailer, market, status, description, weight_kg, dimensions_json, shipping_speed, insurance, declared_value, estimated_cost)
          VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12)`,
         [orderId, customer.id, trackingNumber, retailer, market, description, weight_kg || null, dimensions ? JSON.stringify(dimensions) : null, speed, insurance ? true : false, declared_value || 0, costBreakdown.total]
       );
-      await db.query(
+      await client.query(
         `INSERT INTO packages (id, order_id, user_id, description, weight_kg, status) VALUES ($1,$2,$3,$4,$5,'pending')`,
         [uuidv4(), orderId, customer.id, description, weight_kg || null]
       );
-      await db.query(
+      await client.query(
         'INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)',
         [uuidv4(), adminId, 'create_order_for_client', JSON.stringify({
           order_id: orderId, tracking_number: trackingNumber,
@@ -744,8 +746,31 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
           electronics_item: electronics_item || null,
         })]
       );
-      await db.query('COMMIT');
-    } catch (e) { await db.query('ROLLBACK'); throw e; }
+
+      // Referral reward check — same logic as user-created orders
+      const refResult = await client.query(
+        `SELECT id, referrer_id, reward_amount FROM referrals WHERE referee_id = $1 AND status = 'pending' LIMIT 1`,
+        [customer.id]
+      );
+      const pendingReferral = refResult.rows[0];
+      if (pendingReferral) {
+        const countRes = await client.query('SELECT COUNT(*) AS cnt FROM orders WHERE user_id = $1', [customer.id]);
+        if (parseInt(countRes.rows[0].cnt) === 1) {
+          const reward = 50;
+          await client.query(`UPDATE referrals SET status = 'completed', completed_at = NOW(), reward_amount = $1 WHERE id = $2`, [reward, pendingReferral.id]);
+          await client.query('UPDATE users  SET wallet_balance = wallet_balance + $1 WHERE id = $2', [reward, pendingReferral.referrer_id]);
+          await client.query('UPDATE wallet SET balance = balance + $1, last_updated = NOW() WHERE user_id = $2', [reward, pendingReferral.referrer_id]);
+          await client.query(`INSERT INTO transactions (id, user_id, type, amount, currency, status) VALUES ($1,$2,'referral_credit',$3,'KES','completed')`, [uuidv4(), pendingReferral.referrer_id, reward]);
+          await client.query('UPDATE users  SET wallet_balance = wallet_balance + $1 WHERE id = $2', [reward, customer.id]);
+          await client.query('UPDATE wallet SET balance = balance + $1, last_updated = NOW() WHERE user_id = $2', [reward, customer.id]);
+          await client.query(`INSERT INTO transactions (id, user_id, type, amount, currency, status) VALUES ($1,$2,'referral_credit',$3,'KES','completed')`, [uuidv4(), customer.id, reward]);
+          pushToUser(pendingReferral.referrer_id, 'wallet_update', { balance: (await client.query('SELECT balance FROM wallet WHERE user_id = $1', [pendingReferral.referrer_id])).rows[0]?.balance });
+          pushToUser(customer.id, 'wallet_update', { balance: (await client.query('SELECT balance FROM wallet WHERE user_id = $1', [customer.id])).rows[0]?.balance });
+        }
+      }
+
+      await client.query('COMMIT');
+    } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
 
     sendInAppNotification(customer.id, `A new order (${trackingNumber}) has been created for you by Thapsus Cargo.`);
 

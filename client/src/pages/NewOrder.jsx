@@ -51,7 +51,6 @@ export const NewOrder = () => {
     retailer: '',
     retailerOther: '',
     description: '',
-    shippingSpeed: 'economy',
     insurance: false,
     declaredValue: '',
   })
@@ -87,7 +86,7 @@ export const NewOrder = () => {
         market: formData.market,
         retailer: retailerName,
         description: formData.description,
-        shipping_speed: formData.shippingSpeed,
+        shipping_speed: 'economy',
         insurance: formData.insurance,
         declared_value: formData.insurance ? parseFloat(formData.declaredValue) || 0 : 0,
       })
@@ -199,39 +198,22 @@ export const NewOrder = () => {
 
                 <div className="h-px bg-slate-200/50 w-full my-8" />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-                  {/* Shipping Speed */}
-                  <div>
-                    <label className={labelClass}>{t('neworder.shippingSpeed')}</label>
-                    <div className="flex flex-col gap-3 mt-3">
-                      {[['economy', 'Economy (7-14 days)'], ['express', 'Express (3-5 days)']].map(([val, label]) => (
-                        <label key={val} className="flex items-center gap-3 cursor-pointer p-3 rounded-2xl border border-white/50 bg-white/40 hover:bg-white/60 transition-colors">
-                          <input type="radio" name="shippingSpeed" value={val}
-                            checked={formData.shippingSpeed === val} onChange={handleChange}
-                            className="w-5 h-5 accent-[#0f172a]" />
-                          <span className="text-slate-800 font-bold text-sm">{label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Insurance */}
-                  <div>
-                    <label className={labelClass}>Protection</label>
-                    <div className="flex flex-col gap-3 mt-3">
-                      <label className="flex items-center gap-3 cursor-pointer p-3 rounded-2xl border border-white/50 bg-white/40 hover:bg-white/60 transition-colors">
-                        <input type="checkbox" name="insurance" checked={formData.insurance}
-                          onChange={handleChange} className="w-5 h-5 rounded accent-[#0f172a]" />
-                        <span className="text-slate-800 font-bold text-sm">{t('neworder.insurance')}</span>
-                      </label>
-                      {formData.insurance && (
-                        <div className="animate-in fade-in zoom-in-95 duration-200 mt-2">
-                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-2">Declared Value (KES)</label>
-                          <input type="number" name="declaredValue" value={formData.declaredValue}
-                            onChange={handleChange} min="0" placeholder="0" className={inputClass} />
-                        </div>
-                      )}
-                    </div>
+                {/* Insurance / Protection */}
+                <div>
+                  <label className={labelClass}>Protection</label>
+                  <div className="flex flex-col gap-3 mt-3">
+                    <label className="flex items-center gap-3 cursor-pointer p-3 rounded-2xl border border-white/50 bg-white/40 hover:bg-white/60 transition-colors">
+                      <input type="checkbox" name="insurance" checked={formData.insurance}
+                        onChange={handleChange} className="w-5 h-5 rounded accent-[#0f172a]" />
+                      <span className="text-slate-800 font-bold text-sm">{t('neworder.insurance')}</span>
+                    </label>
+                    {formData.insurance && (
+                      <div className="animate-in fade-in zoom-in-95 duration-200 mt-2">
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-2">Declared Value (KES)</label>
+                        <input type="number" name="declaredValue" value={formData.declaredValue}
+                          onChange={handleChange} min="0" placeholder="0" className={inputClass} />
+                      </div>
+                    )}
                   </div>
                 </div>
 

@@ -37,11 +37,6 @@ export const WarehouseAddresses = () => {
       label: 'United Kingdom',
       flag: '🇬🇧',
     },
-    USA: {
-      full: `Thapsus Cargo Warehouse, 1234 Commerce Way, Los Angeles, CA 90001, USA\nAttn: TC-${user?.warehouse_id || 'XXXX'}`,
-      label: 'United States',
-      flag: '🇺🇸',
-    },
     China: {
       full: `Thapsus Cargo Warehouse, Shanghai, China\nAttn: TC-${user?.warehouse_id || 'XXXX'}`,
       label: 'China',
@@ -135,22 +130,6 @@ export const WarehouseAddresses = () => {
                       <li className="flex gap-3 items-start">
                         <span className="text-orange-500 text-lg leading-none mt-0.5">•</span>
                         <span>Our warehouse will receive and consolidate your packages</span>
-                      </li>
-                    </>
-                  )}
-                  {market === 'USA' && (
-                    <>
-                      <li className="flex gap-3 items-start">
-                        <span className="text-orange-500 text-lg leading-none mt-0.5">•</span>
-                        <span>Shop from Amazon US, Walmart, Target, Best Buy, and other US retailers</span>
-                      </li>
-                      <li className="flex gap-3 items-start">
-                        <span className="text-orange-500 text-lg leading-none mt-0.5">•</span>
-                        <span>Use the address provided as your shipping destination</span>
-                      </li>
-                      <li className="flex gap-3 items-start">
-                        <span className="text-orange-500 text-lg leading-none mt-0.5">•</span>
-                        <span>Make sure your TC code is clearly visible in the recipient name</span>
                       </li>
                     </>
                   )}

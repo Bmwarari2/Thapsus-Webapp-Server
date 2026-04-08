@@ -7,7 +7,7 @@ const ELECTRONICS_FEES = {
   tv_monitor: { label: 'TV / Screen / Monitor (+£65 handling fee)', fee: 65 },
 }
 
-const MARKETS = ['UK', 'USA', 'China']
+const MARKETS = ['UK', 'China']
 
 export default function Pricing() {
   const [form, setForm] = useState({

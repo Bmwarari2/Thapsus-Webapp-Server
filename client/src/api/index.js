@@ -75,7 +75,7 @@ export const walletApi = {
 export const pricingApi = {
   /**
    * Calculate shipping cost estimate.
-   * @param {string} market          - 'UK' | 'USA' | 'China'
+   * @param {string} market          - 'UK' | 'China'
    * @param {number} weight_kg
    * @param {object} dimensions      - { length, width, height } in cm
    * @param {string} shipping_speed  - 'economy' | 'express'
@@ -245,14 +245,14 @@ export const consolidationApi = {
 // REFERRAL  →  /api/referral/*
 // ─────────────────────────────────────────────────────────────────────────────
 export const referralApi = {
-  /** Get the current user's referral code */
-  getCode: () => api.get('/referral/code'),
+  /** Get referral info (code, stats, referred users) — maps to GET /api/referral */
+  getInfo: () => api.get('/referral'),
 
-  /** Get referral programme statistics */
-  getStats: () => api.get('/referral/stats'),
+  /** Get referral history (paginated) */
+  getHistory: (params = {}) => api.get('/referral/history', { params }),
 
-  /** Get referral history */
-  getHistory: () => api.get('/referral/history'),
+  /** Validate a referral code */
+  validate: (referral_code) => api.post('/referral/validate', { referral_code }),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
