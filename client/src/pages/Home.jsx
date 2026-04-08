@@ -35,7 +35,7 @@ const MarqueeRetailers = ({ retailers }) => {
             href={r.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center space-x-3 md:space-x-4 mx-8 md:mx-12 text-slate-400 font-bold hover:text-orange-500 transition-all group"
+            className="inline-flex items-center space-x-3 md:space-x-4 mx-8 md:mx-12 text-slate-600 font-bold hover:text-orange-500 transition-all group"
           >
             <div className="p-2 md:p-3 bg-white rounded-2xl shadow-sm group-hover:scale-110 group-hover:shadow-orange-100 transition-transform">
               {r.icon}
@@ -328,13 +328,13 @@ export const Home = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 md:gap-8">
                 <GlassCard className="p-8 md:p-10 bg-white/5 border-white/10 group hover:bg-white/10 transition-all flex flex-col justify-center min-h-[220px]">
                   <div className="text-orange-400 mb-6 md:mb-8"><Plane size={32} className="md:w-10 md:h-10"/></div>
-                  <h4 className="text-white font-black text-xl md:text-2xl mb-2">Air Cargo</h4>
+                  <h3 className="text-white font-black text-xl md:text-2xl mb-2">Air Cargo</h3>
                   <p className="text-slate-400 text-[10px] md:text-xs mb-6 md:mb-8 font-bold leading-relaxed">Fastest route. Weekly consolidation.</p>
                   <p className="text-3xl md:text-4xl font-black text-white">$12.00<small className="text-[10px] md:text-sm opacity-50 ml-2">/kg</small></p>
                 </GlassCard>
                 <GlassCard className="p-8 md:p-10 bg-white/5 border-white/10 group hover:bg-white/10 transition-all flex flex-col justify-center min-h-[220px]">
                   <div className="text-blue-400 mb-6 md:mb-8"><Truck size={32} className="md:w-10 md:h-10"/></div>
-                  <h4 className="text-white font-black text-xl md:text-2xl mb-2">Sea Freight</h4>
+                  <h3 className="text-white font-black text-xl md:text-2xl mb-2">Sea Freight</h3>
                   <p className="text-slate-400 text-[10px] md:text-xs mb-6 md:mb-8 font-bold leading-relaxed">Bulky & heavy items. 45-60 Days.</p>
                   <p className="text-3xl md:text-4xl font-black text-white">$450.00<small className="text-[10px] md:text-sm opacity-50 ml-2">/CBM</small></p>
                 </GlassCard>

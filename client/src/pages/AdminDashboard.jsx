@@ -850,7 +850,7 @@ export const AdminDashboard = () => {
         {showCreateOrderForm && (
           <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm z-[100] flex justify-end">
             <div className="bg-white/80 backdrop-blur-3xl w-full max-w-2xl h-full overflow-y-auto shadow-2xl relative p-10 md:p-14 animate-fade-in border-l border-white/50">
-               <button onClick={() => setShowCreateOrderForm(false)} className="absolute top-10 right-10 w-10 h-10 bg-white rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 shadow-sm transition-colors"><X size={20}/></button>
+               <button onClick={() => setShowCreateOrderForm(false)} aria-label="Close" className="absolute top-10 right-10 w-10 h-10 bg-white rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 shadow-sm transition-colors"><X size={20}/></button>
                
                <div className="mb-10">
                  <h3 className="text-3xl md:text-4xl font-black text-[#0f172a] uppercase tracking-tighter leading-none mb-2">Dispatch Order</h3>
@@ -912,7 +912,7 @@ export const AdminDashboard = () => {
         {selectedUser && selectedUserData && (
           <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm z-[100] flex justify-end">
             <div className="bg-white/80 backdrop-blur-3xl w-full max-w-3xl h-full overflow-y-auto shadow-2xl relative p-10 md:p-14 animate-fade-in border-l border-white/50">
-              <button onClick={() => setSelectedUser(null)} className="absolute top-10 right-10 w-10 h-10 bg-white rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 shadow-sm transition-colors"><X size={20}/></button>
+              <button onClick={() => setSelectedUser(null)} aria-label="Close" className="absolute top-10 right-10 w-10 h-10 bg-white rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 shadow-sm transition-colors"><X size={20}/></button>
               
               <div className="mb-12">
                 <h3 className="text-4xl md:text-5xl font-black text-[#0f172a] tracking-tighter uppercase leading-none mb-3">{selectedUser.name}</h3>
@@ -990,7 +990,7 @@ export const AdminDashboard = () => {
         {paymentModal && (
           <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
             <GlassCard className="w-full max-w-lg p-10 relative">
-              <button onClick={() => setPaymentModal(null)} className="absolute top-6 right-6 w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
+              <button onClick={() => setPaymentModal(null)} aria-label="Close" className="absolute top-6 right-6 w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
               <h3 className="text-3xl font-black text-[#0f172a] uppercase tracking-tighter leading-none mb-8">Request Funds</h3>
               <div className="space-y-6">
                 <div>
@@ -1010,7 +1010,7 @@ export const AdminDashboard = () => {
         {reminderModal && (
           <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
             <GlassCard className="w-full max-w-lg p-10 relative">
-              <button onClick={() => setReminderModal(null)} className="absolute top-6 right-6 w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
+              <button onClick={() => setReminderModal(null)} aria-label="Close" className="absolute top-6 right-6 w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
               <h3 className="text-3xl font-black text-[#0f172a] uppercase tracking-tighter leading-none mb-8">Payment Reminder</h3>
               <div className="space-y-6">
                 <div>
@@ -1026,7 +1026,7 @@ export const AdminDashboard = () => {
         {cancelModal && (
           <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
             <GlassCard className="w-full max-w-lg p-10 relative bg-red-50/80 border-red-200/50">
-              <button onClick={() => setCancelModal(null)} className="absolute top-6 right-6 w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
+              <button onClick={() => setCancelModal(null)} aria-label="Close" className="absolute top-6 right-6 w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
               <h3 className="text-3xl font-black text-red-600 uppercase tracking-tighter leading-none mb-8">Halt Shipment</h3>
               <div className="space-y-6">
                 <div>
@@ -1042,7 +1042,7 @@ export const AdminDashboard = () => {
         {showCreateUserForm && (
           <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
             <GlassCard className="w-full max-w-lg p-10 relative">
-              <button onClick={() => setShowCreateUserForm(false)} className="absolute top-6 right-6 w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
+              <button onClick={() => setShowCreateUserForm(false)} aria-label="Close" className="absolute top-6 right-6 w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
               <div className="mb-10">
                  <h3 className="text-3xl font-black text-[#0f172a] uppercase tracking-tighter leading-none mb-2">New Account</h3>
                  <p className="text-slate-500 font-bold text-sm">Provision a new entity on the system.</p>

@@ -125,6 +125,8 @@ export const Navbar = () => {
           {/* Mobile hamburger button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileMenuOpen}
             className="lg:hidden p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-slate-300 hover:text-white transition-all backdrop-blur-md active:scale-95"
           >
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
