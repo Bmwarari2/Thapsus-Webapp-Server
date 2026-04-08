@@ -81,7 +81,10 @@ CREATE TABLE IF NOT EXISTS referrals (
   id TEXT PRIMARY KEY,
   referrer_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   referee_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-  referral_code TEXT UNIQUE NOT NULL,
+  -- referral_code is NOT unique globally: many referees can use the same
+  -- referrer's code. The stored value is suffixed with the referee ID to
+  -- keep rows distinct. See routes/auth.js for insertion logic.
+  referral_code TEXT NOT NULL,
   status TEXT CHECK(status IN ('pending','completed')) DEFAULT 'pending',
   reward_amount REAL DEFAULT 50,
   completed_at TIMESTAMPTZ,

@@ -70,10 +70,14 @@ router.post('/register', async (req, res) => {
         [uuidv4(), userId]
       );
       if (referredBy) {
+        // referral_code in the referrals table must be unique per row.
+        // Multiple referees can use the same referrer code, so we append
+        // the referee's ID suffix to keep each entry distinct.
+        const referralEntryCode = `${referral_code.trim().toUpperCase()}-${userId.slice(0, 8).toUpperCase()}`;
         await client.query(
           `INSERT INTO referrals (id,referrer_id,referee_id,referral_code,status,reward_amount)
            VALUES ($1,$2,$3,$4,'pending',50)`,
-          [uuidv4(), referredBy, userId, referral_code.trim().toUpperCase()]
+          [uuidv4(), referredBy, userId, referralEntryCode]
         );
       }
       await client.query('COMMIT');
