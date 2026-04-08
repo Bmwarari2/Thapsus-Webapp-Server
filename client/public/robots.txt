@@ -1,0 +1,13 @@
+# Thapsus Cargo — robots.txt
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /wallet
+Disallow: /orders
+Disallow: /orders/*
+Disallow: /consolidation
+Disallow: /support
+Disallow: /api/
+
+Sitemap: https://thapsuscargo.com/sitemap.xml

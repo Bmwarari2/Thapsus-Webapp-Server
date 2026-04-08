@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Package, AlertCircle, Zap, Calculator } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { ordersApi, pricingApi } from '../api'
+import { SEO } from '../components/SEO'
 import toast from 'react-hot-toast'
 
 // --- CUSTOM STYLES & GLASS COMPONENTS ---
@@ -146,6 +147,7 @@ export const NewOrder = () => {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 overflow-x-hidden relative pb-24">
+      <SEO title="Create New Order" description="Place a new shipping order from the UK or China to Kenya with Thapsus Cargo. Get instant cost estimates and track your shipment." />
       <NewOrderStyles />
       
       {/* --- LIQUID BACKGROUNDS --- */}
@@ -351,7 +353,7 @@ export const NewOrder = () => {
                     <div className="pt-2 flex justify-between items-end">
                       <span className="text-xs font-black uppercase tracking-widest text-orange-400">Total</span>
                       <div className="text-right">
-                        <p className="text-3xl md:text-4xl font-black text-white leading-none">KES {estimate.summary?.total?.toLocaleString()}</p>
+                        <p className="text-3xl md:text-4xl font-black text-white leading-none">KES {(estimate.total || 0).toLocaleString()}</p>
                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-2">{estimate.notes?.delivery_time}</p>
                       </div>
                     </div>

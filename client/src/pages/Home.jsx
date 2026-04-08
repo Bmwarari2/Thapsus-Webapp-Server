@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
+import { SEO } from '../components/SEO'
 
 /**
  * LIQUID GLASS UI COMPONENTS
@@ -100,6 +101,10 @@ export const Home = () => {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 overflow-x-hidden">
+      <SEO
+        title="Ship from UK & China to Kenya"
+        description="Thapsus Cargo offers affordable, reliable shipping and forwarding from the UK and China to Kenya. Track packages, calculate instant quotes, and enjoy door-to-door delivery."
+      />
       <style>{`
         @keyframes morph {
           0% { transform: translate(0, 0) scale(1); }

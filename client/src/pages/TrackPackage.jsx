@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { ordersApi } from '../api'
+import { SEO } from '../components/SEO'
 import toast from 'react-hot-toast'
 
 // Human-readable labels for every order status
@@ -92,6 +93,10 @@ export const TrackPackage = () => {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 overflow-x-hidden relative">
+      <SEO
+        title="Track Your Package"
+        description="Track your shipment in real time with Thapsus Cargo. Enter your tracking number to see the latest status of your package from the UK or China to Kenya."
+      />
       <style>{`
         @keyframes morph {
           0% { transform: translate(0, 0) scale(1); }

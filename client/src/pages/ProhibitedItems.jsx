@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Search, AlertTriangle, CheckCircle, ChevronDown, Package } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { prohibitedApi } from '../api'
+import { SEO } from '../components/SEO'
 import toast from 'react-hot-toast'
 
 export const ProhibitedItems = () => {
@@ -92,6 +93,10 @@ export const ProhibitedItems = () => {
 
   return (
     <div className="min-h-screen relative bg-slate-50 overflow-hidden py-12 px-4 font-sans">
+      <SEO
+        title="Prohibited Items"
+        description="Check which items are prohibited or restricted when shipping from the UK and China to Kenya with Thapsus Cargo. Stay compliant with customs regulations."
+      />
       {/* Liquid Backgrounds */}
       <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-blue-300/30 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-orange-300/20 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />

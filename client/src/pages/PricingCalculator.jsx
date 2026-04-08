@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Calculator, Info, CheckCircle, AlertCircle } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { pricingApi } from '../api'
+import { SEO } from '../components/SEO'
 import toast from 'react-hot-toast'
 
 // ── Electronics handling fee guide (mirrors server-side ELECTRONICS_HANDLING) ──
@@ -109,6 +110,10 @@ export const PricingCalculator = () => {
 
   return (
     <div className="relative min-h-screen bg-[#f8f9fa] py-12 px-4 overflow-hidden z-0">
+      <SEO
+        title="Shipping Calculator — Get Instant Quotes"
+        description="Calculate shipping costs from the UK and China to Kenya instantly. Get transparent pricing with weight, dimensions, insurance, and customs estimates."
+      />
       {/* ── Liquid Backgrounds (Blobs) ── */}
       <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-blue-400/20 rounded-full mix-blend-multiply filter blur-[100px] opacity-70 animate-morph pointer-events-none -z-10" />
       <div className="absolute top-[20%] right-[-10%] w-[40vw] h-[40vw] bg-orange-400/20 rounded-full mix-blend-multiply filter blur-[100px] opacity-70 animate-morph pointer-events-none -z-10" style={{ animationDelay: '2s' }} />
