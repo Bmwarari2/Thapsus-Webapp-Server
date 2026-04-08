@@ -24,9 +24,9 @@ const RETAILERS = [
 
 /* ─── Warehouse Address ─────────────────────────────────────────────────── */
 const UK_WAREHOUSE = {
-  line1: '123 Commerce Street',
-  line2: 'London',
-  postcode: 'E1 6RF',
+  line1: '31 Collingwood Close',
+  line2: 'Hazel Grove, Stockport',
+  postcode: 'SK7 4LB',
   country: 'United Kingdom',
 }
 
@@ -102,7 +102,7 @@ export const ShipInstructions = () => {
   const { user } = useAuth()
   const steps = [
     { number: '01', title: 'Choose your retailer', description: 'Browse and shop from any of our supported UK or China retailers.', icon: <ShoppingBag size={24} className="text-orange-500" /> },
-    { number: '02', title: 'Ship to warehouse', description: 'At checkout, use our London address with your unique ID.', icon: <MapPin size={24} className="text-blue-400" /> },
+    { number: '02', title: 'Ship to warehouse', description: 'At checkout, use our Stockport warehouse address with your unique ID.', icon: <MapPin size={24} className="text-blue-400" /> },
     { number: '03', title: 'Tell us about it', description: 'Log your order in the dashboard or via WhatsApp.', icon: <MessageCircle size={24} className="text-emerald-400" /> },
     { number: '04', title: 'We handle the rest', description: 'We consolidate and ship your parcels directly to Kenya.', icon: <Truck size={24} className="text-purple-400" /> },
   ]
