@@ -224,17 +224,20 @@ export const Dashboard = () => {
 
         {/* Stats Cards (Crystal Bento) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <GlassCard className="p-8 group hover:-translate-y-2 transition-all duration-500">
+          <Link to="/orders" className="block">
+          <GlassCard className="p-8 group hover:-translate-y-2 transition-all duration-500 cursor-pointer">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{t('dashboard.activeOrders')}</p>
                 <h3 className="text-5xl font-black text-[#0f172a] tracking-tighter">{stats.activeOrders}</h3>
+                <p className="text-[9px] font-bold text-orange-500 uppercase tracking-widest mt-2 flex items-center gap-1">View My Orders →</p>
               </div>
               <div className="p-4 bg-blue-50 border border-blue-100 rounded-[1.5rem] text-blue-600 group-hover:scale-110 transition-transform shadow-sm">
                 <Package size={28} />
               </div>
             </div>
           </GlassCard>
+          </Link>
 
           <GlassCard className="p-8 group hover:-translate-y-2 transition-all duration-500">
             <div className="flex items-start justify-between">

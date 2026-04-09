@@ -49,9 +49,10 @@ export default function Pricing() {
         dimensions,
         form.shipping_speed,
         form.insurance,
+        parseFloat(form.declared_value) || 0,
         form.electronicsItem || null,
       )
-      setResult(res.data)
+      setResult(res.data.pricing)
     } catch (err) {
       setError(
         err?.response?.data?.error ||
@@ -252,44 +253,59 @@ export default function Pricing() {
 
             <div className="relative z-10">
               <h2 className="text-2xl font-black tracking-tighter leading-none mb-6">Your Estimate</h2>
-              
+
               <div className="space-y-4">
-                {result.base_cost != null && (
+                {result.breakdown?.base_shipping?.amount != null && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Base shipping cost</span>
-                    <span className="text-lg font-bold text-slate-300 tracking-tight">£{Number(result.base_cost).toFixed(2)}</span>
+                    <span className="text-lg font-bold text-slate-300 tracking-tight">KES {Number(result.breakdown.base_shipping.amount).toLocaleString()}</span>
                   </div>
                 )}
-                {result.electronics_fee > 0 && (
+                {result.breakdown?.handling_fee?.amount > 0 && (
+                  <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Handling &amp; processing</span>
+                    <span className="text-lg font-bold text-slate-300 tracking-tight">KES {Number(result.breakdown.handling_fee.amount).toLocaleString()}</span>
+                  </div>
+                )}
+                {result.breakdown?.electronics_handling?.included && result.breakdown?.electronics_handling?.amount > 0 && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">Electronics handling fee</span>
-                    <span className="text-lg font-bold text-amber-400 tracking-tight">+£{Number(result.electronics_fee).toFixed(2)}</span>
+                    <span className="text-lg font-bold text-amber-400 tracking-tight">KES {Number(result.breakdown.electronics_handling.amount).toLocaleString()}</span>
                   </div>
                 )}
-                {result.fuel_surcharge > 0 && (
+                {result.breakdown?.insurance?.included && result.breakdown?.insurance?.amount > 0 && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Fuel surcharge</span>
-                    <span className="text-lg font-bold text-slate-300 tracking-tight">+£{Number(result.fuel_surcharge).toFixed(2)}</span>
+                    <span className="text-xs font-bold text-blue-400 uppercase tracking-widest">Insurance (3%)</span>
+                    <span className="text-lg font-bold text-blue-300 tracking-tight">KES {Number(result.breakdown.insurance.amount).toLocaleString()}</span>
                   </div>
                 )}
-                
-                {(result.total ?? result.total_gbp) != null && (
+                {result.breakdown?.customs_estimate?.amount > 0 && (
+                  <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                    <span className="text-xs font-bold text-purple-400 uppercase tracking-widest">Customs estimate (VAT+Duty)</span>
+                    <span className="text-lg font-bold text-purple-300 tracking-tight">KES {Number(result.breakdown.customs_estimate.amount).toLocaleString()}</span>
+                  </div>
+                )}
+
+                {result.total != null && (
                   <div className="bg-gradient-to-br from-orange-500/20 to-red-600/10 rounded-xl p-5 border border-orange-500/30 backdrop-blur-md mt-6 flex justify-between items-center">
-                    <span className="text-sm font-bold text-orange-300 uppercase tracking-widest">Total estimate</span>
+                    <div>
+                      <span className="text-sm font-bold text-orange-300 uppercase tracking-widest block">Total estimate</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{result.notes?.delivery_time}</span>
+                    </div>
                     <span className="text-3xl font-black text-orange-400 tracking-tighter">
-                      £{Number(result.total ?? result.total_gbp).toFixed(2)}
+                      KES {Number(result.total).toLocaleString()}
                     </span>
                   </div>
                 )}
-                
-                {result.total_kes != null && (
+
+                {result.breakdown?.dimensional_weight && (
                   <div className="flex justify-between items-center bg-white/5 rounded-xl p-4 border border-white/10 backdrop-blur-sm mt-2">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Approx. in KES</span>
-                    <span className="text-xl font-bold text-white tracking-tight">KES {Number(result.total_kes).toLocaleString()}</span>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Chargeable weight</span>
+                    <span className="text-sm font-bold text-white tracking-tight">{result.breakdown.dimensional_weight.chargeable_weight_kg} kg</span>
                   </div>
                 )}
               </div>
-              
+
               <p className="mt-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
                 * This is an estimate only. Final charges may vary based on actual weight, dimensions,
                 and customs requirements upon warehouse arrival.

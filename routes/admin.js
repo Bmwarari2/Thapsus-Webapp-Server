@@ -495,7 +495,15 @@ router.get('/stats', authMiddleware, isAdmin, async (req, res) => {
       db.query(`SELECT COUNT(*) AS total_orders, SUM(CASE WHEN status='delivered' THEN 1 ELSE 0 END) AS delivered, SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) AS pending, SUM(CASE WHEN status='in_transit' THEN 1 ELSE 0 END) AS in_transit, AVG(estimated_cost) AS avg_estimated_cost, SUM(estimated_cost) AS total_estimated_value FROM orders`),
       db.query(`SELECT market, COUNT(*) AS count, SUM(estimated_cost) AS value FROM orders GROUP BY market`),
       db.query(`SELECT status, COUNT(*) AS count FROM orders GROUP BY status`),
-      db.query(`SELECT COUNT(*) AS total_transactions, SUM(CASE WHEN status='completed' THEN amount ELSE 0 END) AS total_revenue, SUM(CASE WHEN type='deposit' AND status='completed' THEN amount ELSE 0 END) AS deposits, SUM(CASE WHEN type='payment' AND status='completed' THEN amount ELSE 0 END) AS payments FROM transactions`),
+      // Exclude referral_reward credits from all revenue figures so referral bonuses
+      // are not double-counted as income — they are user wallet credits, not cash inflows.
+      db.query(`SELECT
+        COUNT(*) AS total_transactions,
+        SUM(CASE WHEN status='completed' AND type NOT IN ('referral_reward','referral_credit') THEN amount ELSE 0 END) AS total_revenue,
+        SUM(CASE WHEN type='deposit'  AND status='completed' AND type NOT IN ('referral_reward','referral_credit') THEN amount ELSE 0 END) AS deposits,
+        SUM(CASE WHEN type='payment'  AND status='completed' THEN amount ELSE 0 END) AS payments,
+        SUM(CASE WHEN type IN ('referral_reward','referral_credit') AND status='completed' THEN amount ELSE 0 END) AS referral_credits_issued
+        FROM transactions`),
       db.query(`SELECT COUNT(*) AS total_referrals, SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) AS completed_referrals, SUM(CASE WHEN status='completed' THEN reward_amount ELSE 0 END) AS total_rewards_paid FROM referrals`),
       // New users registered today
       db.query(`SELECT COUNT(*) AS count FROM users WHERE DATE(created_at) = CURRENT_DATE`),
@@ -531,7 +539,8 @@ router.get('/revenue', authMiddleware, isAdmin, async (req, res) => {
     const startDate = req.query.startDate;
     const endDate = req.query.endDate;
     const params = [];
-    let filter = "WHERE status = 'completed'";
+    // Exclude referral credits from revenue reporting — they are wallet bonuses, not cash income.
+    let filter = "WHERE status = 'completed' AND type NOT IN ('referral_reward','referral_credit')";
     if (startDate) { params.push(startDate); filter += ` AND DATE(created_at) >= $${params.length}`; }
     if (endDate) { params.push(endDate); filter += ` AND DATE(created_at) <= $${params.length}`; }
     const revenue = await db.query(`SELECT DATE(created_at) AS date, payment_method, type, COUNT(*) AS count, SUM(amount) AS total FROM transactions ${filter} GROUP BY DATE(created_at), payment_method, type ORDER BY date DESC`, params);
@@ -1065,13 +1074,39 @@ router.get('/transactions/pending', authMiddleware, isAdmin, async (req, res) =>
     const db = req.db;
     const transactionsRes = await db.query(
       `SELECT t.id, t.user_id, t.amount, t.payment_reference, t.created_at,
-              u.id as user_id, u.name, u.email
-       FROM transactions t JOIN users u ON t.user_id = u.id
+              u.name, u.email,
+              al.details AS log_details
+       FROM transactions t
+       JOIN users u ON t.user_id = u.id
+       LEFT JOIN LATERAL (
+         SELECT details FROM admin_logs
+         WHERE action = 'mpesa_payment_submitted'
+           AND details::text LIKE '%' || t.id || '%'
+         ORDER BY created_at DESC
+         LIMIT 1
+       ) al ON true
        WHERE t.status = 'pending' AND t.payment_method = 'mpesa'
        ORDER BY t.created_at DESC`,
       []
     );
-    res.json({ success: true, transactions: transactionsRes.rows });
+
+    const transactions = transactionsRes.rows.map(t => {
+      let mpesa_message = null;
+      let payer_name = null;
+      let payer_phone = null;
+      if (t.log_details) {
+        try {
+          const parsed = typeof t.log_details === 'string' ? JSON.parse(t.log_details) : t.log_details;
+          mpesa_message = parsed.mpesa_message || null;
+          payer_name    = parsed.payer_name    || null;
+          payer_phone   = parsed.payer_phone   || null;
+        } catch (_) { /* ignore parse errors */ }
+      }
+      const { log_details, ...rest } = t;
+      return { ...rest, mpesa_message, payer_name, payer_phone };
+    });
+
+    res.json({ success: true, transactions });
   } catch (error) {
     console.error('Get pending transactions error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch pending transactions' });
@@ -1265,6 +1300,87 @@ router.delete('/error-logs', authMiddleware, isAdmin, async (req, res) => {
   } catch (error) {
     console.error('Clear error logs error:', error);
     res.status(500).json({ success: false, message: 'Failed to clear error logs' });
+  }
+});
+
+// ─── Shipping Rates (Admin) ───────────────────────────────────────────────────
+// These mirror /api/pricing/rates but are accessible under /api/admin/shipping-rates
+// so the admin dashboard can manage them without a separate permission boundary.
+
+/** GET /api/admin/shipping-rates */
+router.get('/shipping-rates', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+    const { DEFAULT_RATES_GBP } = await import('../utils/pricing.js');
+    let ratesRes;
+    try {
+      ratesRes = await db.query('SELECT market, rate_gbp FROM shipping_rates ORDER BY updated_at DESC');
+    } catch (_) {
+      return res.json({ success: true, rates: { ...DEFAULT_RATES_GBP } });
+    }
+    const rates = { ...DEFAULT_RATES_GBP };
+    ratesRes.rows.forEach(r => { rates[r.market] = parseFloat(r.rate_gbp); });
+    res.json({ success: true, rates });
+  } catch (error) {
+    console.error('Admin get shipping rates error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch shipping rates' });
+  }
+});
+
+/** PUT /api/admin/shipping-rates */
+router.put('/shipping-rates', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+    const { rates } = req.body;
+    const adminId = req.user.id;
+
+    if (!rates || typeof rates !== 'object') {
+      return res.status(400).json({ success: false, message: 'rates object is required' });
+    }
+
+    const validMarkets = ['UK', 'USA', 'China'];
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS shipping_rates (
+        id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        market     VARCHAR(10) NOT NULL UNIQUE,
+        rate_gbp   NUMERIC(10,4) NOT NULL,
+        updated_by UUID,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    for (const [market, rate] of Object.entries(rates)) {
+      if (!validMarkets.includes(market)) {
+        return res.status(400).json({ success: false, message: `Invalid market: ${market}` });
+      }
+      const r = parseFloat(rate);
+      if (isNaN(r) || r <= 0) {
+        return res.status(400).json({ success: false, message: `Invalid rate for ${market}` });
+      }
+      const { v4: uuidv4Fn } = await import('uuid');
+      await db.query(
+        `INSERT INTO shipping_rates (id, market, rate_gbp, updated_by, updated_at)
+         VALUES ($1,$2,$3,$4,NOW())
+         ON CONFLICT (market) DO UPDATE SET rate_gbp=$3, updated_by=$4, updated_at=NOW()`,
+        [uuidv4Fn(), market, r, adminId]
+      );
+    }
+
+    await db.query(
+      'INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)',
+      [uuidv4(), adminId, 'update_shipping_rates', JSON.stringify(rates)]
+    );
+
+    const { DEFAULT_RATES_GBP } = await import('../utils/pricing.js');
+    const updatedRaw = await db.query('SELECT market, rate_gbp FROM shipping_rates ORDER BY updated_at DESC');
+    const updatedRates = { ...DEFAULT_RATES_GBP };
+    updatedRaw.rows.forEach(r => { updatedRates[r.market] = parseFloat(r.rate_gbp); });
+
+    res.json({ success: true, message: 'Shipping rates updated', rates: updatedRates });
+  } catch (error) {
+    console.error('Admin update shipping rates error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update shipping rates' });
   }
 });
 

@@ -12,9 +12,9 @@ export function ShippingRatesPanel() {
   useEffect(() => {
     adminApi.getShippingRates()
       .then((res) => {
-        const data = res.data
-        if (data && typeof data === 'object') {
-          setRates((prev) => ({ ...prev, ...data }))
+        const rates = res.data?.rates
+        if (rates && typeof rates === 'object') {
+          setRates((prev) => ({ ...prev, ...rates }))
         }
       })
       .catch(() => {})

@@ -82,7 +82,7 @@ export const pricingApi = {
    * @param {boolean} insurance
    * @param {number} declared_value  - in KES
    */
-  calculate: (market, weight_kg, dimensions, shipping_speed, insurance, declared_value = 0) =>
+  calculate: (market, weight_kg, dimensions, shipping_speed, insurance, declared_value = 0, electronics_item = null) =>
     api.post('/pricing/calculate', {
       market,
       weight_kg,
@@ -90,6 +90,7 @@ export const pricingApi = {
       shipping_speed,
       insurance,
       declared_value,
+      electronics_item,
     }),
 
   /** Get current USD/GBP/CNY → KES exchange rates */

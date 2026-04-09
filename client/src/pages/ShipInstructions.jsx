@@ -230,10 +230,21 @@ export const ShipInstructions = () => {
                <h2 className="text-5xl md:text-6xl font-black text-[#1e3a5f] tracking-tighter mb-4 leading-none">Ready to Ship?</h2>
                <p className="text-slate-500 font-bold text-lg mb-10 max-w-md mx-auto leading-tight">Join thousands of Kenyans shopping globally with zero stress.</p>
                
-               <Link to="/orders/new" className="group relative overflow-hidden inline-flex items-center gap-4 bg-[#1e3a5f] text-white px-12 py-6 rounded-3xl font-black tracking-widest text-sm transition-all hover:scale-105 active:scale-95 shadow-2xl">
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
-                  <Package size={20} /> CREATE NEW ORDER <ArrowRight size={20} />
-               </Link>
+               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                 <Link to="/orders/new" className="group relative overflow-hidden inline-flex items-center gap-4 bg-[#1e3a5f] text-white px-12 py-6 rounded-3xl font-black tracking-widest text-sm transition-all hover:scale-105 active:scale-95 shadow-2xl">
+                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
+                   <Package size={20} /> CREATE NEW ORDER <ArrowRight size={20} />
+                 </Link>
+                 <a
+                   href="https://wa.me/254700000000?text=Hi%2C%20I%27d%20like%20to%20get%20started%20with%20Thapsus%20Cargo."
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   className="inline-flex items-center gap-3 bg-[#25D366] hover:bg-[#1ebe5b] text-white px-10 py-6 rounded-3xl font-black tracking-widest text-sm transition-all hover:scale-105 active:scale-95 shadow-2xl"
+                 >
+                   <svg viewBox="0 0 32 32" width="20" height="20" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M16 0C7.163 0 0 7.163 0 16c0 2.824.737 5.479 2.027 7.793L0 32l8.455-2.005A15.931 15.931 0 0016 32c8.837 0 16-7.163 16-16S24.837 0 16 0zm0 29.333a13.29 13.29 0 01-6.781-1.853l-.487-.29-5.013 1.189 1.213-4.877-.317-.5A13.267 13.267 0 012.667 16C2.667 8.636 8.636 2.667 16 2.667S29.333 8.636 29.333 16 23.364 29.333 16 29.333zm7.28-9.947c-.397-.199-2.35-1.158-2.714-1.29-.365-.132-.63-.199-.896.199-.265.397-1.03 1.29-1.261 1.556-.232.265-.464.298-.861.1-.397-.2-1.675-.617-3.19-1.967-1.179-1.05-1.976-2.346-2.207-2.744-.232-.397-.025-.612.174-.81.178-.178.397-.464.596-.696.199-.232.265-.397.397-.662.132-.265.066-.497-.033-.696-.1-.199-.896-2.162-1.228-2.959-.323-.777-.65-.672-.896-.684l-.762-.013c-.265 0-.696.1-1.06.497-.365.397-1.394 1.362-1.394 3.324s1.427 3.855 1.626 4.12c.199.265 2.808 4.288 6.804 6.012.951.41 1.694.655 2.273.839.955.304 1.825.261 2.512.158.766-.114 2.35-.96 2.681-1.888.332-.928.332-1.723.232-1.888-.1-.166-.365-.265-.762-.464z"/></svg>
+                   CHAT ON WHATSAPP
+                 </a>
+               </div>
             </div>
           </div>
         </footer>

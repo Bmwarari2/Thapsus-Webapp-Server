@@ -169,6 +169,16 @@ export const Home = () => {
                   {t('home.hero.cta')}
                   <ArrowRight size={20} className="md:w-[22px] md:h-[22px] group-hover:translate-x-1 transition-transform" />
                 </Link>
+                {/* WhatsApp Chat Button */}
+                <a
+                  href="https://wa.me/254700000000?text=Hi%2C%20I%27d%20like%20to%20enquire%20about%20Thapsus%20Cargo%20shipping%20services."
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="glass-sheen px-8 py-4 md:px-10 md:py-5 bg-[#25D366] hover:bg-[#1ebe5b] text-white rounded-[1.5rem] md:rounded-[2rem] font-black shadow-2xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-3 group text-base md:text-lg"
+                >
+                  <svg viewBox="0 0 32 32" width="22" height="22" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M16 0C7.163 0 0 7.163 0 16c0 2.824.737 5.479 2.027 7.793L0 32l8.455-2.005A15.931 15.931 0 0016 32c8.837 0 16-7.163 16-16S24.837 0 16 0zm0 29.333a13.29 13.29 0 01-6.781-1.853l-.487-.29-5.013 1.189 1.213-4.877-.317-.5A13.267 13.267 0 012.667 16C2.667 8.636 8.636 2.667 16 2.667S29.333 8.636 29.333 16 23.364 29.333 16 29.333zm7.28-9.947c-.397-.199-2.35-1.158-2.714-1.29-.365-.132-.63-.199-.896.199-.265.397-1.03 1.29-1.261 1.556-.232.265-.464.298-.861.1-.397-.2-1.675-.617-3.19-1.967-1.179-1.05-1.976-2.346-2.207-2.744-.232-.397-.025-.612.174-.81.178-.178.397-.464.596-.696.199-.232.265-.397.397-.662.132-.265.066-.497-.033-.696-.1-.199-.896-2.162-1.228-2.959-.323-.777-.65-.672-.896-.684l-.762-.013c-.265 0-.696.1-1.06.497-.365.397-1.394 1.362-1.394 3.324s1.427 3.855 1.626 4.12c.199.265 2.808 4.288 6.804 6.012.951.41 1.694.655 2.273.839.955.304 1.825.261 2.512.158.766-.114 2.35-.96 2.681-1.888.332-.928.332-1.723.232-1.888-.1-.166-.365-.265-.762-.464z"/></svg>
+                  Chat on WhatsApp
+                </a>
                 <div className="relative group max-w-sm flex-grow">
                    <div className="relative flex items-center bg-white/60 hover:bg-white/90 backdrop-blur-2xl border border-white/40 focus-within:border-orange-400/50 rounded-[1.5rem] md:rounded-[2rem] px-1.5 md:px-2 shadow-2xl transition-all duration-500">
                        <Search size={18} className="ml-3 md:ml-4 text-slate-400" />
