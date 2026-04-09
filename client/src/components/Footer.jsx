@@ -17,7 +17,7 @@ export const Footer = () => {
           {/* Company Info */}
           <div className="space-y-4">
             <div className="flex items-center gap-3 mb-4">
-              <img src="/logo.png" alt="Thapsus Cargo" className="h-12 w-auto drop-shadow-[0_0_12px_rgba(249,115,22,0.3)]" />
+              <img src="/iOS-ipad.png" alt="Thapsus Cargo" className="h-12 w-auto drop-shadow-[0_0_12px_rgba(249,115,22,0.3)]" />
               <h2 className="text-3xl font-black tracking-tighter leading-none">
                 <span className="text-white drop-shadow-md">Thapsus</span>
                 <span className="text-orange-500 drop-shadow-[0_0_15px_rgba(249,115,22,0.4)]">Cargo</span>
