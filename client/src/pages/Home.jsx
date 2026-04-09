@@ -171,7 +171,7 @@ export const Home = () => {
                 </Link>
                 {/* WhatsApp Chat Button */}
                 <a
-                  href="https://wa.me/254700000000?text=Hi%2C%20I%27d%20like%20to%20enquire%20about%20Thapsus%20Cargo%20shipping%20services."
+                  href="https://wa.me/447424531483?text=Hi%2C%20I%27d%20like%20to%20enquire%20about%20Thapsus%20Cargo%20shipping%20services."
                   target="_blank"
                   rel="noopener noreferrer"
                   className="glass-sheen px-8 py-4 md:px-10 md:py-5 bg-[#25D366] hover:bg-[#1ebe5b] text-white rounded-[1.5rem] md:rounded-[2rem] font-black shadow-2xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-3 group text-base md:text-lg"
