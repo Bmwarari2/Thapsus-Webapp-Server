@@ -37,7 +37,7 @@ export const Navbar = () => {
         <div className="flex justify-between items-center">
           {/* Logo */}
           <Link to="/" className="group flex items-center gap-2 font-black text-2xl md:text-3xl tracking-tighter leading-none transition-transform duration-300 hover:scale-105">
-            <img src="/iOS-ipad.png" alt="Thapsus Cargo" className="h-9 md:h-11 w-auto drop-shadow-[0_0_12px_rgba(249,115,22,0.3)]" />
+            <img src="/iOS-ipad.png" alt="Thapsus Cargo" width="180" height="180" className="h-9 md:h-11 w-auto drop-shadow-[0_0_12px_rgba(249,115,22,0.3)]" />
             <div className="flex items-center gap-1">
               <span className="text-white drop-shadow-md">Thapsus</span>
               <span className="text-orange-500 drop-shadow-[0_0_15px_rgba(249,115,22,0.4)]">Cargo</span>
