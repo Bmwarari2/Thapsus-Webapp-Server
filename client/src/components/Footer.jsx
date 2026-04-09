@@ -16,10 +16,13 @@ export const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10 md:gap-8 mb-12">
           {/* Company Info */}
           <div className="space-y-4">
-            <h2 className="text-3xl font-black tracking-tighter leading-none mb-4">
-              <span className="text-white drop-shadow-md">Thapsus</span>
-              <span className="text-orange-500 drop-shadow-[0_0_15px_rgba(249,115,22,0.4)]">Cargo</span>
-            </h2>
+            <div className="flex items-center gap-3 mb-4">
+              <img src="/logo.png" alt="Thapsus Cargo" className="h-12 w-auto drop-shadow-[0_0_12px_rgba(249,115,22,0.3)]" />
+              <h2 className="text-3xl font-black tracking-tighter leading-none">
+                <span className="text-white drop-shadow-md">Thapsus</span>
+                <span className="text-orange-500 drop-shadow-[0_0_15px_rgba(249,115,22,0.4)]">Cargo</span>
+              </h2>
+            </div>
             <p className="text-slate-400 font-medium text-sm leading-relaxed max-w-xs">
               Your trusted premium shipping and forwarding partner for goods from UK and China to Kenya.
             </p>
