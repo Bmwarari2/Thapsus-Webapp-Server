@@ -1,0 +1,92 @@
+{
+  "name": "Thapsus Cargo - Shipping & Forwarding",
+  "short_name": "Thapsus Cargo",
+  "description": "Fast, affordable, and reliable shipping services from UK, USA & China to Kenya",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#1e3a5f",
+  "background_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/Android-Home-screen-Chrome.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/iOS-ipad.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/PWI-splash-screens.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["shopping", "logistics"],
+  "screenshots": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 540 720'><rect fill='%231e3a5f' width='540' height='720'/><text x='50%' y='50%' font-size='60' font-weight='bold' text-anchor='middle' dominant-baseline='central' fill='white'>Thapsus Cargo</text></svg>",
+      "sizes": "540x720",
+      "type": "image/svg+xml",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Track Package",
+      "short_name": "Track",
+      "description": "Track your package in real-time",
+      "url": "/track",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect fill='%231e3a5f' width='96' height='96'/><text x='50%' y='50%' font-size='40' font-weight='bold' text-anchor='middle' dominant-baseline='central' fill='%23f97316'>📦</text></svg>",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "New Order",
+      "short_name": "Order",
+      "description": "Create a new shipping order",
+      "url": "/orders/new",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect fill='%231e3a5f' width='96' height='96'/><text x='50%' y='50%' font-size='40' font-weight='bold' text-anchor='middle' dominant-baseline='central' fill='%23f97316'>🛒</text></svg>",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Wallet",
+      "short_name": "Wallet",
+      "description": "View and manage your wallet",
+      "url": "/wallet",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect fill='%231e3a5f' width='96' height='96'/><text x='50%' y='50%' font-size='40' font-weight='bold' text-anchor='middle' dominant-baseline='central' fill='%23f97316'>💳</text></svg>",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "prefer_related_applications": false
+}
