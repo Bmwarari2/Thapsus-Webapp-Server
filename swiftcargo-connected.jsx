@@ -1239,6 +1239,12 @@ const AdminOrders = () => {
   const [bulkStatus,   setBulkStatus]   = useState('in_transit');
   const [bulkLoading,  setBulkLoading]  = useState(false);
 
+  // Payment request / reminder modal
+  const [paymentModal,   setPaymentModal]   = useState(null); // { order, type: 'request'|'reminder' }
+  const [paymentAmount,  setPaymentAmount]  = useState('');
+  const [paymentNotes,   setPaymentNotes]   = useState('');
+  const [paymentLoading, setPaymentLoading] = useState(false);
+
   const loadOrders = useCallback(async (p = 1) => {
     setLoading(true);
     setError('');
@@ -1280,6 +1286,38 @@ const AdminOrders = () => {
     }
   };
 
+  const openPaymentModal = (order, type) => {
+    setPaymentModal({ order, type });
+    setPaymentAmount(order.actual_cost || order.estimated_cost || '');
+    setPaymentNotes('');
+  };
+
+  const sendPaymentAction = async () => {
+    if (!paymentModal) return;
+    const { order, type } = paymentModal;
+    if (!paymentAmount || parseFloat(paymentAmount) <= 0) {
+      setError('Please enter a valid amount.');
+      return;
+    }
+    const endpoint = type === 'request'
+      ? `/admin/orders/${order.id}/request-payment`
+      : `/admin/orders/${order.id}/send-reminder`;
+    setPaymentLoading(true);
+    try {
+      const res = await apiPost(endpoint, {
+        amount: parseFloat(paymentAmount),
+        notes:  paymentNotes || undefined,
+      });
+      setSuccess(res.message || `${type === 'request' ? 'Payment request' : 'Payment reminder'} sent to ${order.email}.`);
+      if (res.email_warning) setError(res.email_warning);
+      setPaymentModal(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -1290,6 +1328,62 @@ const AdminOrders = () => {
 
       {error   && <ErrorBanner   message={error}   onClose={() => setError('')}   />}
       {success && <SuccessBanner message={success} onClose={() => setSuccess('')} />}
+
+      {/* Payment Request / Reminder Modal */}
+      {paymentModal && (
+        <div className="fixed inset-0 bg-black/50 z-60 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-black flex items-center gap-2">
+                {paymentModal.type === 'request'
+                  ? <><DollarSign size={20} className="text-green-600" /> Payment Request</>
+                  : <><Bell size={20} className="text-amber-600" /> Payment Reminder</>}
+              </h3>
+              <button onClick={() => setPaymentModal(null)} className="text-slate-400 hover:text-slate-700"><X size={20} /></button>
+            </div>
+            <div className="space-y-4">
+              <div className="bg-slate-50 rounded-xl p-4 text-sm">
+                <p className="font-black text-slate-700">{paymentModal.order.tracking_number}</p>
+                <p className="text-slate-500 mt-0.5">{paymentModal.order.name || paymentModal.order.email}</p>
+                <p className="text-xs text-blue-600 mt-0.5">{paymentModal.order.email}</p>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase block mb-1">Amount (KES)</label>
+                <input
+                  type="number"
+                  min="1"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-600"
+                  placeholder="Enter amount in KES"
+                  value={paymentAmount}
+                  onChange={e => setPaymentAmount(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase block mb-1">Note for customer (optional)</label>
+                <textarea
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-600 resize-none"
+                  rows={3}
+                  placeholder="Add a note for the customer…"
+                  value={paymentNotes}
+                  onChange={e => setPaymentNotes(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button
+                  className="flex-1"
+                  variant={paymentModal.type === 'request' ? 'success' : 'primary'}
+                  loading={paymentLoading}
+                  onClick={sendPaymentAction}
+                >
+                  <Send size={16} className="mr-2" />
+                  {paymentModal.type === 'request' ? 'Send Request' : 'Send Reminder'}
+                </Button>
+                <Button variant="ghost" onClick={() => setPaymentModal(null)}>Cancel</Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Filters + Bulk */}
       <div className="flex flex-wrap gap-3 items-center">
@@ -1329,25 +1423,43 @@ const AdminOrders = () => {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="p-4"><input type="checkbox" className="accent-blue-600" checked={selected.length === orders.length && orders.length > 0} onChange={toggleAll} /></th>
-                {['Tracking','Customer','Retailer','Market','Weight','Status','Date'].map(h => (
+                {['Tracking','Customer','Retailer','Market','Weight','Status','Date','Actions'].map(h => (
                   <th key={h} className="p-4 font-black text-xs text-slate-500 uppercase whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {orders.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-16 text-slate-400 font-bold">No orders found.</td></tr>
+                <tr><td colSpan={9} className="text-center py-16 text-slate-400 font-bold">No orders found.</td></tr>
               ) : orders.map(o => (
                 <tr key={o.id} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${
                   selected.includes(o.id) ? 'bg-blue-50' : ''}`}>
                   <td className="p-4"><input type="checkbox" className="accent-blue-600" checked={selected.includes(o.id)} onChange={() => toggleSelect(o.id)} /></td>
                   <td className="p-4 font-mono text-xs text-blue-600">{o.tracking_number}</td>
-                  <td className="p-4 text-sm font-bold">{o.user?.name || o.user_id || '–'}</td>
+                  <td className="p-4 text-sm font-bold">{o.name || o.user?.name || o.user_id || '–'}</td>
                   <td className="p-4 font-bold">{o.retailer}</td>
                   <td className="p-4"><Badge color={o.market === 'UK' ? 'blue' : o.market === 'USA' ? 'purple' : 'amber'}>{o.market}</Badge></td>
                   <td className="p-4 text-sm">{o.weight_kg ? `${o.weight_kg} kg` : '–'}</td>
                   <td className="p-4"><Badge color={statusBadgeColor(o.status)}>{(o.status || '').replace(/_/g,' ')}</Badge></td>
                   <td className="p-4 text-xs text-slate-500 whitespace-nowrap">{o.created_at ? new Date(o.created_at).toLocaleDateString() : '–'}</td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-1">
+                      <button
+                        title="Send Payment Request"
+                        onClick={() => openPaymentModal(o, 'request')}
+                        className="p-1.5 rounded-lg text-green-600 hover:bg-green-50 transition-colors"
+                      >
+                        <DollarSign size={16} />
+                      </button>
+                      <button
+                        title="Send Payment Reminder"
+                        onClick={() => openPaymentModal(o, 'reminder')}
+                        className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors"
+                      >
+                        <Bell size={16} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
