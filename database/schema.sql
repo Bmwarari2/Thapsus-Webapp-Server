@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS orders (
   estimated_cost REAL,
   actual_cost REAL,
   customs_duty REAL DEFAULT 0,
+  electronics_item TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

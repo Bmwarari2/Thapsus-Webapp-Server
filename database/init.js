@@ -131,6 +131,7 @@ const TABLES = [
       estimated_cost REAL,
       actual_cost REAL,
       customs_duty REAL DEFAULT 0,
+      electronics_item TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )`,
@@ -558,6 +559,24 @@ export async function initializeDatabase() {
   } catch (err) {
     console.error(`✗ Data access test FAILED on users table: ${err.message}`);
     console.error('  This confirms RLS or permissions are blocking reads.');
+  }
+
+  // ── Step 8: column migrations (add new columns to existing tables) ───────
+  if (!isReadOnly) {
+    const columnMigrations = [
+      {
+        description: 'orders.electronics_item',
+        sql: `ALTER TABLE orders ADD COLUMN IF NOT EXISTS electronics_item TEXT`,
+      },
+    ];
+    for (const m of columnMigrations) {
+      try {
+        await pool.query(m.sql);
+        console.log(`✓ Migration applied: ${m.description}`);
+      } catch (err) {
+        console.error(`⚠ Migration failed (${m.description}): ${err.message}`);
+      }
+    }
   }
 
   return pool;

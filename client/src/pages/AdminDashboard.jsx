@@ -100,7 +100,7 @@ export const AdminDashboard = () => {
   const [reminderAmount, setReminderAmount] = useState('')
   const [reminderNotes, setReminderNotes] = useState('')
   const [editOrderModal, setEditOrderModal] = useState(null)
-  const [editOrderForm, setEditOrderForm] = useState({ weight_kg: '', length: '', width: '', height: '', actual_cost: '', customs_duty: '', status: '', description: '' })
+  const [editOrderForm, setEditOrderForm] = useState({ weight_kg: '', length: '', width: '', height: '', actual_cost: '', customs_duty: '', status: '', description: '', electronics_item: '' })
   const [savingOrder, setSavingOrder] = useState(false)
   const [testEmail, setTestEmail] = useState(currentUser?.email || '')
   
@@ -405,7 +405,8 @@ export const AdminDashboard = () => {
       actual_cost: order.actual_cost || '',
       customs_duty: order.customs_duty || '',
       status: order.status || 'pending',
-      description: order.description || ''
+      description: order.description || '',
+      electronics_item: order.electronics_item || ''
     })
     setEditOrderModal(order)
   }
@@ -423,6 +424,7 @@ export const AdminDashboard = () => {
       if (editOrderForm.customs_duty !== '' && editOrderForm.customs_duty !== null) data.customs_duty = parseFloat(editOrderForm.customs_duty)
       if (editOrderForm.status) data.status = editOrderForm.status
       if (editOrderForm.description) data.description = editOrderForm.description
+      data.electronics_item = editOrderForm.electronics_item || null
 
       const res = await adminApi.editOrder(editOrderModal.id, data)
       toast.success(`Order ${editOrderModal.tracking_number} updated successfully`)
@@ -1349,6 +1351,28 @@ export const AdminDashboard = () => {
                     </div>
                   </div>
 
+                  {/* Electronics & Special Handling */}
+                  <div className="relative overflow-hidden rounded-2xl bg-orange-50/60 backdrop-blur-md border border-orange-200/40 p-5">
+                    <div className="absolute inset-0 bg-gradient-to-tr from-orange-100/20 to-transparent pointer-events-none" />
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-orange-600 mb-1 relative z-10 flex items-center gap-2">⚡ Electronics &amp; Special Handling</h4>
+                    <p className="text-[10px] text-orange-500/80 font-semibold mb-4 relative z-10">Adds a handling fee on top of the standard shipping rate. Also enforces a 1 kg minimum weight.</p>
+                    <select
+                      className={inputClass + " relative z-10"}
+                      value={editOrderForm.electronics_item}
+                      onChange={e => setEditOrderForm({...editOrderForm, electronics_item: e.target.value})}
+                    >
+                      <option value="">No electronics (Standard)</option>
+                      <option value="phone">Phone — £75 handling fee</option>
+                      <option value="laptop">Laptop / Accessories — £65 handling fee</option>
+                      <option value="tv_monitor">TV / Screen / Monitor — £65 handling fee</option>
+                    </select>
+                    {editOrderForm.electronics_item && (
+                      <p className="mt-3 text-[10px] font-black text-orange-600 relative z-10">
+                        ⚠ Estimated cost will be recalculated to include the handling fee.
+                      </p>
+                    )}
+                  </div>
+
                   {/* Status & Costs */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
@@ -1385,6 +1409,11 @@ export const AdminDashboard = () => {
                     <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-slate-500">Est. Cost: KES {(editOrderModal.estimated_cost || 0).toLocaleString()}</span>
                     <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-slate-500">Market: {editOrderModal.market}</span>
                     <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-slate-500">Speed: {editOrderModal.shipping_speed}</span>
+                    {editOrderModal.electronics_item && (
+                      <span className="px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-full text-orange-600">
+                        ⚡ {editOrderModal.electronics_item === 'phone' ? 'Phone' : editOrderModal.electronics_item === 'laptop' ? 'Laptop' : 'TV/Monitor'}
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex gap-4 pt-2">

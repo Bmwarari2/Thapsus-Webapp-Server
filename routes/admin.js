@@ -420,7 +420,7 @@ router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
     const db = req.db;
     const { id } = req.params;
     const adminId = req.user.id;
-    const { weight_kg, dimensions, actual_cost, customs_duty, status, description, retailer } = req.body;
+    const { weight_kg, dimensions, actual_cost, customs_duty, status, description, retailer, electronics_item } = req.body;
 
     const orderRes = await db.query('SELECT * FROM orders WHERE id = $1', [id]);
     if (!orderRes.rows[0]) return res.status(404).json({ success: false, message: 'Order not found' });
@@ -440,19 +440,30 @@ router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
     }
     if (description !== undefined) { params.push(description); updates.push(`description = $${params.length}`); }
     if (retailer !== undefined) { params.push(retailer); updates.push(`retailer = $${params.length}`); }
+    if (electronics_item !== undefined) {
+      const validElectronics = Object.keys(ELECTRONICS_HANDLING);
+      if (electronics_item !== null && electronics_item !== '' && !validElectronics.includes(electronics_item)) {
+        return res.status(400).json({ success: false, message: `Invalid electronics_item. Valid values: ${validElectronics.join(', ')}` });
+      }
+      params.push(electronics_item || null);
+      updates.push(`electronics_item = $${params.length}`);
+    }
 
     if (updates.length === 0) return res.status(400).json({ success: false, message: 'No fields to update' });
 
     updates.push('updated_at = NOW()');
 
-    // If weight was updated, recalculate estimated cost
-    if (weight_kg !== undefined) {
+    // Recalculate estimated cost if weight or electronics_item changed
+    if (weight_kg !== undefined || electronics_item !== undefined) {
       const dims = dimensions || (order.dimensions_json ? JSON.parse(order.dimensions_json) : null);
+      const effectiveWeight = weight_kg !== undefined ? weight_kg : order.weight_kg;
+      const effectiveElectronics = electronics_item !== undefined ? (electronics_item || null) : (order.electronics_item || null);
       const costBreakdown = calculateShippingCost({
-        weight_kg, dimensions: dims, market: order.market,
+        weight_kg: effectiveWeight, dimensions: dims, market: order.market,
         shipping_speed: order.shipping_speed || 'economy',
         insurance: order.insurance || false,
         declared_value: order.declared_value || 0,
+        electronics_item: effectiveElectronics,
       });
       params.push(costBreakdown.total);
       updates.push(`estimated_cost = $${params.length}`);
