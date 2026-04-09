@@ -236,7 +236,7 @@ export const ShipInstructions = () => {
                    <Package size={20} /> CREATE NEW ORDER <ArrowRight size={20} />
                  </Link>
                  <a
-                   href="https://wa.me/254700000000?text=Hi%2C%20I%27d%20like%20to%20get%20started%20with%20Thapsus%20Cargo."
+                   href="https://wa.me/447424531483?text=Hi%2C%20I%27d%20like%20to%20get%20started%20with%20Thapsus%20Cargo."
                    target="_blank"
                    rel="noopener noreferrer"
                    className="inline-flex items-center gap-3 bg-[#25D366] hover:bg-[#1ebe5b] text-white px-10 py-6 rounded-3xl font-black tracking-widest text-sm transition-all hover:scale-105 active:scale-95 shadow-2xl"
