@@ -79,19 +79,40 @@ export const pricingApi = {
    * @param {number} weight_kg
    * @param {object} dimensions      - { length, width, height } in cm
    * @param {string} shipping_speed  - 'economy' | 'express'
-   * @param {boolean} insurance
-   * @param {number} declared_value  - in KES
+   * @param {object|boolean} insurance - boolean or { enabled, declaredValue }
+   * @param {string|null} electronics_item - electronics category key or null
    */
-  calculate: (market, weight_kg, dimensions, shipping_speed, insurance, declared_value = 0, electronics_item = null) =>
-    api.post('/pricing/calculate', {
+  calculate: (market, weight_kg, dimensions, shipping_speed, insurance, declared_value_or_electronics = null, electronics_item = null) => {
+    // Normalise: PricingCalculator passes insurance as { enabled, declaredValue } + electronics as 6th arg
+    //            Pricing.jsx passes insurance as boolean + declared_value as 6th + electronics as 7th
+    const isInsuranceObj = insurance && typeof insurance === 'object'
+    const insuranceBool  = isInsuranceObj ? !!insurance.enabled : !!insurance
+    let declaredValue    = 0
+    let electronicsKey   = electronics_item
+
+    if (isInsuranceObj) {
+      // PricingCalculator style: 6th arg is electronics_item
+      declaredValue  = insurance.declaredValue || 0
+      electronicsKey = declared_value_or_electronics || null
+    } else {
+      // Pricing.jsx style: 6th arg is declared_value, 7th is electronics_item
+      declaredValue  = typeof declared_value_or_electronics === 'number' ? declared_value_or_electronics : 0
+      electronicsKey = electronics_item || null
+    }
+
+    return api.post('/pricing/calculate', {
       market,
       weight_kg,
       dimensions,
       shipping_speed,
-      insurance,
-      declared_value,
-      electronics_item,
-    }),
+      insurance: insuranceBool,
+      declared_value: declaredValue,
+      electronics_item: electronicsKey,
+    })
+  },
+
+  /** Get current per-kg shipping rates */
+  getRates: () => api.get('/pricing/rates'),
 
   /** Get current USD/GBP/CNY → KES exchange rates */
   getExchangeRates: () => api.get('/pricing/exchange-rates'),

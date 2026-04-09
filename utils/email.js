@@ -169,41 +169,11 @@ function costBreakdownTable(order) {
 function emailFooter() {
   return `
     <tr>
-      <td style="padding:0;">
-        <!-- Footer Strip -->
-        <table width="100%" cellpadding="0" cellspacing="0">
-          <tr>
-            <td style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);padding:32px 40px;border-radius:0 0 20px 20px;">
-              <table width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.1);">
-                    <p style="margin:0;font-size:20px;font-weight:900;color:#ffffff;letter-spacing:-0.5px;">
-                      Thapsus<span style="color:#f97316;">Cargo</span>
-                    </p>
-                    <p style="margin:4px 0 0;font-size:11px;color:rgba(255,255,255,0.5);font-weight:600;letter-spacing:2px;text-transform:uppercase;">Shipping &amp; Forwarding</p>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding-top:16px;">
-                    <table width="100%" cellpadding="0" cellspacing="0">
-                      <tr>
-                        <td>
-                          <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.5);line-height:1.8;">
-                            UK Warehouse: 31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB<br>
-                            Website: <a href="https://www.thapsus.uk" style="color:#f97316;text-decoration:none;font-weight:700;">www.thapsus.uk</a>
-                          </p>
-                        </td>
-                        <td align="right" valign="top">
-                          <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.3);white-space:nowrap;">Automated message</p>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
+      <td style="background-color:#f9fafb;padding:24px 40px;border-top:1px solid #e5e7eb;">
+        <p style="margin:0;color:#9ca3af;font-size:12px;text-align:center;">
+          Thapsus Cargo Shipping &amp; Forwarding &bull; Nairobi, Kenya<br>
+          This is an automated message. Please do not reply to this email.
+        </p>
       </td>
     </tr>`;
 }
@@ -211,101 +181,52 @@ function emailFooter() {
 function emailHeader() {
   return `
     <tr>
-      <td style="padding:0;">
-        <!-- Header with gradient and brand mark -->
-        <table width="100%" cellpadding="0" cellspacing="0">
-          <tr>
-            <td style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#1e4a7f 100%);padding:36px 40px 32px;border-radius:20px 20px 0 0;position:relative;">
-              <table width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td>
-                    <!-- Logo -->
-                    <p style="margin:0;font-size:26px;font-weight:900;color:#ffffff;letter-spacing:-1px;line-height:1;">
-                      Thapsus<span style="color:#f97316;">Cargo</span>
-                    </p>
-                    <p style="margin:4px 0 0;font-size:10px;color:rgba(255,255,255,0.45);font-weight:700;letter-spacing:3px;text-transform:uppercase;">
-                      Global Logistics
-                    </p>
-                  </td>
-                  <td align="right" valign="middle">
-                    <!-- Decorative accent pill -->
-                    <span style="display:inline-block;background:rgba(249,115,22,0.2);border:1px solid rgba(249,115,22,0.4);color:#f97316;font-size:10px;font-weight:800;padding:4px 12px;border-radius:100px;letter-spacing:2px;text-transform:uppercase;">
-                      LIVE
-                    </span>
-                  </td>
-                </tr>
-              </table>
-              <!-- Decorative orange bottom accent bar -->
-              <div style="position:absolute;bottom:0;left:40px;right:40px;height:2px;background:linear-gradient(to right,#f97316,rgba(249,115,22,0));border-radius:2px;"></div>
-            </td>
-          </tr>
-        </table>
+      <td style="background-color:#1e3a5f;padding:32px 40px;text-align:center;">
+        <h1 style="margin:0;color:#ffffff;font-size:28px;font-weight:bold;">
+          Thapsus<span style="color:#f97316;">Cargo</span>
+        </h1>
       </td>
     </tr>`;
 }
 
 function emailLayout(bodyHtml) {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title>Thapsus Cargo</title>
-  <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
-</head>
-<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%;">
-  <!-- Outer wrapper -->
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;min-height:100vh;">
-    <tr>
-      <td align="center" style="padding:40px 16px;">
-        <!-- Email card -->
-        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 20px 60px rgba(15,23,42,0.12),0 4px 16px rgba(15,23,42,0.06);">
-          ${emailHeader()}
-          <!-- Divider accent -->
-          <tr><td style="height:4px;background:linear-gradient(to right,#f97316,#fb923c,rgba(249,115,22,0.1));"></td></tr>
-          <!-- Body -->
-          <tr>
-            <td style="padding:40px 40px 32px;background:#ffffff;">
-              ${bodyHtml}
-            </td>
-          </tr>
-          ${emailFooter()}
-        </table>
-        <!-- Below-card note -->
-        <p style="margin:24px 0 0;font-size:11px;color:#94a3b8;text-align:center;font-weight:600;letter-spacing:1px;text-transform:uppercase;">
-          © ${new Date().getFullYear()} Thapsus Cargo Ltd. All rights reserved.
-        </p>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="margin:0;padding:0;background-color:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f3f4f6;padding:40px 20px;">
+        <tr>
+          <td align="center">
+            <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+              ${emailHeader()}
+              <tr><td style="padding:40px;">${bodyHtml}</td></tr>
+              ${emailFooter()}
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>`;
 }
 
 // ── Exported Email Functions ───────────────────────────────────────────────
 
 async function sendPasswordResetEmail(toEmail, toName, resetLink) {
   const bodyHtml = `
-    <h2 style="margin:0 0 8px;color:#0f172a;font-size:24px;font-weight:900;letter-spacing:-0.5px;">Password Reset Request</h2>
-    <p style="margin:0 0 24px;color:#64748b;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Security Notice</p>
-    <p style="margin:0 0 16px;color:#334155;font-size:16px;line-height:1.7;font-weight:500;">Hello <strong style="color:#0f172a;">${toName || 'there'}</strong>,</p>
-    <p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:1.7;">
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Password Reset Request</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 24px;color:#4b5563;font-size:16px;line-height:1.6;">
       We received a request to reset the password for your Thapsus Cargo account.
-      Click the button below to create a new password. This link will expire in <strong>1 hour</strong>.
+      Click the button below to create a new password. This link will expire in 1 hour.
     </p>
-    <!-- CTA Button -->
-    <table cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
       <tr>
-        <td style="background:linear-gradient(135deg,#ea580c,#f97316);border-radius:12px;box-shadow:0 4px 14px rgba(249,115,22,0.4);">
-          <a href="${resetLink}" target="_blank" style="display:inline-block;padding:16px 36px;color:#ffffff;font-size:15px;font-weight:800;text-decoration:none;letter-spacing:0.5px;">Reset My Password →</a>
+        <td style="background-color:#f97316;border-radius:8px;">
+          <a href="${resetLink}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">Reset My Password</a>
         </td>
       </tr>
-    </table>
-    <!-- Info note -->
-    <div style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:0 8px 8px 0;padding:14px 18px;margin-bottom:8px;">
-      <p style="margin:0;color:#92400e;font-size:13px;line-height:1.6;font-weight:600;">⚠️ If you did not request this reset, please ignore this email. Your password will not change.</p>
-    </div>`;
+    </table>`;
   const subject = 'Reset Your Thapsus Cargo Password';
   try {
     const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
@@ -319,20 +240,19 @@ async function sendPasswordResetEmail(toEmail, toName, resetLink) {
 
 async function sendAdminPasswordResetEmail(toEmail, toName, resetLink) {
   const bodyHtml = `
-    <h2 style="margin:0 0 8px;color:#0f172a;font-size:24px;font-weight:900;letter-spacing:-0.5px;">Admin Password Reset</h2>
-    <p style="margin:0 0 24px;color:#64748b;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Account Security</p>
-    <p style="margin:0 0 16px;color:#334155;font-size:16px;line-height:1.7;font-weight:500;">Hello <strong style="color:#0f172a;">${toName || 'there'}</strong>,</p>
-    <p style="margin:0 0 16px;color:#475569;font-size:15px;line-height:1.7;">
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Your Password Has Been Reset</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       A Thapsus Cargo administrator has initiated a password reset for your account.
       Click the button below to set a new password. This link will expire in <strong>1 hour</strong>.
     </p>
-    <div style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:0 8px 8px 0;padding:14px 18px;margin:0 0 24px;">
-      <p style="margin:0;color:#92400e;font-size:13px;font-weight:600;">If you were not expecting this, contact Thapsus Cargo support immediately.</p>
-    </div>
-    <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+    <p style="margin:0 0 24px;color:#6b7280;font-size:14px;line-height:1.6;">
+      If you did not expect this, please contact Thapsus Cargo support immediately.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
       <tr>
-        <td style="background:linear-gradient(135deg,#ea580c,#f97316);border-radius:12px;box-shadow:0 4px 14px rgba(249,115,22,0.4);">
-          <a href="${resetLink}" target="_blank" style="display:inline-block;padding:16px 36px;color:#ffffff;font-size:15px;font-weight:800;text-decoration:none;">Set New Password →</a>
+        <td style="background-color:#f97316;border-radius:8px;">
+          <a href="${resetLink}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">Set New Password</a>
         </td>
       </tr>
     </table>`;
@@ -349,22 +269,20 @@ async function sendAdminPasswordResetEmail(toEmail, toName, resetLink) {
 
 async function sendPaymentRequestEmail(toEmail, toName, trackingNumber, amount, notes, paymentLink, order) {
   const bodyHtml = `
-    <h2 style="margin:0 0 8px;color:#0f172a;font-size:24px;font-weight:900;letter-spacing:-0.5px;">Payment Required</h2>
-    <p style="margin:0 0 24px;color:#64748b;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Action Needed</p>
-    <p style="margin:0 0 16px;color:#334155;font-size:16px;line-height:1.7;font-weight:500;">Hello <strong style="color:#0f172a;">${toName || 'there'}</strong>,</p>
-    <p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:1.7;">
-      A payment is due for order <strong style="color:#0f172a;font-family:monospace;">${trackingNumber}</strong>. Please complete your payment to allow us to proceed with shipping.
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment Request</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      A payment is due for your order <strong>${trackingNumber}</strong>.
     </p>
-    ${order ? costBreakdownTable(order) : `
-    <div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);border-radius:16px;padding:24px 28px;margin:0 0 24px;text-align:center;">
-      <p style="margin:0 0 4px;font-size:11px;color:rgba(255,255,255,0.5);font-weight:700;letter-spacing:2px;text-transform:uppercase;">Amount Due</p>
-      <p style="margin:0;font-size:36px;font-weight:900;color:#f97316;letter-spacing:-1px;">KES ${amount?.toLocaleString?.() ?? amount}</p>
-    </div>`}
-    ${notes ? `<div style="background:#fff7ed;border-left:4px solid #f97316;border-radius:0 8px 8px 0;padding:14px 18px;margin:0 0 24px;"><p style="margin:0;color:#9a3412;font-size:14px;line-height:1.6;"><strong>Note:</strong> ${notes}</p></div>` : ''}
-    <table cellpadding="0" cellspacing="0" style="margin:0 0 16px;">
+
+    ${order ? costBreakdownTable(order) : `<p style="font-size:16px;font-weight:bold;color:#1e3a5f;">Amount Due: KES ${amount?.toLocaleString?.() ?? amount}</p>`}
+
+    ${notes ? `<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;background-color:#f9fafb;padding:12px 16px;border-left:4px solid #f97316;border-radius:4px;"><em>${notes}</em></p>` : ''}
+
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
       <tr>
-        <td style="background:linear-gradient(135deg,#ea580c,#f97316);border-radius:12px;box-shadow:0 4px 14px rgba(249,115,22,0.4);">
-          <a href="${paymentLink}" target="_blank" style="display:inline-block;padding:16px 40px;color:#ffffff;font-size:15px;font-weight:800;text-decoration:none;">Pay via M-Pesa →</a>
+        <td style="background-color:#f97316;border-radius:8px;">
+          <a href="${paymentLink}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">Pay Now</a>
         </td>
       </tr>
     </table>`;
@@ -483,38 +401,36 @@ async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, 
 async function sendWelcomeAccountEmail(toEmail, toName, warehouseId, role, setupLink) {
   const roleLabel = role === 'admin' ? 'Administrator' : 'Customer';
   const bodyHtml = `
-    <h2 style="margin:0 0 8px;color:#0f172a;font-size:24px;font-weight:900;letter-spacing:-0.5px;">Welcome to Thapsus Cargo! 🎉</h2>
-    <p style="margin:0 0 24px;color:#64748b;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Account Activation</p>
-    <p style="margin:0 0 16px;color:#334155;font-size:16px;line-height:1.7;font-weight:500;">Hello <strong style="color:#0f172a;">${toName || 'there'}</strong>,</p>
-    <p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:1.7;">
-      Your <strong>${roleLabel}</strong> account has been created. Click the button below to set your password and start shipping from the UK &amp; China to Kenya.
-      This link expires in <strong>24 hours</strong>.
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Welcome to Thapsus Cargo!</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      Your <strong>${roleLabel}</strong> account has been created by a Thapsus Cargo administrator.
+      Click the button below to set your password and activate your account.
+      This setup link will expire in <strong>24 hours</strong>.
     </p>
-    <!-- Warehouse ID highlight card -->
-    <div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);border-radius:16px;padding:24px 28px;margin:0 0 28px;">
-      <p style="margin:0 0 4px;font-size:11px;color:rgba(255,255,255,0.5);font-weight:700;letter-spacing:2px;text-transform:uppercase;">Your Warehouse ID</p>
-      <p style="margin:0;font-size:28px;font-weight:900;color:#f97316;letter-spacing:-1px;font-family:monospace;">${warehouseId}</p>
-      <p style="margin:8px 0 0;font-size:12px;color:rgba(255,255,255,0.5);line-height:1.6;">Include this ID in the delivery name when shipping to our UK warehouse.</p>
-    </div>
-    <!-- Details table -->
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 28px;font-size:14px;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
-      <tr style="background:#f8fafc;">
-        <td style="padding:12px 16px;color:#64748b;font-weight:700;width:40%;border-bottom:1px solid #e2e8f0;">Email</td>
-        <td style="padding:12px 16px;color:#0f172a;font-weight:600;border-bottom:1px solid #e2e8f0;">${toEmail}</td>
-      </tr>
-      <tr>
-        <td style="padding:12px 16px;color:#64748b;font-weight:700;">Account Type</td>
-        <td style="padding:12px 16px;color:#0f172a;font-weight:600;">${roleLabel}</td>
-      </tr>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 24px;font-size:15px;">
+      <tbody>
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;width:40%;">Email</td>
+          <td style="padding:10px 12px;color:#111827;">${toEmail}</td>
+        </tr>
+        <tr style="background:#f9fafb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Warehouse ID</td>
+          <td style="padding:10px 12px;color:#1e3a5f;font-weight:700;">${warehouseId}</td>
+        </tr>
+      </tbody>
     </table>
-    <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+    <p style="margin:0 0 8px;color:#4b5563;font-size:14px;line-height:1.6;">
+      Your <strong>Warehouse ID</strong> is used to identify your shipments at our facility. Keep it handy.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
       <tr>
-        <td style="background:linear-gradient(135deg,#ea580c,#f97316);border-radius:12px;box-shadow:0 4px 14px rgba(249,115,22,0.4);">
-          <a href="${setupLink}" target="_blank" style="display:inline-block;padding:16px 36px;color:#ffffff;font-size:15px;font-weight:800;text-decoration:none;">Activate My Account →</a>
+        <td style="background-color:#f97316;border-radius:8px;">
+          <a href="${setupLink}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">Activate My Account</a>
         </td>
       </tr>
     </table>
-    <p style="margin:0;color:#94a3b8;font-size:13px;line-height:1.6;">
+    <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6;">
       If you were not expecting this email, you can safely ignore it.
     </p>`;
 
@@ -536,25 +452,34 @@ async function sendPaymentReceiptEmail(toEmail, toName, trackingNumber, amount, 
     : new Date().toLocaleString('en-GB',        { dateStyle: 'long', timeStyle: 'short' });
 
   const bodyHtml = `
-    <h2 style="margin:0 0 8px;color:#0f172a;font-size:24px;font-weight:900;letter-spacing:-0.5px;">Payment Confirmed ✓</h2>
-    <p style="margin:0 0 24px;color:#64748b;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Receipt</p>
-    <p style="margin:0 0 16px;color:#334155;font-size:16px;line-height:1.7;font-weight:500;">Hello <strong style="color:#0f172a;">${toName || 'there'}</strong>,</p>
-    <p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:1.7;">
-      We have successfully received your payment. Here is your receipt — please keep this for your records.
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment Received ✓</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 24px;color:#4b5563;font-size:16px;line-height:1.6;">
+      We have successfully received your payment. Below is your receipt:
     </p>
-    <!-- Receipt Card -->
-    <div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);border-radius:16px;padding:28px;margin:0 0 24px;">
-      <p style="margin:0 0 20px;font-size:11px;color:rgba(255,255,255,0.4);font-weight:700;letter-spacing:2px;text-transform:uppercase;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:12px;">Payment Receipt</p>
-      <table width="100%" cellpadding="0" cellspacing="0">
-        <tr><td style="padding:8px 0;color:rgba(255,255,255,0.5);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;width:45%;">Tracking Number</td><td style="padding:8px 0;color:#f97316;font-size:14px;font-weight:900;font-family:monospace;">${trackingNumber}</td></tr>
-        <tr><td style="padding:8px 0;color:rgba(255,255,255,0.5);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Amount Paid</td><td style="padding:8px 0;color:#4ade80;font-size:20px;font-weight:900;">KES ${formattedAmount}</td></tr>
-        <tr><td style="padding:8px 0;color:rgba(255,255,255,0.5);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">M-Pesa Ref.</td><td style="padding:8px 0;color:#ffffff;font-size:14px;font-weight:700;font-family:monospace;">${paymentReference || 'N/A'}</td></tr>
-        <tr><td style="padding:8px 0;color:rgba(255,255,255,0.5);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Date &amp; Time</td><td style="padding:8px 0;color:rgba(255,255,255,0.8);font-size:13px;font-weight:600;">${formattedDate}</td></tr>
-      </table>
-    </div>
-    <!-- Confirmation banner -->
-    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:16px 20px;margin:0 0 8px;display:flex;align-items:center;">
-      <p style="margin:0;color:#166534;font-size:15px;font-weight:700;">✓ Payment verified and approved. Your order is now being processed.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 24px;font-size:15px;">
+      <tbody>
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;width:45%;">Tracking Number</td>
+          <td style="padding:10px 12px;color:#1e3a5f;font-weight:700;">${trackingNumber}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Amount Paid</td>
+          <td style="padding:10px 12px;color:#111827;font-weight:700;">KES ${formattedAmount}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">M-Pesa Reference</td>
+          <td style="padding:10px 12px;color:#111827;">${paymentReference || 'N/A'}</td>
+        </tr>
+        <tr style="background:#f0fdf4;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Date &amp; Time</td>
+          <td style="padding:10px 12px;color:#111827;">${formattedDate}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:0 0 24px;">
+      <p style="margin:0;color:#166534;font-size:15px;font-weight:600;">✓ Payment Confirmed</p>
+      <p style="margin:4px 0 0;color:#166534;font-size:14px;">Your payment has been approved and your order is being processed.</p>
     </div>`;
 
   const subject = `Payment Receipt — ${trackingNumber}`;
