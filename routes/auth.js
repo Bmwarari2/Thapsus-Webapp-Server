@@ -36,8 +36,24 @@ router.post('/register', async (req, res) => {
     if (!name || !email || !password || !phone) {
       return res.status(400).json({ success: false, message: 'Missing required fields: name, email, password, phone' });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ success: false, message: 'Invalid email format' });
+    }
+
+    const trimmedName = name.trim();
+    if (trimmedName.length < 2 || trimmedName.length > 100) {
+      return res.status(400).json({ success: false, message: 'Name must be between 2 and 100 characters' });
+    }
+
+    const phoneRegex = /^\+?[\d\s\-()]{7,20}$/;
+    if (!phoneRegex.test(phone)) {
+      return res.status(400).json({ success: false, message: 'Invalid phone number format' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
     }
 
     const existing = await db.query('SELECT id FROM users WHERE email = $1', [email]);
