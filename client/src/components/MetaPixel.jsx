@@ -21,9 +21,10 @@ export function MetaPixel() {
   const { pathname, search } = useLocation()
 
   useEffect(() => {
-    // Guard: fbq is loaded from index.html; if it's blocked
-    // (ad blocker, Brave, etc.) we just no-op silently.
-    if (typeof window.fbq !== 'function') return
+    // Only fire if the pixel has been explicitly initialised by CookieConsent.jsx
+    // after the user accepted. window._fbqInitialized is set to true at that point.
+    // This prevents phantom PageView calls before fbq('init', ...) has been called.
+    if (!window._fbqInitialized || typeof window.fbq !== 'function') return
 
     window.fbq('track', 'PageView')
   }, [pathname, search])

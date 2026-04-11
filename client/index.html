@@ -7,46 +7,29 @@
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
 
-      // ── Google Consent Mode v2 ────────────────────────────────────────────
-      // MUST be called BEFORE gtag('config', ...). Required for Google Ads in
-      // the EEA/UK since March 2024.
-      //
-      // TODO (UK GDPR / PECR compliance): these defaults are set to 'granted'
-      // so analytics fire immediately for a first-time setup. For a strictly
-      // compliant UK deployment you should:
-      //   1. Set all of these to 'denied' below
-      //   2. Show a cookie consent banner on first visit
-      //   3. Call gtag('consent', 'update', {...}) when the user accepts
-      // Until that banner exists, this 'granted' default keeps GA4 + Meta Pixel
-      // working but means UK visitors are technically not consenting.
+      // ── Google Consent Mode v2 ───────────────────────────────────────────
+      // Must be declared BEFORE gtag('config', ...). Required for Google Ads
+      // in EEA/UK since March 2024.
+      // All non-essential consent starts as 'denied'. The CookieConsent React
+      // component calls gtag('consent', 'update', {...}) with 'granted' after
+      // the user clicks Accept in the cookie banner.
       gtag('consent', 'default', {
-        'ad_storage':          'granted',
-        'ad_user_data':        'granted',
-        'ad_personalization':  'granted',
-        'analytics_storage':   'granted',
-        'functionality_storage': 'granted',
-        'personalization_storage': 'granted',
-        'security_storage':    'granted'
+        'ad_storage':            'denied',
+        'ad_user_data':          'denied',
+        'ad_personalization':    'denied',
+        'analytics_storage':     'denied',
+        'functionality_storage': 'denied',
+        'personalization_storage': 'denied',
+        'security_storage':      'granted'   // always on — required for login/security
       });
 
       gtag('js', new Date());
       gtag('config', 'G-09M01VBWF0');
     </script>
 
-    <!-- Meta Pixel Code -->
-    <script>
-      !function(f,b,e,v,n,t,s)
-      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-      n.queue=[];t=b.createElement(e);t.async=!0;
-      t.src=v;s=b.getElementsByTagName(e)[0];
-      s.parentNode.insertBefore(t,s)}(window, document,'script',
-      'https://connect.facebook.net/en_US/fbevents.js');
-      fbq('init', '1556063629186873');
-      fbq('track', 'PageView');
-    </script>
-    <!-- End Meta Pixel Code -->
+    <!-- Meta Pixel is loaded conditionally by CookieConsent.jsx after the user accepts.
+         Loading it here (before consent) would make a network request to Facebook,
+         which is a UK GDPR / PECR violation. -->
 
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/logo.png" />
@@ -146,9 +129,6 @@
     <title>Thapsus Cargo — Affordable Shipping from UK &amp; China to Kenya</title>
   </head>
   <body>
-    <!-- Meta Pixel <noscript> fallback (must live in <body>, not <head>) -->
-    <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=1556063629186873&ev=PageView&noscript=1" /></noscript>
-
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>

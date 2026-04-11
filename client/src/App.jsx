@@ -8,6 +8,7 @@ import { NotificationBanner } from './components/NotificationBanner'
 import { ScrollToTop } from './components/ScrollToTop'
 import { GoogleAnalytics } from './components/GoogleAnalytics'
 import { MetaPixel } from './components/MetaPixel'
+import { CookieConsent } from './components/CookieConsent'
 
 // ── Eagerly loaded: Home is the landing page, always in the initial bundle ──
 import { Home } from './pages/Home'
@@ -53,6 +54,7 @@ function App() {
         <ScrollToTop />
         <GoogleAnalytics />
         <MetaPixel />
+        <CookieConsent />
         <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* Public Routes */}
