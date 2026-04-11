@@ -6,7 +6,11 @@ import { authMiddleware } from '../middleware/auth.js';
 import { logRouteError } from '../utils/errorLogger.js';
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_change_this_in_production';
+
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('FATAL: JWT_SECRET env var is not set');
+}
 const JWT_EXPIRY = process.env.JWT_EXPIRY || '30d';
 
 function generateWarehouseId() {
