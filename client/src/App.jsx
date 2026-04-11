@@ -7,6 +7,7 @@ import { SupportChatWidget } from './components/SupportChatWidget'
 import { NotificationBanner } from './components/NotificationBanner'
 import { ScrollToTop } from './components/ScrollToTop'
 import { GoogleAnalytics } from './components/GoogleAnalytics'
+import { MetaPixel } from './components/MetaPixel'
 
 // ── Eagerly loaded: Home is the landing page, always in the initial bundle ──
 import { Home } from './pages/Home'
@@ -51,6 +52,7 @@ function App() {
       <main className="relative flex-grow">
         <ScrollToTop />
         <GoogleAnalytics />
+        <MetaPixel />
         <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* Public Routes */}
