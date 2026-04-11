@@ -23,8 +23,11 @@ function generateReferralCode() {
 }
 
 async function ensureAdminUser(pool) {
-  const adminEmail    = process.env.ADMIN_EMAIL    || 'admin@thapsus.uk';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@thapsus.uk';
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminPassword) {
+    throw new Error('FATAL: ADMIN_PASSWORD env var is not set');
+  }
 
   const { rows } = await pool.query(
     `SELECT id, email FROM users WHERE role = $1 OR email = $2 LIMIT 1`,
