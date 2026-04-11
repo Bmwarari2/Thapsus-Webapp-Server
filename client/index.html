@@ -6,6 +6,29 @@
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
+
+      // ── Google Consent Mode v2 ────────────────────────────────────────────
+      // MUST be called BEFORE gtag('config', ...). Required for Google Ads in
+      // the EEA/UK since March 2024.
+      //
+      // TODO (UK GDPR / PECR compliance): these defaults are set to 'granted'
+      // so analytics fire immediately for a first-time setup. For a strictly
+      // compliant UK deployment you should:
+      //   1. Set all of these to 'denied' below
+      //   2. Show a cookie consent banner on first visit
+      //   3. Call gtag('consent', 'update', {...}) when the user accepts
+      // Until that banner exists, this 'granted' default keeps GA4 + Meta Pixel
+      // working but means UK visitors are technically not consenting.
+      gtag('consent', 'default', {
+        'ad_storage':          'granted',
+        'ad_user_data':        'granted',
+        'ad_personalization':  'granted',
+        'analytics_storage':   'granted',
+        'functionality_storage': 'granted',
+        'personalization_storage': 'granted',
+        'security_storage':    'granted'
+      });
+
       gtag('js', new Date());
       gtag('config', 'G-09M01VBWF0');
     </script>
