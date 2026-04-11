@@ -191,9 +191,39 @@ const authLimiter = rateLimit({
   handler: (req, res) => res.status(429).json({ success: false, message: 'Too many login attempts. Please wait 15 minutes and try again.' }),
 });
 
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) =>
+    res.status(429).json({
+      success: false,
+      message: 'Too many password reset requests. Please wait 1 hour and try again.',
+    }),
+});
+
+const paymentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) =>
+    res.status(429).json({
+      success: false,
+      message: 'Too many payment submissions. Please try again later.',
+    }),
+});
+
+// existing
 app.use('/api/', limiter);
 app.use('/api/auth/login',    authLimiter);
 app.use('/api/auth/register', authLimiter);
+
+// new
+app.use('/api/auth/forgot-password', forgotPasswordLimiter);
+app.use('/api/payment',              paymentLimiter);
+app.use('/api/wallet/mpesa-confirm', paymentLimiter);
 
 // ── Disable caching on API routes ────────────────────────────────────────────
 app.set('etag', false);
