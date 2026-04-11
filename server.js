@@ -98,9 +98,9 @@ app.use(helmet({
       styleSrc:   ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       styleSrcElem: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc:    ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc:  ["'self'", "'unsafe-inline'"],
+      scriptSrc:  ["'self'", "'unsafe-inline'", "https://www.googletagmanager.com"],
       imgSrc:     ["'self'", 'data:', 'https:'],
-      connectSrc: ["'self'", 'https:', 'wss:'],
+      connectSrc: ["'self'", 'https:', 'wss:', "https://www.google-analytics.com", "https://analytics.google.com", "https://www.googletagmanager.com"],
     },
   },
   // Strict-Transport-Security: enforce HTTPS for 1 year + include subdomains
