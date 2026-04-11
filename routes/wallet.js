@@ -75,6 +75,14 @@ router.post('/mpesa-confirm', authMiddleware, async (req, res) => {
     const trimmedMessage = mpesa_message.trim();
     const numericAmount = typeof amount === 'number' ? amount : parseFloat(amount) || 0;
 
+    if (numericAmount <= 0) {
+      return res.status(400).json({ success: false, message: 'A valid payment amount is required' });
+    }
+
+    if (numericAmount > 1_000_000) {
+      return res.status(400).json({ success: false, message: 'Payment amount is too large' });
+    }
+
     // Extract transaction code from Mpesa message (format: e.g. "ABC123XYZ Confirmed...")
     const codeMatch = trimmedMessage.match(/^([A-Z0-9]{8,12})\s/i);
     const mpesaCode = codeMatch ? codeMatch[1].toUpperCase() : null;
@@ -159,41 +167,72 @@ router.post('/mpesa-confirm', authMiddleware, async (req, res) => {
 
 /** POST /api/wallet/pay */
 router.post('/pay', authMiddleware, async (req, res) => {
+  const db = req.db;
+  const userId = req.user.id;
+  const { order_id, amount } = req.body;
+
+  if (!order_id || !amount || amount <= 0) {
+    return res.status(400).json({ success: false, message: 'order_id and amount are required' });
+  }
+
+  if (amount > 1_000_000) {
+    return res.status(400).json({ success: false, message: 'Payment amount is too large' });
+  }
+
+  const client = await db.connect();
   try {
-    const db = req.db;
-    const userId = req.user.id;
-    const { order_id, amount } = req.body;
+    await client.query('BEGIN');
 
-    if (!order_id || !amount || amount <= 0)
-      return res.status(400).json({ success: false, message: 'order_id and amount are required' });
+    const orderRes = await client.query('SELECT * FROM orders WHERE id = $1 AND user_id = $2 FOR UPDATE', [order_id, userId]);
+    if (!orderRes.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
 
-    const orderRes = await db.query('SELECT * FROM orders WHERE id = $1 AND user_id = $2', [order_id, userId]);
-    if (!orderRes.rows[0]) return res.status(404).json({ success: false, message: 'Order not found' });
+    const walletRes = await client.query('SELECT balance FROM wallet WHERE user_id = $1 FOR UPDATE', [userId]);
+    if (!walletRes.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Wallet not found' });
+    }
 
-    const walletRes = await db.query('SELECT balance FROM wallet WHERE user_id = $1', [userId]);
-    if (!walletRes.rows[0]) return res.status(404).json({ success: false, message: 'Wallet not found' });
-
-    if (parseFloat(walletRes.rows[0].balance) < amount)
+    const currentBalance = parseFloat(walletRes.rows[0].balance);
+    if (currentBalance < amount) {
+      await client.query('ROLLBACK');
       return res.status(400).json({
-        success: false, message: 'Insufficient wallet balance',
-        current_balance: walletRes.rows[0].balance, required_amount: amount,
-        shortfall: amount - walletRes.rows[0].balance
+        success: false,
+        message: 'Insufficient wallet balance',
+        current_balance: currentBalance,
+        required_amount: amount,
+        shortfall: amount - currentBalance,
       });
+    }
 
     const transactionId = uuidv4();
-    await db.query('UPDATE wallet SET balance = balance - $1, last_updated = NOW() WHERE user_id = $2', [amount, userId]);
-    await db.query(
+    await client.query('UPDATE wallet SET balance = balance - $1, last_updated = NOW() WHERE user_id = $2', [amount, userId]);
+    await client.query(
       `INSERT INTO transactions (id, user_id, type, amount, currency, payment_method, status)
        VALUES ($1,$2,'payment',$3,'KES','wallet','completed')`,
       [transactionId, userId, amount]
     );
 
-    const updatedWallet = await db.query('SELECT balance FROM wallet WHERE user_id = $1', [userId]);
-    res.json({ success: true, message: 'Payment completed from wallet', transaction_id: transactionId, amount_paid: amount, order_id, new_balance: updatedWallet.rows[0].balance });
+    const updatedWallet = await client.query('SELECT balance FROM wallet WHERE user_id = $1', [userId]);
+    await client.query('COMMIT');
+
+    return res.json({
+      success: true,
+      message: 'Payment completed from wallet',
+      transaction_id: transactionId,
+      amount_paid: amount,
+      order_id,
+      new_balance: updatedWallet.rows[0].balance,
+    });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Pay from wallet error:', error);
     logRouteError(req, res, error, 'Pay from wallet error');
-    res.status(500).json({ success: false, message: 'Payment failed' });
+    return res.status(500).json({ success: false, message: 'Payment failed' });
+  } finally {
+    client.release();
   }
 });
 

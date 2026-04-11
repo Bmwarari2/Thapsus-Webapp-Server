@@ -1,6 +1,12 @@
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_change_this_in_production';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  // Fail fast if the JWT secret is not configured. This mirrors the stricter
+  // checks in the auth routes and avoids accidentally using a weak default.
+  throw new Error('FATAL: JWT_SECRET env var is not set');
+}
 
 export function authMiddleware(req, res, next) {
   // Support token via Authorization header OR ?token= query param (for EventSource)

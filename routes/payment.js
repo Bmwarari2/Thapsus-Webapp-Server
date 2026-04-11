@@ -6,20 +6,18 @@ const router = express.Router();
 
 /**
  * GET /api/payment/:orderId
- * Public endpoint (no auth required). Returns order details for payment page.
+ * Public endpoint (no auth required). Returns non-PII order details for payment page.
  */
 router.get('/:orderId', async (req, res) => {
   try {
     const db = req.db;
     const { orderId } = req.params;
 
-    // Get order with user info
+    // Get order without exposing customer PII on this public endpoint
     const orderRes = await db.query(
-      `SELECT o.id, o.tracking_number, o.actual_cost, o.estimated_cost, o.status,
-              u.id as user_id, u.name, u.email
-       FROM orders o
-       JOIN users u ON o.user_id = u.id
-       WHERE o.id = $1`,
+      `SELECT id, tracking_number, actual_cost, estimated_cost, status
+       FROM orders
+       WHERE id = $1`,
       [orderId]
     );
 
@@ -36,8 +34,6 @@ router.get('/:orderId', async (req, res) => {
         id: order.id,
         tracking_number: order.tracking_number,
         amount_due: amountDue,
-        user_name: order.name,
-        user_email: order.email,
         status: order.status,
       },
       mpesa_info: {
@@ -75,7 +71,12 @@ router.post('/:orderId/confirm', async (req, res) => {
       return res.status(400).json({ success: false, message: 'A valid payment amount is required' });
     }
 
-    // Get order and user
+    // Apply basic sanity bounds to reduce obviously invalid submissions
+    if (numericAmount > 1_000_000) {
+      return res.status(400).json({ success: false, message: 'Payment amount is too large' });
+    }
+
+    // Get order and user (user details used only for logging, not returned to client)
     const orderRes = await db.query(
       `SELECT o.id, o.user_id, u.name FROM orders o
        JOIN users u ON o.user_id = u.id

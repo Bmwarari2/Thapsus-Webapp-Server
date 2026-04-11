@@ -59,7 +59,7 @@ async function ensureAdminUser(pool) {
       [adminWalletId, adminId, 0, 'KES']
     );
     await client.query('COMMIT');
-    console.log(`✓ Admin user created: ${adminEmail} / password: ${adminPassword}`);
+    console.log(`✓ Admin user created: ${adminEmail}`);
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -90,7 +90,14 @@ const PORT     = process.env.PORT     || 5000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
-const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+// In production we require an explicit allowlist of origins and will fail fast
+// if a wildcard is configured to avoid accidentally exposing the API.
+const DEFAULT_PROD_CORS = 'https://www.thapsus.uk,https://thapsus.uk,https://swiftcargo-production.up.railway.app';
+const CORS_ORIGIN = process.env.CORS_ORIGIN || (NODE_ENV === 'production' ? DEFAULT_PROD_CORS : '*');
+
+if (NODE_ENV === 'production' && CORS_ORIGIN === '*') {
+  throw new Error('FATAL: In production, CORS_ORIGIN must be an explicit allowlist, not "*".');
+}
 
 app.set('trust proxy', 1);
 
