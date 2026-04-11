@@ -6,6 +6,7 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import { SupportChatWidget } from './components/SupportChatWidget'
 import { NotificationBanner } from './components/NotificationBanner'
 import { ScrollToTop } from './components/ScrollToTop'
+import { GoogleAnalytics } from './components/GoogleAnalytics'
 
 // ── Eagerly loaded: Home is the landing page, always in the initial bundle ──
 import { Home } from './pages/Home'
@@ -49,6 +50,7 @@ function App() {
 
       <main className="relative flex-grow">
         <ScrollToTop />
+        <GoogleAnalytics />
         <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* Public Routes */}
