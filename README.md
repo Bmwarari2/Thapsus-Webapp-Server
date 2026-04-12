@@ -89,7 +89,7 @@ Swiftcargo-main/
 ├── .env.example              # Environment variable template
 │
 ├── database/
-│   ├── init.js               # PostgreSQL pool + schema bootstrap
+│   ├── init.js               # PostgreSQL pool + schema bootstrap + column migrations
 │   └── schema.sql            # Full table definitions
 │
 ├── middleware/
@@ -97,7 +97,7 @@ Swiftcargo-main/
 │
 ├── routes/
 │   ├── auth.js               # Register, login, profile, password reset
-│   ├── orders.js             # Customer order CRUD
+│   ├── orders.js             # Customer order CRUD + live cost breakdown
 │   ├── tracking.js           # Package tracking (public + private)
 │   ├── admin.js              # Admin dashboard, users, orders, stats
 │   │                         # shipping-rates, revenue, payments
@@ -115,7 +115,9 @@ Swiftcargo-main/
 │
 ├── utils/
 │   ├── email.js              # Gmail API transactional email sender
+│   │                         # Includes: order-created, order-updated, password-reset, …
 │   ├── pricing.js            # Shipping cost logic + default rates
+│   │                         # Electronics handling: phone £75, laptop/TV £65 (1 kg min)
 │   ├── notifications.js      # In-app notification helpers
 │   ├── prohibited.js         # Prohibited items database
 │   ├── translations.js       # EN / SW string map
@@ -136,20 +138,33 @@ Swiftcargo-main/
 ## Key Features
 
 ### Customer
+
 - Register / Google OAuth login, unique TC-XXXX warehouse ID
 - Ship from **UK** and **China** (Amazon, ASOS, AliExpress, Shein, Temu, …)
 - Shipping cost calculator with volumetric weight, electronics handling, insurance
 - Real-time order status updates (SSE)
-- M-Pesa payment submission and receipt
+- **Order list rows are fully clickable** — tap anywhere on a row to open the order (mobile-friendly)
+- **Order detail page with two tabs** — *Tracking* (transit timeline) and *Details & Charges* (specs, itemised costs, packages)
+- **Itemised cost breakdown** — base shipping, electronics handling fee (with badge), handling fee, insurance, customs estimate, and total shown clearly per order
+- M-Pesa payment submission and receipt; payment page shows tracking number and amount due only (compact layout)
 - Wallet balance + referral earnings
 - Package consolidation
 - Support tickets with photo attachments
 - WhatsApp quick-contact button
 
 ### Admin
+
 - Dashboard stats: orders, revenue (excluding referral credits), active shipments
-- User management: create, view, deactivate, reset password, delete
-- Order management: create for client, edit, bulk status update, cancel
+- **User management**: create, view, deactivate, reset password, delete
+  - View a user's **warehouse address** prominently in the user detail panel
+  - Set a **Kenya delivery address** per user (stored in `users.delivery_address`)
+  - Add **admin notes** per user (stored in `users.admin_notes`)
+- **Order management**: create for client, edit, bulk status update, cancel
+  - Order-created email now includes a **full cost breakdown** (shipping, handling, insurance, customs, total)
+  - Editing an order triggers an **"Order Updated" email** to the customer with new pricing
+  - Edit modal shows an **electronics handling badge** when the order contains a special-handling item (phone, laptop, TV/monitor)
+  - Add **order-level notes** in the edit modal (stored in `orders.order_notes`); notes appear as an amber callout in the Shipment History cards
+  - Admin user panel shows **cost breakdown grid** per order in the Shipment History section
 - Shipping rates management (per-kg rates for UK / China)
 - M-Pesa payment verification queue with full SMS messages visible
 - Revenue reporting with date filters + CSV export
@@ -157,6 +172,77 @@ Swiftcargo-main/
 - Error log viewer
 - Email log per user
 - Exchange rate management
+
+---
+
+## Email Notifications
+
+Transactional emails are sent via the **Gmail API** (OAuth2) with retry logic and DB logging (`email_logs`).
+
+| Trigger | Function | Recipients |
+|---|---|---|
+| Customer registers | `sendWelcomeEmail` | Customer |
+| Admin creates order for client | `sendOrderCreatedEmail` | Customer |
+| Admin edits an order | `sendOrderUpdatedEmail` | Customer |
+| Order status changes | `sendStatusUpdateEmail` | Customer |
+| Password reset requested | `sendPasswordResetEmail` | Customer |
+
+Both the order-created and order-updated emails include a **cost breakdown table** with line items for shipping rate, electronics handling (if applicable), handling fee, insurance, and customs estimate.
+
+---
+
+## Database Schema Notes
+
+Column migrations are applied automatically at startup via `database/init.js`. Recent additions:
+
+| Table | Column | Type | Purpose |
+|---|---|---|---|
+| `users` | `delivery_address` | TEXT | Kenya delivery address set by admin |
+| `users` | `admin_notes` | TEXT | Internal notes on the user set by admin |
+| `orders` | `order_notes` | TEXT | Per-order notes visible in admin Shipment History |
+
+All migrations use `ALTER TABLE … ADD COLUMN IF NOT EXISTS` so they are safe to run on an existing database.
+
+---
+
+## API Reference (Key Endpoints)
+
+### Orders
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/orders` | Customer | List own orders (paginated, filterable by status/market) |
+| POST | `/api/orders` | Customer | Create a new order |
+| GET | `/api/orders/:id` | Customer / Admin | Get order detail including live **cost breakdown** |
+| PUT | `/api/orders/:id/status` | Admin | Update status (+ optional `actual_cost`, `customs_duty`) |
+
+`GET /api/orders/:id` returns a `cost_breakdown` object computed live from `calculateShippingCost()`:
+
+```json
+{
+  "cost_breakdown": {
+    "total": 85.50,
+    "breakdown": {
+      "base_shipping":       { "label": "Shipping Rate",          "amount": 60.00 },
+      "electronics_handling":{ "label": "Electronics Handling",   "amount": 75.00 },
+      "handling_fee":        { "label": "Handling Fee",           "amount": 5.00  },
+      "insurance":           { "label": "Insurance",              "amount": 8.50  },
+      "customs_estimate":    { "label": "Customs Estimate",       "amount": 0     }
+    }
+  }
+}
+```
+
+### Admin
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/admin/users` | Admin | List all users |
+| GET | `/api/admin/users/:id` | Admin | User detail with orders + live cost breakdowns |
+| PUT | `/api/admin/users/:id` | Admin | Update user — accepts `delivery_address`, `admin_notes` |
+| POST | `/api/admin/orders/create-for-client` | Admin | Create order on behalf of a customer |
+| GET | `/api/admin/orders` | Admin | List all orders with `electronics_item` included |
+| PUT | `/api/admin/orders/:id/edit` | Admin | Edit order — accepts `order_notes`; sends update email |
 
 ---
 
@@ -274,6 +360,40 @@ After a few minutes, visit `https://www.thapsus.uk` — you should see the Thaps
 - **Add a new page**: Create in `client/src/pages/`, register in `client/src/App.jsx`
 - **Add a new language**: Extend `utils/translations.js` and `LanguageContext.jsx`
 - **Add a new shipping market**: Add to `DEFAULT_RATES_GBP` in `utils/pricing.js` and update the market validation lists in `routes/pricing.js` and `routes/admin.js`
+- **Add a new DB column**: Add a migration entry to the `columnMigrations` array in `database/init.js` using `ALTER TABLE … ADD COLUMN IF NOT EXISTS` — it runs automatically on next deploy
+
+---
+
+## Changelog
+
+### April 2026
+
+**Order emails now include full cost breakdown**
+When an admin creates an order on behalf of a customer, the confirmation email includes a line-by-line cost table: base shipping rate, electronics handling fee (if applicable), handling fee, insurance, customs estimate, and total. Previously only the total was shown.
+
+**Order-updated email on admin edits**
+When an admin edits an order (weight, dimensions, speed, insurance, etc.), the system automatically sends the customer an "Your Order Has Been Updated" email with the revised cost breakdown.
+
+**Itemised cost breakdown on Order Detail page**
+The *Details & Charges* tab on the customer order detail page now shows each cost component individually, pulled from a live `cost_breakdown` object returned by `GET /api/orders/:id`. An orange badge with a ⚡ icon highlights any electronics handling fee.
+
+**Order detail page tabbed layout**
+The customer order detail page is split into two tabs — *Tracking* (transit timeline) and *Details & Charges* (manifest, specs, itemised costs, packages) — reducing scrolling on mobile.
+
+**Mobile-friendly order list**
+Order rows in the customer orders list are now fully clickable. Tapping anywhere on a row navigates to the order detail page; the cost toggle and View button still work independently with `stopPropagation`.
+
+**Electronics handling badge in admin edit modal**
+The admin order-edit modal correctly shows the electronics handling badge (phone, laptop, TV/monitor) now that `electronics_item` is included in the `GET /api/admin/orders` query.
+
+**Admin user panel — warehouse address & delivery details**
+The admin user detail panel now prominently displays the customer's Thapsus warehouse address. A new "Delivery & Notes" section lets admins save a Kenya delivery address and internal admin notes per user, backed by the new `users.delivery_address` and `users.admin_notes` columns.
+
+**Order-level notes**
+Admins can add notes to individual orders via the edit modal. Notes are stored in `orders.order_notes` and displayed as an amber callout in the Shipment History cards in the admin user panel.
+
+**Payment page simplified**
+The public payment confirmation page now shows only the tracking number and amount due — customer name and status cards have been removed for a cleaner, more focused layout.
 
 ---
 
