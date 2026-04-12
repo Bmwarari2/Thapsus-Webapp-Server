@@ -568,6 +568,18 @@ export async function initializeDatabase() {
         description: 'orders.electronics_item',
         sql: `ALTER TABLE orders ADD COLUMN IF NOT EXISTS electronics_item TEXT`,
       },
+      {
+        description: 'users.delivery_address',
+        sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS delivery_address TEXT`,
+      },
+      {
+        description: 'users.admin_notes',
+        sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_notes TEXT`,
+      },
+      {
+        description: 'orders.order_notes',
+        sql: `ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_notes TEXT`,
+      },
     ];
     for (const m of columnMigrations) {
       try {

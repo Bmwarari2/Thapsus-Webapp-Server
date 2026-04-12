@@ -173,9 +173,31 @@ router.get('/:id', authMiddleware, async (req, res) => {
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
 
     const pkgs = await db.query('SELECT * FROM packages WHERE order_id = $1', [id]);
+
+    const dims = order.dimensions_json ? JSON.parse(order.dimensions_json) : null;
+
+    // Compute a live cost breakdown so the detail page can show itemised costs
+    let cost_breakdown = null;
+    try {
+      cost_breakdown = calculateShippingCost({
+        weight_kg:       order.weight_kg       || 0,
+        dimensions:      dims,
+        market:          order.market,
+        shipping_speed:  order.shipping_speed  || 'economy',
+        insurance:       order.insurance       || false,
+        declared_value:  order.declared_value  || 0,
+        electronics_item: order.electronics_item || null,
+      });
+    } catch (_) { /* non-fatal — client falls back to estimated_cost */ }
+
     res.json({
       success: true,
-      order: { ...order, dimensions_json: order.dimensions_json ? JSON.parse(order.dimensions_json) : null, packages: pkgs.rows },
+      order: {
+        ...order,
+        dimensions_json: dims,
+        packages: pkgs.rows,
+        cost_breakdown,
+      },
     });
   } catch (error) {
     console.error('Get order error:', error);

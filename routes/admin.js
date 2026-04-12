@@ -89,7 +89,8 @@ router.get('/users/:id', authMiddleware, isAdmin, async (req, res) => {
     const { id } = req.params;
     const userRes = await db.query(
       `SELECT id, email, name, phone, role, warehouse_id, language_pref, referral_code,
-              wallet_balance, is_active, created_at, updated_at FROM users WHERE id = $1`,
+              wallet_balance, is_active, delivery_address, admin_notes, created_at, updated_at
+       FROM users WHERE id = $1`,
       [id]
     );
     if (!userRes.rows[0]) return res.status(404).json({ success: false, message: 'User not found' });
@@ -99,7 +100,7 @@ router.get('/users/:id', authMiddleware, isAdmin, async (req, res) => {
          id, tracking_number, retailer, market, status,
          estimated_cost, actual_cost, customs_duty,
          weight_kg, dimensions_json, shipping_speed, insurance,
-         declared_value, electronics_item, created_at
+         declared_value, electronics_item, order_notes, created_at
        FROM orders WHERE user_id = $1 ORDER BY created_at DESC`, [id]
     );
 
@@ -150,7 +151,7 @@ router.put('/users/:id', authMiddleware, isAdmin, async (req, res) => {
     const db = req.db;
     const { id } = req.params;
     const adminId = req.user.id;
-    const { role, is_active } = req.body;
+    const { role, is_active, delivery_address, admin_notes } = req.body;
 
     if (id === adminId && is_active === false) {
       return res.status(400).json({ success: false, message: 'You cannot deactivate your own account' });
@@ -166,6 +167,8 @@ router.put('/users/:id', authMiddleware, isAdmin, async (req, res) => {
       params.push(role); updates.push(`role = $${params.length}`);
     }
     if (is_active !== undefined) { params.push(is_active); updates.push(`is_active = $${params.length}`); }
+    if (delivery_address !== undefined) { params.push(delivery_address || null); updates.push(`delivery_address = $${params.length}`); }
+    if (admin_notes !== undefined) { params.push(admin_notes || null); updates.push(`admin_notes = $${params.length}`); }
     if (updates.length === 0) return res.status(400).json({ success: false, message: 'Provide at least one field to update' });
     updates.push('updated_at = NOW()');
     params.push(id);
@@ -183,7 +186,9 @@ router.put('/users/:id', authMiddleware, isAdmin, async (req, res) => {
       );
     }
 
-    const updated = await db.query('SELECT id, email, name, phone, role, warehouse_id, is_active FROM users WHERE id = $1', [id]);
+    const updated = await db.query(
+      'SELECT id, email, name, phone, role, warehouse_id, is_active, delivery_address, admin_notes FROM users WHERE id = $1', [id]
+    );
     res.json({ success: true, message: 'User updated successfully', user: updated.rows[0] });
   } catch (error) {
     console.error('Update user error:', error);
@@ -389,7 +394,7 @@ router.get('/orders', authMiddleware, isAdmin, async (req, res) => {
       `SELECT o.id, o.tracking_number, o.retailer, o.market, o.status,
               o.estimated_cost, o.actual_cost, o.created_at, o.description,
               o.weight_kg, o.dimensions_json, o.shipping_speed, o.insurance,
-              o.declared_value, o.customs_duty, o.electronics_item, o.user_id,
+              o.declared_value, o.customs_duty, o.electronics_item, o.order_notes, o.user_id,
               u.name, u.email
        FROM orders o JOIN users u ON o.user_id = u.id
        ${conditions} ORDER BY o.created_at DESC LIMIT $${params.length-1} OFFSET $${params.length}`,
@@ -442,7 +447,7 @@ router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
     const db = req.db;
     const { id } = req.params;
     const adminId = req.user.id;
-    const { weight_kg, dimensions, actual_cost, customs_duty, status, description, retailer, electronics_item } = req.body;
+    const { weight_kg, dimensions, actual_cost, customs_duty, status, description, retailer, electronics_item, order_notes } = req.body;
 
     const orderRes = await db.query('SELECT * FROM orders WHERE id = $1', [id]);
     if (!orderRes.rows[0]) return res.status(404).json({ success: false, message: 'Order not found' });
@@ -463,6 +468,7 @@ router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
     }
     if (description !== undefined) { params.push(description); updates.push(`description = $${params.length}`); }
     if (retailer !== undefined) { params.push(retailer); updates.push(`retailer = $${params.length}`); }
+    if (order_notes !== undefined) { params.push(order_notes || null); updates.push(`order_notes = $${params.length}`); }
     if (electronics_item !== undefined) {
       const validElectronics = Object.keys(ELECTRONICS_HANDLING);
       if (electronics_item !== null && electronics_item !== '' && !validElectronics.includes(electronics_item)) {

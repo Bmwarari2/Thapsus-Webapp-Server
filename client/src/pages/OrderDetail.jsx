@@ -285,11 +285,12 @@ export const OrderDetail = () => {
               <div className="relative group overflow-hidden rounded-[2.5rem] bg-[#0f172a] p-8 md:p-10 text-white shadow-2xl flex flex-col transition-all hover:scale-[1.01] h-full">
                 <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-orange-500/20 blur-[80px] -z-0 pointer-events-none" />
                 <div className="relative z-10 flex flex-col h-full">
-                  <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tighter mb-8 flex items-center gap-3">
+                  <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tighter mb-6 flex items-center gap-3">
                     <Box className="text-orange-400" size={24} /> Specs & Finances
                   </h2>
 
-                  <div className="grid grid-cols-2 gap-6 mb-8">
+                  {/* Weight & Dimensions */}
+                  <div className="grid grid-cols-2 gap-6 mb-6">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Dead Weight</p>
                       <p className="font-black text-2xl text-white">{order.weight_kg ? `${order.weight_kg} kg` : 'TBD'}</p>
@@ -304,33 +305,79 @@ export const OrderDetail = () => {
                     </div>
                   </div>
 
-                  <div className="h-px w-full bg-slate-700/50 mb-6" />
+                  {/* Electronics badge */}
+                  {order.electronics_item && (() => {
+                    const labels = { phone: 'Phone', laptop: 'Laptop / Accessories', tv_monitor: 'TV / Screen / Monitor' }
+                    const fees   = { phone: 75, laptop: 65, tv_monitor: 65 }
+                    return (
+                      <div className="mb-5 flex items-center gap-2 bg-orange-500/15 border border-orange-500/30 rounded-xl px-4 py-2.5 w-fit">
+                        <Zap size={14} className="text-orange-400 shrink-0" />
+                        <span className="text-xs font-black text-orange-300 uppercase tracking-widest">
+                          Electronics: {labels[order.electronics_item] || order.electronics_item}
+                        </span>
+                        <span className="text-[10px] font-bold text-orange-400/70 ml-1">
+                          (£{fees[order.electronics_item] || '?'} handling)
+                        </span>
+                      </div>
+                    )
+                  })()}
 
-                  <div className="space-y-4 flex-1">
-                    {(order.shipping_cost ?? order.estimated_cost) > 0 && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-slate-400">Shipping Rate</span>
-                        <span className="font-black text-sm">KES {(order.shipping_cost ?? order.estimated_cost ?? 0).toLocaleString()}</span>
-                      </div>
-                    )}
-                    {order.handling_fee > 0 && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-slate-400">Handling</span>
-                        <span className="font-black text-sm">KES {order.handling_fee.toLocaleString()}</span>
-                      </div>
-                    )}
-                    {order.insurance_fee > 0 && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-slate-400">Insurance Premium</span>
-                        <span className="font-black text-sm">KES {order.insurance_fee.toLocaleString()}</span>
-                      </div>
-                    )}
-                    {order.customs_duty > 0 && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-slate-400">Customs Clearance</span>
-                        <span className="font-black text-sm">KES {order.customs_duty.toLocaleString()}</span>
-                      </div>
-                    )}
+                  <div className="h-px w-full bg-slate-700/50 mb-5" />
+
+                  {/* Cost Breakdown */}
+                  <div className="space-y-3 flex-1">
+                    {(() => {
+                      const cb = order.cost_breakdown
+                      const baseShipping      = cb?.breakdown?.base_shipping?.amount      ?? order.estimated_cost ?? 0
+                      const electronicsHandling = cb?.breakdown?.electronics_handling?.amount ?? 0
+                      const generalHandling   = cb?.breakdown?.handling_fee?.amount        ?? 0
+                      const insuranceFee      = cb?.breakdown?.insurance?.amount           ?? 0
+                      const customsEstimate   = cb?.breakdown?.customs_estimate?.amount    ?? order.customs_duty ?? 0
+                      const showElecHandling  = electronicsHandling > 0
+                      const showGenHandling   = generalHandling > 0
+
+                      return (
+                        <>
+                          {baseShipping > 0 && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-bold text-slate-400">Base Shipping</span>
+                              <span className="font-black text-sm">KES {baseShipping.toLocaleString()}</span>
+                            </div>
+                          )}
+                          {showElecHandling && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-bold text-orange-300 flex items-center gap-1">
+                                <Zap size={11} /> Electronics Handling
+                              </span>
+                              <span className="font-black text-sm text-orange-300">KES {electronicsHandling.toLocaleString()}</span>
+                            </div>
+                          )}
+                          {showGenHandling && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-bold text-slate-400">Handling Fee</span>
+                              <span className="font-black text-sm">KES {generalHandling.toLocaleString()}</span>
+                            </div>
+                          )}
+                          {insuranceFee > 0 && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-bold text-slate-400">Insurance Premium</span>
+                              <span className="font-black text-sm">KES {insuranceFee.toLocaleString()}</span>
+                            </div>
+                          )}
+                          {customsEstimate > 0 && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-bold text-slate-400">Customs Clearance</span>
+                              <span className="font-black text-sm">KES {customsEstimate.toLocaleString()}</span>
+                            </div>
+                          )}
+                          {!cb && (
+                            <p className="text-[10px] text-slate-500 font-bold italic">
+                              Full breakdown available once package is weighed
+                            </p>
+                          )}
+                        </>
+                      )
+                    })()}
                   </div>
 
                   <div className="mt-6 pt-6 border-t border-slate-700/50">

@@ -100,7 +100,7 @@ export const AdminDashboard = () => {
   const [reminderAmount, setReminderAmount] = useState('')
   const [reminderNotes, setReminderNotes] = useState('')
   const [editOrderModal, setEditOrderModal] = useState(null)
-  const [editOrderForm, setEditOrderForm] = useState({ weight_kg: '', length: '', width: '', height: '', actual_cost: '', customs_duty: '', status: '', description: '', electronics_item: '' })
+  const [editOrderForm, setEditOrderForm] = useState({ weight_kg: '', length: '', width: '', height: '', actual_cost: '', customs_duty: '', status: '', description: '', electronics_item: '', order_notes: '' })
   const [savingOrder, setSavingOrder] = useState(false)
   const [testEmail, setTestEmail] = useState(currentUser?.email || '')
   
@@ -110,6 +110,8 @@ export const AdminDashboard = () => {
   const [loadingUser, setLoadingUser] = useState(false)
   const [showUserOrderForm, setShowUserOrderForm] = useState(false)
   const [emailLogs, setEmailLogs] = useState([])
+  const [deliveryForm, setDeliveryForm] = useState({ delivery_address: '', admin_notes: '' })
+  const [savingDelivery, setSavingDelivery] = useState(false)
   const [approvingPayment, setApprovingPayment] = useState(null)
   const [expandedProof, setExpandedProof] = useState(null)
 
@@ -321,10 +323,31 @@ export const AdminDashboard = () => {
 
   const handleOpenUserDetail = async (u) => {
     setSelectedUser(u); setSelectedUserData(null); setEmailLogs([]); setLoadingUser(true); setShowUserOrderForm(false);
+    setDeliveryForm({ delivery_address: '', admin_notes: '' });
     try {
       const [userRes, emailRes] = await Promise.all([adminApi.getUser(u.id), adminApi.getUserEmails(u.id)])
-      setSelectedUserData(userRes.data); setEmailLogs(emailRes.data?.email_logs || [])
+      setSelectedUserData(userRes.data);
+      setDeliveryForm({
+        delivery_address: userRes.data?.user?.delivery_address || '',
+        admin_notes: userRes.data?.user?.admin_notes || '',
+      });
+      setEmailLogs(emailRes.data?.email_logs || [])
     } catch (err) { toast.error('Failed to load details') } finally { setLoadingUser(false) }
+  }
+
+  const handleSaveDeliveryInfo = async (e) => {
+    e.preventDefault()
+    if (!selectedUser?.id) return
+    try {
+      setSavingDelivery(true)
+      await adminApi.updateUser(selectedUser.id, {
+        delivery_address: deliveryForm.delivery_address || null,
+        admin_notes: deliveryForm.admin_notes || null,
+      })
+      toast.success('Delivery info saved')
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to save delivery info')
+    } finally { setSavingDelivery(false) }
   }
 
   const handleToggleUserActive = async (u) => {
@@ -406,7 +429,8 @@ export const AdminDashboard = () => {
       customs_duty: order.customs_duty || '',
       status: order.status || 'pending',
       description: order.description || '',
-      electronics_item: order.electronics_item || ''
+      electronics_item: order.electronics_item || '',
+      order_notes: order.order_notes || '',
     })
     setEditOrderModal(order)
   }
@@ -425,6 +449,7 @@ export const AdminDashboard = () => {
       if (editOrderForm.status) data.status = editOrderForm.status
       if (editOrderForm.description) data.description = editOrderForm.description
       data.electronics_item = editOrderForm.electronics_item || null
+      data.order_notes = editOrderForm.order_notes || null
 
       const res = await adminApi.editOrder(editOrderModal.id, data)
       toast.success(`Order ${editOrderModal.tracking_number} updated successfully`)
@@ -1123,11 +1148,15 @@ export const AdminDashboard = () => {
             <div className="bg-white/80 backdrop-blur-3xl w-full max-w-3xl h-full overflow-y-auto shadow-2xl relative p-10 md:p-14 animate-fade-in border-l border-white/50">
               <button onClick={() => setSelectedUser(null)} aria-label="Close" className="absolute top-10 right-10 w-10 h-10 bg-white rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 shadow-sm transition-colors"><X size={20}/></button>
               
-              <div className="mb-12">
+              <div className="mb-10">
                 <h3 className="text-4xl md:text-5xl font-black text-[#0f172a] tracking-tighter uppercase leading-none mb-3">{selectedUser.name}</h3>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <span className="px-3 py-1.5 bg-orange-100 text-orange-600 rounded-lg font-mono text-[10px] font-black uppercase tracking-widest shadow-sm">{selectedUser.warehouse_id}</span>
                   <span className="text-sm font-bold text-slate-500">{selectedUser.email}</span>
+                </div>
+                <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-500 font-mono">
+                  <span className="font-black text-slate-700 uppercase tracking-widest text-[9px]">Warehouse Address · </span>
+                  Thapsus Cargo, [Warehouse Name], Nairobi, Kenya — Ref: <span className="text-orange-600 font-black">{selectedUser.warehouse_id}</span>
                 </div>
               </div>
               
@@ -1158,6 +1187,34 @@ export const AdminDashboard = () => {
                   </>
                 )}
               </div>
+
+              {/* ── Delivery Address & Admin Notes ──────────────────────── */}
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Delivery &amp; Notes</h4>
+              <form onSubmit={handleSaveDeliveryInfo} className="mb-12 space-y-4">
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Kenya Delivery Address</label>
+                  <textarea
+                    className={inputClass + " resize-none !bg-white"}
+                    rows="3"
+                    placeholder="Enter the customer's delivery address in Kenya…"
+                    value={deliveryForm.delivery_address}
+                    onChange={e => setDeliveryForm(p => ({ ...p, delivery_address: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Admin Notes</label>
+                  <textarea
+                    className={inputClass + " resize-none !bg-white"}
+                    rows="3"
+                    placeholder="Internal notes about this customer (not visible to them)…"
+                    value={deliveryForm.admin_notes}
+                    onChange={e => setDeliveryForm(p => ({ ...p, admin_notes: e.target.value }))}
+                  />
+                </div>
+                <button type="submit" disabled={savingDelivery} className={btnPrimary + " w-full !py-3"}>
+                  {savingDelivery ? 'Saving…' : 'Save Delivery Info'}
+                </button>
+              </form>
 
               <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Shipment History</h4>
               <div className="space-y-3 mb-12">
@@ -1207,6 +1264,11 @@ export const AdminDashboard = () => {
                           Total: KES {total.toLocaleString()}
                         </div>
                       </div>
+                      {o.order_notes && (
+                        <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-200/60 rounded-xl text-[10px] text-amber-800 font-semibold">
+                          📝 {o.order_notes}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1441,6 +1503,12 @@ export const AdminDashboard = () => {
                   <div>
                     <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Description</label>
                     <textarea className={inputClass + " resize-none"} rows="3" value={editOrderForm.description} onChange={e => setEditOrderForm({...editOrderForm, description: e.target.value})} />
+                  </div>
+
+                  {/* Order Notes */}
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Order Notes (admin only)</label>
+                    <textarea className={inputClass + " resize-none"} rows="2" placeholder="Internal notes about this order…" value={editOrderForm.order_notes} onChange={e => setEditOrderForm({...editOrderForm, order_notes: e.target.value})} />
                   </div>
 
                   {/* Current Info Display */}
