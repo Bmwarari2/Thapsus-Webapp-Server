@@ -47,6 +47,7 @@ export const OrderDetail = () => {
   const { id } = useParams()
   const [loading, setLoading] = useState(true)
   const [order, setOrder] = useState(null)
+  const [activeTab, setActiveTab] = useState('tracking')
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -165,8 +166,36 @@ export const OrderDetail = () => {
           </div>
         </GlassCard>
 
-        {/* --- STATUS PROGRESS --- */}
-        {order.status !== 'cancelled' && (
+        {/* --- TAB SWITCHER --- */}
+        <div className="mb-8">
+          <div className="inline-flex bg-white/70 backdrop-blur-xl border border-white/60 rounded-full p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setActiveTab('tracking')}
+              className={`px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${
+                activeTab === 'tracking'
+                  ? 'bg-[#0f172a] text-white shadow-md'
+                  : 'text-slate-500 hover:text-[#0f172a]'
+              }`}
+            >
+              Tracking
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('details')}
+              className={`px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${
+                activeTab === 'details'
+                  ? 'bg-[#0f172a] text-white shadow-md'
+                  : 'text-slate-500 hover:text-[#0f172a]'
+              }`}
+            >
+              Details &amp; Charges
+            </button>
+          </div>
+        </div>
+
+        {/* --- STATUS PROGRESS (Tracking Tab) --- */}
+        {activeTab === 'tracking' && order.status !== 'cancelled' && (
           <GlassCard className="mb-10 p-8 md:p-10 bg-slate-900/5">
             <h2 className="text-xl md:text-2xl font-black text-[#0f172a] uppercase tracking-tighter mb-8">Transit Trajectory</h2>
             <div className="flex items-center justify-between overflow-x-auto no-scrollbar pb-4 px-2">
@@ -177,8 +206,8 @@ export const OrderDetail = () => {
                   <div key={step} className="flex items-center flex-shrink-0 relative group">
                     <div className="flex flex-col items-center relative z-10 w-20">
                       <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-xs font-black transition-all duration-500 ${
-                        isCurrent 
-                          ? 'bg-[#0f172a] text-white scale-110 shadow-xl' 
+                        isCurrent
+                          ? 'bg-[#0f172a] text-white scale-110 shadow-xl'
                           : isCompleted
                             ? 'bg-green-500 text-white shadow-lg shadow-green-200'
                             : 'bg-white border-2 border-slate-200 text-slate-400'
@@ -203,152 +232,157 @@ export const OrderDetail = () => {
           </GlassCard>
         )}
 
-        {/* --- BENTO GRID: DETAILS & FINANCES --- */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
-          
-          {/* Left: Manifest Details (Crystal Border) */}
-          <GlassCard className="p-8 md:p-10 flex flex-col h-full">
-            <h2 className="text-xl md:text-2xl font-black text-[#0f172a] uppercase tracking-tighter mb-8 flex items-center gap-3">
-              <FileText className="text-blue-500" size={24} /> Manifest Details
-            </h2>
-            <div className="space-y-6 flex-1">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Retailer</span>
-                <span className="font-black text-lg text-[#0f172a]">{order.retailer}</span>
-              </div>
-              <div className="h-px w-full bg-slate-200/50" />
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Market Origin</span>
-                <span className="font-black text-lg text-[#0f172a]">
-                  {order.market === 'UK' ? 'United Kingdom' : order.market === 'China' ? 'China' : order.market}
-                </span>
-              </div>
-              <div className="h-px w-full bg-slate-200/50" />
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Speed</span>
-                  <span className="font-black text-slate-800 capitalize">{order.shipping_speed || 'Economy'}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Insurance</span>
-                  <span className="font-black text-slate-800">{order.insurance ? 'Secured' : 'None'}</span>
-                </div>
-              </div>
-              {order.declared_value > 0 && (
-                <div className="flex flex-col pt-2">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Declared Value</span>
-                  <span className="font-black text-lg text-green-600">KES {order.declared_value.toLocaleString()}</span>
-                </div>
-              )}
-              <div className="flex flex-col pt-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Origination Date</span>
-                <span className="font-bold text-slate-600">
-                  {order.created_at ? new Date(order.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'}
-                </span>
-              </div>
-            </div>
-          </GlassCard>
+        {/* --- DETAILS & CHARGES TAB --- */}
+        {activeTab === 'details' && (
+          <>
+            {/* BENTO GRID: DETAILS & FINANCES */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
 
-          {/* Right: Logistics & Finance (Dark Glass Bento) */}
-          <div className="relative group overflow-hidden rounded-[2.5rem] bg-[#0f172a] p-8 md:p-10 text-white shadow-2xl flex flex-col transition-all hover:scale-[1.01] h-full">
-            <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-orange-500/20 blur-[80px] -z-0 pointer-events-none" />
-            <div className="relative z-10 flex flex-col h-full">
-              <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tighter mb-8 flex items-center gap-3">
-                <Box className="text-orange-400" size={24} /> Specs & Finances
-              </h2>
-              
-              <div className="grid grid-cols-2 gap-6 mb-8">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Dead Weight</p>
-                  <p className="font-black text-2xl text-white">{order.weight_kg ? `${order.weight_kg} kg` : 'TBD'}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Dimensions</p>
-                  {dimensions ? (
-                     <p className="font-black text-lg text-white">{dimensions.length}×{dimensions.width}×{dimensions.height} cm</p>
-                  ) : (
-                     <p className="font-bold text-slate-400 text-sm mt-1">Measured on arrival</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="h-px w-full bg-slate-700/50 mb-6" />
-
-              <div className="space-y-4 flex-1">
-                {(order.shipping_cost ?? order.estimated_cost) > 0 && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-slate-400">Shipping Rate</span>
-                    <span className="font-black text-sm">KES {(order.shipping_cost ?? order.estimated_cost ?? 0).toLocaleString()}</span>
-                  </div>
-                )}
-                {order.handling_fee > 0 && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-slate-400">Handling</span>
-                    <span className="font-black text-sm">KES {order.handling_fee.toLocaleString()}</span>
-                  </div>
-                )}
-                {order.insurance_fee > 0 && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-slate-400">Insurance Premium</span>
-                    <span className="font-black text-sm">KES {order.insurance_fee.toLocaleString()}</span>
-                  </div>
-                )}
-                {order.customs_duty > 0 && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-slate-400">Customs Clearance</span>
-                    <span className="font-black text-sm">KES {order.customs_duty.toLocaleString()}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-6 pt-6 border-t border-slate-700/50">
-                <div className="flex justify-between items-end">
+              {/* Left: Manifest Details */}
+              <GlassCard className="p-8 md:p-10 flex flex-col h-full">
+                <h2 className="text-xl md:text-2xl font-black text-[#0f172a] uppercase tracking-tighter mb-8 flex items-center gap-3">
+                  <FileText className="text-blue-500" size={24} /> Manifest Details
+                </h2>
+                <div className="space-y-6 flex-1">
                   <div className="flex flex-col">
-                     <span className="text-[10px] font-black uppercase tracking-widest text-orange-400 mb-1">
-                       {order.actual_cost ? 'Final Total' : 'Estimated Total'}
-                     </span>
-                     {!order.actual_cost && <span className="text-[9px] text-slate-400 font-bold max-w-[120px]">Confirmed after physical weighing</span>}
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Retailer</span>
+                    <span className="font-black text-lg text-[#0f172a]">{order.retailer}</span>
                   </div>
-                  <span className="text-3xl md:text-4xl font-black text-white">
-                    KES {cost.toLocaleString()}
-                  </span>
+                  <div className="h-px w-full bg-slate-200/50" />
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Market Origin</span>
+                    <span className="font-black text-lg text-[#0f172a]">
+                      {order.market === 'UK' ? 'United Kingdom' : order.market === 'China' ? 'China' : order.market}
+                    </span>
+                  </div>
+                  <div className="h-px w-full bg-slate-200/50" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Speed</span>
+                      <span className="font-black text-slate-800 capitalize">{order.shipping_speed || 'Economy'}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Insurance</span>
+                      <span className="font-black text-slate-800">{order.insurance ? 'Secured' : 'None'}</span>
+                    </div>
+                  </div>
+                  {order.declared_value > 0 && (
+                    <div className="flex flex-col pt-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Declared Value</span>
+                      <span className="font-black text-lg text-green-600">KES {order.declared_value.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="flex flex-col pt-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Origination Date</span>
+                    <span className="font-bold text-slate-600">
+                      {order.created_at ? new Date(order.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'}
+                    </span>
+                  </div>
+                </div>
+              </GlassCard>
+
+              {/* Right: Specs & Finances */}
+              <div className="relative group overflow-hidden rounded-[2.5rem] bg-[#0f172a] p-8 md:p-10 text-white shadow-2xl flex flex-col transition-all hover:scale-[1.01] h-full">
+                <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-orange-500/20 blur-[80px] -z-0 pointer-events-none" />
+                <div className="relative z-10 flex flex-col h-full">
+                  <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tighter mb-8 flex items-center gap-3">
+                    <Box className="text-orange-400" size={24} /> Specs & Finances
+                  </h2>
+
+                  <div className="grid grid-cols-2 gap-6 mb-8">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Dead Weight</p>
+                      <p className="font-black text-2xl text-white">{order.weight_kg ? `${order.weight_kg} kg` : 'TBD'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Dimensions</p>
+                      {dimensions ? (
+                        <p className="font-black text-lg text-white">{dimensions.length}×{dimensions.width}×{dimensions.height} cm</p>
+                      ) : (
+                        <p className="font-bold text-slate-400 text-sm mt-1">Measured on arrival</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="h-px w-full bg-slate-700/50 mb-6" />
+
+                  <div className="space-y-4 flex-1">
+                    {(order.shipping_cost ?? order.estimated_cost) > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-slate-400">Shipping Rate</span>
+                        <span className="font-black text-sm">KES {(order.shipping_cost ?? order.estimated_cost ?? 0).toLocaleString()}</span>
+                      </div>
+                    )}
+                    {order.handling_fee > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-slate-400">Handling</span>
+                        <span className="font-black text-sm">KES {order.handling_fee.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {order.insurance_fee > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-slate-400">Insurance Premium</span>
+                        <span className="font-black text-sm">KES {order.insurance_fee.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {order.customs_duty > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-slate-400">Customs Clearance</span>
+                        <span className="font-black text-sm">KES {order.customs_duty.toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-6 pt-6 border-t border-slate-700/50">
+                    <div className="flex justify-between items-end">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-orange-400 mb-1">
+                          {order.actual_cost ? 'Final Total' : 'Estimated Total'}
+                        </span>
+                        {!order.actual_cost && <span className="text-[9px] text-slate-400 font-bold max-w-[120px]">Confirmed after physical weighing</span>}
+                      </div>
+                      <span className="text-3xl md:text-4xl font-black text-white">
+                        KES {cost.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* --- PACKAGES INCLUDED --- */}
-        {order.packages && order.packages.length > 0 && (
-          <GlassCard className="mb-10 p-8">
-            <h2 className="text-xl font-black text-[#0f172a] uppercase tracking-tighter mb-6 flex items-center gap-3">
-              <Package size={20} className="text-blue-600" /> Package Line Items
-            </h2>
-            <div className="bg-white/50 backdrop-blur-md rounded-3xl overflow-hidden border border-white">
-              <table className="w-full text-left">
-                <thead className="bg-[#0f172a]/5">
-                  <tr>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Contents</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Weight</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Internal Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/50">
-                  {order.packages.map((pkg) => (
-                    <tr key={pkg.id} className="hover:bg-white/40 transition-colors">
-                      <td className="px-6 py-4 text-sm font-bold text-[#0f172a]">{pkg.description}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-slate-600">{pkg.weight_kg ? `${pkg.weight_kg} kg` : '—'}</td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex px-3 py-1 rounded-full text-[9px] font-black uppercase border shadow-sm ${getStatusColor(pkg.status)}`}>
-                          {STATUS_LABELS[pkg.status] || pkg.status?.replace(/_/g, ' ')}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </GlassCard>
+            {/* PACKAGES INCLUDED */}
+            {order.packages && order.packages.length > 0 && (
+              <GlassCard className="mb-10 p-8">
+                <h2 className="text-xl font-black text-[#0f172a] uppercase tracking-tighter mb-6 flex items-center gap-3">
+                  <Package size={20} className="text-blue-600" /> Package Line Items
+                </h2>
+                <div className="bg-white/50 backdrop-blur-md rounded-3xl overflow-hidden border border-white">
+                  <table className="w-full text-left">
+                    <thead className="bg-[#0f172a]/5">
+                      <tr>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Contents</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Weight</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Internal Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/50">
+                      {order.packages.map((pkg) => (
+                        <tr key={pkg.id} className="hover:bg-white/40 transition-colors">
+                          <td className="px-6 py-4 text-sm font-bold text-[#0f172a]">{pkg.description}</td>
+                          <td className="px-6 py-4 text-sm font-bold text-slate-600">{pkg.weight_kg ? `${pkg.weight_kg} kg` : '—'}</td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex px-3 py-1 rounded-full text-[9px] font-black uppercase border shadow-sm ${getStatusColor(pkg.status)}`}>
+                              {STATUS_LABELS[pkg.status] || pkg.status?.replace(/_/g, ' ')}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </GlassCard>
+            )}
+          </>
         )}
 
         {/* --- PAYMENT CTA (Border Gradient Bento) --- */}

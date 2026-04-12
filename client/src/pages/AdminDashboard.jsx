@@ -1162,15 +1162,54 @@ export const AdminDashboard = () => {
               <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Shipment History</h4>
               <div className="space-y-3 mb-12">
                 {selectedUserData.user?.orders?.length === 0 ? <p className="text-sm font-bold text-slate-400">No shipments found.</p> : null}
-                {selectedUserData.user?.orders?.map(o => (
-                  <div key={o.id} className="p-5 bg-white border border-slate-100 rounded-2xl flex justify-between items-center shadow-sm">
-                    <div>
-                      <p className="font-black text-[#0f172a] text-sm">{o.tracking_number}</p>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{o.market} • KES {o.estimated_cost}</p>
+                {selectedUserData.user?.orders?.map((o) => {
+                  const breakdown = o.cost_breakdown;
+                  const baseShipping =
+                    breakdown?.breakdown?.base_shipping?.amount ??
+                    o.estimated_cost ??
+                    0;
+                  const handlingFee =
+                    (breakdown?.breakdown?.electronics_handling?.amount || 0) +
+                    (breakdown?.breakdown?.handling_fee?.amount || 0);
+                  const insuranceFee = breakdown?.breakdown?.insurance?.amount || 0;
+                  const customsDuty =
+                    o.customs_duty ??
+                    breakdown?.breakdown?.customs_estimate?.amount ??
+                    0;
+                  const totalBase = breakdown?.total ?? o.estimated_cost ?? 0;
+                  const total = (o.actual_cost ?? totalBase) + (customsDuty ?? 0);
+
+                  return (
+                    <div key={o.id} className="p-5 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="font-black text-[#0f172a] text-sm">{o.tracking_number}</p>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                            {o.market} • KES {total.toLocaleString()}
+                          </p>
+                        </div>
+                        {statusBadge(o.status)}
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-slate-600 font-mono">
+                        {baseShipping > 0 && (
+                          <div>Shipping: KES {baseShipping.toLocaleString()}</div>
+                        )}
+                        {handlingFee > 0 && (
+                          <div>Handling: KES {handlingFee.toLocaleString()}</div>
+                        )}
+                        {insuranceFee > 0 && (
+                          <div>Insurance: KES {insuranceFee.toLocaleString()}</div>
+                        )}
+                        {customsDuty > 0 && (
+                          <div>Customs: KES {customsDuty.toLocaleString()}</div>
+                        )}
+                        <div className="col-span-2 font-bold text-slate-800">
+                          Total: KES {total.toLocaleString()}
+                        </div>
+                      </div>
                     </div>
-                    {statusBadge(o.status)}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Payment History</h4>

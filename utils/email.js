@@ -493,6 +493,79 @@ async function sendPaymentReceiptEmail(toEmail, toName, trackingNumber, amount, 
   }
 }
 
+async function sendOrderUpdatedEmail(
+  toEmail,
+  toName,
+  trackingNumber,
+  retailer,
+  market,
+  description,
+  shippingSpeed,
+  order,
+  ordersLink
+) {
+  const speedLabel    = shippingSpeed === 'express' ? 'Express' : 'Economy';
+  const marketFlags   = { UK: '🇬🇧', USA: '🇺🇸', China: '🇨🇳' };
+  const marketDisplay = `${marketFlags[market] || ''} ${market}`.trim();
+
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Your Order Has Been Updated</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 24px;color:#4b5563;font-size:16px;line-height:1.6;">
+      An administrator has updated the details and pricing for your order <strong>${trackingNumber}</strong>.
+    </p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 24px;font-size:15px;">
+      <tbody>
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;width:40%;">Tracking Number</td>
+          <td style="padding:10px 12px;color:#1e3a5f;font-weight:700;">${trackingNumber}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Retailer</td>
+          <td style="padding:10px 12px;color:#111827;">${retailer}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Market</td>
+          <td style="padding:10px 12px;color:#111827;">${marketDisplay}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Description</td>
+          <td style="padding:10px 12px;color:#111827;">${description}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Shipping Speed</td>
+          <td style="padding:10px 12px;color:#111827;">${speedLabel}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin:0 0 8px;color:#1e3a5f;font-size:16px;font-weight:700;">Updated Cost Breakdown</h3>
+    ${costBreakdownTable(order)}
+
+    <p style="margin:16px 0 24px;color:#4b5563;font-size:14px;line-height:1.6;">
+      If anything looks incorrect, please contact support before making payment.
+    </p>
+
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
+      <tr>
+        <td style="background-color:#1e3a5f;border-radius:8px;">
+          <a href="${ordersLink}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">View My Order</a>
+        </td>
+      </tr>
+    </table>`;
+
+  const subject = `Order Updated — ${trackingNumber}`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'order_updated', subject, userId: order?.user_id ?? null });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'order_updated', subject, userId: order?.user_id ?? null, errorMessage: error.message });
+    throw error;
+  }
+}
+
 // ── Ticket emails (stubs retained) ────────────────────────────────────────────
 async function sendTicketCreatedEmail() { /* TODO: implement when ticket email flow is added */ }
 async function sendTicketReplyEmail()   { /* TODO: implement when ticket email flow is added */ }
@@ -507,6 +580,7 @@ export {
   sendWelcomeAccountEmail,
   sendPaymentReminderEmail,
   sendPaymentReceiptEmail,
+  sendOrderUpdatedEmail,
   sendTicketCreatedEmail,
   sendTicketReplyEmail,
 };
@@ -519,6 +593,7 @@ export default {
   sendWelcomeAccountEmail,
   sendPaymentReminderEmail,
   sendPaymentReceiptEmail,
+  sendOrderUpdatedEmail,
   sendTicketCreatedEmail,
   sendTicketReplyEmail,
 };

@@ -217,7 +217,11 @@ export const Orders = () => {
                 </thead>
                 <tbody className="divide-y divide-white/30">
                   {paginatedOrders.map((order) => (
-                    <tr key={order.id} className="hover:bg-white/50 transition-colors duration-200">
+                    <tr
+                      key={order.id}
+                      className="hover:bg-white/50 transition-colors duration-200 cursor-pointer"
+                      onClick={() => navigate(`/orders/${order.id}`)}
+                    >
                       <td className="px-6 py-5 font-mono text-sm font-bold text-slate-800">
                         {order.tracking_number || `#${order.id.slice(0, 8).toUpperCase()}`}
                       </td>
@@ -232,7 +236,7 @@ export const Orders = () => {
                       <td className="px-6 py-5 text-sm font-semibold text-slate-600">
                         {order.created_at ? new Date(order.created_at).toLocaleDateString() : '—'}
                       </td>
-                      <td className="px-6 py-5">
+                      <td className="px-6 py-5" onClick={(e) => e.stopPropagation()}>
                         <div>
                           <button
                             onClick={() => setExpandedCost(expandedCost === order.id ? null : order.id)}
@@ -247,6 +251,7 @@ export const Orders = () => {
                       <td className="px-6 py-5">
                         <Link
                           to={`/orders/${order.id}`}
+                          onClick={(e) => e.stopPropagation()}
                           className="text-orange-500 hover:text-orange-600 font-black tracking-tight flex items-center gap-1.5 transition-colors bg-orange-50 hover:bg-orange-100/50 px-3 py-1.5 rounded-lg w-fit border border-orange-200/50"
                         >
                           <Eye size={16} />

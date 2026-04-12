@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
-import { sendAdminPasswordResetEmail, sendPaymentRequestEmail, sendOrderCreatedEmail, sendWelcomeAccountEmail, sendPaymentReminderEmail, sendPaymentReceiptEmail } from '../utils/email.js';
+import { sendAdminPasswordResetEmail, sendPaymentRequestEmail, sendOrderCreatedEmail, sendWelcomeAccountEmail, sendPaymentReminderEmail, sendPaymentReceiptEmail, sendOrderUpdatedEmail } from '../utils/email.js';
 import { calculateShippingCost, ELECTRONICS_HANDLING } from '../utils/pricing.js';
 import { sendInAppNotification } from '../utils/notifications.js';
 import { pushToUser, pushToAdmins } from './events.js';
@@ -94,10 +94,32 @@ router.get('/users/:id', authMiddleware, isAdmin, async (req, res) => {
     );
     if (!userRes.rows[0]) return res.status(404).json({ success: false, message: 'User not found' });
 
-    const orders = await db.query(
-      `SELECT id, tracking_number, retailer, market, status, estimated_cost, actual_cost, created_at
+    const ordersRes = await db.query(
+      `SELECT
+         id, tracking_number, retailer, market, status,
+         estimated_cost, actual_cost, customs_duty,
+         weight_kg, dimensions_json, shipping_speed, insurance,
+         declared_value, electronics_item, created_at
        FROM orders WHERE user_id = $1 ORDER BY created_at DESC`, [id]
     );
+
+    const orders = ordersRes.rows.map((o) => {
+      const dims = o.dimensions_json ? JSON.parse(o.dimensions_json) : null;
+      let cost_breakdown = null;
+      try {
+        cost_breakdown = calculateShippingCost({
+          weight_kg: o.weight_kg || 0,
+          dimensions: dims,
+          market: o.market,
+          shipping_speed: o.shipping_speed || 'economy',
+          insurance: o.insurance || false,
+          declared_value: o.declared_value || 0,
+          electronics_item: o.electronics_item || null,
+        });
+      } catch (_) { /* leave cost_breakdown as null on error */ }
+      return { ...o, dimensions_json: dims, cost_breakdown };
+    });
+
     const transactions = await db.query(
       `SELECT id, type, amount, currency, payment_method, status, created_at
        FROM transactions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10`, [id]
@@ -112,9 +134,9 @@ router.get('/users/:id', authMiddleware, isAdmin, async (req, res) => {
 
     res.json({
       success: true,
-      user: { ...userRes.rows[0], ordersCount: orders.rows.length, orders: orders.rows },
+      user: { ...userRes.rows[0], ordersCount: orders.length, orders },
       recentTransactions: transactions.rows,
-      referralStats: refStats.rows[0]
+      referralStats: refStats.rows[0],
     });
   } catch (error) {
     console.error('Get user error:', error);
@@ -367,7 +389,7 @@ router.get('/orders', authMiddleware, isAdmin, async (req, res) => {
       `SELECT o.id, o.tracking_number, o.retailer, o.market, o.status,
               o.estimated_cost, o.actual_cost, o.created_at, o.description,
               o.weight_kg, o.dimensions_json, o.shipping_speed, o.insurance,
-              o.declared_value, o.customs_duty, o.user_id,
+              o.declared_value, o.customs_duty, o.electronics_item, o.user_id,
               u.name, u.email
        FROM orders o JOIN users u ON o.user_id = u.id
        ${conditions} ORDER BY o.created_at DESC LIMIT $${params.length-1} OFFSET $${params.length}`,
@@ -426,6 +448,7 @@ router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
     if (!orderRes.rows[0]) return res.status(404).json({ success: false, message: 'Order not found' });
     const order = orderRes.rows[0];
 
+    let costBreakdown = null;
     const params = [];
     const updates = [];
 
@@ -458,7 +481,7 @@ router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
       const dims = dimensions || (order.dimensions_json ? JSON.parse(order.dimensions_json) : null);
       const effectiveWeight = weight_kg !== undefined ? weight_kg : order.weight_kg;
       const effectiveElectronics = electronics_item !== undefined ? (electronics_item || null) : (order.electronics_item || null);
-      const costBreakdown = calculateShippingCost({
+      costBreakdown = calculateShippingCost({
         weight_kg: effectiveWeight, dimensions: dims, market: order.market,
         shipping_speed: order.shipping_speed || 'economy',
         insurance: order.insurance || false,
@@ -485,8 +508,58 @@ router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
     );
     const updatedOrder = updated.rows[0];
 
+    // Ensure we have a fresh cost breakdown for the email
+    if (!costBreakdown) {
+      const dims = updatedOrder.dimensions_json
+        ? JSON.parse(updatedOrder.dimensions_json)
+        : null;
+      try {
+        costBreakdown = calculateShippingCost({
+          weight_kg: updatedOrder.weight_kg || 0,
+          dimensions: dims,
+          market: updatedOrder.market,
+          shipping_speed: updatedOrder.shipping_speed || 'economy',
+          insurance: updatedOrder.insurance || false,
+          declared_value: updatedOrder.declared_value || 0,
+          electronics_item: updatedOrder.electronics_item || null,
+        });
+      } catch (_) { /* non-fatal — skip email breakdown if pricing fails */ }
+    }
+
+    if (costBreakdown) {
+      const emailOrder = {
+        user_id: updatedOrder.user_id,
+        shipping_cost: costBreakdown.breakdown.base_shipping.amount,
+        handling_fee:
+          (costBreakdown.breakdown.electronics_handling?.amount || 0) +
+          (costBreakdown.breakdown.handling_fee?.amount || 0),
+        insurance_fee: costBreakdown.breakdown.insurance.amount,
+        customs_duty:
+          updatedOrder.customs_duty ??
+          costBreakdown.breakdown.customs_estimate?.amount ??
+          0,
+        estimated_cost: costBreakdown.total,
+        actual_cost: updatedOrder.actual_cost,
+      };
+
+      const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
+      sendOrderUpdatedEmail(
+        updatedOrder.email,
+        updatedOrder.name,
+        updatedOrder.tracking_number,
+        updatedOrder.retailer,
+        updatedOrder.market,
+        updatedOrder.description,
+        updatedOrder.shipping_speed || 'economy',
+        emailOrder,
+        `${frontendUrl}/orders`
+      ).catch((err) =>
+        console.warn('Order updated email failed (non-fatal):', err.message)
+      );
+    }
+
     // Push update to customer
-    pushToUser(order.user_id, 'order_update', { action: 'order_edited', order: updatedOrder });
+    pushToUser(updatedOrder.user_id, 'order_update', { action: 'order_edited', order: updatedOrder });
     pushToAdmins('admin_stats', { action: 'order_edited', order: updatedOrder });
 
     res.json({ success: true, message: 'Order updated successfully', order: { ...updatedOrder, dimensions_json: updatedOrder.dimensions_json ? JSON.parse(updatedOrder.dimensions_json) : null } });
@@ -741,6 +814,20 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
       rates_gbp,
     });
 
+    const customsEstimate = costBreakdown.breakdown?.customs_estimate?.amount ?? 0;
+
+    const orderForEmail = {
+      user_id: customer.id,
+      shipping_cost: costBreakdown.breakdown.base_shipping.amount,
+      handling_fee:
+        (costBreakdown.breakdown.electronics_handling?.amount || 0) +
+        (costBreakdown.breakdown.handling_fee?.amount || 0),
+      insurance_fee: costBreakdown.breakdown.insurance.amount,
+      customs_duty: customsEstimate,
+      estimated_cost: costBreakdown.total,
+      actual_cost: null,
+    };
+
     const orderId = uuidv4();
     const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
     const trackingNumber = `TC-${date}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
@@ -750,9 +837,18 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
     try {
       await client.query('BEGIN');
       await client.query(
-        `INSERT INTO orders (id, user_id, tracking_number, retailer, market, status, description, weight_kg, dimensions_json, shipping_speed, insurance, declared_value, estimated_cost)
-         VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12)`,
-        [orderId, customer.id, trackingNumber, retailer, market, description, weight_kg || null, dimensions ? JSON.stringify(dimensions) : null, speed, insurance ? true : false, declared_value || 0, costBreakdown.total]
+        `INSERT INTO orders (
+           id, user_id, tracking_number, retailer, market, status,
+           description, weight_kg, dimensions_json, shipping_speed,
+           insurance, declared_value, estimated_cost, customs_duty, electronics_item
+         )
+         VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+        [
+          orderId, customer.id, trackingNumber, retailer, market, description,
+          weight_kg || null, dimensions ? JSON.stringify(dimensions) : null,
+          speed, insurance ? true : false, declared_value || 0, costBreakdown.total,
+          customsEstimate, electronics_item || null,
+        ]
       );
       await client.query(
         `INSERT INTO packages (id, order_id, user_id, description, weight_kg, status) VALUES ($1,$2,$3,$4,$5,'pending')`,
@@ -810,7 +906,8 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
       market,
       description + handlingFeeNote,
       speed,
-      `${appUrl}/orders`
+      `${appUrl}/orders`,
+      orderForEmail
     ).catch((err) => console.warn('Order created email failed (non-fatal):', err.message));
 
     res.status(201).json({

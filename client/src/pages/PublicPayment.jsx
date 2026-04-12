@@ -157,14 +157,6 @@ export const PublicPayment = () => {
                 <p className="text-xs font-bold text-orange-300 uppercase tracking-widest mb-1">Amount Due</p>
                 <p className="text-2xl font-black text-orange-400 tracking-tighter">KES {order.amount_due.toLocaleString()}</p>
               </div>
-              <div className="bg-white/5 rounded-xl p-4 border border-white/10 backdrop-blur-sm">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Customer Name</p>
-                <p className="text-lg font-bold text-slate-300 tracking-tight">{order.user_name}</p>
-              </div>
-              <div className="bg-white/5 rounded-xl p-4 border border-white/10 backdrop-blur-sm">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Status</p>
-                <p className="text-lg font-bold text-slate-300 tracking-tight capitalize">{order.status.replace(/_/g, ' ')}</p>
-              </div>
             </div>
           </div>
         </div>
