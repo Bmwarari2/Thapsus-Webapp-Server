@@ -174,26 +174,25 @@ export const PublicPayment = () => {
               </li>
               <li className="flex items-start bg-white/40 p-4 rounded-xl border border-white/50 backdrop-blur-sm">
                 <span className="font-black text-orange-500 text-lg leading-none mr-4">2.</span>
-                <span>Select <strong className="text-[#1e3a5f] font-black">Lipa na M-Pesa Online</strong> or similar option</span>
+                <span>Select <strong className="text-[#1e3a5f] font-black">Lipa na M-Pesa</strong>, then select <strong className="text-[#1e3a5f] font-black">Buy Goods and Services</strong></span>
               </li>
               <li className="flex items-start bg-white/40 p-4 rounded-xl border border-white/50 backdrop-blur-sm">
                 <span className="font-black text-orange-500 text-lg leading-none mr-4">3.</span>
-                <span>Enter the Paybill: <strong className="text-[#1e3a5f] font-black text-lg tracking-tight">XXXXXX</strong></span>
+                <div>
+                  <span>Enter Till Number: <strong className="text-[#1e3a5f] font-black text-lg tracking-tight">5530500</strong></span>
+                  <p className="text-xs text-slate-500 font-semibold mt-1">Account name: <strong className="text-[#1e3a5f]">Brian Wanderi</strong></p>
+                </div>
               </li>
               <li className="flex items-start bg-white/40 p-4 rounded-xl border border-white/50 backdrop-blur-sm">
                 <span className="font-black text-orange-500 text-lg leading-none mr-4">4.</span>
-                <span className="break-all">Enter Account Number: <strong className="text-[#1e3a5f] font-black text-lg tracking-tight">{order.tracking_number}</strong></span>
-              </li>
-              <li className="flex items-start bg-white/40 p-4 rounded-xl border border-white/50 backdrop-blur-sm">
-                <span className="font-black text-orange-500 text-lg leading-none mr-4">5.</span>
                 <span>Enter Amount: <strong className="text-[#1e3a5f] font-black text-lg tracking-tight">KES {order.amount_due.toLocaleString()}</strong></span>
               </li>
               <li className="flex items-start bg-white/40 p-4 rounded-xl border border-white/50 backdrop-blur-sm">
-                <span className="font-black text-orange-500 text-lg leading-none mr-4">6.</span>
+                <span className="font-black text-orange-500 text-lg leading-none mr-4">5.</span>
                 <span>Enter your M-Pesa PIN and complete the transaction</span>
               </li>
               <li className="flex items-start bg-white/40 p-4 rounded-xl border border-white/50 backdrop-blur-sm">
-                <span className="font-black text-orange-500 text-lg leading-none mr-4">7.</span>
+                <span className="font-black text-orange-500 text-lg leading-none mr-4">6.</span>
                 <span>Copy the confirmation message and paste it below</span>
               </li>
             </ol>
