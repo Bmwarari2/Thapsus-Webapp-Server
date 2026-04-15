@@ -7,7 +7,7 @@ import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
 import { ordersApi } from '../api'
 import { SEO } from '../components/SEO'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 
 // Human-readable labels for every order status
@@ -61,7 +61,8 @@ const GlassCard = ({ children, className = "" }) => (
 export const TrackPackage = () => {
   const { t } = useLanguage()
   const { user, isAuthenticated } = useAuth()
-  const [trackingNumber, setTrackingNumber] = useState('')
+  const [searchParams] = useSearchParams()
+  const [trackingNumber, setTrackingNumber] = useState(searchParams.get('q') || '')
   const [loading, setLoading] = useState(false)
   const [package_, setPackage] = useState(null)
   const [error, setError] = useState(null)
@@ -80,6 +81,19 @@ export const TrackPackage = () => {
     { status: 'out_for_delivery',      label: 'Out for Delivery',      icon: ArrowRight },
     { status: 'delivered',             label: 'Delivered',             icon: Check   },
   ]
+
+  // Auto-search if ?q= query param is present (e.g. from hero tracking input)
+  useEffect(() => {
+    const q = searchParams.get('q')
+    if (q && q.trim()) {
+      setTrackingNumber(q.trim())
+      setLoading(true)
+      ordersApi.track(q.trim())
+        .then(res => { setPackage(res.data.tracking); setLoading(false) })
+        .catch(() => { setError(t('track.notFound')); setLoading(false) })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Load user's orders when authenticated
   useEffect(() => {

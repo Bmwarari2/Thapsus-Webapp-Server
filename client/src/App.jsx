@@ -37,6 +37,7 @@ const OrderConfirmation = lazy(() => import('./pages/OrderConfirmation').then(m 
 const PrivacyPolicy     = lazy(() => import('./pages/PrivacyPolicy').then(m => ({ default: m.PrivacyPolicy })))
 const TermsOfService    = lazy(() => import('./pages/TermsOfService').then(m => ({ default: m.TermsOfService })))
 const ShipInstructions  = lazy(() => import('./pages/ShipInstructions').then(m => ({ default: m.ShipInstructions })))
+const FAQ               = lazy(() => import('./pages/FAQ').then(m => ({ default: m.FAQ })))
 
 // ── Minimal loading spinner (shown briefly while lazy chunks load) ──────────
 const PageLoader = () => (
@@ -68,6 +69,7 @@ function App() {
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/pay/:orderId" element={<PublicPayment />} />
+            <Route path="/faq" element={<FAQ />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms"   element={<TermsOfService />} />
 

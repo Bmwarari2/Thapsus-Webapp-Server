@@ -1,7 +1,13 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { Mail, Phone, MapPin, Facebook, Twitter, Linkedin, Instagram } from 'lucide-react'
+import { Mail, Phone, MapPin, Facebook, Instagram } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
+
+const TikTokIcon = ({ size = 20, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.76a4.85 4.85 0 0 1-1.01-.07z"/>
+  </svg>
+)
 
 export const Footer = () => {
   const { t } = useLanguage()
@@ -32,7 +38,7 @@ export const Footer = () => {
           <div>
             <h3 className="font-black text-xl mb-6 text-white tracking-tighter leading-none">{t('nav.home')}</h3>
             <ul className="space-y-3 text-sm font-semibold text-slate-400">
-              <li><a href="/" className="hover:text-orange-400 hover:translate-x-1 inline-block transition-transform duration-300">{t('common.about')}</a></li>
+              <li><a href="/" className="hover:text-orange-400 hover:translate-x-1 inline-block transition-transform duration-300">{t('nav.home')}</a></li>
               <li><a href="/pricing" className="hover:text-orange-400 hover:translate-x-1 inline-block transition-transform duration-300">{t('nav.pricing')}</a></li>
               <li><a href="/track" className="hover:text-orange-400 hover:translate-x-1 inline-block transition-transform duration-300">{t('nav.track')}</a></li>
               <li><a href="/support" className="hover:text-orange-400 hover:translate-x-1 inline-block transition-transform duration-300">{t('nav.support')}</a></li>
@@ -78,21 +84,17 @@ export const Footer = () => {
           <div>
             <h3 className="font-black text-xl mb-6 text-white tracking-tighter leading-none">{t('common.followUs')}</h3>
             <div className="flex gap-3">
-              <a href="#" aria-label="Facebook" className="group relative overflow-hidden p-3 bg-white/5 hover:bg-orange-500 rounded-xl border border-white/10 transition-all duration-300 hover:shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:-translate-y-1 glass-sheen">
+              <a href="https://www.facebook.com/share/18Uq3aBzTF/?mibextid=wwXIfr" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="group relative overflow-hidden p-3 bg-white/5 hover:bg-orange-500 rounded-xl border border-white/10 transition-all duration-300 hover:shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:-translate-y-1 glass-sheen">
                 <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
                 <Facebook size={20} className="text-slate-300 group-hover:text-white relative z-10 transition-colors" />
               </a>
-              <a href="#" aria-label="Twitter" className="group relative overflow-hidden p-3 bg-white/5 hover:bg-orange-500 rounded-xl border border-white/10 transition-all duration-300 hover:shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:-translate-y-1 glass-sheen">
-                <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
-                <Twitter size={20} className="text-slate-300 group-hover:text-white relative z-10 transition-colors" />
-              </a>
-              <a href="#" aria-label="LinkedIn" className="group relative overflow-hidden p-3 bg-white/5 hover:bg-orange-500 rounded-xl border border-white/10 transition-all duration-300 hover:shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:-translate-y-1 glass-sheen">
-                <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
-                <Linkedin size={20} className="text-slate-300 group-hover:text-white relative z-10 transition-colors" />
-              </a>
-              <a href="#" aria-label="Instagram" className="group relative overflow-hidden p-3 bg-white/5 hover:bg-orange-500 rounded-xl border border-white/10 transition-all duration-300 hover:shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:-translate-y-1 glass-sheen">
+              <a href="https://www.instagram.com/thapsus.uk" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="group relative overflow-hidden p-3 bg-white/5 hover:bg-orange-500 rounded-xl border border-white/10 transition-all duration-300 hover:shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:-translate-y-1 glass-sheen">
                 <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
                 <Instagram size={20} className="text-slate-300 group-hover:text-white relative z-10 transition-colors" />
+              </a>
+              <a href="https://www.tiktok.com/@thapsus.uk" target="_blank" rel="noopener noreferrer" aria-label="TikTok" className="group relative overflow-hidden p-3 bg-white/5 hover:bg-orange-500 rounded-xl border border-white/10 transition-all duration-300 hover:shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:-translate-y-1 glass-sheen">
+                <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
+                <TikTokIcon size={20} className="text-slate-300 group-hover:text-white relative z-10 transition-colors" />
               </a>
             </div>
           </div>

@@ -1,5 +1,5 @@
-import React from 'react'
-import { Link } from 'react-router-dom'
+import React, { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   ArrowRight, Package, Truck, MapPin, Star, ChevronRight,
   Globe, ShieldCheck, Zap, ShoppingBag, Headphones, Sparkles,
@@ -51,6 +51,15 @@ const MarqueeRetailers = ({ retailers }) => {
 export const Home = () => {
   const { t } = useLanguage()
   const { isAuthenticated } = useAuth()
+  const navigate = useNavigate()
+  const [trackingInput, setTrackingInput] = useState('')
+
+  const handleTrack = (e) => {
+    e.preventDefault()
+    const q = trackingInput.trim()
+    if (q) navigate(`/track?q=${encodeURIComponent(q)}`)
+    else navigate('/track')
+  }
 
   const retailers = [
     { name: 'Shein',      url: 'https://www.shein.com',      icon: <ShoppingBag size={24} className="text-pink-500"   /> },
@@ -68,34 +77,64 @@ export const Home = () => {
   const markets = [
     {
         name: 'United Kingdom',
+        flag: '🇬🇧',
         icon: <div className="w-10 h-7 md:w-12 md:h-8 bg-blue-900 rounded-sm relative overflow-hidden flex items-center justify-center text-white text-[9px] md:text-[10px] font-bold">UK</div>,
-        desc: '5-10 Day Express'
+        address: '31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB',
+        desc: 'Air: 7–14 days · From £9/kg',
+        processing: 'Weekly consolidation',
     },
     {
         name: 'China',
+        flag: '🇨🇳',
         icon: <div className="w-10 h-7 md:w-12 md:h-8 bg-red-600 rounded-sm relative overflow-hidden flex items-center justify-center text-white text-[9px] md:text-[10px] font-bold">CHN</div>,
-        desc: 'Economy Logistics'
+        address: 'Thapsus Cargo Warehouse, Shanghai, China',
+        desc: 'Air & Sea available',
+        processing: 'Bi-weekly consolidation',
     },
   ]
 
   const testimonials = [
     {
       name: 'John Kimani',
-      text: 'Thapsus Cargo made shopping international so easy. My packages arrived quickly and in perfect condition!',
+      location: 'Nairobi CBD',
+      text: 'Thapsus Cargo made shopping from Amazon UK so easy. My packages arrived in perfect condition within 10 days — way faster than I expected!',
       avatar: <div className="w-full h-full bg-orange-100 flex items-center justify-center text-orange-600"><MapPin size={24}/></div>,
       color: 'bg-orange-50',
     },
     {
       name: 'Sarah Omondi',
-      text: 'Best shipping service I have used. Transparent pricing and excellent customer support throughout.',
+      location: 'Mombasa',
+      text: 'I ordered electronics from the UK and the team handled everything including customs. Transparent pricing — no hidden surprises at all.',
       avatar: <div className="w-full h-full bg-blue-100 flex items-center justify-center text-blue-600"><CheckCircle2 size={24}/></div>,
       color: 'bg-blue-50',
     },
     {
       name: 'Michael Kipchoge',
-      text: 'Reliable and affordable. I have sent multiple packages and every single one arrived on time.',
+      location: 'Eldoret',
+      text: 'Reliable and affordable. I consolidate my Shein and AliExpress orders every month and always get a good rate. Highly recommend!',
       avatar: <div className="w-full h-full bg-purple-100 flex items-center justify-center text-purple-600"><ShieldCheck size={24}/></div>,
       color: 'bg-purple-50',
+    },
+    {
+      name: 'Grace Wanjiru',
+      location: 'Thika',
+      text: 'The TC code system is brilliant. I ship from multiple UK stores and everything gets consolidated into one affordable shipment to Kenya.',
+      avatar: <div className="w-full h-full bg-green-100 flex items-center justify-center text-green-600"><Star size={24} fill="currentColor"/></div>,
+      color: 'bg-green-50',
+    },
+    {
+      name: 'David Otieno',
+      location: 'Kisumu',
+      text: 'I was nervous about shipping from China but the team walked me through everything. My order arrived safely and the tracking updates were great.',
+      avatar: <div className="w-full h-full bg-amber-100 flex items-center justify-center text-amber-600"><Package size={24}/></div>,
+      color: 'bg-amber-50',
+    },
+    {
+      name: 'Fatuma Hassan',
+      location: 'Nakuru',
+      text: 'Best forwarding service in Kenya. The CBD collection point is super convenient and the staff are always helpful. Will keep using Thapsus!',
+      avatar: <div className="w-full h-full bg-pink-100 flex items-center justify-center text-pink-600"><Sparkles size={24}/></div>,
+      color: 'bg-pink-50',
     },
   ]
 
@@ -179,19 +218,22 @@ export const Home = () => {
                   <svg viewBox="0 0 32 32" width="22" height="22" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M16 0C7.163 0 0 7.163 0 16c0 2.824.737 5.479 2.027 7.793L0 32l8.455-2.005A15.931 15.931 0 0016 32c8.837 0 16-7.163 16-16S24.837 0 16 0zm0 29.333a13.29 13.29 0 01-6.781-1.853l-.487-.29-5.013 1.189 1.213-4.877-.317-.5A13.267 13.267 0 012.667 16C2.667 8.636 8.636 2.667 16 2.667S29.333 8.636 29.333 16 23.364 29.333 16 29.333zm7.28-9.947c-.397-.199-2.35-1.158-2.714-1.29-.365-.132-.63-.199-.896.199-.265.397-1.03 1.29-1.261 1.556-.232.265-.464.298-.861.1-.397-.2-1.675-.617-3.19-1.967-1.179-1.05-1.976-2.346-2.207-2.744-.232-.397-.025-.612.174-.81.178-.178.397-.464.596-.696.199-.232.265-.397.397-.662.132-.265.066-.497-.033-.696-.1-.199-.896-2.162-1.228-2.959-.323-.777-.65-.672-.896-.684l-.762-.013c-.265 0-.696.1-1.06.497-.365.397-1.394 1.362-1.394 3.324s1.427 3.855 1.626 4.12c.199.265 2.808 4.288 6.804 6.012.951.41 1.694.655 2.273.839.955.304 1.825.261 2.512.158.766-.114 2.35-.96 2.681-1.888.332-.928.332-1.723.232-1.888-.1-.166-.365-.265-.762-.464z"/></svg>
                   Chat on WhatsApp
                 </a>
-                <div className="relative group max-w-sm flex-grow">
+                <form onSubmit={handleTrack} className="relative group max-w-sm flex-grow">
                    <div className="relative flex items-center bg-white/60 hover:bg-white/90 backdrop-blur-2xl border border-white/40 focus-within:border-orange-400/50 rounded-[1.5rem] md:rounded-[2rem] px-1.5 md:px-2 shadow-2xl transition-all duration-500">
                        <Search size={18} className="ml-3 md:ml-4 text-slate-400" />
-                       <input 
-                        type="text" 
-                        placeholder="Tracking ID..." 
+                       <input
+                        type="text"
+                        value={trackingInput}
+                        onChange={(e) => setTrackingInput(e.target.value)}
+                        placeholder="Tracking ID..."
+                        aria-label="Enter your tracking ID"
                         className="w-full px-3 py-4 md:px-4 md:py-5 bg-transparent border-none outline-none focus:ring-0 text-xs md:text-sm font-bold placeholder:text-slate-400"
                        />
-                       <button className="px-5 py-2.5 md:px-6 md:py-3 bg-orange-500 text-white rounded-full text-[10px] md:text-xs font-black hover:bg-orange-600 transition-all shadow-lg hover:shadow-orange-200 shrink-0">
+                       <button type="submit" className="px-5 py-2.5 md:px-6 md:py-3 bg-orange-500 text-white rounded-full text-[10px] md:text-xs font-black hover:bg-orange-600 transition-all shadow-lg hover:shadow-orange-200 shrink-0">
                          TRACK
                        </button>
                    </div>
-                </div>
+                </form>
               </div>
 
               <div className="flex items-center justify-center lg:justify-start gap-6 md:gap-8 pt-6 md:pt-8 border-t border-slate-200">
@@ -203,7 +245,7 @@ export const Home = () => {
                 </div>
                 <div className="h-8 md:h-10 w-[1px] bg-slate-200" />
                 <p className="text-[10px] md:text-xs text-slate-500 font-bold max-w-[150px] md:max-w-[200px] leading-relaxed text-left">
-                  Trusted by <span className="text-slate-900">12,000+</span> shoppers across East Africa.
+                  Over <span className="text-slate-900">12,000+</span> shipments delivered across East Africa.
                 </p>
               </div>
             </div>
@@ -291,25 +333,32 @@ export const Home = () => {
                   <div className="w-20 h-20 md:w-24 md:h-24 shrink-0 bg-slate-900 rounded-2xl md:rounded-3xl flex items-center justify-center text-white group-hover:scale-110 transition-transform"><Truck size={36} className="md:w-10 md:h-10"/></div>
                   <div>
                     <h3 className="text-2xl md:text-3xl font-black mb-2 md:mb-3 text-[#0f172a] uppercase tracking-tighter">04. {t('home.step4')}</h3>
-                    <p className="text-slate-500 text-xs md:text-sm font-bold">Courier delivery to your doorstep across Kenya or local pickup.</p>
+                    <p className="text-slate-500 text-xs md:text-sm font-bold">Collect from our Nairobi CBD collection point, or we deliver using your preferred courier anywhere in Kenya.</p>
                   </div>
                </div>
             </div>
 
-            <GlassCard className="md:col-span-1 lg:col-span-2 p-8 md:p-10 flex items-center justify-between group overflow-hidden">
-                <div className="z-10 space-y-4 md:space-y-6">
+            <GlassCard className="md:col-span-1 lg:col-span-2 p-8 md:p-10 group overflow-hidden">
+                <div className="z-10 space-y-6">
                   <h3 className="text-xl md:text-2xl font-black text-slate-900 uppercase">Global Hubs</h3>
-                  <div className="flex gap-6 md:gap-8">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {markets.map(m => (
-                      <div key={m.name} className="space-y-2">
-                        {m.icon}
-                        <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{m.name.split(' ')[1] || m.name}</p>
+                      <div key={m.name} className="bg-white/60 rounded-2xl p-4 border border-white/50 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-2xl">{m.flag}</span>
+                          <p className="text-sm font-black text-slate-800">{m.name}</p>
+                        </div>
+                        <p className="text-[10px] font-bold text-slate-500 leading-snug">{m.address}</p>
+                        <div className="flex gap-2 flex-wrap">
+                          <span className="text-[9px] font-black uppercase tracking-wider text-orange-600 bg-orange-50 border border-orange-100 px-2 py-0.5 rounded-full">{m.desc}</span>
+                          <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-full">{m.processing}</span>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
-                <div className="text-slate-100 absolute -right-4 md:-right-8 rotate-12 group-hover:rotate-0 transition-transform duration-1000 -z-0">
-                  <Globe size={180} className="md:w-[240px] md:h-[240px] opacity-20" />
+                <div className="text-slate-100 absolute -right-4 md:-right-8 rotate-12 group-hover:rotate-0 transition-transform duration-1000 -z-0 top-0">
+                  <Globe size={180} className="md:w-[240px] md:h-[240px] opacity-10" />
                 </div>
             </GlassCard>
           </div>
@@ -340,7 +389,7 @@ export const Home = () => {
                   <div className="text-orange-400 mb-6 md:mb-8"><Plane size={32} className="md:w-10 md:h-10"/></div>
                   <h3 className="text-white font-black text-xl md:text-2xl mb-2">Air Cargo</h3>
                   <p className="text-slate-400 text-[10px] md:text-xs mb-6 md:mb-8 font-bold leading-relaxed">Fastest route. Weekly consolidation.</p>
-                  <p className="text-3xl md:text-4xl font-black text-white">$12.00<small className="text-[10px] md:text-sm opacity-50 ml-2">/kg</small></p>
+                  <p className="text-3xl md:text-4xl font-black text-white">From £9<small className="text-[10px] md:text-sm opacity-50 ml-2">/kg</small></p>
                 </GlassCard>
                 <GlassCard className="p-8 md:p-10 bg-white/5 border-white/10 group hover:bg-white/10 transition-all flex flex-col justify-center min-h-[220px]">
                   <div className="text-blue-400 mb-6 md:mb-8"><Truck size={32} className="md:w-10 md:h-10"/></div>
@@ -375,7 +424,7 @@ export const Home = () => {
                   </div>
                   <div>
                     <h4 className="font-black text-slate-900 text-sm md:text-base">{test.name}</h4>
-                    <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Verified Client</p>
+                    <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{test.location} · Verified Client</p>
                   </div>
                 </div>
               </GlassCard>
@@ -403,9 +452,9 @@ export const Home = () => {
              >
                {t('home.hero.cta')}
              </Link>
-             <button className="px-10 py-5 md:px-12 md:py-6 bg-[#0f172a] text-white rounded-[1.5rem] md:rounded-[2rem] font-black text-lg shadow-2xl hover:bg-slate-800 transition-all flex items-center justify-center gap-3 md:gap-4">
-               <Headphones size={20} className="md:w-6 md:h-6"/> Help Center
-             </button>
+             <Link to="/faq" className="px-10 py-5 md:px-12 md:py-6 bg-[#0f172a] text-white rounded-[1.5rem] md:rounded-[2rem] font-black text-lg shadow-2xl hover:bg-slate-800 transition-all flex items-center justify-center gap-3 md:gap-4">
+               <Headphones size={20} className="md:w-6 md:h-6"/> Help Centre
+             </Link>
            </div>
 
            <div className="pt-20 md:pt-32 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-10 border-t border-slate-200 text-slate-400 font-black text-[8px] md:text-[10px] uppercase tracking-[0.4em]">

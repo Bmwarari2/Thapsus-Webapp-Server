@@ -95,6 +95,7 @@ const translations = {
 
     // Pricing
     'pricing.title': 'Shipping Calculator',
+    'pricing.description': 'Get an instant quote for shipping from UK or China to Kenya — including insurance, customs, and electronics handling fees.',
     'pricing.market': 'Market of Origin',
     'pricing.weight': 'Weight (kg)',
     'pricing.dimensions': 'Dimensions',
@@ -390,6 +391,7 @@ const translations = {
 
     // Pricing
     'pricing.title': 'Kikokotoo cha Utoaji',
+    'pricing.description': 'Pata bei ya haraka ya kusafirisha kutoka UK au China hadi Kenya — ikiwemo bima, forodha, na ada za kushughulikia vifaa vya elektroniki.',
     'pricing.market': 'Soko la Asili',
     'pricing.weight': 'Uzani (kg)',
     'pricing.dimensions': 'Vipimo',
