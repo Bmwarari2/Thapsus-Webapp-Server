@@ -5,6 +5,7 @@ import { Package, Eye, ChevronDown } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { ordersApi } from '../api'
 import toast from 'react-hot-toast'
+import { useOrderUpdates } from '../hooks/useRealtimeUpdates'
 
 const CostBreakdown = ({ order }) => {
   const shippingCost = order.shipping_cost ?? order.estimated_cost ?? 0
@@ -78,16 +79,39 @@ export const Orders = () => {
     fetchOrders()
   }, [filters])
 
+  // Real-time order updates via SSE — keep the list in sync without a page refresh
+  useOrderUpdates(({ action, order }) => {
+    if (!order) return
+    setOrders((prev) => {
+      // If a status filter is active and this order no longer matches, remove it
+      if (filters.status && order.status !== filters.status) {
+        return prev.filter((o) => o.id !== order.id)
+      }
+      if (filters.market && order.market !== filters.market) {
+        return prev.filter((o) => o.id !== order.id)
+      }
+      const exists = prev.some((o) => o.id === order.id)
+      if (exists) {
+        // Update in-place to preserve sort order
+        return prev.map((o) => (o.id === order.id ? { ...o, ...order } : o))
+      }
+      // New order arrived — prepend it
+      return [order, ...prev]
+    })
+  })
+
   const getStatusColor = (status) => {
     const colors = {
-      pending: 'status-pending',
-      processing: 'status-processing',
-      'in-transit': 'status-in-transit',
-      delivered: 'status-delivered',
-      failed: 'status-failed',
-      cancelled: 'status-cancelled',
+      pending:                'bg-amber-50 text-amber-700 border-amber-200',
+      received_at_warehouse:  'bg-blue-50 text-blue-700 border-blue-200',
+      consolidating:          'bg-purple-50 text-purple-700 border-purple-200',
+      in_transit:             'bg-indigo-50 text-indigo-700 border-indigo-200',
+      customs:                'bg-orange-50 text-orange-700 border-orange-200',
+      out_for_delivery:       'bg-cyan-50 text-cyan-700 border-cyan-200',
+      delivered:              'bg-green-50 text-green-700 border-green-200',
+      cancelled:              'bg-red-50 text-red-700 border-red-200',
     }
-    return colors[status] || 'status-pending'
+    return colors[status] || 'bg-slate-50 text-slate-700 border-slate-200'
   }
 
   const paginatedOrders = orders.slice(
@@ -146,10 +170,12 @@ export const Orders = () => {
               >
                 <option value="">All Statuses</option>
                 <option value="pending">Pending</option>
-                <option value="processing">Processing</option>
-                <option value="in-transit">In Transit</option>
+                <option value="received_at_warehouse">Received at Warehouse</option>
+                <option value="consolidating">Consolidating</option>
+                <option value="in_transit">In Transit</option>
+                <option value="customs">Customs Clearance</option>
+                <option value="out_for_delivery">Out for Delivery</option>
                 <option value="delivered">Delivered</option>
-                <option value="failed">Failed</option>
                 <option value="cancelled">Cancelled</option>
               </select>
             </div>
@@ -229,8 +255,8 @@ export const Orders = () => {
                         {order.market === 'UK' ? 'United Kingdom' : order.market === 'China' ? 'China' : order.market}
                       </td>
                       <td className="px-6 py-5">
-                        <span className={`status-badge shadow-sm border border-white/50 backdrop-blur-sm ${getStatusColor(order.status)}`}>
-                          {t(`orders.${order.status.replace('-', '')}`)}
+                        <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase border shadow-sm ${getStatusColor(order.status)}`}>
+                          {order.status?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Pending'}
                         </span>
                       </td>
                       <td className="px-6 py-5 text-sm font-semibold text-slate-600">

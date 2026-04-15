@@ -90,10 +90,18 @@ router.get('/', authMiddleware, (req, res) => {
   // Stamp admin role so pushToAdmins can filter
   res._swiftAdminRole = req.user.role;
 
-  // Initial "connected" ping so client knows the stream is live
-  res.write(`event: connected\ndata: ${JSON.stringify({ userId: req.user.id, ts: Date.now() })}\n\n`);
+  // Log the connection so we can track client counts and spot leaks in prod.
+  // Count all sockets for this user (including this new one) after registration.
+  const userId   = req.user.id;
+  const userRole = req.user.role;
 
-  const unsubscribe = addClient(req.user.id, res);
+  // Initial "connected" ping so client knows the stream is live
+  res.write(`event: connected\ndata: ${JSON.stringify({ userId, ts: Date.now() })}\n\n`);
+
+  const unsubscribe = addClient(userId, res);
+
+  const totalClients = [...clients.values()].reduce((sum, s) => sum + s.size, 0);
+  console.info(`[SSE] connect   user=${userId} role=${userRole} total_connections=${totalClients}`);
 
   // Heartbeat every 25 s to prevent proxy / load-balancer timeouts
   const heartbeat = setInterval(() => {
@@ -103,6 +111,8 @@ router.get('/', authMiddleware, (req, res) => {
   req.on('close', () => {
     clearInterval(heartbeat);
     unsubscribe();
+    const remaining = [...clients.values()].reduce((sum, s) => sum + s.size, 0);
+    console.info(`[SSE] disconnect user=${userId} role=${userRole} total_connections=${remaining}`);
   });
 });
 

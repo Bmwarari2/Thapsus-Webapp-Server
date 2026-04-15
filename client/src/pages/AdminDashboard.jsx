@@ -15,6 +15,7 @@ import {
 } from 'recharts'
 import toast from 'react-hot-toast'
 import { ShippingRatesPanel } from '../components/ShippingRatesPanel'
+import { useAdminStats } from '../hooks/useRealtimeUpdates'
 
 // --- CUSTOM STYLES & GLASS COMPONENTS ---
 const DashboardStyles = () => (
@@ -153,6 +154,12 @@ export const AdminDashboard = () => {
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // Real-time admin stats updates via SSE — avoids stale overview numbers
+  useAdminStats((payload) => {
+    if (!payload) return
+    setStats((prev) => ({ ...(prev || {}), ...payload }))
+  })
 
   // --- Handlers ---
   const fetchErrorLogs = async (page = 1, filters = errorLogFilter) => {

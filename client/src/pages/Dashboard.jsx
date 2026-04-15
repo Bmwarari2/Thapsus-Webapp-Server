@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Package, Wallet, TrendingUp, Eye, Copy, CheckCheck, MapPin, ArrowRight, Box } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
-import { ordersApi, walletApi } from '../api'
+import { ordersApi, walletApi, warehouseApi } from '../api'
 import toast from 'react-hot-toast'
 import { useOrderUpdates, useWalletUpdates } from '../hooks/useRealtimeUpdates'
 
@@ -55,14 +55,19 @@ export const Dashboard = () => {
     activeOrders: 0,
     walletBalance: 0,
   })
+  // UK warehouse address lines loaded from the API (falls back to inline defaults)
+  const [ukAddressLines, setUkAddressLines] = useState([])
+
+  const ACTIVE_STATUSES = ['pending', 'received_at_warehouse', 'consolidating', 'in_transit', 'customs', 'out_for_delivery']
 
   // Fetch once on mount
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [ordersResult, walletResult] = await Promise.allSettled([
+        const [ordersResult, walletResult, warehouseResult] = await Promise.allSettled([
           ordersApi.list(),
           walletApi.getBalance(),
+          warehouseApi.getAddresses(),
         ])
 
         let fetchedOrders = []
@@ -76,8 +81,13 @@ export const Dashboard = () => {
           walletBalance = walletResult.value.data?.wallet?.balance ?? 0
         }
 
+        if (warehouseResult.status === 'fulfilled') {
+          const uk = warehouseResult.value.data?.addresses?.UK
+          if (uk?.lines?.length) setUkAddressLines(uk.lines)
+        }
+
         const activeOrders = fetchedOrders.filter((o) =>
-          ['pending', 'received_at_warehouse', 'consolidating', 'in_transit', 'customs', 'out_for_delivery'].includes(o.status)
+          ACTIVE_STATUSES.includes(o.status)
         )
 
         setOrders(activeOrders)
@@ -126,22 +136,47 @@ export const Dashboard = () => {
     }))
   })
 
+  // Build address lines: personal identifier first, then warehouse location from API
+  const warehouseLines = ukAddressLines.length > 0
+    ? ukAddressLines
+    : ['31 Collingwood Close', 'Hazel Grove, Stockport', 'SK7 4LB', 'United Kingdom']
+
   const addressLines = [
     user?.name || '',
     user?.warehouse_id || user?.warehouseId || '',
-    '31 Collingwood Close',
-    'Hazel Grove, Stockport',
-    'SK7 4LB',
-    'United Kingdom',
+    ...warehouseLines,
   ].filter(Boolean)
 
-  const handleCopyAddress = useCallback(() => {
-    navigator.clipboard.writeText(addressLines.join('\n')).then(() => {
+  /** Copy text with a graceful fallback for browsers without clipboard API */
+  const copyToClipboard = useCallback(async (text) => {
+    try {
+      await navigator.clipboard.writeText(text)
       setCopied(true)
       toast.success('Address copied to clipboard')
       setTimeout(() => setCopied(false), 2000)
-    })
-  }, [addressLines])
+    } catch (_) {
+      // Fallback: select text via a temporary textarea
+      try {
+        const el = document.createElement('textarea')
+        el.value = text
+        el.setAttribute('readonly', '')
+        el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0'
+        document.body.appendChild(el)
+        el.select()
+        document.execCommand('copy')
+        document.body.removeChild(el)
+        setCopied(true)
+        toast.success('Address copied to clipboard')
+        setTimeout(() => setCopied(false), 2000)
+      } catch (_) {
+        toast.error('Could not copy automatically. Please select and copy manually.')
+      }
+    }
+  }, [])
+
+  const handleCopyAddress = useCallback(() => {
+    copyToClipboard(addressLines.join('\n'))
+  }, [addressLines, copyToClipboard])
 
   const getStatusColor = (status) => {
     const colors = {

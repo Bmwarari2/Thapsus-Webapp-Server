@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Copy, MapPin, AlertCircle } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
@@ -10,12 +10,14 @@ export const WarehouseAddresses = () => {
   const { user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [addresses, setAddresses] = useState({})
+  const [tcCode, setTcCode] = useState(`TC-${user?.warehouse_id || 'XXXX'}`)
 
   useEffect(() => {
     const fetchAddresses = async () => {
       try {
         const response = await warehouseApi.getAddresses()
         setAddresses(response.data.addresses || {})
+        if (response.data.tcCode) setTcCode(response.data.tcCode)
       } catch (err) {
         toast.error('Failed to load warehouse addresses')
       } finally {
@@ -26,23 +28,55 @@ export const WarehouseAddresses = () => {
     fetchAddresses()
   }, [])
 
-  const handleCopyAddress = (address) => {
-    navigator.clipboard.writeText(address)
-    toast.success(t('warehouse.copied'))
-  }
+  /** Copy to clipboard with graceful fallback for restricted browser contexts */
+  const handleCopyAddress = useCallback(async (text) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(t('warehouse.copied'))
+    } catch (_) {
+      // Fallback: select text via a temporary textarea
+      try {
+        const el = document.createElement('textarea')
+        el.value = text
+        el.setAttribute('readonly', '')
+        el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0'
+        document.body.appendChild(el)
+        el.select()
+        document.execCommand('copy')
+        document.body.removeChild(el)
+        toast.success(t('warehouse.copied'))
+      } catch (_) {
+        toast.error('Could not copy automatically — please select and copy manually.')
+      }
+    }
+  }, [t])
 
-  const defaultAddresses = {
+  // Build display-ready address objects, merging API data over sensible defaults
+  const fallbackAddresses = {
     UK: {
-      full: `31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB, United Kingdom\nAttn: TC-${user?.warehouse_id || 'XXXX'}`,
+      lines: ['31 Collingwood Close', 'Hazel Grove, Stockport', 'SK7 4LB', 'United Kingdom'],
       label: 'United Kingdom',
       flag: '🇬🇧',
     },
     China: {
-      full: `Thapsus Cargo Warehouse, Shanghai, China\nAttn: TC-${user?.warehouse_id || 'XXXX'}`,
+      lines: ['Thapsus Cargo Warehouse', 'Shanghai, China'],
       label: 'China',
       flag: '🇨🇳',
     },
   }
+
+  const resolvedAddresses = Object.fromEntries(
+    Object.entries(fallbackAddresses).map(([market, defaults]) => {
+      const api = addresses[market]
+      const lines = api?.lines?.length ? api.lines : defaults.lines
+      return [market, {
+        label: api?.label || defaults.label,
+        flag:  api?.flag  || defaults.flag,
+        lines,
+        full:  lines.join('\n'),
+      }]
+    })
+  )
 
   if (loading) {
     return (
@@ -72,7 +106,7 @@ export const WarehouseAddresses = () => {
 
         {/* Addresses - Crystal Borders & Dynamic Sheen */}
         <div className="space-y-8 mb-12">
-          {Object.entries(defaultAddresses).map(([market, data]) => (
+          {Object.entries(resolvedAddresses).map(([market, data]) => (
             <div key={market} className="bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl p-8 relative overflow-hidden glass-sheen transition-transform duration-300 hover:-translate-y-1">
               <div className="flex flex-col sm:flex-row sm:items-start gap-4 mb-6 relative z-10">
                 <span className="text-6xl drop-shadow-md">{data.flag}</span>
@@ -87,23 +121,38 @@ export const WarehouseAddresses = () => {
               </div>
 
               <div className="bg-white/50 backdrop-blur-md border border-white/60 rounded-xl p-6 mb-6 shadow-sm relative z-10">
-                <pre className="font-mono text-sm md:text-base text-slate-800 font-bold whitespace-pre-wrap break-words">
-                  {data.full}
-                </pre>
+                {/* Personal identifiers */}
+                <p className="font-mono text-sm md:text-base text-orange-600 font-black mb-1">
+                  {user?.name}
+                </p>
+                <p className="font-mono text-sm md:text-base text-orange-600 font-black mb-3">
+                  {tcCode}
+                </p>
+                {/* Warehouse address lines */}
+                {data.lines.map((line, i) => (
+                  <p key={i} className="font-mono text-sm md:text-base text-slate-800 font-bold leading-relaxed">
+                    {line}
+                  </p>
+                ))}
+                <p className="text-xs text-slate-400 font-semibold mt-3">
+                  Use your name and TC code as the recipient name when checking out
+                </p>
               </div>
 
               <div className="flex gap-4 flex-wrap relative z-10">
                 <button
-                  onClick={() => handleCopyAddress(data.full)}
+                  onClick={() => handleCopyAddress([user?.name, tcCode, ...data.lines].filter(Boolean).join('\n'))}
                   className="group relative overflow-hidden bg-[#1e3a5f] text-white px-6 py-3.5 rounded-xl font-black tracking-tight flex items-center gap-2 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-0.5 glass-sheen"
+                  aria-label={`Copy ${data.label} warehouse address to clipboard`}
                 >
                   <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
                   <Copy size={20} className="relative z-10" />
-                  <span className="relative z-10">Copy Address</span>
+                  <span className="relative z-10">Copy Full Address</span>
                 </button>
                 <button
-                  onClick={() => handleCopyAddress(`TC-${user?.warehouse_id || 'XXXX'}`)}
+                  onClick={() => handleCopyAddress(tcCode)}
                   className="group relative overflow-hidden bg-orange-500 text-white px-6 py-3.5 rounded-xl font-black tracking-tight flex items-center gap-2 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-0.5 glass-sheen"
+                  aria-label="Copy TC warehouse code to clipboard"
                 >
                   <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
                   <Copy size={20} className="relative z-10" />

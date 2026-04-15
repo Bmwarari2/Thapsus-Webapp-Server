@@ -84,6 +84,7 @@ import backupRoutes        from './routes/backup.js';
 import eventsRoutes        from './routes/events.js';
 import paymentRoutes       from './routes/payment.js';
 import sitemapRoutes       from './routes/sitemap.js';
+import warehouseRoutes     from './routes/warehouse.js';
 
 const app      = express();
 const PORT     = process.env.PORT     || 5000;
@@ -281,6 +282,7 @@ app.use('/api/prohibited',    prohibitedRoutes);
 app.use('/api/admin/backups', backupRoutes);
 app.use('/api/events',        eventsRoutes);
 app.use('/api/payment',       paymentRoutes);
+app.use('/api/warehouse',     warehouseRoutes);
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 app.get(/^\/(?!api).*/, (req, res) => {
