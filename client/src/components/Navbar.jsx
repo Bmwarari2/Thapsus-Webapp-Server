@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Menu, X, LogOut, Settings, BarChart3 } from 'lucide-react'
+import { Menu, X, LogOut, Settings, BarChart3, Truck, Plane, Bike, Shield, ShoppingBag, Activity } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
 
@@ -88,6 +88,71 @@ export const Navbar = () => {
                     >
                       {t('nav.wallet')}
                     </Link>
+                    {/* Customer-facing extras */}
+                    <Link to="/insurance"
+                      className="block px-4 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-white/60 hover:text-[#1e3a5f] transition-all"
+                      onClick={() => setUserDropdownOpen(false)}>
+                      <span className="inline-flex items-center gap-2"><Shield size={14}/> Insurance</span>
+                    </Link>
+                    <Link to="/buy-for-me"
+                      className="block px-4 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-white/60 hover:text-[#1e3a5f] transition-all"
+                      onClick={() => setUserDropdownOpen(false)}>
+                      <span className="inline-flex items-center gap-2"><ShoppingBag size={14}/> Buy for me</span>
+                    </Link>
+                    <Link to="/dsar"
+                      className="block px-4 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-white/60 hover:text-[#1e3a5f] transition-all"
+                      onClick={() => setUserDropdownOpen(false)}>
+                      My data
+                    </Link>
+
+                    {/* Operator role */}
+                    {(user?.role === 'operator' || isAdmin) && (
+                      <div className="my-1 border-t border-white/40 pt-1">
+                        <Link to="/ops"
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-white/60 hover:text-[#1e3a5f] transition-all"
+                          onClick={() => setUserDropdownOpen(false)}>
+                          <Truck size={14} className="text-orange-500" /> Operator console
+                        </Link>
+                        <Link to="/ops/consolidations"
+                          className="block px-4 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-white/60 hover:text-[#1e3a5f] transition-all"
+                          onClick={() => setUserDropdownOpen(false)}>
+                          <span className="inline-flex items-center gap-2"><Plane size={14}/> Consolidations</span>
+                        </Link>
+                        <Link to="/ops/dispatch"
+                          className="block px-4 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-white/60 hover:text-[#1e3a5f] transition-all"
+                          onClick={() => setUserDropdownOpen(false)}>
+                          Dispatch board
+                        </Link>
+                      </div>
+                    )}
+
+                    {/* Clearing agent */}
+                    {user?.role === 'clearing_agent' && (
+                      <div className="my-1 border-t border-white/40 pt-1">
+                        <Link to="/partner/agent"
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-white/60 hover:text-[#1e3a5f] transition-all"
+                          onClick={() => setUserDropdownOpen(false)}>
+                          <Plane size={14} className="text-orange-500" /> Clearing agent
+                        </Link>
+                        <Link to="/partner/agent/invoices"
+                          className="block px-4 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-white/60 hover:text-[#1e3a5f] transition-all"
+                          onClick={() => setUserDropdownOpen(false)}>
+                          My invoices
+                        </Link>
+                      </div>
+                    )}
+
+                    {/* Rider */}
+                    {user?.role === 'rider' && (
+                      <div className="my-1 border-t border-white/40 pt-1">
+                        <Link to="/partner/rider"
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-white/60 hover:text-[#1e3a5f] transition-all"
+                          onClick={() => setUserDropdownOpen(false)}>
+                          <Bike size={14} className="text-orange-500" /> Rider runs
+                        </Link>
+                      </div>
+                    )}
+
                     {isAdmin && (
                       <div className="my-1 border-t border-white/40">
                         <Link
@@ -97,6 +162,20 @@ export const Navbar = () => {
                         >
                           <BarChart3 size={16} className="text-orange-500" />
                           {t('nav.admin')}
+                        </Link>
+                        <Link
+                          to="/kpi"
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-white/60 hover:text-[#1e3a5f] transition-all"
+                          onClick={() => setUserDropdownOpen(false)}
+                        >
+                          <Activity size={16} className="text-orange-500" /> KPI dashboard
+                        </Link>
+                        <Link
+                          to="/ops/settings"
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-white/60 hover:text-[#1e3a5f] transition-all"
+                          onClick={() => setUserDropdownOpen(false)}
+                        >
+                          <Settings size={16} className="text-orange-500" /> Pricing settings
                         </Link>
                       </div>
                     )}

@@ -85,6 +85,17 @@ import eventsRoutes        from './routes/events.js';
 import paymentRoutes       from './routes/payment.js';
 import sitemapRoutes       from './routes/sitemap.js';
 import warehouseRoutes     from './routes/warehouse.js';
+// ── Framework v2 routes ───────────────────────────────────────────────────────
+import consolidationsV2Routes from './routes/consolidationsV2.js';
+import customsRoutes          from './routes/customs.js';
+import insuranceRoutes        from './routes/insurance.js';
+import lastMileRoutes         from './routes/lastMile.js';
+import kpiRoutes              from './routes/kpi.js';
+import dsarRoutes             from './routes/dsar.js';
+import buyForMeRoutes         from './routes/buyForMe.js';
+import opsRoutes              from './routes/ops.js';
+import pricingTiersRoutes     from './routes/pricingTiers.js';
+import npsRoutes              from './routes/nps.js';
 
 const app      = express();
 const PORT     = process.env.PORT     || 5000;
@@ -283,6 +294,18 @@ app.use('/api/admin/backups', backupRoutes);
 app.use('/api/events',        eventsRoutes);
 app.use('/api/payment',       paymentRoutes);
 app.use('/api/warehouse',     warehouseRoutes);
+
+// ── Framework v2 mounts ───────────────────────────────────────────────────────
+app.use('/api/consolidations', consolidationsV2Routes);
+app.use('/api/customs',        customsRoutes);
+app.use('/api/insurance',      insuranceRoutes);
+app.use('/api/last-mile',      lastMileRoutes);
+app.use('/api/kpi',            kpiRoutes);
+app.use('/api/dsar',           dsarRoutes);
+app.use('/api/buy-for-me',     buyForMeRoutes);
+app.use('/api/ops',            opsRoutes);
+app.use('/api/pricing-tiers',  pricingTiersRoutes);
+app.use('/api/nps',            npsRoutes);
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 app.get(/^\/(?!api).*/, (req, res) => {

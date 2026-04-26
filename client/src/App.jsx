@@ -39,6 +39,20 @@ const TermsOfService    = lazy(() => import('./pages/TermsOfService').then(m => 
 const ShipInstructions  = lazy(() => import('./pages/ShipInstructions').then(m => ({ default: m.ShipInstructions })))
 const FAQ               = lazy(() => import('./pages/FAQ').then(m => ({ default: m.FAQ })))
 
+// ── Framework v2 pages ─────────────────────────────────────────────────────
+const OpsConsole          = lazy(() => import('./pages/OpsConsole').then(m => ({ default: m.OpsConsole })))
+const OpsConsolidations   = lazy(() => import('./pages/OpsConsolidations').then(m => ({ default: m.OpsConsolidations })))
+const OpsConsolidationDetail = lazy(() => import('./pages/OpsConsolidations').then(m => ({ default: m.OpsConsolidationDetail })))
+const OpsDispatch         = lazy(() => import('./pages/OpsDispatch').then(m => ({ default: m.OpsDispatch })))
+const OpsSettings         = lazy(() => import('./pages/OpsSettings').then(m => ({ default: m.OpsSettings })))
+const KpiDashboard        = lazy(() => import('./pages/KpiDashboard').then(m => ({ default: m.KpiDashboard })))
+const Insurance           = lazy(() => import('./pages/Insurance').then(m => ({ default: m.Insurance })))
+const DsarRequest         = lazy(() => import('./pages/DsarRequest').then(m => ({ default: m.DsarRequest })))
+const BuyForMe            = lazy(() => import('./pages/BuyForMe').then(m => ({ default: m.BuyForMe })))
+const AgentPortal         = lazy(() => import('./pages/partner/AgentPortal').then(m => ({ default: m.AgentPortal })))
+const AgentInvoices       = lazy(() => import('./pages/partner/AgentPortal').then(m => ({ default: m.AgentInvoices })))
+const RiderPwa            = lazy(() => import('./pages/partner/RiderPwa').then(m => ({ default: m.RiderPwa })))
+
 // ── Minimal loading spinner (shown briefly while lazy chunks load) ──────────
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-[50vh]">
@@ -87,8 +101,26 @@ function App() {
             <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
             <Route path="/warehouse" element={<ProtectedRoute><WarehouseAddresses /></ProtectedRoute>} />
 
+            {/* Customer-facing Framework v2 routes */}
+            <Route path="/insurance"  element={<ProtectedRoute><Insurance /></ProtectedRoute>} />
+            <Route path="/buy-for-me" element={<ProtectedRoute><BuyForMe /></ProtectedRoute>} />
+            <Route path="/dsar"       element={<ProtectedRoute><DsarRequest /></ProtectedRoute>} />
+
+            {/* Operator console routes (operator + admin) */}
+            <Route path="/ops"                          element={<ProtectedRoute roles={['operator']}><OpsConsole /></ProtectedRoute>} />
+            <Route path="/ops/consolidations"           element={<ProtectedRoute roles={['operator']}><OpsConsolidations /></ProtectedRoute>} />
+            <Route path="/ops/consolidations/:id"       element={<ProtectedRoute roles={['operator']}><OpsConsolidationDetail /></ProtectedRoute>} />
+            <Route path="/ops/dispatch"                 element={<ProtectedRoute roles={['operator']}><OpsDispatch /></ProtectedRoute>} />
+            <Route path="/ops/settings"                 element={<ProtectedRoute adminOnly><OpsSettings /></ProtectedRoute>} />
+
             {/* Admin Routes */}
             <Route path="/admin" element={<ProtectedRoute adminOnly={true}><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/kpi"   element={<ProtectedRoute adminOnly={true}><KpiDashboard /></ProtectedRoute>} />
+
+            {/* Partner portals */}
+            <Route path="/partner/agent"           element={<ProtectedRoute roles={['clearing_agent']}><AgentPortal /></ProtectedRoute>} />
+            <Route path="/partner/agent/invoices"  element={<ProtectedRoute roles={['clearing_agent']}><AgentInvoices /></ProtectedRoute>} />
+            <Route path="/partner/rider"           element={<ProtectedRoute roles={['rider']}><RiderPwa /></ProtectedRoute>} />
 
             {/* 404 */}
             <Route path="*" element={

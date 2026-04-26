@@ -333,6 +333,108 @@ export const prohibitedApi = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// FRAMEWORK v2 — new modules
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Consolidations v2 — operator-facing weekly flight units */
+export const consolidationsApi = {
+  current:      ()             => api.get('/consolidations/current'),
+  list:         (params = {})  => api.get('/consolidations', { params }),
+  create:       (data)         => api.post('/consolidations', data),
+  get:          (id)           => api.get(`/consolidations/${id}`),
+  update:       (id, data)     => api.patch(`/consolidations/${id}`, data),
+  assignParcel: (id, parcelId) => api.post(`/consolidations/${id}/assign-parcel`, { parcel_id: parcelId }),
+  removeParcel: (id, parcelId) => api.post(`/consolidations/${id}/remove-parcel`, { parcel_id: parcelId }),
+  addPallet:    (id, data)     => api.post(`/consolidations/${id}/pallets`, data),
+  manifest:     (id)           => api.post(`/consolidations/${id}/manifest`),
+}
+
+/** Customs / clearing-agent portal */
+export const customsApi = {
+  agentConsolidations: ()       => api.get('/customs/agent/consolidations'),
+  agentParcels:        (consId) => api.get(`/customs/agent/consolidations/${consId}/parcels`),
+  createEntry:         (data)   => api.post('/customs/entries', data),
+  updateEntry:         (id,d)   => api.patch(`/customs/entries/${id}`, d),
+  listEntries:         (params={}) => api.get('/customs/entries', { params }),
+  submitInvoice:       (data)   => api.post('/customs/agent-invoices', data),
+  listInvoices:        ()       => api.get('/customs/agent-invoices'),
+  approveInvoice:      (id, st) => api.patch(`/customs/agent-invoices/${id}`, { status: st }),
+}
+
+/** Insurance — declared-value cover */
+export const insuranceApi = {
+  quote:    (tier, declared_value_gbp)   => api.post('/insurance/quote', { tier, declared_value_gbp }),
+  buy:      (parcel_id, tier, value)     => api.post('/insurance/policies', {
+                                              parcel_id, tier, declared_value_gbp: value }),
+  list:     ()                           => api.get('/insurance/policies'),
+  claim:    (id, amount, notes)          => api.post(`/insurance/policies/${id}/claim`, {
+                                              claim_amount_gbp: amount, notes }),
+}
+
+/** Last-mile dispatch + rider PWA */
+export const lastMileApi = {
+  dispatch:    ()                  => api.get('/last-mile/dispatch'),
+  createRun:   (data)              => api.post('/last-mile/runs', data),
+  updateRun:   (id, data)          => api.patch(`/last-mile/runs/${id}`, data),
+  riderToday:  ()                  => api.get('/last-mile/rider/today'),
+  pod:         (runId, data)       => api.post(`/last-mile/rider/runs/${runId}/pod`, data),
+  failPod:     (runId, parcelId, reason) =>
+    api.post(`/last-mile/rider/runs/${runId}/fail`, { parcel_id: parcelId, reason }),
+}
+
+/** Founder KPI dashboard */
+export const kpiApi = {
+  summary:   () => api.get('/kpi'),
+  marketing: () => api.get('/kpi/marketing'),
+}
+
+/** GDPR DSAR */
+export const dsarApi = {
+  create:    (type, notes) => api.post('/dsar', { type, notes }),
+  mine:      ()            => api.get('/dsar/me'),
+  queue:     ()            => api.get('/dsar/queue'),
+  update:    (id, data)    => api.patch(`/dsar/${id}`, data),
+  export:    (id)          => api.post(`/dsar/${id}/export`),
+}
+
+/** Buy-for-me concierge */
+export const buyForMeApi = {
+  create:    (data)        => api.post('/buy-for-me', data),
+  mine:      ()            => api.get('/buy-for-me'),
+  queue:     ()            => api.get('/buy-for-me/queue'),
+  update:    (id, data)    => api.patch(`/buy-for-me/${id}`, data),
+}
+
+/** Operator console */
+export const opsApi = {
+  today:     ()            => api.get('/ops/today'),
+  parcels:   (params = {}) => api.get('/ops/parcels', { params }),
+  receive:   (id, data)    => api.post(`/ops/parcels/${id}/receive`, data),
+  screen:    (id, desc)    => api.post(`/ops/parcels/${id}/screen`, { description: desc }),
+  hold:      (id, reason)  => api.post(`/ops/parcels/${id}/hold`, { reason }),
+  release:   (id)          => api.post(`/ops/parcels/${id}/release`),
+}
+
+/** Editable pricing tiers + fees + promotions */
+export const pricingTiersApi = {
+  listTiers:        ()                => api.get('/pricing-tiers/tiers'),
+  createTier:       (data)            => api.post('/pricing-tiers/tiers', data),
+  updateTier:       (id, data)        => api.patch(`/pricing-tiers/tiers/${id}`, data),
+  listFees:         ()                => api.get('/pricing-tiers/fees'),
+  updateFee:        (id, data)        => api.patch(`/pricing-tiers/fees/${id}`, data),
+  listPromotions:   ()                => api.get('/pricing-tiers/promotions'),
+  createPromotion:  (data)            => api.post('/pricing-tiers/promotions', data),
+  validatePromotion:(code)            => api.post('/pricing-tiers/promotions/validate', { code }),
+}
+
+/** NPS responses */
+export const npsApi = {
+  submit:    (score, comment, parcelId) =>
+    api.post('/nps', { score, comment, parcel_id: parcelId }),
+  summary:   () => api.get('/nps/summary'),
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Default export (raw axios instance) – handy for one-off calls
 // ─────────────────────────────────────────────────────────────────────────────
 export { default as apiClient } from './client'

@@ -6,6 +6,7 @@ import { useLanguage } from '../context/LanguageContext'
 import { ordersApi, walletApi, warehouseApi } from '../api'
 import toast from 'react-hot-toast'
 import { useOrderUpdates, useWalletUpdates } from '../hooks/useRealtimeUpdates'
+import { CutoffBanner } from '../components/CutoffBanner'
 
 // --- CUSTOM STYLES & GLASS COMPONENTS ---
 const DashboardStyles = () => (
@@ -216,7 +217,12 @@ export const Dashboard = () => {
       <div className="absolute inset-0 bg-white/30 backdrop-blur-[2px] pointer-events-none" />
 
       <div className="max-w-6xl mx-auto px-6 py-12 relative z-10">
-        
+
+        {/* Weekly cut-off countdown banner */}
+        <div className="mb-8">
+          <CutoffBanner />
+        </div>
+
         {/* Welcome Section */}
         <div className="mb-10 text-center md:text-left">
           <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-md border border-white/50 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 shadow-sm mb-4">

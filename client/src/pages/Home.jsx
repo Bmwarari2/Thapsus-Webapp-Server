@@ -8,6 +8,7 @@ import {
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
 import { SEO } from '../components/SEO'
+import { CutoffBanner } from '../components/CutoffBanner'
 
 /**
  * LIQUID GLASS UI COMPONENTS
@@ -175,6 +176,11 @@ export const Home = () => {
           animation: sheen 4s infinite;
         }
       `}</style>
+
+      {/* --- WEEKLY CUT-OFF COUNTDOWN BANNER --- */}
+      <div className="container mx-auto px-4 md:px-6 pt-6">
+        <CutoffBanner />
+      </div>
 
       {/* --- HERO SECTION --- */}
       <section className="relative pt-10 pb-10 md:pt-16 md:pb-12 lg:pt-24 lg:pb-20 overflow-hidden">
