@@ -65,15 +65,20 @@ function App() {
     <div className="flex flex-col min-h-screen">
       <LiquidGlassNav />
 
-      {/* Spacer reserves layout space for the floating pill so page content
-          doesn't sit underneath it. Sized to cover the pill height + the
-          iOS safe-area inset on devices with a notch / Dynamic Island. */}
+      {/* Top spacer reserves layout space for the fixed top bar so page
+          content doesn't sit underneath it.
+            mobile: 3.25rem brand bar + safe-area inset (notch / Dynamic Island)
+            desktop (lg+): 4rem nav bar
+       */}
       <div
         aria-hidden="true"
-        className="h-[calc(env(safe-area-inset-top,0px)+5rem)] shrink-0"
+        className="shrink-0 h-[calc(env(safe-area-inset-top,0px)+3.25rem)] lg:h-16"
       />
 
-      <main className="relative flex-grow">
+      {/* Main flex region. On mobile we reserve bottom padding for the
+          fixed bottom tab bar (4rem + safe-area-inset-bottom for the
+          iPhone home indicator). The bar itself floats with z-50. */}
+      <main className="relative flex-grow pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pb-0">
         <ScrollToTop />
         <GoogleAnalytics />
         <MetaPixel />
