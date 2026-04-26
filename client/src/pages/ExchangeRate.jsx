@@ -53,7 +53,11 @@ export const ExchangeRate = () => {
     const fetchRates = async () => {
       try {
         const response = await pricingApi.getExchangeRates()
-        setRates(response.data)
+        const payload = response.data?.data || {}
+        setRates({
+          usdToKes: Number(payload.USD_KES) || 0,
+          gbpToKes: Number(payload.GBP_KES) || 0,
+        })
       } catch (err) {
         toast.error('Failed to load exchange rates')
       } finally {

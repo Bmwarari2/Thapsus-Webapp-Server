@@ -123,13 +123,13 @@ export const Consolidation = () => {
                           {pkg.id.slice(0, 8).toUpperCase()}
                         </h3>
                         <p className="text-sm font-medium text-slate-500">
-                          {pkg.market} • {pkg.weight} kg • Arrived{' '}
-                          {new Date(pkg.arrivedAt).toLocaleDateString()}
+                          {pkg.market} • {pkg.weight_kg} kg • Arrived{' '}
+                          {pkg.received_at ? new Date(pkg.received_at).toLocaleDateString() : '—'}
                         </p>
                       </div>
                       <div className="text-right">
                         <p className="font-black text-[#1e3a5f] tracking-tight">
-                          KES {pkg.shippingCost?.toLocaleString() || 0}
+                          {pkg.tracking_number || (pkg.id || '').slice(0, 8).toUpperCase()}
                         </p>
                       </div>
                     </div>

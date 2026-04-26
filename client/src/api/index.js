@@ -115,7 +115,7 @@ export const pricingApi = {
   getRates: () => api.get('/pricing/rates'),
 
   /** Get current USD/GBP/CNY → KES exchange rates */
-  getExchangeRates: () => api.get('/pricing/exchange-rates'),
+  getExchangeRates: () => api.get('/exchange/rates'),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -250,7 +250,7 @@ export const adminApi = {
 // ─────────────────────────────────────────────────────────────────────────────
 export const consolidationApi = {
   /** List packages available for consolidation */
-  listPackages: () => api.get('/consolidation/packages'),
+  listPackages: () => api.get('/consolidation'),
 
   /** List existing consolidation requests */
   getRequests: () => api.get('/consolidation/requests'),

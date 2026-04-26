@@ -126,13 +126,13 @@ router.get('/marketing', authMiddleware, requireRole('admin'), async (req, res) 
       WITH first_orders AS (
         SELECT user_id, MIN(created_at) AS first_at FROM orders GROUP BY user_id
       )
-      SELECT COUNT(*)::int FILTER (WHERE first_at <= NOW() - INTERVAL '90 days') AS cohort_size,
-             COUNT(*)::int FILTER (
+      SELECT (COUNT(*) FILTER (WHERE first_at <= NOW() - INTERVAL '90 days'))::int AS cohort_size,
+             (COUNT(*) FILTER (
                WHERE first_at <= NOW() - INTERVAL '90 days'
                  AND user_id IN (SELECT user_id FROM orders
                                   WHERE created_at >  first_at
                                     AND created_at <= first_at + INTERVAL '90 days')
-             ) AS repeat_in_90d
+             ))::int AS repeat_in_90d
         FROM first_orders`);
 
     const retentionPct = repeat.rows[0].cohort_size > 0
