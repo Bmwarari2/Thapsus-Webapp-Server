@@ -77,6 +77,40 @@ function useEscape(active, onEscape) {
   }, [active, onEscape])
 }
 
+// Tracks scroll direction so the top + bottom bars can slide off when the
+// user is scrolling DOWN and reappear when they scroll UP. The bars are
+// always visible near the top of the page (within `topOffset` px) and only
+// react to motion that exceeds `threshold` px to avoid flicker when a user
+// momentarily wobbles their finger.
+function useScrollDirection({ threshold = 8, topOffset = 80 } = {}) {
+  const [hidden, setHidden] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    let lastY  = window.scrollY || 0
+    let ticking = false
+    const update = () => {
+      const y = window.scrollY
+      if (y < topOffset) {
+        setHidden(false)
+        lastY = y
+      } else if (Math.abs(y - lastY) > threshold) {
+        setHidden(y > lastY)
+        lastY = y
+      }
+      ticking = false
+    }
+    const onScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(update)
+        ticking = true
+      }
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [threshold, topOffset])
+  return hidden
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // Surface presets — applied as Tailwind class strings. Contextual scaling:
 // thinner glass for narrow surfaces (top bars), thicker glass for large
@@ -99,6 +133,21 @@ const SURFACE_MEDIUM = [
   'backdrop-blur-xl backdrop-saturate-150',
   'border-t border-white/20 dark:border-white/10',
   'shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),0_-2px_18px_rgba(0,0,0,0.08)]',
+  'reduce-transparency:bg-white reduce-transparency:dark:bg-gray-900',
+  'reduce-transparency:backdrop-blur-0 reduce-transparency:backdrop-saturate-100',
+  'reduce-transparency:border-slate-300 reduce-transparency:dark:border-slate-700',
+].join(' ')
+
+// Stronger-tint variant for the floating bottom pill. The pill sits over
+// arbitrary page content so it needs a more opaque base than the edge-to-
+// edge bars to keep tab labels legible against any background. We also
+// rim-light the capsule with a brighter inset highlight to read as cut
+// glass even on busy photographic underlays.
+const SURFACE_PILL = [
+  'bg-white/55 dark:bg-neutral-900/65',
+  'backdrop-blur-2xl backdrop-saturate-150',
+  'border border-white/50 dark:border-white/10',
+  'shadow-[inset_0_1px_1px_rgba(255,255,255,0.55),inset_0_-1px_1px_rgba(0,0,0,0.04),0_10px_30px_rgba(0,0,0,0.18)]',
   'reduce-transparency:bg-white reduce-transparency:dark:bg-gray-900',
   'reduce-transparency:backdrop-blur-0 reduce-transparency:backdrop-saturate-100',
   'reduce-transparency:border-slate-300 reduce-transparency:dark:border-slate-700',
@@ -311,6 +360,12 @@ const MobileLayout = ({ links, isAuthenticated, user, isAdmin, onLogout, t }) =>
   useScrollLock(sheetOpen)
   useEscape(sheetOpen, closeSheet)
 
+  // Scroll-driven hide. Both bars hide on scroll-down and reappear on
+  // scroll-up. We force them visible while the sheet is open so the bars
+  // don't animate out of frame underneath a still-mounted dialog.
+  const scrollHidden = useScrollDirection()
+  const hideBars = scrollHidden && !sheetOpen
+
   // Bottom-tab definition. Always 5 cells so spacing stays even.
   const tabs = useMemo(() => ([
     { to: '/',        label: 'Home',    icon: HomeIcon },
@@ -324,28 +379,45 @@ const MobileLayout = ({ links, isAuthenticated, user, isAdmin, onLogout, t }) =>
 
   return (
     <>
-      {/* Top branding bar — minimal, fixed, light glass */}
+      {/* Top branding bar — minimal, fixed, light glass.
+          Slides up off-screen on scroll-down via a translate-y transform. */}
       <header
         className={[
           'fixed top-0 inset-x-0 z-50',
           'flex items-center justify-center',
           'h-[calc(env(safe-area-inset-top,0px)+3.25rem)] pt-[env(safe-area-inset-top,0px)]',
-          'transform-gpu',
+          'transform-gpu will-change-transform',
+          'transition-transform duration-300 ease-out motion-reduce:transition-none',
+          hideBars ? '-translate-y-full' : 'translate-y-0',
           SURFACE_THIN,
         ].join(' ')}
       >
         <Brand size="sm" />
       </header>
 
-      {/* Bottom tab bar — fixed, medium glass */}
+      {/* Bottom tab bar — Apple-style floating PILL, centred above the home
+          indicator. The pill carries a stronger SURFACE_PILL tint so the
+          icon labels remain legible when the pill floats over arbitrary
+          page content. Slides down off-screen on scroll-down. */}
       <nav
         role="navigation"
         aria-label="Primary"
         className={[
-          'fixed bottom-0 inset-x-0 z-50',
-          'pb-[env(safe-area-inset-bottom,0px)]',
-          'transform-gpu',
-          SURFACE_MEDIUM,
+          'fixed left-1/2 z-50',
+          // Sit above the iPhone home indicator + a small visual breathing margin
+          'bottom-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]',
+          // Pill geometry
+          'w-[min(calc(100%-1rem),26rem)] rounded-full',
+          'px-1 py-1.5',
+          'transform-gpu will-change-transform',
+          'transition-transform duration-300 ease-out motion-reduce:transition-none',
+          // -translate-x-1/2 keeps the pill horizontally centred even while
+          // we apply a translate-y for show/hide. Tailwind composes both
+          // axes via separate CSS variables, so they don't conflict.
+          hideBars
+            ? '-translate-x-1/2 translate-y-[calc(100%+1.5rem+env(safe-area-inset-bottom,0px))]'
+            : '-translate-x-1/2 translate-y-0',
+          SURFACE_PILL,
         ].join(' ')}
       >
         <ul className="grid grid-cols-5">
@@ -549,6 +621,11 @@ const DesktopLayout = ({ links, isAuthenticated, user, isAdmin, onLogout, t }) =
   useEffect(() => { close() }, [location.pathname, close])
   useEscape(open, close)
 
+  // Scroll-driven hide. Forced visible while the dropdown is open so the
+  // anchored panel doesn't dislocate from its trigger mid-animation.
+  const scrollHidden = useScrollDirection()
+  const hideBar = scrollHidden && !open
+
   // Click-outside dismiss
   useEffect(() => {
     if (!open) return
@@ -567,7 +644,9 @@ const DesktopLayout = ({ links, isAuthenticated, user, isAdmin, onLogout, t }) =
       className={[
         'fixed top-0 inset-x-0 z-50',
         'flex items-center justify-between gap-6 px-6 lg:px-10',
-        'h-16 transform-gpu',
+        'h-16 transform-gpu will-change-transform',
+        'transition-transform duration-300 ease-out motion-reduce:transition-none',
+        hideBar ? '-translate-y-full' : 'translate-y-0',
         SURFACE_THIN,
       ].join(' ')}
     >

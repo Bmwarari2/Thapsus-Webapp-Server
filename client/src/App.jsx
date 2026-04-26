@@ -76,9 +76,11 @@ function App() {
       />
 
       {/* Main flex region. On mobile we reserve bottom padding for the
-          fixed bottom tab bar (4rem + safe-area-inset-bottom for the
-          iPhone home indicator). The bar itself floats with z-50. */}
-      <main className="relative flex-grow pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pb-0">
+          floating bottom-pill tab bar — pill height (~3.5rem) + bottom
+          margin (0.75rem) + safe-area-inset-bottom for the iPhone home
+          indicator. The pill itself floats with z-50, so the padding is
+          purely so page content / Footer don't sit underneath it. */}
+      <main className="relative flex-grow pb-[calc(5rem+env(safe-area-inset-bottom,0px))] lg:pb-0">
         <ScrollToTop />
         <GoogleAnalytics />
         <MetaPixel />
