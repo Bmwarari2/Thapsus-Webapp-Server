@@ -46,7 +46,10 @@
     <link rel="icon" type="image/png" href="/logo.png" />
     <!-- iOS/iPadOS home screen icon — 180x180 covers all iPhone/iPad scaling needs -->
     <link rel="apple-touch-icon" sizes="180x180" href="/iOS-ipad.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <!-- viewport-fit=cover is required so env(safe-area-inset-*) returns
+         non-zero values on iOS, which the floating LiquidGlassNav uses to
+         clear the notch / Dynamic Island. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 
     <!-- Preconnect to Google Fonts (eliminates ~200ms DNS+TLS per origin) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

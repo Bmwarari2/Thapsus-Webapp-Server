@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from 'react'
 import { Routes, Route } from 'react-router-dom'
-import { Navbar } from './components/Navbar'
+import { LiquidGlassNav } from './components/LiquidGlassNav'
 import { Footer } from './components/Footer'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { SupportChatWidget } from './components/SupportChatWidget'
@@ -63,7 +63,15 @@ const PageLoader = () => (
 function App() {
   return (
     <div className="flex flex-col min-h-screen">
-      <Navbar />
+      <LiquidGlassNav />
+
+      {/* Spacer reserves layout space for the floating pill so page content
+          doesn't sit underneath it. Sized to cover the pill height + the
+          iOS safe-area inset on devices with a notch / Dynamic Island. */}
+      <div
+        aria-hidden="true"
+        className="h-[calc(env(safe-area-inset-top,0px)+5rem)] shrink-0"
+      />
 
       <main className="relative flex-grow">
         <ScrollToTop />
