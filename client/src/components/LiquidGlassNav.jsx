@@ -10,6 +10,15 @@ import {
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
 
+// Optimised brand mark, processed by ViteImageOptimizer + webp re-encoding
+// at build time. Two variants are shipped for 1x / 2x device pixel ratios:
+//   • brand-mark.webp     —   3.1 kB,  96 ×  96
+//   • brand-mark@2x.webp  —   6.3 kB, 192 × 192
+// Versus the legacy /iOS-ipad.png (16 kB, 180 × 180) this is roughly an
+// 80 % network saving for 1x DPR phones and ~40 % for 2x.
+import brandMark1x from '../assets/brand-mark.webp'
+import brandMark2x from '../assets/brand-mark@2x.webp'
+
 /* ─────────────────────────────────────────────────────────────────────────────
  * Liquid Glass navigation — split architecture
  *
@@ -153,11 +162,17 @@ const SURFACE_PILL = [
   'reduce-transparency:border-slate-300 reduce-transparency:dark:border-slate-700',
 ].join(' ')
 
+// Bottom-sheet surface. Legacy hamburger menus were getting unreadable on
+// Android because translucent backgrounds let busy page content bleed
+// through. The bottom sheet that replaces the hamburger uses the high-
+// opacity fill below (white/85, neutral-900/85) plus a backdrop blur to
+// guarantee text/control contrast even when scrolling over photographic
+// hero sections.
 const SURFACE_THICK = [
-  'bg-white/40 dark:bg-neutral-900/60',
+  'bg-white/85 dark:bg-neutral-900/85',
   'backdrop-blur-2xl backdrop-saturate-150',
-  'border border-white/30 dark:border-white/10',
-  'shadow-[inset_0_1px_1px_rgba(255,255,255,0.45),0_24px_60px_rgba(0,0,0,0.18)]',
+  'border border-white/40 dark:border-white/10',
+  'shadow-[inset_0_1px_1px_rgba(255,255,255,0.5),0_24px_60px_rgba(0,0,0,0.22)]',
   'reduce-transparency:bg-white reduce-transparency:dark:bg-gray-900',
   'reduce-transparency:backdrop-blur-0 reduce-transparency:backdrop-saturate-100',
   'reduce-transparency:border-slate-300 reduce-transparency:dark:border-slate-700',
@@ -183,11 +198,18 @@ const Brand = ({ size = 'md' }) => (
     aria-label="Thapsus Cargo home"
     className="group flex items-center gap-2 font-black tracking-tighter leading-none focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 rounded-full"
   >
+    {/* Explicit width/height locks the aspect ratio so the image never
+        causes a layout shift while loading; CSS h-7/h-9 then drives the
+        rendered size. srcset lets retina screens pick the @2x asset
+        without forcing every device to download it. */}
     <img
-      src="/iOS-ipad.png"
+      src={brandMark1x}
+      srcSet={`${brandMark1x} 1x, ${brandMark2x} 2x`}
       alt=""
-      width="64"
-      height="64"
+      width="36"
+      height="36"
+      decoding="async"
+      fetchPriority="high"
       className={size === 'lg' ? 'h-9 w-auto drop-shadow-[0_0_10px_rgba(249,115,22,0.35)]' : 'h-7 w-auto drop-shadow-[0_0_8px_rgba(249,115,22,0.3)]'}
     />
     <span className={size === 'lg' ? 'text-lg sm:text-xl text-shadow-glass' : 'text-base text-shadow-glass'}>
@@ -305,7 +327,7 @@ const SectionLabel = ({ children }) => (
 
 const LinkRow = ({ to, label, icon: Icon, onClick }) => (
   <Link to={to} onClick={onClick} className={ROW_BASE}>
-    {Icon && <Icon size={16} className="text-orange-500 shrink-0" aria-hidden />}
+    {Icon && <Icon size={16} className="text-orange-700 shrink-0" aria-hidden />}
     <span className="truncate">{label}</span>
   </Link>
 )
@@ -327,7 +349,7 @@ const Accordion = ({ id, label, icon: Icon, defaultOpen = false, children }) => 
         className="w-full flex items-center justify-between gap-2 px-3 py-3 text-left text-sm font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
       >
         <span className="flex items-center gap-2">
-          {Icon && <Icon size={16} className="text-orange-500" aria-hidden />}
+          {Icon && <Icon size={16} className="text-orange-700" aria-hidden />}
           {label}
         </span>
         <ChevronDown
@@ -743,7 +765,7 @@ const DesktopLayout = ({ links, isAuthenticated, user, isAdmin, onLogout, t }) =
                                   className={`flex items-center justify-between gap-2 w-full px-3 py-2 rounded-2xl text-sm font-semibold text-slate-700 dark:text-slate-100 transition-colors motion-reduce:transition-none hover:bg-white/60 dark:hover:bg-white/10 hover:text-[#1e3a5f] dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 ${active ? 'bg-white/60 dark:bg-white/10 text-[#1e3a5f] dark:text-white' : ''}`}
                                 >
                                   <span className="flex items-center gap-3 min-w-0">
-                                    {Icon && <Icon size={16} className="text-orange-500 shrink-0" aria-hidden />}
+                                    {Icon && <Icon size={16} className="text-orange-700 shrink-0" aria-hidden />}
                                     <span className="truncate">{group.label}</span>
                                   </span>
                                   <ChevronRight size={14} aria-hidden className="text-slate-500" />

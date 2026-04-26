@@ -108,7 +108,7 @@ export const Insurance = () => {
               <p className="text-[10px] uppercase tracking-widest text-slate-500 font-black mb-1">Premium</p>
               <p className="text-3xl font-black text-[#1e3a5f]">£{quote?.premium_gbp ?? 0}</p>
               {quote?.requires_manual_review && (
-                <p className="text-xs text-orange-500 mt-1">Custom quote — we'll confirm by email.</p>
+                <p className="text-xs text-orange-700 mt-1">Custom quote — we'll confirm by email.</p>
               )}
             </div>
           </div>
@@ -160,7 +160,7 @@ const Tier = ({ name, tag, limit, rate, icon, picked, onPick, accent }) => (
     <div className="flex items-center gap-2 text-[#1e3a5f]">{icon}
       <p className="text-2xl font-black tracking-tighter">{name}</p>
     </div>
-    <p className="text-[10px] uppercase tracking-widest text-orange-500 font-black mt-1">{tag}</p>
+    <p className="text-[10px] uppercase tracking-widest text-orange-700 font-black mt-1">{tag}</p>
     <p className="mt-3 text-sm text-slate-600"><span className="font-bold">Cover:</span> {limit}</p>
     <p className="text-sm text-slate-600"><span className="font-bold">Premium:</span> {rate}</p>
   </button>

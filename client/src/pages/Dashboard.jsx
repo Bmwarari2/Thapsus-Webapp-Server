@@ -230,7 +230,7 @@ export const Dashboard = () => {
             Client Terminal
           </div>
           <h1 className="text-4xl md:text-6xl font-black text-[#0f172a] tracking-tighter uppercase leading-none mb-3">
-            {t('dashboard.welcome')}, <span className="text-orange-500">{user?.name?.split(' ')[0]}</span>
+            {t('dashboard.welcome')}, <span className="text-orange-700">{user?.name?.split(' ')[0]}</span>
           </h1>
           <p className="text-slate-500 font-bold max-w-lg mx-auto md:mx-0">
             Your global logistics overview and active shipments pipeline.
@@ -271,7 +271,7 @@ export const Dashboard = () => {
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{t('dashboard.activeOrders')}</p>
                 <h3 className="text-5xl font-black text-[#0f172a] tracking-tighter">{stats.activeOrders}</h3>
-                <p className="text-[9px] font-bold text-orange-500 uppercase tracking-widest mt-2 flex items-center gap-1">View My Orders →</p>
+                <p className="text-[9px] font-bold text-orange-700 uppercase tracking-widest mt-2 flex items-center gap-1">View My Orders →</p>
               </div>
               <div className="p-4 bg-blue-50 border border-blue-100 rounded-[1.5rem] text-blue-600 group-hover:scale-110 transition-transform shadow-sm">
                 <Package size={28} />
@@ -299,7 +299,7 @@ export const Dashboard = () => {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{t('dashboard.referralEarnings')}</p>
-                <h3 className="text-4xl md:text-5xl font-black text-orange-500 tracking-tighter">
+                <h3 className="text-4xl md:text-5xl font-black text-orange-700 tracking-tighter">
                   <span className="text-2xl">KES</span> {referralEarnings.toLocaleString()}
                 </h3>
               </div>
@@ -334,7 +334,7 @@ export const Dashboard = () => {
         <GlassCard className="p-8">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-2xl font-black text-[#0f172a] uppercase tracking-tighter">{t('dashboard.recentOrders')}</h2>
-            <Link to="/orders" className="text-xs font-black text-orange-500 hover:text-orange-600 uppercase tracking-widest flex items-center gap-1 group transition-colors">
+            <Link to="/orders" className="text-xs font-black text-orange-700 hover:text-orange-600 uppercase tracking-widest flex items-center gap-1 group transition-colors">
               View All <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform"/>
             </Link>
           </div>

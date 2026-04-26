@@ -140,7 +140,7 @@ export const OrderDetail = () => {
       <div className="max-w-5xl mx-auto px-6 py-12 relative z-10">
         
         {/* Back link */}
-        <Link to="/orders" className="inline-flex items-center gap-2 text-slate-500 hover:text-orange-500 font-black uppercase tracking-widest text-[10px] mb-8 transition-all group">
+        <Link to="/orders" className="inline-flex items-center gap-2 text-slate-500 hover:text-orange-700 font-black uppercase tracking-widest text-[10px] mb-8 transition-all group">
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
           Back to Terminal
         </Link>
@@ -150,7 +150,7 @@ export const OrderDetail = () => {
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
             <div className="space-y-4">
               <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-md border border-white/50 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 shadow-sm">
-                <Zap size={12} className="text-orange-500" />
+                <Zap size={12} className="text-orange-700" />
                 Dispatch Overview
               </div>
               <h1 className="text-4xl md:text-6xl font-black text-[#0f172a] tracking-tighter uppercase leading-none">
@@ -438,7 +438,7 @@ export const OrderDetail = () => {
             <div className="h-full w-full bg-white/95 backdrop-blur-3xl rounded-[2.4rem] p-8 md:p-10 flex flex-col md:flex-row items-center justify-between gap-8">
               <div className="flex items-center gap-6">
                 <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center shrink-0">
-                  <DollarSign size={32} className="text-orange-500" />
+                  <DollarSign size={32} className="text-orange-700" />
                 </div>
                 <div>
                   <h3 className="text-2xl md:text-3xl font-black text-[#0f172a] tracking-tighter uppercase mb-1">Clear Invoice</h3>

@@ -110,7 +110,7 @@ export const Register = () => {
             {/* Header */}
             <div className="text-center mb-8 relative z-10">
               <h1 className="text-4xl font-black text-[#1e3a5f] mb-3 leading-none tracking-tighter">
-                <span>Thapsus</span><span className="text-orange-500">Cargo</span>
+                <span>Thapsus</span><span className="text-orange-700">Cargo</span>
               </h1>
               <p className="text-slate-600 font-bold tracking-tight">{t('auth.register')}</p>
             </div>
@@ -240,7 +240,7 @@ export const Register = () => {
 
             <p className="text-center text-slate-600 font-semibold relative z-10">
               {t('auth.haveAccount')}{' '}
-              <Link to="/login" className="text-orange-500 hover:text-orange-600 font-black tracking-tight transition-colors">
+              <Link to="/login" className="text-orange-700 hover:text-orange-600 font-black tracking-tight transition-colors">
                 {t('auth.loginHere')}
               </Link>
             </p>

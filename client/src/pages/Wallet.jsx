@@ -51,7 +51,7 @@ const WalletTab = ({ balance, transactions }) => {
   const isCredit = (type) => CREDIT_TYPES.includes(type)
 
   const txTypeIcon = (type) => {
-    if (type === 'referral_credit') return <Gift        size={16} className="text-orange-500" />
+    if (type === 'referral_credit') return <Gift        size={16} className="text-orange-700" />
     if (type === 'deposit')         return <TrendingUp  size={16} className="text-green-500"  />
     if (type === 'refund')          return <CheckCircle size={16} className="text-blue-500"   />
     if (type === 'payment')         return <CreditCard  size={16} className="text-red-400"    />
@@ -75,7 +75,7 @@ const WalletTab = ({ balance, transactions }) => {
           <div>
             <p className="text-[10px] md:text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Referral Credit Balance</p>
             <h2 className="text-5xl md:text-7xl font-black tracking-tighter text-white leading-none">
-              <span className="text-2xl md:text-3xl text-orange-500 mr-2">KES</span>{balance.toLocaleString()}
+              <span className="text-2xl md:text-3xl text-orange-700 mr-2">KES</span>{balance.toLocaleString()}
             </h2>
           </div>
           <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-3xl p-5 max-w-sm flex flex-col sm:flex-row items-center sm:items-start gap-4 text-left">
@@ -206,13 +206,13 @@ const ReferralTab = () => {
       {/* Header blurb */}
       <div className="text-center px-2">
         <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-md border border-white/50 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 shadow-sm mb-4">
-          <Sparkles size={12} className="text-orange-500" />
+          <Sparkles size={12} className="text-orange-700" />
           Partnership Program
         </div>
         <p className="text-slate-500 font-bold max-w-2xl mx-auto leading-relaxed text-sm md:text-base">
           Share your unique code. Every time someone you refer places their{' '}
           <strong className="text-[#0f172a]">first order</strong>, you earn{' '}
-          <strong className="text-orange-500">KES 50</strong> in wallet credit automatically.
+          <strong className="text-orange-700">KES 50</strong> in wallet credit automatically.
         </p>
       </div>
 
@@ -252,7 +252,7 @@ const ReferralTab = () => {
               <button
                 onClick={() => navigator.share?.({ title: 'Thapsus Cargo', text: `Use my code: ${referralCode}`, url: `${window.location.origin}/register?ref=${referralCode}` }).catch(() => {})}
                 className="bg-white/80 hover:bg-white backdrop-blur-md border border-orange-200 text-slate-700 px-4 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 text-xs md:text-sm transition-colors shadow-sm">
-                <Share2 size={18} className="text-orange-500" /> Share OS
+                <Share2 size={18} className="text-orange-700" /> Share OS
               </button>
             </div>
           </div>
@@ -285,10 +285,10 @@ const ReferralTab = () => {
         <GlassCard className="p-8 md:p-10 flex flex-col justify-center group hover:-translate-y-2 transition-all duration-500 border-orange-200/50 bg-orange-50/20">
           <div className="flex items-center justify-between mb-6">
             <span className="text-[10px] md:text-xs font-black uppercase tracking-widest text-orange-600/60">Total Earned</span>
-            <Gift size={24} className="text-orange-500" />
+            <Gift size={24} className="text-orange-700" />
           </div>
           <p className="text-4xl md:text-5xl font-black text-[#0f172a] tracking-tighter leading-none text-orange-600 truncate">
-            <span className="text-lg md:text-xl text-orange-500 mr-2">KES</span>
+            <span className="text-lg md:text-xl text-orange-700 mr-2">KES</span>
             {(stats.total_earned || 0).toLocaleString()}
           </p>
         </GlassCard>
@@ -478,7 +478,7 @@ export const Wallet = () => {
         {/* Page header */}
         <div className="text-center mb-10 px-2">
           <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-md border border-white/50 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 shadow-sm mb-4">
-            <Gift size={12} className="text-orange-500" />
+            <Gift size={12} className="text-orange-700" />
             Financial Centre
           </div>
           <h1 className="text-4xl md:text-6xl font-black text-[#0f172a] tracking-tighter uppercase leading-none mb-4">

@@ -53,7 +53,7 @@ export const TermsOfService = () => {
       <div className="max-w-3xl mx-auto px-6 py-12 lg:py-20 relative z-10">
 
         {/* Back */}
-        <Link to="/" className="inline-flex items-center gap-2 text-slate-500 hover:text-orange-500 font-black uppercase tracking-widest text-[10px] mb-10 transition-all group">
+        <Link to="/" className="inline-flex items-center gap-2 text-slate-500 hover:text-orange-700 font-black uppercase tracking-widest text-[10px] mb-10 transition-all group">
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
           Back to Home
         </Link>
@@ -61,7 +61,7 @@ export const TermsOfService = () => {
         {/* Header */}
         <div className="mb-12 space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-md border border-white/50 text-[9px] font-black uppercase tracking-[0.3em] text-slate-500 shadow-sm">
-            <Zap size={10} className="text-orange-500" />
+            <Zap size={10} className="text-orange-700" />
             Legal Document
           </div>
           <div className="flex items-start gap-4">
@@ -157,8 +157,8 @@ export const TermsOfService = () => {
           <Section title="13. Contact Us">
             <p>If you have any questions about these Terms, please contact us:</p>
             <ul className="list-none mt-3 space-y-1.5">
-              <li><strong className="text-slate-800">Email:</strong> <a href="mailto:admin@thapsus.uk" className="text-orange-500 hover:underline font-bold">admin@thapsus.uk</a></li>
-              <li><strong className="text-slate-800">Phone / WhatsApp:</strong> <a href="https://wa.me/447424531483" target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:underline font-bold">+44 7424 531483</a></li>
+              <li><strong className="text-slate-800">Email:</strong> <a href="mailto:admin@thapsus.uk" className="text-orange-700 hover:underline font-bold">admin@thapsus.uk</a></li>
+              <li><strong className="text-slate-800">Phone / WhatsApp:</strong> <a href="https://wa.me/447424531483" target="_blank" rel="noopener noreferrer" className="text-orange-700 hover:underline font-bold">+44 7424 531483</a></li>
               <li><strong className="text-slate-800">Address:</strong> 31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB, United Kingdom</li>
             </ul>
           </Section>
@@ -170,7 +170,7 @@ export const TermsOfService = () => {
           <p>© {new Date().getFullYear()} Thapsus Cargo Global</p>
           <div className="flex gap-6">
             <Link to="/privacy" className="hover:text-slate-700 transition-colors">Privacy Policy</Link>
-            <Link to="/terms" className="text-orange-500">Terms of Service</Link>
+            <Link to="/terms" className="text-orange-700">Terms of Service</Link>
           </div>
         </div>
 

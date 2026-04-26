@@ -9,6 +9,14 @@ import { ScrollToTop } from './components/ScrollToTop'
 import { GoogleAnalytics } from './components/GoogleAnalytics'
 import { MetaPixel } from './components/MetaPixel'
 import { CookieConsent } from './components/CookieConsent'
+import { useIdleTagManager } from './hooks/useIdleTagManager'
+
+// Marketing IDs are read from Vite env vars at build time. Falls back to
+// the existing literal IDs so the prod deployment keeps working without
+// requiring an immediate env-var rollout. To override per-environment,
+// set VITE_GTM_ID and/or VITE_FB_PIXEL_ID in `.env` or the host's env.
+const GTM_ID       = import.meta.env.VITE_GTM_ID       || 'G-09M01VBWF0'
+const FB_PIXEL_ID  = import.meta.env.VITE_FB_PIXEL_ID  || '1556063629186873'
 
 // ── Eagerly loaded: Home is the landing page, always in the initial bundle ──
 import { Home } from './pages/Home'
@@ -61,6 +69,12 @@ const PageLoader = () => (
 )
 
 function App() {
+  // Defer GTM + Meta Pixel injection until the user actually interacts
+  // (or 3.5s elapse), keeping the initial main-thread budget free for
+  // hydration. Replaces the previous inline <script> blocks in index.html
+  // that blocked LCP/TBT.
+  useIdleTagManager(GTM_ID, FB_PIXEL_ID)
+
   return (
     <div className="flex flex-col min-h-screen">
       <LiquidGlassNav />

@@ -88,7 +88,7 @@ export const AgentPortal = () => {
         ) : (
           <>
             <button onClick={() => { setActive(null); setParcels([]); setEdit({}) }}
-              className="text-sm text-orange-500 font-bold mb-4">← Back to assigned consolidations</button>
+              className="text-sm text-orange-700 font-bold mb-4">← Back to assigned consolidations</button>
 
             <GlassCard className="p-5 md:p-6 mb-6">
               <div className="flex flex-wrap items-center justify-between gap-3">

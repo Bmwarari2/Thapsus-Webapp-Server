@@ -121,14 +121,14 @@ export const Referral = () => {
         {/* Header */}
         <div className="text-center mb-12 lg:mb-16 px-2">
           <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-md border border-white/50 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 shadow-sm mb-4">
-            <Sparkles size={12} className="text-orange-500" />
+            <Sparkles size={12} className="text-orange-700" />
             Partnership Program
           </div>
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-black text-[#0f172a] tracking-tighter uppercase leading-none mb-4">
             Refer & Earn
           </h1>
           <p className="text-slate-500 font-bold max-w-2xl mx-auto leading-relaxed text-sm md:text-base lg:text-lg">
-            Share your unique code. When someone you refer places their <strong className="text-[#0f172a]">first order</strong>, you <strong className="text-orange-500">both earn KES 50</strong> in wallet credit automatically.
+            Share your unique code. When someone you refer places their <strong className="text-[#0f172a]">first order</strong>, you <strong className="text-orange-700">both earn KES 50</strong> in wallet credit automatically.
           </p>
         </div>
 
@@ -166,7 +166,7 @@ export const Referral = () => {
                 <button
                   onClick={() => navigator.share?.({ title: 'Thapsus Cargo', text: `Use my code: ${referralCode}`, url: `${window.location.origin}/register?ref=${referralCode}` }).catch(() => {})}
                   className="bg-white/80 hover:bg-white backdrop-blur-md border border-orange-200 text-slate-700 px-4 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 text-xs md:text-sm transition-colors shadow-sm hover:shadow-orange-100">
-                  <Share2 size={18} className="text-orange-500" /> Share OS
+                  <Share2 size={18} className="text-orange-700" /> Share OS
                 </button>
               </div>
             </div>
@@ -202,10 +202,10 @@ export const Referral = () => {
           <GlassCard className="p-8 md:p-10 flex flex-col justify-center group hover:-translate-y-2 transition-all duration-500 border-orange-200/50 bg-orange-50/20">
             <div className="flex items-center justify-between mb-6">
               <span className="text-[10px] md:text-xs font-black uppercase tracking-widest text-orange-600/60">Total Earned</span>
-              <Gift size={24} className="text-orange-500" />
+              <Gift size={24} className="text-orange-700" />
             </div>
             <p className="text-4xl md:text-5xl font-black text-[#0f172a] tracking-tighter leading-none text-orange-600 truncate">
-              <span className="text-lg md:text-xl text-orange-500 mr-2">KES</span>
+              <span className="text-lg md:text-xl text-orange-700 mr-2">KES</span>
               {(stats.total_earned || 0).toLocaleString()}
             </p>
           </GlassCard>

@@ -72,7 +72,7 @@ export const OpsConsolidations = () => {
                   <div className="text-xs text-slate-500 mt-4">
                     Cut-off: {c.cutoff_at ? new Date(c.cutoff_at).toLocaleString() : '—'}
                   </div>
-                  <div className="flex items-center text-xs font-bold text-orange-500 mt-2">
+                  <div className="flex items-center text-xs font-bold text-orange-700 mt-2">
                     Open <ArrowRight size={14} className="ml-1 group-hover:translate-x-1 transition-transform"/>
                   </div>
                 </GlassCard>
@@ -175,7 +175,7 @@ export const OpsConsolidationDetail = () => {
       <LiquidBlob className="top-[-15%] left-[-15%] w-[40rem] h-[40rem]" color="bg-blue-200"  />
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 py-10 space-y-6">
-        <Link to="/ops/consolidations" className="text-sm text-orange-500 font-bold">← Back to consolidations</Link>
+        <Link to="/ops/consolidations" className="text-sm text-orange-700 font-bold">← Back to consolidations</Link>
 
         <PageHeading icon={Plane}
           title={`Consolidation ${c.id}`}

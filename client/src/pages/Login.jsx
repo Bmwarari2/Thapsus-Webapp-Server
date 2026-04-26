@@ -102,7 +102,7 @@ export const Login = () => {
           <div className="text-center mb-10">
             <h1 className="text-4xl md:text-5xl font-black text-[#0f172a] tracking-tighter uppercase leading-none mb-3">
               <span>Thapsus</span>
-              <span className="text-orange-500">Cargo</span>
+              <span className="text-orange-700">Cargo</span>
             </h1>
             <p className="text-slate-500 font-bold text-sm tracking-wide uppercase">{t('auth.login') || 'Sign in to your account'}</p>
           </div>
@@ -122,7 +122,7 @@ export const Login = () => {
                 {t('auth.email') || 'Email address'}
               </label>
               <div className="relative group/input">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within/input:text-orange-500 transition-colors" size={20} />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within/input:text-orange-700 transition-colors" size={20} />
                 <input
                   id="login-email"
                   type="email"
@@ -142,7 +142,7 @@ export const Login = () => {
                 {t('auth.password') || 'Password'}
               </label>
               <div className="relative group/input">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within/input:text-orange-500 transition-colors" size={20} />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within/input:text-orange-700 transition-colors" size={20} />
                 <input
                   id="login-password"
                   type={showPassword ? 'text' : 'password'}
@@ -167,7 +167,7 @@ export const Login = () => {
 
             {/* Forgot password */}
             <div className="text-right">
-              <Link to="/forgot-password" className="text-xs font-bold text-orange-500 hover:text-orange-600 transition-colors uppercase tracking-widest">
+              <Link to="/forgot-password" className="text-xs font-bold text-orange-700 hover:text-orange-600 transition-colors uppercase tracking-widest">
                 {t('auth.forgotPassword') || 'Forgot password?'}
               </Link>
             </div>
@@ -196,7 +196,7 @@ export const Login = () => {
 
           <p className="text-center text-slate-500 font-bold text-sm">
             {t('auth.noAccount') || "Don't have an account?"}{' '}
-            <Link to="/register" className="text-orange-500 hover:text-orange-600 font-black uppercase tracking-wide ml-1 transition-colors">
+            <Link to="/register" className="text-orange-700 hover:text-orange-600 font-black uppercase tracking-wide ml-1 transition-colors">
               {t('auth.registerHere') || 'Create one'}
             </Link>
           </p>

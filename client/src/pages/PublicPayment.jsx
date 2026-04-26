@@ -137,7 +137,7 @@ export const PublicPayment = () => {
         {/* Header - Refined Typography */}
         <div className="text-center mb-10">
           <h1 className="text-4xl md:text-5xl font-black text-[#1e3a5f] mb-3 leading-none tracking-tighter">
-            <span>Thapsus</span><span className="text-orange-500">Cargo</span>
+            <span>Thapsus</span><span className="text-orange-700">Cargo</span>
           </h1>
           <p className="text-slate-600 font-bold tracking-tight text-lg">Complete Your Payment</p>
         </div>
@@ -169,30 +169,30 @@ export const PublicPayment = () => {
             <h3 className="text-2xl font-black text-[#1e3a5f] tracking-tighter leading-none mb-6 relative z-10">M-Pesa Payment Instructions</h3>
             <ol className="space-y-4 text-slate-700 font-medium relative z-10">
               <li className="flex items-start bg-white/40 p-4 rounded-xl border border-white/50 backdrop-blur-sm">
-                <span className="font-black text-orange-500 text-lg leading-none mr-4">1.</span>
+                <span className="font-black text-orange-700 text-lg leading-none mr-4">1.</span>
                 <span>Open your M-Pesa App or dial <strong className="text-[#1e3a5f] font-black">*134#</strong> on your phone</span>
               </li>
               <li className="flex items-start bg-white/40 p-4 rounded-xl border border-white/50 backdrop-blur-sm">
-                <span className="font-black text-orange-500 text-lg leading-none mr-4">2.</span>
+                <span className="font-black text-orange-700 text-lg leading-none mr-4">2.</span>
                 <span>Select <strong className="text-[#1e3a5f] font-black">Lipa na M-Pesa</strong>, then select <strong className="text-[#1e3a5f] font-black">Buy Goods and Services</strong></span>
               </li>
               <li className="flex items-start bg-white/40 p-4 rounded-xl border border-white/50 backdrop-blur-sm">
-                <span className="font-black text-orange-500 text-lg leading-none mr-4">3.</span>
+                <span className="font-black text-orange-700 text-lg leading-none mr-4">3.</span>
                 <div>
                   <span>Enter Till Number: <strong className="text-[#1e3a5f] font-black text-lg tracking-tight">5530500</strong></span>
                   <p className="text-xs text-slate-500 font-semibold mt-1">Account name: <strong className="text-[#1e3a5f]">Brian Wanderi</strong></p>
                 </div>
               </li>
               <li className="flex items-start bg-white/40 p-4 rounded-xl border border-white/50 backdrop-blur-sm">
-                <span className="font-black text-orange-500 text-lg leading-none mr-4">4.</span>
+                <span className="font-black text-orange-700 text-lg leading-none mr-4">4.</span>
                 <span>Enter Amount: <strong className="text-[#1e3a5f] font-black text-lg tracking-tight">KES {order.amount_due.toLocaleString()}</strong></span>
               </li>
               <li className="flex items-start bg-white/40 p-4 rounded-xl border border-white/50 backdrop-blur-sm">
-                <span className="font-black text-orange-500 text-lg leading-none mr-4">5.</span>
+                <span className="font-black text-orange-700 text-lg leading-none mr-4">5.</span>
                 <span>Enter your M-Pesa PIN and complete the transaction</span>
               </li>
               <li className="flex items-start bg-white/40 p-4 rounded-xl border border-white/50 backdrop-blur-sm">
-                <span className="font-black text-orange-500 text-lg leading-none mr-4">6.</span>
+                <span className="font-black text-orange-700 text-lg leading-none mr-4">6.</span>
                 <span>Copy the confirmation message and paste it below</span>
               </li>
             </ol>

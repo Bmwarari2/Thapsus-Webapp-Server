@@ -87,7 +87,7 @@ export const DsarRequest = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusBadge status={r.status}/>
-                  {r.export_url && <a className="text-xs text-orange-500 hover:underline" href={r.export_url} target="_blank" rel="noreferrer">Download</a>}
+                  {r.export_url && <a className="text-xs text-orange-700 hover:underline" href={r.export_url} target="_blank" rel="noreferrer">Download</a>}
                 </div>
               </GlassCard>
             ))}

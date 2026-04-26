@@ -190,7 +190,7 @@ export const TrackPackage = () => {
         {/* Header */}
         <div className="text-center mb-12 lg:mb-16 space-y-4">
           <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-white/60 backdrop-blur-md border border-white/50 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-2">
-            <Zap size={10} className="text-orange-500" />
+            <Zap size={10} className="text-orange-700" />
             Live Logistics Tracking
           </div>
           <h1 className="text-5xl lg:text-7xl font-black text-[#0f172a] tracking-tighter uppercase leading-none">
@@ -310,7 +310,7 @@ export const TrackPackage = () => {
             <div className="lg:col-span-5 space-y-8">
               <GlassCard className="p-8 lg:p-10 bg-slate-900/5">
                 <div className="flex justify-between items-center mb-10">
-                  <div className="p-3 bg-white rounded-2xl shadow-xl text-orange-500"><Package size={24}/></div>
+                  <div className="p-3 bg-white rounded-2xl shadow-xl text-orange-700"><Package size={24}/></div>
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-white/60 backdrop-blur-md rounded-full text-[9px] font-black uppercase tracking-[0.2em] text-slate-600 shadow-sm">
                     <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                     Secure Status
@@ -484,7 +484,7 @@ export const TrackPackage = () => {
             <div className="mt-4">
               <GlassCard className="p-10 flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
                 <div className="w-16 h-16 bg-orange-100 rounded-3xl flex items-center justify-center shrink-0">
-                  <LogIn size={28} className="text-orange-500" />
+                  <LogIn size={28} className="text-orange-700" />
                 </div>
                 <div className="flex-1">
                   <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tighter mb-2">See All Your Packages</h3>

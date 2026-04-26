@@ -77,7 +77,7 @@ export const BuyForMe = () => {
                     <p className="font-mono text-xs text-slate-500">{o.id}</p>
                     <p className="font-semibold text-slate-800 truncate">{o.item_name}</p>
                     <a href={o.retailer_url} target="_blank" rel="noreferrer"
-                       className="text-xs text-orange-500 inline-flex items-center gap-1 hover:underline">
+                       className="text-xs text-orange-700 inline-flex items-center gap-1 hover:underline">
                       <ExternalLink size={11}/> {o.retailer_url}
                     </a>
                     {o.size && <p className="text-xs text-slate-500">Size: {o.size}</p>}

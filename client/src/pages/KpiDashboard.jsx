@@ -44,7 +44,7 @@ export const KpiDashboard = () => {
                 label="Chargeable kg this week"
                 value={kpi.kg_this_week}
                 trend={kpi.kg_trend_pct}
-                accent="text-orange-500"
+                accent="text-orange-700"
               />
               <KpiTile
                 icon={<Clock size={20}/>}

@@ -36,7 +36,7 @@ const MarqueeRetailers = ({ retailers }) => {
             href={r.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center space-x-3 md:space-x-4 mx-8 md:mx-12 text-slate-600 font-bold hover:text-orange-500 transition-all group"
+            className="inline-flex items-center space-x-3 md:space-x-4 mx-8 md:mx-12 text-slate-600 font-bold hover:text-orange-700 transition-all group"
           >
             <div className="p-2 md:p-3 bg-white rounded-2xl shadow-sm group-hover:scale-110 group-hover:shadow-orange-100 transition-transform">
               {r.icon}
@@ -64,7 +64,7 @@ export const Home = () => {
 
   const retailers = [
     { name: 'Shein',      url: 'https://www.shein.com',      icon: <ShoppingBag size={24} className="text-pink-500"   /> },
-    { name: 'Amazon',     url: 'https://www.amazon.co.uk',   icon: <Box          size={24} className="text-orange-500" /> },
+    { name: 'Amazon',     url: 'https://www.amazon.co.uk',   icon: <Box          size={24} className="text-orange-700" /> },
     { name: 'AliExpress', url: 'https://www.aliexpress.com', icon: <Zap          size={24} className="text-red-500"    /> },
     { name: 'Next',       url: 'https://www.next.co.uk',     icon: <ShoppingBag  size={24} className="text-slate-800"  /> },
     { name: 'eBay',       url: 'https://www.ebay.co.uk',     icon: <Package      size={24} className="text-blue-600"   /> },
@@ -235,7 +235,7 @@ export const Home = () => {
                         aria-label="Enter your tracking ID"
                         className="w-full px-3 py-4 md:px-4 md:py-5 bg-transparent border-none outline-none focus:ring-0 text-xs md:text-sm font-bold placeholder:text-slate-400"
                        />
-                       <button type="submit" className="px-5 py-2.5 md:px-6 md:py-3 bg-orange-500 text-white rounded-full text-[10px] md:text-xs font-black hover:bg-orange-600 transition-all shadow-lg hover:shadow-orange-200 shrink-0">
+                       <button type="submit" className="px-5 py-2.5 md:px-6 md:py-3 bg-orange-700 text-white rounded-full text-[10px] md:text-xs font-black hover:bg-orange-600 transition-all shadow-lg hover:shadow-orange-200 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
                          TRACK
                        </button>
                    </div>
@@ -244,7 +244,7 @@ export const Home = () => {
 
               <div className="flex items-center justify-center lg:justify-start gap-6 md:gap-8 pt-6 md:pt-8 border-t border-slate-200">
                 <div className="text-sm">
-                  <div className="flex text-orange-500 mb-1 justify-center lg:justify-start">
+                  <div className="flex text-orange-700 mb-1 justify-center lg:justify-start">
                     {[...Array(5)].map((_, i) => <Star key={i} size={14} className="md:w-4 md:h-4" fill="currentColor"/>)}
                   </div>
                   <p className="font-black text-[#0f172a] text-[10px] md:text-xs uppercase tracking-widest">Industry Leader</p>
@@ -260,7 +260,7 @@ export const Home = () => {
               <GlassCard className="p-1.5 md:p-2 transform lg:rotate-3 hover:rotate-0 transition-all duration-700 group shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] md:shadow-[0_50px_100px_-20px_rgba(0,0,0,0.15)]">
                 <div className="bg-slate-900/5 rounded-[2rem] md:rounded-[2.2rem] p-6 md:p-10">
                   <div className="flex justify-between items-center mb-8 md:mb-12">
-                    <div className="p-3 md:p-4 bg-white rounded-2xl shadow-xl text-orange-500 group-hover:scale-110 transition-transform"><Plane size={24} className="md:w-8 md:h-8"/></div>
+                    <div className="p-3 md:p-4 bg-white rounded-2xl shadow-xl text-orange-700 group-hover:scale-110 transition-transform"><Plane size={24} className="md:w-8 md:h-8"/></div>
                     <div className="flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-white/80 backdrop-blur-md rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 shadow-sm border border-white/50">
                       <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-green-500 animate-pulse" />
                       Live Monitoring
@@ -296,7 +296,7 @@ export const Home = () => {
       <section className="py-16 md:py-24 lg:py-40 px-4 md:px-6">
         <div className="container mx-auto">
           <div className="max-w-xl mb-12 md:mb-20 space-y-4 md:space-y-6 text-center md:text-left mx-auto md:mx-0">
-            <span className="text-orange-500 font-black uppercase tracking-[0.4em] text-[10px] md:text-xs">Our Workflow</span>
+            <span className="text-orange-700 font-black uppercase tracking-[0.4em] text-[10px] md:text-xs">Our Workflow</span>
             <h2 className="text-3xl md:text-5xl lg:text-7xl font-black text-[#0f172a] leading-none tracking-tighter uppercase">{t('home.howitworks')}</h2>
             <div className="h-1.5 md:h-2 w-16 md:w-24 bg-orange-500 rounded-full mx-auto md:mx-0" />
           </div>
@@ -413,7 +413,7 @@ export const Home = () => {
       <section className="py-16 md:py-24 lg:py-40 px-4 md:px-6">
         <div className="container mx-auto">
           <div className="mb-12 md:mb-20 space-y-3 md:space-y-4 text-center md:text-left">
-            <span className="text-orange-500 font-black uppercase tracking-[0.4em] text-[10px] md:text-xs">Customer Stories</span>
+            <span className="text-orange-700 font-black uppercase tracking-[0.4em] text-[10px] md:text-xs">Customer Stories</span>
             <h2 className="text-3xl md:text-5xl lg:text-7xl font-black text-[#0f172a] tracking-tighter uppercase">{t('home.testimonials')}</h2>
           </div>
 
@@ -429,7 +429,12 @@ export const Home = () => {
                     {test.avatar}
                   </div>
                   <div>
-                    <h4 className="font-black text-slate-900 text-sm md:text-base">{test.name}</h4>
+                    {/* Heading-outline fix: previous element was an h2
+                        ("Testimonials"), so this user-name was an h4 with
+                        no intervening h3 — a WCAG 1.3.1 outline skip.
+                        Promoting to h3 fixes the sequence; visual sizing
+                        is preserved via the same Tailwind classes. */}
+                    <h3 className="font-black text-slate-900 text-sm md:text-base">{test.name}</h3>
                     <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{test.location} · Verified Client</p>
                   </div>
                 </div>

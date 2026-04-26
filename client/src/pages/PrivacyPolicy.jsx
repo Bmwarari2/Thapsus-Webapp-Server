@@ -53,7 +53,7 @@ export const PrivacyPolicy = () => {
       <div className="max-w-3xl mx-auto px-6 py-12 lg:py-20 relative z-10">
 
         {/* Back */}
-        <Link to="/" className="inline-flex items-center gap-2 text-slate-500 hover:text-orange-500 font-black uppercase tracking-widest text-[10px] mb-10 transition-all group">
+        <Link to="/" className="inline-flex items-center gap-2 text-slate-500 hover:text-orange-700 font-black uppercase tracking-widest text-[10px] mb-10 transition-all group">
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
           Back to Home
         </Link>
@@ -61,7 +61,7 @@ export const PrivacyPolicy = () => {
         {/* Header */}
         <div className="mb-12 space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-md border border-white/50 text-[9px] font-black uppercase tracking-[0.3em] text-slate-500 shadow-sm">
-            <Zap size={10} className="text-orange-500" />
+            <Zap size={10} className="text-orange-700" />
             Legal Document
           </div>
           <div className="flex items-start gap-4">
@@ -117,7 +117,7 @@ export const PrivacyPolicy = () => {
           </Section>
 
           <Section title="4. Data Retention">
-            <p>We retain your personal information for as long as your account is active or as needed to provide you with services. Order records are retained for a minimum of seven (7) years in compliance with UK accounting and tax regulations. You may request deletion of your account and associated data by contacting us at <a href="mailto:admin@thapsus.uk" className="text-orange-500 hover:underline font-bold">admin@thapsus.uk</a>.</p>
+            <p>We retain your personal information for as long as your account is active or as needed to provide you with services. Order records are retained for a minimum of seven (7) years in compliance with UK accounting and tax regulations. You may request deletion of your account and associated data by contacting us at <a href="mailto:admin@thapsus.uk" className="text-orange-700 hover:underline font-bold">admin@thapsus.uk</a>.</p>
           </Section>
 
           <Section title="5. Cookies">
@@ -133,7 +133,7 @@ export const PrivacyPolicy = () => {
               <li>Object to or restrict certain processing activities.</li>
               <li>Data portability — receive a copy of your data in a machine-readable format.</li>
             </ul>
-            <p className="mt-3">To exercise any of these rights, contact us at <a href="mailto:admin@thapsus.uk" className="text-orange-500 hover:underline font-bold">admin@thapsus.uk</a>.</p>
+            <p className="mt-3">To exercise any of these rights, contact us at <a href="mailto:admin@thapsus.uk" className="text-orange-700 hover:underline font-bold">admin@thapsus.uk</a>.</p>
           </Section>
 
           <Section title="7. Security">
@@ -151,8 +151,8 @@ export const PrivacyPolicy = () => {
           <Section title="10. Contact Us">
             <p>If you have any questions about this Privacy Policy, please contact us:</p>
             <ul className="list-none mt-3 space-y-1.5">
-              <li><strong className="text-slate-800">Email:</strong> <a href="mailto:admin@thapsus.uk" className="text-orange-500 hover:underline font-bold">admin@thapsus.uk</a></li>
-              <li><strong className="text-slate-800">Phone / WhatsApp:</strong> <a href="https://wa.me/447424531483" target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:underline font-bold">+44 7424 531483</a></li>
+              <li><strong className="text-slate-800">Email:</strong> <a href="mailto:admin@thapsus.uk" className="text-orange-700 hover:underline font-bold">admin@thapsus.uk</a></li>
+              <li><strong className="text-slate-800">Phone / WhatsApp:</strong> <a href="https://wa.me/447424531483" target="_blank" rel="noopener noreferrer" className="text-orange-700 hover:underline font-bold">+44 7424 531483</a></li>
               <li><strong className="text-slate-800">Address:</strong> 31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB, United Kingdom</li>
             </ul>
           </Section>
@@ -163,7 +163,7 @@ export const PrivacyPolicy = () => {
         <div className="mt-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
           <p>© {new Date().getFullYear()} Thapsus Cargo Global</p>
           <div className="flex gap-6">
-            <Link to="/privacy" className="text-orange-500">Privacy Policy</Link>
+            <Link to="/privacy" className="text-orange-700">Privacy Policy</Link>
             <Link to="/terms" className="hover:text-slate-700 transition-colors">Terms of Service</Link>
           </div>
         </div>

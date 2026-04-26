@@ -149,7 +149,7 @@ function PermissionBanner({ onDismiss }) {
           </span>
         </div>
         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/70 backdrop-blur-md border border-white/60 text-[9px] font-black uppercase tracking-[0.25em] text-slate-500">
-          <Zap size={9} className="text-orange-500" />
+          <Zap size={9} className="text-orange-700" />
           Live Shipment Alerts
         </div>
       </div>
@@ -215,7 +215,7 @@ function IOSInstallBanner({ onDismiss }) {
           </span>
         </div>
         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/70 backdrop-blur-md border border-white/60 text-[9px] font-black uppercase tracking-[0.25em] text-slate-500">
-          <Zap size={9} className="text-orange-500" />
+          <Zap size={9} className="text-orange-700" />
           Enable Notifications
         </div>
       </div>
@@ -241,7 +241,7 @@ function IOSInstallBanner({ onDismiss }) {
 
       {/* The downward-pointing arrow cue toward Safari's toolbar */}
       <div className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl bg-orange-50/80 border border-orange-100 mb-4">
-        <Share size={14} className="text-orange-500 shrink-0" />
+        <Share size={14} className="text-orange-700 shrink-0" />
         <span className="text-xs font-black text-orange-600 uppercase tracking-wider">
           Look for the Share icon below ↓
         </span>
