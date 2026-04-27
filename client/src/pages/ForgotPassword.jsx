@@ -86,7 +86,7 @@ export const ForgotPassword = () => {
           <div className="text-center mb-10">
             <h1 className="text-4xl md:text-5xl font-black text-[#0f172a] tracking-tighter uppercase leading-none mb-3">
               <span>Thapsus</span>
-              <span className="text-orange-500">Cargo</span>
+              <span className="text-orange-700">Cargo</span>
             </h1>
             <p className="text-slate-500 font-bold text-sm tracking-wide uppercase">Password Recovery</p>
           </div>
@@ -141,7 +141,7 @@ export const ForgotPassword = () => {
                     Email Address
                   </label>
                   <div className="relative group/input">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within/input:text-orange-500 transition-colors" size={20} />
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within/input:text-orange-700 transition-colors" size={20} />
                     <input
                       type="email"
                       value={email}
@@ -170,7 +170,7 @@ export const ForgotPassword = () => {
               <div className="mt-8 text-center">
                 <Link
                   to="/login"
-                  className="inline-flex items-center gap-2 text-xs font-bold text-orange-500 hover:text-orange-600 transition-colors uppercase tracking-widest group/link"
+                  className="inline-flex items-center gap-2 text-xs font-bold text-orange-700 hover:text-orange-600 transition-colors uppercase tracking-widest group/link"
                 >
                   <ArrowLeft size={16} className="group-hover/link:-translate-x-1 transition-transform" />
                   Back to Security Portal

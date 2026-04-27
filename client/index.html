@@ -1,61 +1,26 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-09M01VBWF0"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-
-      // ── Google Consent Mode v2 ───────────────────────────────────────────
-      // Must be declared BEFORE gtag('config', ...). Required for Google Ads
-      // in EEA/UK since March 2024.
-      // All non-essential consent starts as 'denied'. The CookieConsent React
-      // component calls gtag('consent', 'update', {...}) with 'granted' after
-      // the user clicks Accept in the cookie banner.
-      gtag('consent', 'default', {
-        'ad_storage':            'denied',
-        'ad_user_data':          'denied',
-        'ad_personalization':    'denied',
-        'analytics_storage':     'denied',
-        'functionality_storage': 'denied',
-        'personalization_storage': 'denied',
-        'security_storage':      'granted'   // always on — required for login/security
-      });
-
-      gtag('js', new Date());
-      gtag('config', 'G-09M01VBWF0');
-    </script>
-
-    <!-- Meta Pixel Code -->
-    <script>
-    !function(f,b,e,v,n,t,s)
-    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-    n.queue=[];t=b.createElement(e);t.async=!0;
-    t.src=v;s=b.getElementsByTagName(e)[0];
-    s.parentNode.insertBefore(t,s)}(window, document,'script',
-    'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '1556063629186873');
-    fbq('track', 'PageView');
-    </script>
-    <!-- End Meta Pixel Code (noscript fallback is in <body> below, required by Vite/parse5) -->
-
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/logo.png" />
     <!-- iOS/iPadOS home screen icon — 180x180 covers all iPhone/iPad scaling needs -->
     <link rel="apple-touch-icon" sizes="180x180" href="/iOS-ipad.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <!-- WCAG 1.4.4 (Resize Text): allow user-controlled zoom. Do NOT add
+         user-scalable=no or maximum-scale — those break the WCAG AA
+         resize requirement on iOS Safari. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <!-- Preconnect to Google Fonts (eliminates ~200ms DNS+TLS per origin) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-    <!-- Non-render-blocking font loading (swap from CSS @import → async link) -->
+    <!-- Non-render-blocking font loading. Preconnect + preload + plain
+         stylesheet keeps the font request out of the critical render path
+         without needing the inline `onload="this.media='all'"` toggle —
+         that attribute is a CSP violation (inline event handler) and is
+         no longer needed once the request is preloaded. -->
     <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" media="print" onload="this.media='all'" />
-    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" /></noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" />
     <!-- Theme color: tints browser/OS chrome — Android Chrome picks the first match,
          iOS Safari uses the apple-mobile-web-app-status-bar-style meta below.
          We supply both a light and dark variant so the tint tracks the OS colour scheme. -->

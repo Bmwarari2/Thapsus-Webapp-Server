@@ -169,15 +169,15 @@ export const WarehouseAddresses = () => {
                   {market === 'UK' && (
                     <>
                       <li className="flex gap-3 items-start">
-                        <span className="text-orange-500 text-lg leading-none mt-0.5">•</span>
+                        <span className="text-orange-700 text-lg leading-none mt-0.5">•</span>
                         <span>Shop from Amazon UK, Shein, ASOS, Next, Superdrug, and more</span>
                       </li>
                       <li className="flex gap-3 items-start">
-                        <span className="text-orange-500 text-lg leading-none mt-0.5">•</span>
+                        <span className="text-orange-700 text-lg leading-none mt-0.5">•</span>
                         <span>Enter the full address including your TC code in the delivery address</span>
                       </li>
                       <li className="flex gap-3 items-start">
-                        <span className="text-orange-500 text-lg leading-none mt-0.5">•</span>
+                        <span className="text-orange-700 text-lg leading-none mt-0.5">•</span>
                         <span>Our warehouse will receive and consolidate your packages</span>
                       </li>
                     </>
@@ -185,15 +185,15 @@ export const WarehouseAddresses = () => {
                   {market === 'China' && (
                     <>
                       <li className="flex gap-3 items-start">
-                        <span className="text-orange-500 text-lg leading-none mt-0.5">•</span>
+                        <span className="text-orange-700 text-lg leading-none mt-0.5">•</span>
                         <span>Shop from AliExpress, Taobao, Wish, and Chinese marketplaces</span>
                       </li>
                       <li className="flex gap-3 items-start">
-                        <span className="text-orange-500 text-lg leading-none mt-0.5">•</span>
+                        <span className="text-orange-700 text-lg leading-none mt-0.5">•</span>
                         <span>Provide this address as your shipping destination</span>
                       </li>
                       <li className="flex gap-3 items-start">
-                        <span className="text-orange-500 text-lg leading-none mt-0.5">•</span>
+                        <span className="text-orange-700 text-lg leading-none mt-0.5">•</span>
                         <span>Packages may take longer to arrive from China</span>
                       </li>
                     </>

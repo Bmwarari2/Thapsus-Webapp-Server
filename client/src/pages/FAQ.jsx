@@ -93,7 +93,7 @@ const FAQItem = ({ q, a }) => {
       >
         <span className="font-bold text-[#1e3a5f] text-sm md:text-base leading-snug">{q}</span>
         {open
-          ? <ChevronUp size={20} className="text-orange-500 flex-shrink-0 mt-0.5" />
+          ? <ChevronUp size={20} className="text-orange-700 flex-shrink-0 mt-0.5" />
           : <ChevronDown size={20} className="text-slate-400 flex-shrink-0 mt-0.5" />
         }
       </button>
@@ -117,7 +117,7 @@ export const FAQ = () => {
         {/* Header */}
         <div className="mb-12 text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-orange-500/10 border border-orange-500/20 mb-6">
-            <HelpCircle size={32} className="text-orange-500" />
+            <HelpCircle size={32} className="text-orange-700" />
           </div>
           <h1 className="text-4xl md:text-5xl font-black text-[#1e3a5f] mb-4 leading-none tracking-tighter">
             Help Centre
@@ -131,7 +131,7 @@ export const FAQ = () => {
         <div className="space-y-10">
           {faqs.map(({ category, items }) => (
             <div key={category}>
-              <h2 className="text-xs font-black uppercase tracking-widest text-orange-500 mb-4 px-1">
+              <h2 className="text-xs font-black uppercase tracking-widest text-orange-700 mb-4 px-1">
                 {category}
               </h2>
               <div className="space-y-3">

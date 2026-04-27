@@ -53,7 +53,11 @@ export const ExchangeRate = () => {
     const fetchRates = async () => {
       try {
         const response = await pricingApi.getExchangeRates()
-        setRates(response.data)
+        const payload = response.data?.data || {}
+        setRates({
+          usdToKes: Number(payload.USD_KES) || 0,
+          gbpToKes: Number(payload.GBP_KES) || 0,
+        })
       } catch (err) {
         toast.error('Failed to load exchange rates')
       } finally {
@@ -96,7 +100,7 @@ export const ExchangeRate = () => {
         {/* Header */}
         <div className="text-center mb-12 lg:mb-16">
           <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-md border border-white/50 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 shadow-sm mb-4">
-            <Zap size={12} className="text-orange-500" />
+            <Zap size={12} className="text-orange-700" />
             Live Market Data
           </div>
           <h1 className="text-4xl md:text-6xl font-black text-[#0f172a] tracking-tighter uppercase leading-none mb-4">

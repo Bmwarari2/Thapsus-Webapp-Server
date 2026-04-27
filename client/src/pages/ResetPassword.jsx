@@ -88,7 +88,7 @@ export const ResetPassword = () => {
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-[#1e3a5f] mb-2">
               <span>Thapsus</span>
-              <span className="text-orange-500"> Cargo</span>
+              <span className="text-orange-700"> Cargo</span>
             </h1>
             <p className="text-gray-600">Create a new password</p>
           </div>
@@ -165,7 +165,7 @@ export const ResetPassword = () => {
               <div className="mt-6 text-center">
                 <Link
                   to="/login"
-                  className="text-sm text-orange-500 hover:text-orange-600"
+                  className="text-sm text-orange-700 hover:text-orange-600"
                 >
                   Back to Login
                 </Link>

@@ -2,8 +2,15 @@ import React from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
-export const ProtectedRoute = ({ children, adminOnly = false }) => {
-  const { isAuthenticated, isAdmin, loading } = useAuth()
+/**
+ * ProtectedRoute — wrap any route to require auth and (optionally) one or
+ * more roles.  `adminOnly` is kept for backwards compatibility.
+ *
+ *   <ProtectedRoute adminOnly>{...}</ProtectedRoute>
+ *   <ProtectedRoute roles={['operator','admin']}>{...}</ProtectedRoute>
+ */
+export const ProtectedRoute = ({ children, adminOnly = false, roles = null }) => {
+  const { isAuthenticated, isAdmin, user, loading } = useAuth()
 
   if (loading) {
     return (
@@ -19,6 +26,13 @@ export const ProtectedRoute = ({ children, adminOnly = false }) => {
 
   if (adminOnly && !isAdmin) {
     return <Navigate to="/dashboard" replace />
+  }
+
+  if (Array.isArray(roles) && roles.length > 0) {
+    const role = user?.role
+    if (role !== 'admin' && !roles.includes(role)) {
+      return <Navigate to="/dashboard" replace />
+    }
   }
 
   return children

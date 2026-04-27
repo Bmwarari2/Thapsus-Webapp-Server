@@ -1,0 +1,205 @@
+/**
+ * routes/ops.js — operator console (Spec §3.3, §4.3).
+ *
+ *   GET  /api/ops/today               — today's parcels view
+ *   GET  /api/ops/parcels             — full parcel grid (filterable)
+ *   POST /api/ops/parcels/:id/receive — barcode-driven receive workflow
+ *   POST /api/ops/parcels/:id/screen  — re-run prohibited / DG screen
+ *   POST /api/ops/parcels/:id/hold    — flag a parcel as held
+ *   POST /api/ops/parcels/:id/release — clear a hold
+ */
+import express from 'express';
+import { authMiddleware, requireRole } from '../middleware/auth.js';
+import { checkItem as checkProhibited } from '../utils/prohibited.js';
+
+const router = express.Router();
+const ALLOWED = requireRole('operator');
+
+function calcVolumetric(dims) {
+  if (!dims || !dims.length || !dims.width || !dims.height) return 0;
+  return parseFloat(((dims.length * dims.width * dims.height) / 6000).toFixed(2));
+}
+
+/** GET /api/ops/today — operator dashboard */
+router.get('/today', authMiddleware, ALLOWED, async (req, res) => {
+  try {
+    const expected = await req.db.query(`
+      SELECT COUNT(*)::int AS count FROM orders
+       WHERE status = 'pending'
+         AND created_at >= NOW() - INTERVAL '14 days'`);
+    const received = await req.db.query(`
+      SELECT COUNT(*)::int AS count FROM orders
+       WHERE status = 'received_at_warehouse'`);
+    const consolidating = await req.db.query(`
+      SELECT COUNT(*)::int AS count FROM orders WHERE status = 'consolidating'`);
+    const inTransit = await req.db.query(`
+      SELECT COUNT(*)::int AS count FROM orders WHERE status = 'in_transit'`);
+    const held = await req.db.query(`
+      SELECT COUNT(*)::int AS count FROM orders
+       WHERE hold_reason IS NOT NULL AND hold_resolved_at IS NULL`);
+
+    res.json({
+      success: true,
+      today: {
+        expected:      expected.rows[0].count,
+        received:      received.rows[0].count,
+        consolidating: consolidating.rows[0].count,
+        in_transit:    inTransit.rows[0].count,
+        held:          held.rows[0].count,
+      },
+    });
+  } catch (err) {
+    console.error('GET /ops/today error:', err);
+    res.status(500).json({ success: false, message: 'Failed to load operator dashboard' });
+  }
+});
+
+/** GET /api/ops/parcels — filterable parcel grid */
+router.get('/parcels', authMiddleware, ALLOWED, async (req, res) => {
+  try {
+    const { status, q } = req.query;
+    const params = [];
+    const where  = [];
+    if (status) { params.push(status); where.push(`o.status = $${params.length}`); }
+    if (q) {
+      params.push(`%${q}%`);
+      where.push(`(o.tracking_number ILIKE $${params.length} OR o.description ILIKE $${params.length} OR u.email ILIKE $${params.length})`);
+    }
+    const wsql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const { rows } = await req.db.query(
+      `SELECT o.*, u.email, u.name, u.warehouse_id
+         FROM orders o
+         JOIN users u ON u.id = o.user_id
+         ${wsql}
+         ORDER BY o.created_at DESC
+         LIMIT 200`,
+      params
+    );
+    res.json({ success: true, parcels: rows });
+  } catch (err) {
+    console.error('GET /ops/parcels error:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch parcels' });
+  }
+});
+
+/** POST /api/ops/parcels/:id/receive  — barcode-driven receive */
+router.post('/parcels/:id/receive', authMiddleware, ALLOWED, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { weight_kg, dimensions, photo_url, barcode } = req.body;
+
+    const volumetric = calcVolumetric(dimensions);
+    const chargeable = Math.max(parseFloat(weight_kg) || 0, volumetric);
+
+    await req.db.query(
+      `UPDATE orders
+          SET status = 'received_at_warehouse',
+              weight_kg = COALESCE($1, weight_kg),
+              dimensions_json = COALESCE($2, dimensions_json),
+              volumetric_kg = $3,
+              chargeable_kg = $4,
+              photographed_at = CASE WHEN $5::text IS NOT NULL THEN NOW() ELSE photographed_at END,
+              updated_at = NOW()
+        WHERE id = $6`,
+      [weight_kg || null,
+       dimensions ? JSON.stringify(dimensions) : null,
+       volumetric,
+       chargeable,
+       photo_url || null,
+       id]
+    );
+
+    if (barcode || photo_url) {
+      await req.db.query(
+        `UPDATE packages
+            SET barcode = COALESCE($1, barcode),
+                photo_url = COALESCE($2, photo_url),
+                status = 'received',
+                received_at = NOW()
+          WHERE order_id = $3`,
+        [barcode || null, photo_url || null, id]
+      );
+    }
+
+    res.json({
+      success: true,
+      weight_kg: parseFloat(weight_kg) || 0,
+      volumetric_kg: volumetric,
+      chargeable_kg: chargeable,
+    });
+  } catch (err) {
+    console.error('POST /ops/parcels/:id/receive error:', err);
+    res.status(500).json({ success: false, message: 'Failed to receive parcel' });
+  }
+});
+
+/** POST /api/ops/parcels/:id/screen — prohibited / DG re-screen */
+router.post('/parcels/:id/screen', authMiddleware, ALLOWED, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { description } = req.body;
+    const result = checkProhibited(description || '');
+
+    // checkItem returns { allowed, reason, category, risk_level } — map to
+    // the spec's three-state screening_result enum:
+    //   high → 'held' (prohibited),  medium/low → 'dg_suspect' (restricted)
+    let screening = 'clean';
+    if (result && !result.allowed) {
+      screening = result.risk_level === 'high' ? 'held' : 'dg_suspect';
+    }
+
+    await req.db.query(
+      `UPDATE packages
+          SET screening_result = $1,
+              status = CASE WHEN $1 = 'held' THEN 'pending' ELSE status END
+        WHERE order_id = $2`,
+      [screening, id]
+    );
+
+    if (screening === 'held') {
+      await req.db.query(
+        `UPDATE orders SET hold_reason = $1, updated_at = NOW() WHERE id = $2`,
+        [`screening_${result?.category || 'prohibited'}`, id]
+      );
+    }
+
+    res.json({ success: true, screening_result: screening, detail: result });
+  } catch (err) {
+    console.error('POST /ops/parcels/:id/screen error:', err);
+    res.status(500).json({ success: false, message: 'Failed to screen parcel' });
+  }
+});
+
+/** POST /api/ops/parcels/:id/hold */
+router.post('/parcels/:id/hold', authMiddleware, ALLOWED, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    await req.db.query(
+      `UPDATE orders SET hold_reason = $1, hold_resolved_at = NULL, updated_at = NOW()
+        WHERE id = $2`,
+      [reason || 'manual_hold', id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('POST /ops/parcels/:id/hold error:', err);
+    res.status(500).json({ success: false, message: 'Failed to hold parcel' });
+  }
+});
+
+/** POST /api/ops/parcels/:id/release */
+router.post('/parcels/:id/release', authMiddleware, ALLOWED, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await req.db.query(
+      `UPDATE orders SET hold_resolved_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('POST /ops/parcels/:id/release error:', err);
+    res.status(500).json({ success: false, message: 'Failed to release parcel' });
+  }
+});
+
+export default router;

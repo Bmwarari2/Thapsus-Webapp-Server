@@ -10,7 +10,7 @@ import toast from 'react-hot-toast'
 
 /* ─── Retailer Data ─────────────────────────────────────────────────────── */
 const RETAILERS = [
-  { name: 'Amazon',       url: 'https://www.amazon.co.uk',          icon: <Box         size={28} className="text-orange-500" />, flag: '🇬🇧', color: 'from-orange-50 to-amber-50',   border: 'border-orange-200/60' },
+  { name: 'Amazon',       url: 'https://www.amazon.co.uk',          icon: <Box         size={28} className="text-orange-700" />, flag: '🇬🇧', color: 'from-orange-50 to-amber-50',   border: 'border-orange-200/60' },
   { name: 'ASOS',         url: 'https://www.asos.com',              icon: <ShoppingBag size={28} className="text-slate-900"  />, flag: '🇬🇧', color: 'from-slate-50 to-gray-50',    border: 'border-slate-200/60'  },
   { name: 'Next',         url: 'https://www.next.co.uk',            icon: <ShoppingBag size={28} className="text-slate-800"  />, flag: '🇬🇧', color: 'from-slate-50 to-zinc-50',    border: 'border-slate-200/60'  },
   { name: 'ZARA',         url: 'https://www.zara.com',              icon: <ShoppingBag size={28} className="text-slate-900"  />, flag: '🇬🇧', color: 'from-zinc-50 to-stone-50',    border: 'border-zinc-200/60'   },
@@ -101,7 +101,7 @@ const AddressCard = ({ user }) => {
 export const ShipInstructions = () => {
   const { user } = useAuth()
   const steps = [
-    { number: '01', title: 'Choose your retailer', description: 'Browse and shop from any of our supported UK or China retailers.', icon: <ShoppingBag size={24} className="text-orange-500" /> },
+    { number: '01', title: 'Choose your retailer', description: 'Browse and shop from any of our supported UK or China retailers.', icon: <ShoppingBag size={24} className="text-orange-700" /> },
     { number: '02', title: 'Ship to warehouse', description: 'At checkout, use our Stockport warehouse address with your unique ID.', icon: <MapPin size={24} className="text-blue-400" /> },
     { number: '03', title: 'Tell us about it', description: 'Log your order in the dashboard or via WhatsApp.', icon: <MessageCircle size={24} className="text-emerald-400" /> },
     { number: '04', title: 'We handle the rest', description: 'We consolidate and ship your parcels directly to Kenya.', icon: <Truck size={24} className="text-purple-400" /> },

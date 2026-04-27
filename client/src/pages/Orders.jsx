@@ -45,7 +45,7 @@ const CostBreakdown = ({ order }) => {
         <span className="text-orange-600">KES {total.toLocaleString()}</span>
       </div>
       {!order.actual_cost && (
-        <p className="text-orange-500 font-semibold text-[10px] mt-1 tracking-tight">* Estimated — final cost confirmed after weighing</p>
+        <p className="text-orange-700 font-semibold text-[10px] mt-1 tracking-tight">* Estimated — final cost confirmed after weighing</p>
       )}
     </div>
   )
@@ -266,7 +266,7 @@ export const Orders = () => {
                         <div>
                           <button
                             onClick={() => setExpandedCost(expandedCost === order.id ? null : order.id)}
-                            className="text-sm font-black text-[#1e3a5f] hover:text-orange-500 flex items-center gap-1 transition-colors"
+                            className="text-sm font-black text-[#1e3a5f] hover:text-orange-700 flex items-center gap-1 transition-colors"
                           >
                             KES {((order.actual_cost ?? order.estimated_cost ?? 0) + (order.customs_duty ?? 0)).toLocaleString()}
                             <ChevronDown size={16} className={`transition-transform duration-300 ${expandedCost === order.id ? 'rotate-180' : ''}`} />
@@ -278,7 +278,7 @@ export const Orders = () => {
                         <Link
                           to={`/orders/${order.id}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="text-orange-500 hover:text-orange-600 font-black tracking-tight flex items-center gap-1.5 transition-colors bg-orange-50 hover:bg-orange-100/50 px-3 py-1.5 rounded-lg w-fit border border-orange-200/50"
+                          className="text-orange-700 hover:text-orange-600 font-black tracking-tight flex items-center gap-1.5 transition-colors bg-orange-50 hover:bg-orange-100/50 px-3 py-1.5 rounded-lg w-fit border border-orange-200/50"
                         >
                           <Eye size={16} />
                           View

@@ -146,7 +146,7 @@ export const OrderConfirmation = () => {
                 {pricing.notes?.delivery_time && (
                   <div className="mt-4 p-3 bg-white/40 rounded-xl border border-white/50 backdrop-blur-md">
                     <p className="text-xs text-slate-600 font-semibold flex items-center gap-2">
-                      <Clock size={14} className="text-orange-500" />
+                      <Clock size={14} className="text-orange-700" />
                       {pricing.notes.delivery_time}
                     </p>
                   </div>

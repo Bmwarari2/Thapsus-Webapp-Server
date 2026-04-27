@@ -569,7 +569,7 @@ export const AdminDashboard = () => {
               {/* New Orders Today */}
               <GlassCard className="flex flex-col justify-center p-8 border-orange-200/50 bg-orange-50/30 group hover:-translate-y-2 transition-all duration-500">
                 <div className="flex items-center justify-between mb-4">
-                  <ShoppingCart className="text-orange-500" size={32}/>
+                  <ShoppingCart className="text-orange-700" size={32}/>
                   <span className="px-2.5 py-1 bg-orange-50 text-orange-600 border border-orange-200 rounded-full text-[9px] font-black uppercase tracking-widest">Today</span>
                 </div>
                 <span className="text-[10px] font-black uppercase tracking-widest text-orange-600/60 mb-1">New Orders</span>
@@ -595,7 +595,7 @@ export const AdminDashboard = () => {
                 <h3 className="text-4xl font-black text-[#0f172a] tracking-tighter">{stats?.users?.total || 0}</h3>
                 <div className="flex gap-3 mt-2">
                   <span className="text-[9px] font-black text-slate-400 uppercase">{stats?.users?.customers || 0} customers</span>
-                  <span className="text-[9px] font-black text-orange-500 uppercase">{stats?.users?.admins || 0} admins</span>
+                  <span className="text-[9px] font-black text-orange-700 uppercase">{stats?.users?.admins || 0} admins</span>
                 </div>
               </GlassCard>
             </div>
@@ -604,7 +604,7 @@ export const AdminDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Order Status Breakdown */}
               <GlassCard className="md:col-span-2 p-8">
-                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2"><BarChart3 size={14} className="text-orange-500" /> Orders by Status</h4>
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2"><BarChart3 size={14} className="text-orange-700" /> Orders by Status</h4>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {(stats?.order_statuses || []).map(s => {
                     const statusColors = {
@@ -692,7 +692,7 @@ export const AdminDashboard = () => {
                   <div>
                     <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Referrals</p>
                     <p className="text-xl font-black text-[#0f172a] tracking-tighter">{parseInt(stats?.referrals?.completed_referrals) || 0} / {parseInt(stats?.referrals?.total_referrals) || 0}</p>
-                    <p className="text-[9px] font-bold text-orange-500">KES {(parseFloat(stats?.referrals?.total_rewards_paid) || 0).toLocaleString()} paid</p>
+                    <p className="text-[9px] font-bold text-orange-700">KES {(parseFloat(stats?.referrals?.total_rewards_paid) || 0).toLocaleString()} paid</p>
                   </div>
                 </GlassCard>
                 <GlassCard className="p-6 flex items-center gap-4 group hover:-translate-y-1 transition-all duration-300">
@@ -728,7 +728,7 @@ export const AdminDashboard = () => {
                 <tbody className="divide-y divide-white/50">
                   {users.map(u => (
                     <tr key={u.id} className="hover:bg-white/40 transition-colors">
-                      <td className={tdClass}><p className="font-black text-[#0f172a]">{u.name}</p><p className="text-[10px] font-mono text-orange-500 font-bold mt-1">{u.warehouse_id}</p></td>
+                      <td className={tdClass}><p className="font-black text-[#0f172a]">{u.name}</p><p className="text-[10px] font-mono text-orange-700 font-bold mt-1">{u.warehouse_id}</p></td>
                       <td className={tdClass}><p className="font-bold text-slate-700">{u.email}</p><p className="text-xs text-slate-400 font-medium mt-1">{u.phone}</p></td>
                       <td className={tdClass}><p className="font-black text-green-600">KES {(u.wallet_balance||0).toLocaleString()}</p></td>
                       <td className={tdClass}><span className={`inline-flex px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm border ${u.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>{u.is_active ? 'Active' : 'Disabled'}</span></td>
@@ -806,7 +806,7 @@ export const AdminDashboard = () => {
                         <div className="flex justify-end gap-2">
                           <button onClick={() => handleOpenEditOrder(o)} className="p-2 bg-white hover:bg-blue-100 text-blue-600 border border-blue-100 rounded-xl shadow-sm transition-colors" title="Edit Order"><Pencil size={16}/></button>
                           <button onClick={() => { setPaymentModal({orderId: o.id, trackingNumber: o.tracking_number}); setPaymentAmount(String(o.estimated_cost||'')) }} className="p-2 bg-white hover:bg-green-100 text-green-600 border border-green-100 rounded-xl shadow-sm transition-colors" title="Request Payment"><DollarSign size={16}/></button>
-                          <button onClick={() => { setReminderModal({orderId: o.id, trackingNumber: o.tracking_number}); setReminderAmount(String(o.estimated_cost||'')) }} className="p-2 bg-white hover:bg-orange-100 text-orange-500 border border-orange-100 rounded-xl shadow-sm transition-colors" title="Payment Reminder"><Bell size={16}/></button>
+                          <button onClick={() => { setReminderModal({orderId: o.id, trackingNumber: o.tracking_number}); setReminderAmount(String(o.estimated_cost||'')) }} className="p-2 bg-white hover:bg-orange-100 text-orange-700 border border-orange-100 rounded-xl shadow-sm transition-colors" title="Payment Reminder"><Bell size={16}/></button>
                           <button onClick={() => { setCancelModal({orderId: o.id, trackingNumber: o.tracking_number}) }} className="p-2 bg-white hover:bg-amber-100 text-amber-600 border border-amber-100 rounded-xl shadow-sm transition-colors" title="Cancel"><XCircle size={16}/></button>
                           <button onClick={() => handleDeleteOrder(o.id, o.tracking_number)} className="p-2 bg-white hover:bg-red-100 text-red-600 border border-red-100 rounded-xl shadow-sm transition-colors" title="Delete"><Trash2 size={16}/></button>
                         </div>
@@ -966,7 +966,7 @@ export const AdminDashboard = () => {
               <div className="h-full w-full bg-white/95 backdrop-blur-3xl rounded-[2.9rem] p-10 md:p-14 space-y-10">
                 <div className="flex flex-col md:flex-row items-center md:items-start gap-6 text-center md:text-left">
                   <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
-                    <Globe size={32} className="text-orange-500" />
+                    <Globe size={32} className="text-orange-700" />
                   </div>
                   <div>
                     <h3 className="text-3xl font-black text-[#0f172a] tracking-tighter uppercase leading-none mb-2">Currency Engine</h3>
@@ -1006,7 +1006,7 @@ export const AdminDashboard = () => {
             </GlassCard>
             <GlassCard className="p-10">
                <h3 className="text-2xl font-black text-[#0f172a] uppercase tracking-tighter mb-6 flex items-center gap-4">
-                 <div className="p-3 bg-orange-100 text-orange-500 rounded-xl"><Mail size={20}/></div>
+                 <div className="p-3 bg-orange-100 text-orange-700 rounded-xl"><Mail size={20}/></div>
                  SMTP Diagnostics
                </h3>
                <p className="text-sm text-slate-500 font-bold mb-8 leading-relaxed">Test the Gmail OAuth2 integration to ensure automated receipts and reset links are dispatched correctly.</p>
@@ -1429,7 +1429,7 @@ export const AdminDashboard = () => {
                 <div className="flex items-center justify-between mb-8">
                   <div>
                     <h3 className="text-2xl font-black text-[#0f172a] uppercase tracking-tighter">Edit Order</h3>
-                    <p className="text-sm font-bold text-orange-500 mt-1">{editOrderModal.tracking_number}</p>
+                    <p className="text-sm font-bold text-orange-700 mt-1">{editOrderModal.tracking_number}</p>
                   </div>
                   <button onClick={() => setEditOrderModal(null)} className="p-2 hover:bg-red-100 text-red-500 rounded-xl transition-colors"><X size={20}/></button>
                 </div>
@@ -1463,7 +1463,7 @@ export const AdminDashboard = () => {
                   <div className="relative overflow-hidden rounded-2xl bg-orange-50/60 backdrop-blur-md border border-orange-200/40 p-5">
                     <div className="absolute inset-0 bg-gradient-to-tr from-orange-100/20 to-transparent pointer-events-none" />
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-orange-600 mb-1 relative z-10 flex items-center gap-2">⚡ Electronics &amp; Special Handling</h4>
-                    <p className="text-[10px] text-orange-500/80 font-semibold mb-4 relative z-10">Adds a handling fee on top of the standard shipping rate. Also enforces a 1 kg minimum weight.</p>
+                    <p className="text-[10px] text-orange-700/80 font-semibold mb-4 relative z-10">Adds a handling fee on top of the standard shipping rate. Also enforces a 1 kg minimum weight.</p>
                     <select
                       className={inputClass + " relative z-10"}
                       value={editOrderForm.electronics_item}

@@ -27,6 +27,45 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
+/** GET /api/consolidation/requests — list this user's consolidation request groups */
+router.get('/requests', authMiddleware, async (req, res) => {
+  try {
+    const db = req.db;
+    const userId = req.user.id;
+
+    const result = await db.query(
+      `SELECT consolidated_with AS id,
+              COUNT(*)::int       AS package_count,
+              MIN(created_at)     AS created_at,
+              MAX(updated_at)     AS updated_at,
+              CASE
+                WHEN BOOL_AND(status = 'delivered')        THEN 'completed'
+                WHEN BOOL_AND(status = 'consolidating')    THEN 'pending'
+                ELSE 'in_progress'
+              END                  AS status
+         FROM packages
+        WHERE user_id = $1 AND consolidated_with IS NOT NULL
+        GROUP BY consolidated_with
+        ORDER BY MIN(created_at) DESC`,
+      [userId]
+    );
+
+    res.json({
+      success: true,
+      requests: result.rows.map(r => ({
+        id:           r.id,
+        packageCount: r.package_count,
+        status:       r.status,
+        createdAt:    r.created_at,
+        completedAt:  r.status === 'completed' ? r.updated_at : null,
+      })),
+    });
+  } catch (error) {
+    console.error('Get consolidation requests error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch consolidation requests' });
+  }
+});
+
 /** POST /api/consolidation/request */
 router.post('/request', authMiddleware, async (req, res) => {
   try {

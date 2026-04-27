@@ -126,7 +126,7 @@ export const PricingCalculator = () => {
             {t('pricing.title')}
           </h1>
           <p className="text-gray-600/80 flex items-center justify-center gap-2 font-medium tracking-tight">
-            <Calculator size={20} className="text-orange-500" />
+            <Calculator size={20} className="text-orange-700" />
             {t('pricing.description')}
           </p>
         </div>

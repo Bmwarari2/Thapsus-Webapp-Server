@@ -298,6 +298,82 @@ const translations = {
     'common.about': 'About Us',
     'common.privacy': 'Privacy Policy',
     'common.terms': 'Terms of Service',
+
+    // Framework v2 — Cut-off banner
+    'cutoff.label': 'Next flight cut-off',
+    'cutoff.title': 'Cut-off closes in',
+    'cutoff.subtitle': 'Weekly UK → Nairobi flight',
+    'cutoff.days':  'DAYS',
+    'cutoff.hrs':   'HRS',
+    'cutoff.min':   'MIN',
+    'cutoff.sec':   'SEC',
+
+    // Framework v2 — Insurance
+    'insurance.title': 'Declared-value insurance',
+    'insurance.subtitle': 'Cover for theft, loss and damage in transit.',
+    'insurance.tier.standard': 'Standard',
+    'insurance.tier.plus':     'Plus',
+    'insurance.tier.premier':  'Premier',
+    'insurance.buy':           'Buy cover',
+    'insurance.policies':      'Your policies',
+    'insurance.claim':         'File claim',
+
+    // Framework v2 — Buy for me
+    'bfm.title': 'Buy for me',
+    'bfm.subtitle': "Don't have a UK card? Paste the link and we will buy and ship for you.",
+    'bfm.url':    'Retailer URL',
+    'bfm.item':   'Item name',
+    'bfm.size':   'Size / variant',
+    'bfm.qty':    'Quantity',
+    'bfm.notes':  'Notes',
+    'bfm.submit': 'Request a quote',
+
+    // Framework v2 — DSAR
+    'dsar.title': 'Data subject requests',
+    'dsar.subtitle': 'Export your data or request erasure under GDPR / DPA 2018.',
+    'dsar.export': 'Export my data',
+    'dsar.erase':  'Erase my account',
+    'dsar.submit': 'Submit request',
+
+    // Framework v2 — Operator console
+    'ops.title':            'Operations Console',
+    'ops.expected':         'Expected',
+    'ops.received':         'Received',
+    'ops.consolidating':    'Consolidating',
+    'ops.in_transit':       'In transit',
+    'ops.held':             'Held',
+    'ops.consolidations':   'Consolidations',
+    'ops.dispatch':         'Dispatch board',
+    'ops.settings':         'Pricing settings',
+    'ops.bfm':              'Buy-for-me queue',
+
+    // Framework v2 — Partner portals
+    'agent.title':    'Clearing-agent portal',
+    'agent.subtitle': 'Pre-alert pack · IDF / KRA entry · duty pass-through',
+    'rider.title':    "Today's runs",
+    'rider.deliver':  'Deliver',
+    'rider.delivered':'Delivered',
+    'rider.failed':   'Failed',
+    'rider.otp':      '4-digit OTP',
+    'rider.recipient':'Recipient name',
+
+    // Framework v2 — KPI
+    'kpi.title':           'Founder KPI Dashboard',
+    'kpi.kg_this_week':    'Chargeable kg this week',
+    'kpi.on_time':         'On-time delivery %',
+    'kpi.complaints_100':  'Complaints / 100 parcels',
+    'kpi.nps':             'NPS (avg score, 90d)',
+    'kpi.wallet_kes':      'Wallet balance (KES)',
+    'kpi.pending_inbound': 'Pending inbound (KES)',
+    'kpi.insurance_pool':  'Insurance pool (30d)',
+    'kpi.parcels_week':    'Parcels this week',
+
+    // Roles
+    'role.customer':       'Customer',
+    'role.operator':       'Operator',
+    'role.clearing_agent': 'Clearing agent',
+    'role.rider':          'Rider',
+    'role.admin':          'Admin',
   },
   sw: {
     // Navigation
@@ -594,6 +670,63 @@ const translations = {
     'common.about': 'Kuhusu Sisi',
     'common.privacy': 'Sera ya Faragha',
     'common.terms': 'Masharti ya Huduma',
+
+    // Framework v2 — Cut-off banner
+    'cutoff.label':    'Tarehe ya mwisho ya safari ijayo',
+    'cutoff.title':    'Tarehe ya mwisho inafunga ndani ya',
+    'cutoff.subtitle': 'Safari ya wiki UK → Nairobi',
+    'cutoff.days':     'SIKU',
+    'cutoff.hrs':      'SAA',
+    'cutoff.min':      'DAK',
+    'cutoff.sec':      'SEK',
+
+    // Framework v2 — Insurance
+    'insurance.title':         'Bima ya thamani iliyotangazwa',
+    'insurance.subtitle':      'Kufunika wizi, hasara na uharibifu njiani.',
+    'insurance.tier.standard': 'Kawaida',
+    'insurance.tier.plus':     'Plus',
+    'insurance.tier.premier':  'Premier',
+    'insurance.buy':           'Nunua bima',
+    'insurance.policies':      'Bima zako',
+    'insurance.claim':         'Wasilisha madai',
+
+    // Framework v2 — Buy for me
+    'bfm.title':    'Ninunulie',
+    'bfm.subtitle': 'Huna kadi ya UK? Tuma kiungo na sisi tutanunua na kusafirisha.',
+    'bfm.url':      'Kiungo cha duka',
+    'bfm.item':     'Jina la bidhaa',
+    'bfm.size':     'Ukubwa / aina',
+    'bfm.qty':      'Idadi',
+    'bfm.notes':    'Maelezo',
+    'bfm.submit':   'Omba bei',
+
+    // Framework v2 — DSAR
+    'dsar.title':    'Maombi ya data ya mtumiaji',
+    'dsar.subtitle': 'Hamisha data yako au ombi la kufuta chini ya GDPR.',
+    'dsar.export':   'Hamisha data yangu',
+    'dsar.erase':    'Futa akaunti yangu',
+    'dsar.submit':   'Wasilisha ombi',
+
+    // Operator + Partners
+    'ops.title':           'Konsoli ya Uendeshaji',
+    'ops.expected':        'Inatarajiwa',
+    'ops.received':        'Imepokelewa',
+    'ops.consolidating':   'Inaunganishwa',
+    'ops.in_transit':      'Njiani',
+    'ops.held':            'Imeshikiliwa',
+    'agent.title':         'Lango la wakala wa forodha',
+    'agent.subtitle':      'Pre-alert · IDF / KRA · ushuru',
+    'rider.title':         'Safari za leo',
+    'rider.deliver':       'Toa',
+    'rider.delivered':     'Imetolewa',
+    'rider.failed':        'Imeshindwa',
+
+    // Roles
+    'role.customer':       'Mteja',
+    'role.operator':       'Mwendeshaji',
+    'role.clearing_agent': 'Wakala wa forodha',
+    'role.rider':          'Mpishi (mtoaji)',
+    'role.admin':          'Msimamizi',
   },
 }
 

@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from 'react'
 import { Routes, Route } from 'react-router-dom'
-import { Navbar } from './components/Navbar'
+import { LiquidGlassNav } from './components/LiquidGlassNav'
 import { Footer } from './components/Footer'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { SupportChatWidget } from './components/SupportChatWidget'
@@ -9,6 +9,14 @@ import { ScrollToTop } from './components/ScrollToTop'
 import { GoogleAnalytics } from './components/GoogleAnalytics'
 import { MetaPixel } from './components/MetaPixel'
 import { CookieConsent } from './components/CookieConsent'
+import { useIdleTagManager } from './hooks/useIdleTagManager'
+
+// Marketing IDs are read from Vite env vars at build time. Falls back to
+// the existing literal IDs so the prod deployment keeps working without
+// requiring an immediate env-var rollout. To override per-environment,
+// set VITE_GTM_ID and/or VITE_FB_PIXEL_ID in `.env` or the host's env.
+const GTM_ID       = import.meta.env.VITE_GTM_ID       || 'G-09M01VBWF0'
+const FB_PIXEL_ID  = import.meta.env.VITE_FB_PIXEL_ID  || '1556063629186873'
 
 // ── Eagerly loaded: Home is the landing page, always in the initial bundle ──
 import { Home } from './pages/Home'
@@ -39,6 +47,20 @@ const TermsOfService    = lazy(() => import('./pages/TermsOfService').then(m => 
 const ShipInstructions  = lazy(() => import('./pages/ShipInstructions').then(m => ({ default: m.ShipInstructions })))
 const FAQ               = lazy(() => import('./pages/FAQ').then(m => ({ default: m.FAQ })))
 
+// ── Framework v2 pages ─────────────────────────────────────────────────────
+const OpsConsole          = lazy(() => import('./pages/OpsConsole').then(m => ({ default: m.OpsConsole })))
+const OpsConsolidations   = lazy(() => import('./pages/OpsConsolidations').then(m => ({ default: m.OpsConsolidations })))
+const OpsConsolidationDetail = lazy(() => import('./pages/OpsConsolidations').then(m => ({ default: m.OpsConsolidationDetail })))
+const OpsDispatch         = lazy(() => import('./pages/OpsDispatch').then(m => ({ default: m.OpsDispatch })))
+const OpsSettings         = lazy(() => import('./pages/OpsSettings').then(m => ({ default: m.OpsSettings })))
+const KpiDashboard        = lazy(() => import('./pages/KpiDashboard').then(m => ({ default: m.KpiDashboard })))
+const Insurance           = lazy(() => import('./pages/Insurance').then(m => ({ default: m.Insurance })))
+const DsarRequest         = lazy(() => import('./pages/DsarRequest').then(m => ({ default: m.DsarRequest })))
+const BuyForMe            = lazy(() => import('./pages/BuyForMe').then(m => ({ default: m.BuyForMe })))
+const AgentPortal         = lazy(() => import('./pages/partner/AgentPortal').then(m => ({ default: m.AgentPortal })))
+const AgentInvoices       = lazy(() => import('./pages/partner/AgentPortal').then(m => ({ default: m.AgentInvoices })))
+const RiderPwa            = lazy(() => import('./pages/partner/RiderPwa').then(m => ({ default: m.RiderPwa })))
+
 // ── Minimal loading spinner (shown briefly while lazy chunks load) ──────────
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-[50vh]">
@@ -47,11 +69,32 @@ const PageLoader = () => (
 )
 
 function App() {
+  // Defer GTM + Meta Pixel injection until the user actually interacts
+  // (or 3.5s elapse), keeping the initial main-thread budget free for
+  // hydration. Replaces the previous inline <script> blocks in index.html
+  // that blocked LCP/TBT.
+  useIdleTagManager(GTM_ID, FB_PIXEL_ID)
+
   return (
     <div className="flex flex-col min-h-screen">
-      <Navbar />
+      <LiquidGlassNav />
 
-      <main className="relative flex-grow">
+      {/* Top spacer reserves layout space for the fixed top bar so page
+          content doesn't sit underneath it.
+            mobile: 3.25rem brand bar + safe-area inset (notch / Dynamic Island)
+            desktop (lg+): 4rem nav bar
+       */}
+      <div
+        aria-hidden="true"
+        className="shrink-0 h-[calc(env(safe-area-inset-top,0px)+3.25rem)] lg:h-16"
+      />
+
+      {/* Main flex region. On mobile we reserve bottom padding for the
+          floating bottom-pill tab bar — pill height (~3.5rem) + bottom
+          margin (0.75rem) + safe-area-inset-bottom for the iPhone home
+          indicator. The pill itself floats with z-50, so the padding is
+          purely so page content / Footer don't sit underneath it. */}
+      <main className="relative flex-grow pb-[calc(5rem+env(safe-area-inset-bottom,0px))] lg:pb-0">
         <ScrollToTop />
         <GoogleAnalytics />
         <MetaPixel />
@@ -87,8 +130,26 @@ function App() {
             <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
             <Route path="/warehouse" element={<ProtectedRoute><WarehouseAddresses /></ProtectedRoute>} />
 
+            {/* Customer-facing Framework v2 routes */}
+            <Route path="/insurance"  element={<ProtectedRoute><Insurance /></ProtectedRoute>} />
+            <Route path="/buy-for-me" element={<ProtectedRoute><BuyForMe /></ProtectedRoute>} />
+            <Route path="/dsar"       element={<ProtectedRoute><DsarRequest /></ProtectedRoute>} />
+
+            {/* Operator console routes (operator + admin) */}
+            <Route path="/ops"                          element={<ProtectedRoute roles={['operator']}><OpsConsole /></ProtectedRoute>} />
+            <Route path="/ops/consolidations"           element={<ProtectedRoute roles={['operator']}><OpsConsolidations /></ProtectedRoute>} />
+            <Route path="/ops/consolidations/:id"       element={<ProtectedRoute roles={['operator']}><OpsConsolidationDetail /></ProtectedRoute>} />
+            <Route path="/ops/dispatch"                 element={<ProtectedRoute roles={['operator']}><OpsDispatch /></ProtectedRoute>} />
+            <Route path="/ops/settings"                 element={<ProtectedRoute adminOnly><OpsSettings /></ProtectedRoute>} />
+
             {/* Admin Routes */}
             <Route path="/admin" element={<ProtectedRoute adminOnly={true}><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/kpi"   element={<ProtectedRoute adminOnly={true}><KpiDashboard /></ProtectedRoute>} />
+
+            {/* Partner portals */}
+            <Route path="/partner/agent"           element={<ProtectedRoute roles={['clearing_agent']}><AgentPortal /></ProtectedRoute>} />
+            <Route path="/partner/agent/invoices"  element={<ProtectedRoute roles={['clearing_agent']}><AgentInvoices /></ProtectedRoute>} />
+            <Route path="/partner/rider"           element={<ProtectedRoute roles={['rider']}><RiderPwa /></ProtectedRoute>} />
 
             {/* 404 */}
             <Route path="*" element={

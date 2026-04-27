@@ -1,6 +1,12 @@
 import pg from 'pg';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname  = path.dirname(__filename);
 
 const { Pool } = pg;
 
@@ -589,6 +595,36 @@ export async function initializeDatabase() {
         console.error(`⚠ Migration failed (${m.description}): ${err.message}`);
       }
     }
+  }
+
+  // ── Step 9: Framework v2 SQL migrations from database/migrations/ ────────
+  // These are additive, idempotent .sql files.  Each file is executed as a
+  // single multi-statement query against the pool — failures are logged
+  // but do not block server start so a partial schema cannot crash boot.
+  if (!isReadOnly) {
+    try {
+      const migrationsDir = path.join(__dirname, 'migrations');
+      if (fs.existsSync(migrationsDir)) {
+        const files = fs.readdirSync(migrationsDir)
+          .filter(f => f.endsWith('.sql'))
+          .sort();
+
+        for (const file of files) {
+          const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+          try {
+            await pool.query(sql);
+            console.log(`✓ Framework migration applied: ${file}`);
+          } catch (err) {
+            console.error(`⚠ Framework migration failed (${file}): ${err.message}`);
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`⚠ Could not enumerate migrations directory: ${err.message}`);
+    }
+  } else {
+    console.warn('⚠ Skipping Framework v2 migrations — connection is read-only.');
+    console.warn('  Apply database/migrations/*.sql manually in Supabase SQL Editor.');
   }
 
   return pool;

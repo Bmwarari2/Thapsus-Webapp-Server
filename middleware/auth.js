@@ -39,6 +39,33 @@ export function isAdmin(req, res, next) {
   next();
 }
 
+/**
+ * requireRole(...roles) — gate a route to one or more roles.
+ *
+ * Usage:
+ *   router.get('/x', authMiddleware, requireRole('operator','admin'), handler)
+ *
+ * Admins are granted access regardless of which role is requested, mirroring
+ * the permission matrix in the Webapp Spec §2.
+ */
+export function requireRole(...allowed) {
+  return (req, res, next) => {
+    const role = req.user?.role;
+    if (!role) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+    if (role === 'admin' || allowed.includes(role)) return next();
+    return res.status(403).json({
+      success: false,
+      message: `Access denied. Required role: ${allowed.join(' | ')}`,
+    });
+  };
+}
+
+export const isOperator = requireRole('operator');
+export const isAgent    = requireRole('clearing_agent');
+export const isRider    = requireRole('rider');
+
 export function optionalAuth(req, res, next) {
   const authHeader = req.headers['authorization'];
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
