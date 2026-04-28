@@ -97,6 +97,8 @@ import opsRoutes              from './routes/ops.js';
 import pricingTiersRoutes     from './routes/pricingTiers.js';
 import npsRoutes              from './routes/nps.js';
 import notificationsRoutes    from './routes/notifications.js';
+import agentInvoicesRoutes   from './routes/agentInvoices.js';
+import amlFlagsRoutes         from './routes/amlFlags.js';
 
 const app      = express();
 const PORT     = process.env.PORT     || 5000;
@@ -161,6 +163,22 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(sanitizeBody);
 app.use(sanitizeQuery);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// ── Universal Links — apple-app-site-association ─────────────────────────────
+// Apple insists on Content-Type: application/json (no extension) and
+// HTTPS, no redirects. Keep this above the SPA fallback so it always wins.
+app.get('/.well-known/apple-app-site-association', (_req, res) => {
+  const aasaPath = path.join(__dirname, 'client', 'public', '.well-known', 'apple-app-site-association');
+  res.set({
+    'Content-Type': 'application/json',
+    'Cache-Control': 'public, max-age=300',
+  });
+  if (fs.existsSync(aasaPath)) {
+    res.sendFile(aasaPath);
+  } else {
+    res.status(404).end();
+  }
+});
 
 // ── Service Worker ────────────────────────────────────────────────────────────
 // Serve sw.js with no-cache headers so browsers always fetch the latest version.
@@ -308,6 +326,8 @@ app.use('/api/ops',            opsRoutes);
 app.use('/api/pricing-tiers',  pricingTiersRoutes);
 app.use('/api/nps',            npsRoutes);
 app.use('/api/notifications',  notificationsRoutes);
+app.use('/api/agent-invoices', agentInvoicesRoutes);
+app.use('/api/admin/aml-flags', amlFlagsRoutes);
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 app.get(/^\/(?!api).*/, (req, res) => {

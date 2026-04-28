@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["YOUR_TEAM_ID.uk.thapsus.cargo"],
+        "components": [
+          { "/": "/pay/*" },
+          { "/": "/track/*" },
+          { "/": "/orders/*" }
+        ]
+      }
+    ]
+  }
+}
