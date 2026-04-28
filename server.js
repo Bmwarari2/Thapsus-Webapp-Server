@@ -97,6 +97,8 @@ import opsRoutes              from './routes/ops.js';
 import pricingTiersRoutes     from './routes/pricingTiers.js';
 import npsRoutes              from './routes/nps.js';
 import notificationsRoutes    from './routes/notifications.js';
+import agentInvoicesRoutes   from './routes/agentInvoices.js';
+import amlFlagsRoutes         from './routes/amlFlags.js';
 
 const app      = express();
 const PORT     = process.env.PORT     || 5000;
@@ -308,6 +310,8 @@ app.use('/api/ops',            opsRoutes);
 app.use('/api/pricing-tiers',  pricingTiersRoutes);
 app.use('/api/nps',            npsRoutes);
 app.use('/api/notifications',  notificationsRoutes);
+app.use('/api/agent-invoices', agentInvoicesRoutes);
+app.use('/api/admin/aml-flags', amlFlagsRoutes);
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 app.get(/^\/(?!api).*/, (req, res) => {
