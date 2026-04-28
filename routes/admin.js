@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
-import { sendAdminPasswordResetEmail, sendPaymentRequestEmail, sendOrderCreatedEmail, sendWelcomeAccountEmail, sendPaymentReminderEmail, sendPaymentReceiptEmail, sendOrderUpdatedEmail } from '../utils/email.js';
+import { sendAdminPasswordResetEmail, sendPaymentRequestEmail, sendOrderCreatedEmail, sendWelcomeAccountEmail, sendPaymentReminderEmail, sendPaymentReceiptEmail, sendOrderUpdatedEmail, emailConfigStatus } from '../utils/email.js';
 import { calculateShippingCost, ELECTRONICS_HANDLING } from '../utils/pricing.js';
 import { sendInAppNotification } from '../utils/notifications.js';
 import { pushToUser, pushToAdmins } from './events.js';
@@ -1056,6 +1056,72 @@ router.post('/orders/:id/request-payment', authMiddleware, isAdmin, async (req, 
   }
 });
 
+/**
+ * GET /api/admin/email-config
+ * Reports whether the Gmail OAuth credentials are configured. Lets the iOS
+ * admin Console flag the integration without exposing secret values.
+ */
+router.get('/email-config', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    res.json({ success: true, ...emailConfigStatus() });
+  } catch (error) {
+    console.error('Email config error:', error);
+    res.status(500).json({ success: false, message: 'Failed to read email config' });
+  }
+});
+
+/**
+ * POST /api/admin/users/:id/resend-welcome
+ * Issues a fresh setup token for the user and re-sends the welcome email. Used
+ * when the original welcome email failed (Gmail outage, typo, spam folder).
+ */
+router.post('/users/:id/resend-welcome', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+    const { id } = req.params;
+    const userRes = await db.query(
+      `SELECT id, email, name, role, warehouse_id FROM users WHERE id = $1`, [id]
+    );
+    if (!userRes.rows[0]) return res.status(404).json({ success: false, message: 'User not found' });
+    const user = userRes.rows[0];
+
+    // Invalidate any prior unused setup tokens, mint a new one (24h).
+    await db.query(
+      `UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND used = false`,
+      [id]
+    );
+    const tokenId   = uuidv4();
+    const setupTok  = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 3600000).toISOString();
+    await db.query(
+      `INSERT INTO password_reset_tokens (id, user_id, token, expires_at) VALUES ($1, $2, $3, $4)`,
+      [tokenId, id, setupTok, expiresAt]
+    );
+
+    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
+    try {
+      await sendWelcomeAccountEmail(
+        user.email,
+        user.name,
+        user.warehouse_id,
+        user.role,
+        `${frontendUrl}/reset-password?token=${setupTok}`
+      );
+      res.json({ success: true, email_status: 'sent', message: `Welcome email re-sent to ${user.email}` });
+    } catch (err) {
+      console.warn('Resend welcome failed:', err.message);
+      res.status(502).json({
+        success: false,
+        email_status: 'failed',
+        message: `Email service rejected the send: ${err.message}`
+      });
+    }
+  } catch (error) {
+    console.error('Resend welcome error:', error);
+    res.status(500).json({ success: false, message: 'Failed to resend welcome email' });
+  }
+});
+
 /** POST /api/admin/users/create */
 router.post('/users/create', authMiddleware, isAdmin, async (req, res) => {
   try {
@@ -1099,17 +1165,33 @@ router.post('/users/create', authMiddleware, isAdmin, async (req, res) => {
     } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
 
     const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
-    sendWelcomeAccountEmail(
-      email.toLowerCase().trim(),
-      name,
-      warehouseId,
-      accountRole,
-      `${frontendUrl}/reset-password?token=${setupToken}`
-    ).catch((err) => console.warn('Welcome email failed (non-fatal):', err.message));
+    let emailStatus = 'sent';
+    let emailError = null;
+    try {
+      await sendWelcomeAccountEmail(
+        email.toLowerCase().trim(),
+        name,
+        warehouseId,
+        accountRole,
+        `${frontendUrl}/reset-password?token=${setupToken}`
+      );
+    } catch (err) {
+      emailStatus = 'failed';
+      emailError = err.message || 'unknown error';
+      console.warn('Welcome email failed (non-fatal):', emailError);
+    }
+
+    const friendlyRole = accountRole === 'admin' ? 'Admin' :
+      accountRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const message = emailStatus === 'sent'
+      ? `${friendlyRole} account created. Welcome email sent to ${email}.`
+      : `${friendlyRole} account created. Welcome email failed (${emailError}). You can resend from the user detail page.`;
 
     res.status(201).json({
       success: true,
-      message: `${accountRole === 'admin' ? 'Admin' : 'User'} account created. Welcome email sent to ${email}.`,
+      message,
+      email_status: emailStatus,
+      email_error: emailError,
       user: { id: userId, email: email.toLowerCase().trim(), name, phone, role: accountRole, warehouse_id: warehouseId, referral_code: referralCode, is_active: true }
     });
   } catch (error) {

@@ -566,9 +566,108 @@ async function sendOrderUpdatedEmail(
   }
 }
 
-// ── Ticket emails (stubs retained) ────────────────────────────────────────────
-async function sendTicketCreatedEmail() { /* TODO: implement when ticket email flow is added */ }
-async function sendTicketReplyEmail()   { /* TODO: implement when ticket email flow is added */ }
+// ── Ticket emails ─────────────────────────────────────────────────────────────
+
+/**
+ * sendTicketCreatedEmail — notify the support inbox that a customer raised a
+ * new ticket. Called from routes/tickets.js POST /api/tickets.
+ */
+async function sendTicketCreatedEmail(toEmail, ticket) {
+  if (!ticket) return;
+  const safeSubject  = ticket.subject || '(no subject)';
+  const safeDesc     = ticket.description || '(no description)';
+  const priority     = (ticket.priority || 'medium').toUpperCase();
+  const adminUrl     = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
+  const ticketLink   = `${adminUrl}/admin#tickets`;
+
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">New support ticket</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      A customer just raised a ticket. Priority: <strong>${priority}</strong>.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 24px;font-size:15px;">
+      <tbody>
+        <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:10px 12px;color:#6b7280;font-weight:600;width:40%;">Subject</td><td style="padding:10px 12px;color:#111827;">${safeSubject}</td></tr>
+        <tr style="background:#f9fafb;"><td style="padding:10px 12px;color:#6b7280;font-weight:600;">Ticket ID</td><td style="padding:10px 12px;color:#111827;font-family:monospace;">${ticket.id}</td></tr>
+      </tbody>
+    </table>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:14px;line-height:1.6;white-space:pre-wrap;">${safeDesc}</p>
+    <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
+      <tr><td style="background-color:#f97316;border-radius:8px;">
+        <a href="${ticketLink}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">Open ticket</a>
+      </td></tr>
+    </table>`;
+
+  const subject = `[Thapsus Support] ${priority} · ${safeSubject}`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'ticket_created', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'ticket_created', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
+/**
+ * sendTicketReplyEmail — notify a customer that an admin replied. Called from
+ * routes/tickets.js when an admin posts a message on a ticket.
+ */
+async function sendTicketReplyEmail(toEmail, toName, ticket, replyMessage) {
+  if (!ticket) return;
+  const safeSubject = ticket.subject || '(your ticket)';
+  const safeReply   = replyMessage || '(no message)';
+  const ticketsUrl  = `${process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk'}/support`;
+
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">We replied to your ticket</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      Our team posted an update on your support ticket <strong>${safeSubject}</strong>.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 24px;background:#f9fafb;border-radius:8px;">
+      <tr><td style="padding:14px 16px;color:#374151;font-size:15px;line-height:1.6;white-space:pre-wrap;">${safeReply}</td></tr>
+    </table>
+    <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
+      <tr><td style="background-color:#f97316;border-radius:8px;">
+        <a href="${ticketsUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">View ticket</a>
+      </td></tr>
+    </table>
+    <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6;">
+      Reply from inside the app to keep the conversation in one place.
+    </p>`;
+
+  const subject = `Re: ${safeSubject}`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'ticket_reply', subject, userId: ticket.user_id || null });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'ticket_reply', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
+/**
+ * Email config diagnostics — backs the admin /api/admin/email-config endpoint
+ * so the app can tell whether Gmail OAuth credentials are present without
+ * exposing the secrets themselves.
+ */
+function emailConfigStatus() {
+  const hasClientId     = Boolean(process.env.GMAIL_CLIENT_ID);
+  const hasClientSecret = Boolean(process.env.GMAIL_CLIENT_SECRET);
+  const hasRefreshToken = Boolean(process.env.GMAIL_REFRESH_TOKEN);
+  const sender          = getSenderAddress();
+  const supportEmail    = process.env.SUPPORT_EMAIL || process.env.SUPPORT_INBOX || sender;
+  return {
+    configured: hasClientId && hasClientSecret && hasRefreshToken,
+    has_client_id:     hasClientId,
+    has_client_secret: hasClientSecret,
+    has_refresh_token: hasRefreshToken,
+    sender_email:      sender,
+    support_email:     supportEmail,
+  };
+}
 
 // ── Exports ────────────────────────────────────────────────────────────────────
 
@@ -583,6 +682,7 @@ export {
   sendOrderUpdatedEmail,
   sendTicketCreatedEmail,
   sendTicketReplyEmail,
+  emailConfigStatus,
 };
 
 export default {
@@ -596,4 +696,5 @@ export default {
   sendOrderUpdatedEmail,
   sendTicketCreatedEmail,
   sendTicketReplyEmail,
+  emailConfigStatus,
 };
