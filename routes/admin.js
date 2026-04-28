@@ -163,7 +163,8 @@ router.put('/users/:id', authMiddleware, isAdmin, async (req, res) => {
     const params = [];
     const updates = [];
     if (role !== undefined) {
-      if (!['customer','admin'].includes(role)) return res.status(400).json({ success: false, message: 'Invalid role' });
+      if (!['customer','admin','operator','clearing_agent','rider'].includes(role))
+        return res.status(400).json({ success: false, message: 'Invalid role' });
       params.push(role); updates.push(`role = $${params.length}`);
     }
     if (is_active !== undefined) { params.push(is_active); updates.push(`is_active = $${params.length}`); }
@@ -1064,8 +1065,11 @@ router.post('/users/create', authMiddleware, isAdmin, async (req, res) => {
     if (!name || !email || !phone)
       return res.status(400).json({ success: false, message: 'Name, email, and phone are required' });
     const accountRole = role || 'customer';
-    if (!['customer', 'admin'].includes(accountRole))
-      return res.status(400).json({ success: false, message: 'Invalid role. Must be customer or admin' });
+    if (!['customer', 'admin', 'operator', 'clearing_agent', 'rider'].includes(accountRole))
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid role. Must be one of: customer, admin, operator, clearing_agent, rider'
+      });
     const existing = await db.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase().trim()]);
     if (existing.rows.length > 0)
       return res.status(409).json({ success: false, message: 'A user with this email already exists' });
