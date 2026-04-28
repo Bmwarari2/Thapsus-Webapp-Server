@@ -4,11 +4,67 @@
 -- but is safe to run on its own — every INSERT is gated by a
 -- NOT EXISTS guard, so re-running is a no-op.
 --
--- Symptom this fixes:
+-- Symptoms this fixes:
 --   GET /api/pricing-tiers/tiers → {"success":true,"tiers":[]}
 --   iOS calculator: "Couldn't price — No pricing tiers available."
+--   Or, on a DB that still carries the legacy gbp_per_kg_pence
+--   column with NOT NULL:
+--     ERROR: 23502: null value in column "gbp_per_kg_pence" of
+--     relation "pricing_tiers" violates not-null constraint
+--
+-- The legacy `gbp_per_kg_pence` (Long) was renamed to `gbp_per_kg`
+-- (Double, full GBP) during the Phase 4 schema bridge. The webapp
+-- API and iOS DTOs only use `gbp_per_kg` now, so this script first
+-- removes the NOT NULL on the legacy column and backfills it from
+-- the new column for any rows already present, then drops it.
 -- ============================================================
 
+-- ── 1. Migrate away from the legacy `gbp_per_kg_pence` column ──
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'pricing_tiers'
+       AND column_name  = 'gbp_per_kg_pence'
+  ) THEN
+    -- Drop the NOT NULL so existing rows can stay during the migration.
+    ALTER TABLE public.pricing_tiers
+      ALTER COLUMN gbp_per_kg_pence DROP NOT NULL;
+
+    -- Backfill the new column from the legacy one for rows that have
+    -- a pence value but no full-GBP value.
+    UPDATE public.pricing_tiers
+       SET gbp_per_kg = gbp_per_kg_pence / 100.0
+     WHERE gbp_per_kg IS NULL
+       AND gbp_per_kg_pence IS NOT NULL;
+
+    -- Drop the legacy column entirely. The API and iOS no longer
+    -- reference it — nothing reads from it anymore.
+    ALTER TABLE public.pricing_tiers
+      DROP COLUMN IF EXISTS gbp_per_kg_pence;
+  END IF;
+END $$;
+
+-- Make sure the new column is at least non-null going forward.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'pricing_tiers'
+       AND column_name  = 'gbp_per_kg'
+  ) THEN
+    ALTER TABLE public.pricing_tiers
+      ALTER COLUMN gbp_per_kg SET NOT NULL;
+  END IF;
+EXCEPTION
+  WHEN OTHERS THEN
+    -- Some rows still null; leave nullable for now. Seed below populates them.
+    NULL;
+END $$;
+
+-- ── 2. Seed the Tudor Freight rate card ──
 -- UK air freight (the channel iOS picks by default).
 INSERT INTO pricing_tiers (id, channel, min_kg, max_kg, gbp_per_kg, is_active, notes)
 SELECT 'pt-uk-air-001', 'UK_air', 0,   5,  14.00, TRUE, 'Tudor Freight rate card seed'
