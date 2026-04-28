@@ -256,6 +256,18 @@ CREATE TABLE IF NOT EXISTS last_mile_runs (
   updated_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Idempotency repair: if last_mile_runs was previously created with a different
+-- shape, ADD COLUMN IF NOT EXISTS brings it up to spec without dropping data.
+ALTER TABLE last_mile_runs ADD COLUMN IF NOT EXISTS rider_id        TEXT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE last_mile_runs ADD COLUMN IF NOT EXISTS zone            TEXT;
+ALTER TABLE last_mile_runs ADD COLUMN IF NOT EXISTS run_date        DATE;
+ALTER TABLE last_mile_runs ADD COLUMN IF NOT EXISTS status          TEXT;
+ALTER TABLE last_mile_runs ADD COLUMN IF NOT EXISTS total_stops     INTEGER DEFAULT 0;
+ALTER TABLE last_mile_runs ADD COLUMN IF NOT EXISTS completed_stops INTEGER DEFAULT 0;
+ALTER TABLE last_mile_runs ADD COLUMN IF NOT EXISTS notes           TEXT;
+ALTER TABLE last_mile_runs ADD COLUMN IF NOT EXISTS created_at      TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE last_mile_runs ADD COLUMN IF NOT EXISTS updated_at      TIMESTAMPTZ DEFAULT NOW();
+
 CREATE INDEX IF NOT EXISTS idx_runs_rider     ON last_mile_runs(rider_id);
 CREATE INDEX IF NOT EXISTS idx_runs_run_date  ON last_mile_runs(run_date);
 CREATE INDEX IF NOT EXISTS idx_runs_status    ON last_mile_runs(status);
@@ -277,6 +289,20 @@ CREATE TABLE IF NOT EXISTS pod_events (
   notes           TEXT,
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Same idempotency repair for pod_events.
+ALTER TABLE pod_events ADD COLUMN IF NOT EXISTS parcel_id       TEXT;
+ALTER TABLE pod_events ADD COLUMN IF NOT EXISTS run_id          TEXT REFERENCES last_mile_runs(id) ON DELETE SET NULL;
+ALTER TABLE pod_events ADD COLUMN IF NOT EXISTS rider_id        TEXT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE pod_events ADD COLUMN IF NOT EXISTS result          TEXT;
+ALTER TABLE pod_events ADD COLUMN IF NOT EXISTS captured_at     TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE pod_events ADD COLUMN IF NOT EXISTS photo_url       TEXT;
+ALTER TABLE pod_events ADD COLUMN IF NOT EXISTS signature_url   TEXT;
+ALTER TABLE pod_events ADD COLUMN IF NOT EXISTS otp_used        TEXT;
+ALTER TABLE pod_events ADD COLUMN IF NOT EXISTS recipient_name  TEXT;
+ALTER TABLE pod_events ADD COLUMN IF NOT EXISTS recipient_phone TEXT;
+ALTER TABLE pod_events ADD COLUMN IF NOT EXISTS notes           TEXT;
+ALTER TABLE pod_events ADD COLUMN IF NOT EXISTS created_at      TIMESTAMPTZ DEFAULT NOW();
 
 CREATE INDEX IF NOT EXISTS idx_pod_parcel ON pod_events(parcel_id);
 CREATE INDEX IF NOT EXISTS idx_pod_run    ON pod_events(run_id);
