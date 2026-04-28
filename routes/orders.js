@@ -4,6 +4,7 @@ import { authMiddleware, isAdmin } from '../middleware/auth.js';
 import { calculateShippingCost } from '../utils/pricing.js';
 import { pushToUser, pushToAdmins } from './events.js';
 import { logRouteError } from '../utils/errorLogger.js';
+import { sendOrderCreatedEmail } from '../utils/email.js';
 
 const router = express.Router();
 
@@ -148,6 +149,36 @@ router.post('/', authMiddleware, async (req, res) => {
     // Push to the customer who placed the order + all admins
     pushToUser(userId, 'order_update', { action: 'created', order });
     pushToAdmins('admin_stats', { action: 'new_order', order });
+
+    // Auto-generated confirmation email — same template the admin
+    // create-for-client flow uses, so customer-initiated orders get the
+    // same receipt. Non-fatal: if Gmail/SMTP isn't configured we log and
+    // continue so the order still succeeds.
+    try {
+      const userRow = await db.query('SELECT email, name FROM users WHERE id = $1', [userId]);
+      const customer = userRow.rows[0];
+      if (customer?.email) {
+        const appUrl = process.env.APP_URL || 'https://www.thapsus.uk';
+        const orderForEmail = {
+          user_id: userId,
+          shipping_cost: costBreakdown.breakdown?.base_shipping?.amount || 0,
+          handling_fee:
+            (costBreakdown.breakdown?.electronics_handling?.amount || 0) +
+            (costBreakdown.breakdown?.handling_fee?.amount || 0),
+          insurance_fee: costBreakdown.breakdown?.insurance?.amount || 0,
+          customs_duty: costBreakdown.breakdown?.customs_estimate?.amount || 0,
+          estimated_cost: costBreakdown.total || 0,
+          actual_cost: null,
+        };
+        sendOrderCreatedEmail(
+          customer.email, customer.name || 'Customer',
+          trackingNumber, retailer, market, description,
+          speed, `${appUrl}/orders`, orderForEmail
+        ).catch((err) => console.warn('Order created email failed (non-fatal):', err.message));
+      }
+    } catch (mailErr) {
+      console.warn('Order created email lookup failed (non-fatal):', mailErr.message);
+    }
 
     res.status(201).json({ success: true, message: 'Order created successfully', order });
   } catch (error) {
