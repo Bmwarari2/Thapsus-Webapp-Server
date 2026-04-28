@@ -11,39 +11,36 @@
 // Claims match what supabase-js attaches by default:
 //   { sub, role: 'authenticated', aud: 'authenticated', iat, exp }
 
-const jwt = require('jsonwebtoken')
+import jwt from 'jsonwebtoken';
 
-const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET
-const SUPABASE_JWT_TTL_SECONDS = parseInt(process.env.SUPABASE_JWT_TTL_SECONDS || '3600', 10)
+const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET;
+export const SUPABASE_JWT_TTL_SECONDS = parseInt(process.env.SUPABASE_JWT_TTL_SECONDS || '3600', 10);
 
 if (!SUPABASE_JWT_SECRET) {
-  // Don't throw at require time — that crashes the whole boot if someone
+  // Don't throw at import time — that crashes the whole boot if someone
   // forgot the env var. Just warn loudly. Routes that mint tokens will 500.
   console.warn(
     '[supabaseJwt] SUPABASE_JWT_SECRET is not set. ' +
     'iOS realtime/RLS reads will fail until this is configured.'
-  )
+  );
 }
 
-function mintSupabaseToken(user) {
+export function mintSupabaseToken(user) {
   if (!SUPABASE_JWT_SECRET) {
-    throw new Error('SUPABASE_JWT_SECRET not configured')
+    throw new Error('SUPABASE_JWT_SECRET not configured');
   }
-  const now = Math.floor(Date.now() / 1000)
+  const now = Math.floor(Date.now() / 1000);
   const payload = {
     sub: String(user.id),
     role: 'authenticated',
     aud: 'authenticated',
     iat: now,
     exp: now + SUPABASE_JWT_TTL_SECONDS,
-    // Useful for debugging in PostgREST logs but not load-bearing for RLS.
     email: user.email || null,
     user_metadata: {
       app_role: user.role || 'customer'
     }
-  }
-  const token = jwt.sign(payload, SUPABASE_JWT_SECRET, { algorithm: 'HS256' })
-  return { token, expiresAt: payload.exp }
+  };
+  const token = jwt.sign(payload, SUPABASE_JWT_SECRET, { algorithm: 'HS256' });
+  return { token, expiresAt: payload.exp };
 }
-
-module.exports = { mintSupabaseToken, SUPABASE_JWT_TTL_SECONDS }
