@@ -79,13 +79,23 @@ router.patch('/tiers/:id', authMiddleware, ADMIN, async (req, res) => {
 /** GET /api/pricing-tiers/fees (public) */
 router.get('/fees', async (req, res) => {
   try {
+    const exists = await req.db.query(
+      `SELECT to_regclass('public.fees') AS reg`
+    );
+    if (!exists.rows[0]?.reg) {
+      return res.json({ success: true, fees: [], degraded: true });
+    }
     const { rows } = await req.db.query(
-      `SELECT * FROM fees WHERE is_active = TRUE ORDER BY code`
+      `SELECT id, code, label, currency, amount, is_percentage, is_active, notes
+         FROM fees WHERE is_active = TRUE ORDER BY code`
     );
     res.json({ success: true, fees: rows });
   } catch (err) {
+    // Likely 'relation "fees" does not exist' (migration 001 not applied).
+    // Don't 500 the calculator — return empty fees so the engine can still
+    // produce a freight-only quote.
     console.error('GET /pricing-tiers/fees error:', err);
-    res.status(500).json({ success: false, message: 'Failed to load fees' });
+    res.json({ success: true, fees: [], degraded: true, error: err.message });
   }
 });
 
