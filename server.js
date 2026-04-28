@@ -164,6 +164,22 @@ app.use(sanitizeBody);
 app.use(sanitizeQuery);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// ── Universal Links — apple-app-site-association ─────────────────────────────
+// Apple insists on Content-Type: application/json (no extension) and
+// HTTPS, no redirects. Keep this above the SPA fallback so it always wins.
+app.get('/.well-known/apple-app-site-association', (_req, res) => {
+  const aasaPath = path.join(__dirname, 'client', 'public', '.well-known', 'apple-app-site-association');
+  res.set({
+    'Content-Type': 'application/json',
+    'Cache-Control': 'public, max-age=300',
+  });
+  if (fs.existsSync(aasaPath)) {
+    res.sendFile(aasaPath);
+  } else {
+    res.status(404).end();
+  }
+});
+
 // ── Service Worker ────────────────────────────────────────────────────────────
 // Serve sw.js with no-cache headers so browsers always fetch the latest version.
 // If the built file doesn't exist yet (e.g. first cold deploy before `npm run
