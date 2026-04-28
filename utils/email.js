@@ -654,18 +654,32 @@ async function sendTicketReplyEmail(toEmail, toName, ticket, replyMessage) {
  * exposing the secrets themselves.
  */
 function emailConfigStatus() {
-  const hasClientId     = Boolean(process.env.GMAIL_CLIENT_ID);
-  const hasClientSecret = Boolean(process.env.GMAIL_CLIENT_SECRET);
-  const hasRefreshToken = Boolean(process.env.GMAIL_REFRESH_TOKEN);
+  const clientId     = process.env.GMAIL_CLIENT_ID || '';
+  const clientSecret = process.env.GMAIL_CLIENT_SECRET || '';
+  const refreshToken = process.env.GMAIL_REFRESH_TOKEN || '';
+  const hasClientId     = clientId.length > 0;
+  const hasClientSecret = clientSecret.length > 0;
+  const hasRefreshToken = refreshToken.length > 0;
   const sender          = getSenderAddress();
   const supportEmail    = process.env.SUPPORT_EMAIL || process.env.SUPPORT_INBOX || sender;
+
+  // Redacted preview lets the iOS diagnostic prove the value is non-empty
+  // and not silently truncated by Railway, without leaking the secret.
+  const preview = (s) =>
+    s.length > 8 ? `${s.slice(0, 4)}…${s.slice(-4)}` : (s.length ? '****' : '');
+
   return {
     configured: hasClientId && hasClientSecret && hasRefreshToken,
     has_client_id:     hasClientId,
     has_client_secret: hasClientSecret,
     has_refresh_token: hasRefreshToken,
-    sender_email:      sender,
-    support_email:     supportEmail,
+    client_id_length:     clientId.length,
+    client_secret_length: clientSecret.length,
+    refresh_token_length: refreshToken.length,
+    client_id_preview:    preview(clientId),
+    sender_email:         sender,
+    support_email:        supportEmail,
+    process_uptime_s:     Math.round(process.uptime()),
   };
 }
 
