@@ -45,7 +45,10 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-/** GET /api/buy-for-me/queue — operator queue */
+/**
+ * GET /api/buy-for-me/queue — operator queue.
+ * Declared before `/:id` so Express's pattern matcher doesn't shadow it.
+ */
 router.get('/queue', authMiddleware, requireRole('operator'), async (req, res) => {
   try {
     const { rows } = await req.db.query(
@@ -59,6 +62,152 @@ router.get('/queue', authMiddleware, requireRole('operator'), async (req, res) =
   } catch (err) {
     console.error('GET /buy-for-me/queue error:', err);
     res.status(500).json({ success: false, message: 'Failed to fetch queue' });
+  }
+});
+
+/** GET /api/buy-for-me/:id — single order detail (owner or operator/admin). */
+router.get('/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await req.db.query(
+      `SELECT * FROM buy_for_me_orders WHERE id = $1`, [id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Concierge order not found' });
+    }
+    const order = rows[0];
+    if (order.user_id !== req.user.id &&
+        req.user.role !== 'operator' &&
+        req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    res.json({ success: true, order });
+  } catch (err) {
+    console.error('GET /buy-for-me/:id error:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch concierge order' });
+  }
+});
+
+/**
+ * POST /api/buy-for-me/:id/pay — customer accepts a quote and pays from wallet.
+ * Atomically debits wallet by (estimate_gbp * (1 + markup_pct/100)) — converted
+ * via current GBP→KES rate — and flips status to 'paid'. Insufficient balance
+ * fails with 402.
+ */
+router.post('/:id/pay', authMiddleware, async (req, res) => {
+  const client = await req.db.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: orderRows } = await client.query(
+      `SELECT * FROM buy_for_me_orders WHERE id = $1 FOR UPDATE`,
+      [req.params.id]
+    );
+    if (orderRows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Concierge order not found' });
+    }
+    const order = orderRows[0];
+    if (order.user_id !== req.user.id) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    if (order.status !== 'quoted') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        success: false,
+        message: `Cannot pay an order in status '${order.status}'`,
+      });
+    }
+    if (!order.estimate_gbp || order.estimate_gbp <= 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Quote not set' });
+    }
+
+    const markup = (order.markup_pct || 0) / 100;
+    const totalGbp = order.estimate_gbp * (1 + markup);
+
+    const { rows: rateRows } = await client.query(
+      `SELECT rate FROM exchange_rates WHERE currency_pair = 'GBP_KES' LIMIT 1`
+    );
+    const gbpToKes = rateRows[0]?.rate || 165;
+    const totalKes = Math.round(totalGbp * gbpToKes);
+
+    const { rows: walletRows } = await client.query(
+      `SELECT balance FROM wallet WHERE user_id = $1 FOR UPDATE`,
+      [req.user.id]
+    );
+    const balance = walletRows[0]?.balance || 0;
+    if (balance < totalKes) {
+      await client.query('ROLLBACK');
+      return res.status(402).json({
+        success: false,
+        message: `Insufficient wallet balance. Need KES ${totalKes.toLocaleString()}, have KES ${balance.toLocaleString()}.`,
+      });
+    }
+
+    await client.query(
+      `UPDATE wallet SET balance = balance - $1, last_updated = NOW() WHERE user_id = $2`,
+      [totalKes, req.user.id]
+    );
+    await client.query(
+      `INSERT INTO transactions (id, user_id, type, amount, currency, payment_method, status)
+       VALUES ($1, $2, 'payment', $3, 'KES', 'wallet', 'completed')`,
+      [
+        `TXN-BFM-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+        req.user.id,
+        -totalKes,
+      ]
+    );
+    await client.query(
+      `UPDATE buy_for_me_orders SET status = 'paid', updated_at = NOW() WHERE id = $1`,
+      [req.params.id]
+    );
+
+    await client.query('COMMIT');
+    res.json({
+      success: true,
+      paid_kes: totalKes,
+      paid_gbp: totalGbp,
+      new_balance_kes: balance - totalKes,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('POST /buy-for-me/:id/pay error:', err);
+    res.status(500).json({ success: false, message: 'Failed to pay concierge order' });
+  } finally {
+    client.release();
+  }
+});
+
+/** POST /api/buy-for-me/:id/cancel — customer cancels a not-yet-purchased order. */
+router.post('/:id/cancel', authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await req.db.query(
+      `SELECT user_id, status FROM buy_for_me_orders WHERE id = $1`,
+      [req.params.id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Concierge order not found' });
+    }
+    const order = rows[0];
+    if (order.user_id !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    if (!['pending_quote', 'quoted'].includes(order.status)) {
+      return res.status(409).json({
+        success: false,
+        message: `Cannot cancel an order in status '${order.status}'`,
+      });
+    }
+    await req.db.query(
+      `UPDATE buy_for_me_orders SET status = 'cancelled', updated_at = NOW() WHERE id = $1`,
+      [req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('POST /buy-for-me/:id/cancel error:', err);
+    res.status(500).json({ success: false, message: 'Failed to cancel concierge order' });
   }
 });
 
