@@ -26,16 +26,33 @@ router.post('/', authMiddleware, async (req, res) => {
     if (!['export','erase'].includes(type)) {
       return res.status(400).json({ success: false, message: "type must be 'export' or 'erase'" });
     }
+    const exists = await req.db.query(`SELECT to_regclass('public.dsar_requests') AS reg`);
+    if (!exists.rows[0]?.reg) {
+      return res.status(503).json({
+        success: false,
+        message: 'DSAR table not provisioned on this environment. Run database/migrations/001_framework_v2_additions.sql in Supabase and try again.'
+      });
+    }
     const id = `DSAR-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
+    const due = dueDate();
     await req.db.query(
       `INSERT INTO dsar_requests (id, user_id, type, status, due_at, notes)
        VALUES ($1,$2,$3,'open',$4,$5)`,
-      [id, req.user.id, type, dueDate(), notes || null]
+      [id, req.user.id, type, due, notes || null]
     );
-    res.status(201).json({ success: true, request_id: id, due_at: dueDate() });
+    res.status(201).json({
+      success: true,
+      request_id: id,
+      due_at: due,
+      request: {
+        id, user_id: req.user.id, type, status: 'open',
+        due_at: due, notes: notes || null,
+        created_at: new Date().toISOString()
+      }
+    });
   } catch (err) {
     console.error('POST /dsar error:', err);
-    res.status(500).json({ success: false, message: 'Failed to create DSAR' });
+    res.status(500).json({ success: false, message: `Failed to create DSAR: ${err.message}` });
   }
 });
 
