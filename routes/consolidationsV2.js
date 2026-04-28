@@ -62,6 +62,37 @@ router.get('/current', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/consolidations/customer/:id — read-only consolidation summary
+ * for an authenticated customer who owns at least one parcel inside it.
+ * Used by the iOS "your weekly flight" card.
+ */
+router.get('/customer/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ownership = await req.db.query(
+      `SELECT 1 FROM packages WHERE consolidation_id = $1 AND user_id = $2 LIMIT 1`,
+      [id, req.user.id]
+    );
+    if (ownership.rows.length === 0) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    const { rows } = await req.db.query(
+      `SELECT id, week_start, cutoff_at, departure_at, arrival_at,
+              status, total_kg, total_parcels
+         FROM consolidations WHERE id = $1`, [id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Consolidation not found' });
+    }
+    res.json({ success: true, consolidation: rows[0] });
+  } catch (err) {
+    console.error('GET /consolidations/customer/:id error:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch consolidation' });
+  }
+});
+
 /* ──────────────────────────────────────────────────────────────────────────
  *  OPERATOR / ADMIN — list + create
  * ──────────────────────────────────────────────────────────────────────── */

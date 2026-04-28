@@ -96,6 +96,7 @@ import buyForMeRoutes         from './routes/buyForMe.js';
 import opsRoutes              from './routes/ops.js';
 import pricingTiersRoutes     from './routes/pricingTiers.js';
 import npsRoutes              from './routes/nps.js';
+import notificationsRoutes    from './routes/notifications.js';
 
 const app      = express();
 const PORT     = process.env.PORT     || 5000;
@@ -306,6 +307,7 @@ app.use('/api/buy-for-me',     buyForMeRoutes);
 app.use('/api/ops',            opsRoutes);
 app.use('/api/pricing-tiers',  pricingTiersRoutes);
 app.use('/api/nps',            npsRoutes);
+app.use('/api/notifications',  notificationsRoutes);
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 app.get(/^\/(?!api).*/, (req, res) => {
