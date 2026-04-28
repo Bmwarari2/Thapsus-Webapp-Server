@@ -4,6 +4,16 @@ import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware } from '../middleware/auth.js';
 import { logRouteError } from '../utils/errorLogger.js';
+import { mintSupabaseToken } from '../utils/supabaseJwt.js';
+
+function safeMintSupabaseToken(user, where) {
+  try {
+    return mintSupabaseToken(user);
+  } catch (e) {
+    console.error(`[${where}] supabase token mint failed:`, e.message);
+    return null;
+  }
+}
 
 const router = express.Router();
 
@@ -114,10 +124,17 @@ router.post('/register', async (req, res) => {
       { expiresIn: JWT_EXPIRY }
     );
 
+    const supabase = safeMintSupabaseToken(
+      { id: userId, email, role: 'customer' },
+      'auth/register'
+    );
+
     res.status(201).json({
       success: true,
       message: 'Registration successful',
       token,
+      supabase_token: supabase?.token || null,
+      supabase_token_expires_at: supabase?.expiresAt || null,
       user: { id: userId, email, name, phone, warehouse_id: warehouseId, referral_code: newReferralCode, role: 'customer' }
     });
   } catch (error) {
@@ -152,8 +169,17 @@ router.post('/login', async (req, res) => {
       { expiresIn: JWT_EXPIRY }
     );
 
+    const supabase = safeMintSupabaseToken(
+      { id: user.id, email: user.email, role: user.role },
+      'auth/login'
+    );
+
     res.json({
-      success: true, message: 'Login successful', token,
+      success: true,
+      message: 'Login successful',
+      token,
+      supabase_token: supabase?.token || null,
+      supabase_token_expires_at: supabase?.expiresAt || null,
       user: { id: user.id, email: user.email, name: user.name, role: user.role, warehouse_id: user.warehouse_id, referral_code: user.referral_code, language_pref: user.language_pref, wallet_balance: user.wallet_balance }
     });
   } catch (error) {
@@ -339,6 +365,26 @@ router.post('/forgot-password', async (req, res) => {
     console.error('Forgot password error:', error);
     logRouteError(req, res, error, 'Forgot password error');
     res.status(500).json({ success: false, message: 'Failed to process request' });
+  }
+});
+
+/**
+ * POST /api/auth/supabase-token
+ * Exchanges a valid sc_token (Bearer) for a fresh Supabase JWT.
+ * Called by mobile clients before the previous Supabase JWT expires.
+ */
+router.post('/supabase-token', authMiddleware, async (req, res) => {
+  try {
+    const { id, email, role } = req.user;
+    const supabase = mintSupabaseToken({ id, email, role });
+    return res.json({
+      success: true,
+      supabase_token: supabase.token,
+      supabase_token_expires_at: supabase.expiresAt
+    });
+  } catch (e) {
+    console.error('[auth/supabase-token]', e);
+    return res.status(500).json({ success: false, message: 'Could not mint supabase token' });
   }
 });
 
