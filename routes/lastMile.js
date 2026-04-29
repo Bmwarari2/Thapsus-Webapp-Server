@@ -214,6 +214,19 @@ router.post(
         `UPDATE orders SET status = 'delivered', updated_at = NOW() WHERE id = $1`,
         [parcel_id]
       );
+      // NPS invitation. Pulled from orders since the rider POD doesn't carry
+      // user_id directly — keeps the (user_id, order_id) row exact.
+      const ownerRow = await req.db.query(
+        `SELECT user_id FROM orders WHERE id = $1`, [parcel_id]
+      );
+      const ownerId = ownerRow.rows[0]?.user_id;
+      if (ownerId) {
+        await req.db.query(
+          `INSERT INTO nps_invitations (id, user_id, order_id)
+           VALUES ($1, $2, $3) ON CONFLICT (order_id) DO NOTHING`,
+          [`NPSI-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, ownerId, parcel_id]
+        );
+      }
       await req.db.query(
         `UPDATE last_mile_runs
             SET completed_stops = completed_stops + 1,
