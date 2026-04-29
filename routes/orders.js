@@ -91,8 +91,10 @@ router.post('/', authMiddleware, async (req, res) => {
           weight_kg || null, dimensions ? JSON.stringify(dimensions) : null,
           speed, insurance ? true : false, declared_value || 0, costBreakdown.total]
       );
+      // Packages enum was rewritten by migration 002_packages_v2_alignment.sql;
+      // 'pending' is no longer valid — the equivalent intake state is 'pre_registered'.
       await client.query(
-        `INSERT INTO packages (id, order_id, user_id, description, weight_kg, status) VALUES ($1,$2,$3,$4,$5,'pending')`,
+        `INSERT INTO packages (id, order_id, user_id, description, weight_kg, status) VALUES ($1,$2,$3,$4,$5,'pre_registered')`,
         [uuidv4(), orderId, userId, description, weight_kg || null]
       );
 

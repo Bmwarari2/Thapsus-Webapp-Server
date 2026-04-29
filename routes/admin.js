@@ -857,8 +857,10 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
           customsEstimate, electronics_item || null,
         ]
       );
+      // Packages enum was rewritten by migration 002_packages_v2_alignment.sql;
+      // 'pending' is no longer valid — the equivalent intake state is 'pre_registered'.
       await client.query(
-        `INSERT INTO packages (id, order_id, user_id, description, weight_kg, status) VALUES ($1,$2,$3,$4,$5,'pending')`,
+        `INSERT INTO packages (id, order_id, user_id, description, weight_kg, status) VALUES ($1,$2,$3,$4,$5,'pre_registered')`,
         [uuidv4(), orderId, customer.id, description, weight_kg || null]
       );
       await client.query(
@@ -975,7 +977,9 @@ router.post('/orders/:id/cancel', authMiddleware, isAdmin, async (req, res) => {
     await db.query('BEGIN');
     try {
       await db.query(`UPDATE orders SET status = 'cancelled', updated_at = NOW() WHERE id = $1`, [id]);
-      await db.query(`UPDATE packages SET status = 'lost', updated_at = NOW() WHERE order_id = $1`, [id]);
+      // Packages enum was rewritten by migration 002_packages_v2_alignment.sql;
+      // 'lost' was renamed to 'abandoned' under the v2 PackageStatus enum.
+      await db.query(`UPDATE packages SET status = 'abandoned', updated_at = NOW() WHERE order_id = $1`, [id]);
       await db.query('INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)', [uuidv4(), adminId, 'cancel_order', JSON.stringify({ order_id: id, tracking_number: order.tracking_number, reason: reason || 'No reason provided' })]);
       await db.query('COMMIT');
     } catch (e) { await db.query('ROLLBACK'); throw e; }
