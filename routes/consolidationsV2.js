@@ -242,8 +242,8 @@ router.post('/:id/assign-parcel', authMiddleware, ALLOWED_OPERATOR, async (req, 
     // order so the customer-facing consolidation card stays in sync.
     const pkgRes = await req.db.query(
       `UPDATE packages
-          SET consolidation_id = $1,
-              consolidated_with = $1,
+          SET consolidation_id = $1::uuid,
+              consolidated_with = $1::text,
               is_consolidated = true,
               status = 'manifested',
               updated_at = NOW()
@@ -257,7 +257,7 @@ router.post('/:id/assign-parcel', authMiddleware, ALLOWED_OPERATOR, async (req, 
     const orderId = pkgRes.rows[0].order_id;
     if (orderId) {
       await req.db.query(
-        `UPDATE orders SET consolidation_id = $1, status = 'consolidating', updated_at = NOW()
+        `UPDATE orders SET consolidation_id = $1::uuid, status = 'consolidating', updated_at = NOW()
           WHERE id = $2`,
         [id, orderId]
       );
@@ -291,7 +291,7 @@ router.post('/:id/remove-parcel', authMiddleware, ALLOWED_OPERATOR, async (req, 
               is_consolidated = false,
               status = 'received_at_warehouse',
               updated_at = NOW()
-        WHERE id = $1 AND consolidation_id = $2
+        WHERE id = $1 AND consolidation_id = $2::uuid
         RETURNING order_id`,
       [parcel_id, id]
     );
@@ -299,7 +299,7 @@ router.post('/:id/remove-parcel', authMiddleware, ALLOWED_OPERATOR, async (req, 
     if (orderId) {
       await req.db.query(
         `UPDATE orders SET consolidation_id = NULL, updated_at = NOW()
-          WHERE id = $1 AND consolidation_id = $2`,
+          WHERE id = $1 AND consolidation_id = $2::uuid`,
         [orderId, id]
       );
     }
@@ -346,7 +346,7 @@ router.post('/:id/manifest', authMiddleware, ALLOWED_OPERATOR, async (req, res) 
               u.phone AS consignee_phone, u.delivery_address
          FROM orders o
          JOIN users u ON u.id = o.user_id
-        WHERE o.consolidation_id = $1
+        WHERE o.consolidation_id = $1::uuid
         ORDER BY o.created_at ASC`,
       [id]
     );
@@ -378,19 +378,16 @@ async function refreshTotals(db, consolidationId) {
   // Manifest totals are driven by `packages` (the per-parcel intake row), not
   // `orders` — assign-parcel/remove-parcel operate on packages first now that
   // the iOS detail view tracks them via cache.observePackagesInConsolidation.
-  //
-  // `consolidations.id` is uuid on the live project but `packages.consolidation_id`
-  // is TEXT (see schema_drift_uuid_ids memory). Postgres has no implicit
-  // text=uuid cast, so we cast c.id explicitly. The pending schema-alignment
-  // migration removes the need for these casts.
+  // packages.consolidation_id is uuid (migration 016 aligned the type), so we
+  // join directly on c.id with no cast.
   await db.query(
     `UPDATE consolidations c
-        SET total_parcels = (SELECT COUNT(*) FROM packages WHERE consolidation_id = c.id::text),
+        SET total_parcels = (SELECT COUNT(*) FROM packages WHERE consolidation_id = c.id),
             total_kg      = COALESCE(
                               (SELECT SUM(COALESCE(chargeable_kg, weight_kg, 0))
-                                 FROM packages WHERE consolidation_id = c.id::text), 0),
+                                 FROM packages WHERE consolidation_id = c.id), 0),
             updated_at    = NOW()
-      WHERE c.id = $1`,
+      WHERE c.id = $1::uuid`,
     [consolidationId]
   );
 }
