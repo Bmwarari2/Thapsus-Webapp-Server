@@ -138,7 +138,17 @@ router.post('/', authMiddleware, ALLOWED_OPERATOR, async (req, res) => {
     res.status(201).json({ success: true, consolidation_id: id });
   } catch (err) {
     console.error('POST /consolidations error:', err);
-    res.status(500).json({ success: false, message: 'Failed to create consolidation' });
+    // Pre-launch dev: surface the real Postgres detail (constraint name,
+    // missing column, RLS denial) so iOS can show it in the create banner
+    // instead of the opaque "Failed to create consolidation". Tighten before
+    // we open the app to the public.
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create consolidation',
+      detail: err?.message || null,
+      code: err?.code || null,
+      constraint: err?.constraint || null,
+    });
   }
 });
 
