@@ -1,7 +1,7 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
-import { calculateShippingCost } from '../utils/pricing.js';
+import { calculateShippingCost, HS_TIERS } from '../utils/pricing.js';
 import { pushToUser, pushToAdmins } from './events.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { sendOrderCreatedEmail } from '../utils/email.js';
@@ -57,7 +57,7 @@ router.post('/', authMiddleware, async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
-    const { retailer, market, description, weight_kg, dimensions, shipping_speed, insurance, declared_value } = req.body;
+    const { retailer, market, description, weight_kg, dimensions, shipping_speed, insurance, declared_value, hs_tier, electronics_item } = req.body;
 
     if (!retailer || !market || !description)
       return res.status(400).json({ success: false, message: 'Missing required fields: retailer, market, description' });
@@ -67,10 +67,16 @@ router.post('/', authMiddleware, async (req, res) => {
     if (!['economy', 'express'].includes(speed))
       return res.status(400).json({ success: false, message: 'Invalid shipping speed.' });
 
+    const tier = hs_tier || (electronics_item ? 'electronics' : 'general');
+    if (!HS_TIERS[tier]) {
+      return res.status(400).json({ success: false, message: `Invalid hs_tier. Valid values: ${Object.keys(HS_TIERS).join(', ')}` });
+    }
+
     // Weight and dimensions are now optional at order creation (added by admin later)
     const costBreakdown = weight_kg ? calculateShippingCost({
       weight_kg: weight_kg || 0, dimensions, market, shipping_speed: speed,
       insurance: insurance || false, declared_value: declared_value || 0,
+      electronics_item: electronics_item || null, hs_tier: tier,
     }) : { total: 0, breakdown: {} };
 
     const orderId        = uuidv4();
@@ -85,11 +91,13 @@ router.post('/', authMiddleware, async (req, res) => {
 
       await client.query(
         `INSERT INTO orders (id, user_id, tracking_number, retailer, market, status, description,
-          weight_kg, dimensions_json, shipping_speed, insurance, declared_value, estimated_cost)
-         VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12)`,
+          weight_kg, dimensions_json, shipping_speed, insurance, declared_value, estimated_cost,
+          hs_tier, electronics_item)
+         VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
         [orderId, userId, trackingNumber, retailer, market, description,
           weight_kg || null, dimensions ? JSON.stringify(dimensions) : null,
-          speed, insurance ? true : false, declared_value || 0, costBreakdown.total]
+          speed, insurance ? true : false, declared_value || 0, costBreakdown.total,
+          tier, electronics_item || null]
       );
       // Packages enum was rewritten by migration 002_packages_v2_alignment.sql;
       // 'pending' is no longer valid — the equivalent intake state is 'pre_registered'.

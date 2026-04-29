@@ -4,7 +4,7 @@ import { authMiddleware, isAdmin } from '../middleware/auth.js';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
 import { sendAdminPasswordResetEmail, sendPaymentRequestEmail, sendOrderCreatedEmail, sendWelcomeAccountEmail, sendPaymentReminderEmail, sendPaymentReceiptEmail, sendOrderUpdatedEmail, emailConfigStatus } from '../utils/email.js';
-import { calculateShippingCost, ELECTRONICS_HANDLING } from '../utils/pricing.js';
+import { calculateShippingCost, ELECTRONICS_HANDLING, HS_TIERS } from '../utils/pricing.js';
 import { sendInAppNotification } from '../utils/notifications.js';
 import { pushToUser, pushToAdmins } from './events.js';
 import { logRouteError } from '../utils/errorLogger.js';
@@ -821,7 +821,7 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
     const {
       customer_email, customer_name, retailer, market, description,
       weight_kg, dimensions, shipping_speed, insurance, declared_value,
-      electronics_item = null,
+      electronics_item = null, hs_tier = null,
     } = req.body;
 
     if (!customer_email && !customer_name)
@@ -829,6 +829,11 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
 
     if (electronics_item && !ELECTRONICS_HANDLING[electronics_item]) {
       return res.status(400).json({ success: false, message: `Invalid electronics_item. Valid values: ${Object.keys(ELECTRONICS_HANDLING).join(', ')}` });
+    }
+
+    const tier = hs_tier || (electronics_item ? 'electronics' : 'general');
+    if (!HS_TIERS[tier]) {
+      return res.status(400).json({ success: false, message: `Invalid hs_tier. Valid values: ${Object.keys(HS_TIERS).join(', ')}` });
     }
 
     let customerRes;
@@ -865,6 +870,7 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
       insurance: insurance || false,
       declared_value: declared_value || 0,
       electronics_item,
+      hs_tier: tier,
       rates_gbp,
     });
 
@@ -894,14 +900,15 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
         `INSERT INTO orders (
            id, user_id, tracking_number, retailer, market, status,
            description, weight_kg, dimensions_json, shipping_speed,
-           insurance, declared_value, estimated_cost, customs_duty, electronics_item
+           insurance, declared_value, estimated_cost, customs_duty,
+           electronics_item, hs_tier
          )
-         VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+         VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
         [
           orderId, customer.id, trackingNumber, retailer, market, description,
           weight_kg || null, dimensions ? JSON.stringify(dimensions) : null,
           speed, insurance ? true : false, declared_value || 0, costBreakdown.total,
-          customsEstimate, electronics_item || null,
+          customsEstimate, electronics_item || null, tier,
         ]
       );
       // Packages enum was rewritten by migration 002_packages_v2_alignment.sql;

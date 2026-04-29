@@ -1,5 +1,5 @@
 import express from 'express';
-import { calculateShippingCost, DEFAULT_RATES_GBP, ELECTRONICS_HANDLING } from '../utils/pricing.js';
+import { calculateShippingCost, DEFAULT_RATES_GBP, ELECTRONICS_HANDLING, HS_TIERS } from '../utils/pricing.js';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -46,6 +46,11 @@ router.post('/calculate', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid electronics_item' });
     }
 
+    const hs_tier = req.body.hs_tier || null;
+    if (hs_tier && !HS_TIERS[hs_tier]) {
+      return res.status(400).json({ success: false, message: `Invalid hs_tier. Valid values: ${Object.keys(HS_TIERS).join(', ')}` });
+    }
+
     const db = req.db;
     const rates_gbp = await getActiveRates(db);
 
@@ -57,6 +62,7 @@ router.post('/calculate', async (req, res) => {
       insurance,
       declared_value,
       electronics_item,
+      hs_tier,
       rates_gbp,
     });
 
@@ -78,6 +84,23 @@ router.get('/electronics', (req, res) => {
       label: cfg.label,
       fee_gbp: cfg.fee_gbp,
       min_weight_kg: cfg.min_weight_kg,
+    })),
+  });
+});
+
+// ─── GET /api/pricing/hs-tiers ──────────────────────────────────────────────
+// Public: returns the HS tiers iOS uses to populate the order-creation
+// "category" picker. The customs estimate is keyed off the chosen tier.
+
+router.get('/hs-tiers', (req, res) => {
+  res.json({
+    success: true,
+    tiers: Object.entries(HS_TIERS).map(([key, cfg]) => ({
+      key,
+      label: cfg.label,
+      duty_rate: cfg.duty_rate,
+      vat_zero_rated: !!cfg.vat_zero_rated,
+      note: cfg.note,
     })),
   });
 });

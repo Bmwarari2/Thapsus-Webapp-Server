@@ -18,17 +18,128 @@ export const DEFAULT_RATES_GBP = {
 };
 
 /**
+ * HS-tier table for the customs estimate.
+ *
+ * Kenyan customs charges vary by HS code: import duty is the per-tier rate
+ * applied to the CIF base (declared value + insurance + freight); KE VAT
+ * (16 %) is then applied on top of CIF + duty + IDF + RDL; IDF (3.5 %) and
+ * RDL (2 %) ride on the CIF base. We expose a small set of pragmatic tiers
+ * the admin can map a parcel to — the alternative is a full HS-code lookup
+ * which is overkill for the diary of categories Thapsus moves day-to-day.
+ *
+ * Rates here are KRA's 2024 "general" bands (EAC CET). The admin should
+ * adjust for promotional/special tariffs as needed; the goal is a quote
+ * that's right ±10 % rather than ±400 %.
+ */
+export const HS_TIERS = {
+  general: {
+    label: 'General goods (default)',
+    duty_rate: 0.25,
+    note: 'Default 25% duty band — most clothing, footwear, toys, household goods.',
+  },
+  electronics: {
+    label: 'Consumer electronics',
+    duty_rate: 0.0,
+    note: 'Phones, laptops, screens — duty-free at 0% but 16% VAT still applies.',
+  },
+  clothing_textiles: {
+    label: 'Clothing & textiles',
+    duty_rate: 0.25,
+    note: 'Apparel, footwear, fabric — 25% duty band.',
+  },
+  food_processed: {
+    label: 'Processed food / supplements',
+    duty_rate: 0.35,
+    note: 'Sensitive list — 35% duty band.',
+  },
+  raw_materials: {
+    label: 'Raw materials / inputs',
+    duty_rate: 0.0,
+    note: 'Industrial inputs and raw materials — 0% duty.',
+  },
+  books_media: {
+    label: 'Books / printed media',
+    duty_rate: 0.0,
+    note: 'Books, journals — 0% duty AND zero-rated for VAT.',
+    vat_zero_rated: true,
+  },
+  zero_rated: {
+    label: 'Zero-rated (medical / exempt)',
+    duty_rate: 0.0,
+    note: 'Medical supplies and other gazetted exemptions — 0% duty, 0% VAT.',
+    vat_zero_rated: true,
+  },
+};
+
+const KE_VAT_RATE = 0.16;
+const IDF_RATE    = 0.035;  // Import Declaration Fee (3.5 % of CIF)
+const RDL_RATE    = 0.02;   // Railway Development Levy (2 % of CIF)
+
+/**
+ * Compute KRA-style customs estimate on a CIF base.
+ *
+ * `cif_gbp` is the GBP-equivalent CIF (declared value + insurance + freight).
+ * The function returns each component plus the total so the iOS breakdown
+ * can render line-by-line. The total is in GBP — the customer pays KES at
+ * clearing, but for the pre-flight quote we want one currency end-to-end.
+ *
+ * @param {number} cif_gbp
+ * @param {string} hs_tier   key from HS_TIERS (defaults to 'general')
+ * @returns {object} { total, breakdown: { duty, vat, idf, rdl }, tier }
+ */
+export function calculateCustomsEstimate(cif_gbp, hs_tier = 'general') {
+  const tier = HS_TIERS[hs_tier] || HS_TIERS.general;
+  const cif  = Math.max(0, Number(cif_gbp) || 0);
+  if (cif === 0) {
+    return {
+      total: 0,
+      tier_key: hs_tier,
+      tier_label: tier.label,
+      breakdown: { duty: 0, vat: 0, idf: 0, rdl: 0 },
+      note: tier.note,
+    };
+  }
+
+  const duty = cif * tier.duty_rate;
+  const idf  = cif * IDF_RATE;
+  const rdl  = cif * RDL_RATE;
+  const vatBase = cif + duty + idf + rdl;
+  const vat = tier.vat_zero_rated ? 0 : vatBase * KE_VAT_RATE;
+
+  const total = duty + vat + idf + rdl;
+  return {
+    total: parseFloat(total.toFixed(2)),
+    tier_key: hs_tier,
+    tier_label: tier.label,
+    breakdown: {
+      duty: parseFloat(duty.toFixed(2)),
+      vat:  parseFloat(vat.toFixed(2)),
+      idf:  parseFloat(idf.toFixed(2)),
+      rdl:  parseFloat(rdl.toFixed(2)),
+    },
+    rates: {
+      duty: tier.duty_rate,
+      vat:  tier.vat_zero_rated ? 0 : KE_VAT_RATE,
+      idf:  IDF_RATE,
+      rdl:  RDL_RATE,
+    },
+    note: tier.note,
+  };
+}
+
+/**
  * Calculate shipping cost with full breakdown.
  *
  * @param {Object}  options
- * @param {number}  options.weight_kg        - Actual weight in kg
- * @param {Object}  options.dimensions       - { length, width, height } in cm
- * @param {string}  options.market           - 'UK' | 'China'
- * @param {string}  options.shipping_speed   - 'economy' | 'express'
- * @param {boolean} options.insurance        - Include insurance?
- * @param {number}  options.declared_value   - Declared value in KES
- * @param {string}  [options.electronics_item]  - Key from ELECTRONICS_HANDLING or null
- * @param {Object}  [options.rates_gbp]      - Admin-overridden rates per kg { UK, USA, China }
+ * @param {number}  options.weight_kg          - Actual weight in kg
+ * @param {Object}  options.dimensions         - { length, width, height } in cm
+ * @param {string}  options.market             - 'UK' | 'China'
+ * @param {string}  options.shipping_speed     - 'economy' | 'express'
+ * @param {boolean} options.insurance          - Include insurance?
+ * @param {number}  options.declared_value     - Declared value in GBP
+ * @param {string}  [options.electronics_item] - Key from ELECTRONICS_HANDLING or null
+ * @param {string}  [options.hs_tier]          - Key from HS_TIERS (defaults to 'general')
+ * @param {Object}  [options.rates_gbp]        - Admin-overridden rates per kg { UK, USA, China }
  * @returns {Object} Cost breakdown with a `total` property
  */
 export function calculateShippingCost(options) {
@@ -40,69 +151,59 @@ export function calculateShippingCost(options) {
     insurance = false,
     declared_value = 0,
     electronics_item = null,
+    hs_tier = null,
     rates_gbp = null,
   } = options;
 
   // All breakdown amounts are in GBP. Thapsus charges UK customers in GBP for
-  // shipping/handling/insurance; the KES customs liability is collected by KRA
-  // on arrival and shown separately as a duty estimate (the iOS cost breakdown
-  // surfaces the GBP equivalent of that duty so the customer can see a single
-  // pre-flight estimate). The legacy code multiplied each line by 164 and
-  // labelled the result as KES while iOS rendered the same number with £, which
-  // produced absurd "£1312" base-shipping figures for a 1 kg parcel.
+  // shipping/handling/insurance; the customs estimate is also surfaced in GBP
+  // (KRA collects the KES equivalent on arrival). Calling code that needs a
+  // KES figure should convert at the live rate.
   const ratesGbp = rates_gbp || DEFAULT_RATES_GBP;
   const rateGbp  = ratesGbp[market] || ratesGbp['UK'] || DEFAULT_RATES_GBP['UK'];
 
-  // Electronics: apply minimum weight & determine handling fee
   const electronicsCfg = electronics_item ? ELECTRONICS_HANDLING[electronics_item] : null;
   const effectiveWeight = electronicsCfg
     ? Math.max(weight_kg, electronicsCfg.min_weight_kg)
     : weight_kg;
 
-  // Dimensional weight (volumetric)
   let dimensionalWeight = 0;
   if (dimensions && dimensions.length && dimensions.width && dimensions.height) {
     dimensionalWeight = (dimensions.length * dimensions.width * dimensions.height) / 5000;
   }
 
-  // Chargeable weight = max of effective weight and dimensional weight
   const chargeableWeight = Math.max(effectiveWeight, dimensionalWeight);
 
-  // Base shipping cost in GBP
   let shippingCost = chargeableWeight * rateGbp;
   const speedMultiplier = shipping_speed === 'express' ? 1.5 : 1.0;
   shippingCost *= speedMultiplier;
 
-  // Electronics handling fee (flat GBP fee, applied when an electronics
-  // category is selected). Replaces the legacy KES handling line.
   const electronicsHandlingGbp = electronicsCfg ? electronicsCfg.fee_gbp : 0;
 
-  // General handling fee in GBP for non-electronics parcels: £3 minimum or
-  // £0.50/kg, whichever is greater. Translates the old KES floor (≈£3) into
-  // GBP so the post-fix total stays in the same ballpark for typical parcels.
+  // £3 minimum / £0.50 per kg for non-electronics parcels.
   const generalHandlingFee = electronicsCfg ? 0 : Math.max(3, chargeableWeight * 0.5);
 
-  // Insurance: 3% of declared value (declared_value is in GBP)
   let insuranceCost = 0;
   if (insurance && declared_value > 0) {
     insuranceCost = declared_value * 0.03;
   }
 
-  // Customs estimate: KE VAT (16%) + duty (10%) on the declared GBP value.
-  // The actual KES amount is calculated on arrival; this preview is in GBP
-  // so the customer's pre-flight total stays in a single currency.
-  let customsDutyEstimate = 0;
-  if (declared_value > 0) {
-    customsDutyEstimate = declared_value * 0.16 + declared_value * 0.10;
-  }
+  // Auto-pick a tier when the caller didn't supply one. Electronics → the
+  // electronics tier (0% duty, 16% VAT); otherwise default to 'general'.
+  const resolvedTier = hs_tier || (electronicsCfg ? 'electronics' : 'general');
 
-  const total = shippingCost + electronicsHandlingGbp + generalHandlingFee + insuranceCost + customsDutyEstimate;
+  // CIF for KE customs = declared value + insurance + freight (= base shipping).
+  const cif = (Number(declared_value) || 0) + insuranceCost + shippingCost;
+  const customs = calculateCustomsEstimate(cif, resolvedTier);
 
-  const result = {
+  const total = shippingCost + electronicsHandlingGbp + generalHandlingFee + insuranceCost + customs.total;
+
+  return {
     total: parseFloat(total.toFixed(2)),
     currency: 'GBP',
     shipping_speed,
     market,
+    hs_tier: resolvedTier,
     breakdown: {
       base_shipping: {
         amount: parseFloat(shippingCost.toFixed(2)),
@@ -138,19 +239,20 @@ export function calculateShippingCost(options) {
         included: insurance,
       },
       customs_estimate: {
-        amount: parseFloat(customsDutyEstimate.toFixed(2)),
-        vat_rate: '16%',
-        duty_rate: '10%',
-        declared_value,
-        note: 'Estimate only – actual duty depends on product classification',
+        amount: customs.total,
+        currency: 'GBP',
+        cif_gbp: parseFloat(cif.toFixed(2)),
+        tier_key: customs.tier_key,
+        tier_label: customs.tier_label,
+        components: customs.breakdown,
+        rates: customs.rates,
+        note: customs.note,
       },
     },
     notes: {
       delivery_time: shipping_speed === 'express' ? '5-7 business days' : '10-14 business days',
       warehouse: '31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB',
-      disclaimer: 'This is an estimate. Final cost may vary based on actual weight, customs clearance, and other factors.',
+      disclaimer: 'Customs are estimated against the selected HS tier. Final duty is set by KRA at clearing.',
     },
   };
-
-  return result;
 }
