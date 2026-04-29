@@ -109,19 +109,22 @@ router.post('/parcels/:id/receive', authMiddleware, ALLOWED, async (req, res) =>
        id]
     );
 
-    if (barcode || photo_url) {
-      // Packages enum was rewritten by migration 002_packages_v2_alignment.sql;
-      // 'received' was renamed to 'received_at_warehouse' under the v2 PackageStatus enum.
-      await req.db.query(
-        `UPDATE packages
-            SET barcode = COALESCE($1, barcode),
-                photo_url = COALESCE($2, photo_url),
-                status = 'received_at_warehouse',
-                received_at = NOW()
-          WHERE order_id = $3`,
-        [barcode || null, photo_url || null, id]
-      );
-    }
+    // The package row must always flip to 'received_at_warehouse' on receive,
+    // even when the operator didn't scan a barcode or attach a photo (those
+    // are nullable inputs). Previously this was gated on `barcode || photo_url`,
+    // which left packages stuck at 'pre_registered' and zeroed out the
+    // operator's "Ready to consolidate" KPI for any weight-only intake.
+    // Packages enum was rewritten by migration 002_packages_v2_alignment.sql;
+    // 'received' was renamed to 'received_at_warehouse' under the v2 PackageStatus enum.
+    await req.db.query(
+      `UPDATE packages
+          SET barcode = COALESCE($1, barcode),
+              photo_url = COALESCE($2, photo_url),
+              status = 'received_at_warehouse',
+              received_at = NOW()
+        WHERE order_id = $3`,
+      [barcode || null, photo_url || null, id]
+    );
 
     res.json({
       success: true,
