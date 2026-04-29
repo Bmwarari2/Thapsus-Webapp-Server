@@ -110,11 +110,13 @@ router.post('/parcels/:id/receive', authMiddleware, ALLOWED, async (req, res) =>
     );
 
     if (barcode || photo_url) {
+      // Packages enum was rewritten by migration 002_packages_v2_alignment.sql;
+      // 'received' was renamed to 'received_at_warehouse' under the v2 PackageStatus enum.
       await req.db.query(
         `UPDATE packages
             SET barcode = COALESCE($1, barcode),
                 photo_url = COALESCE($2, photo_url),
-                status = 'received',
+                status = 'received_at_warehouse',
                 received_at = NOW()
           WHERE order_id = $3`,
         [barcode || null, photo_url || null, id]

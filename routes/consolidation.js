@@ -95,8 +95,10 @@ router.post('/request', authMiddleware, async (req, res) => {
       `UPDATE packages SET is_consolidated = true, consolidated_with = $1 WHERE id IN (${setPlaceholders})`,
       [consolidationId, ...package_ids]
     );
+    // Packages enum was rewritten by migration 002_packages_v2_alignment.sql;
+    // 'consolidating' was renamed to 'manifested' under the v2 PackageStatus enum.
     await db.query(
-      `UPDATE packages SET status = 'consolidating' WHERE id IN (${setPlaceholders})`,
+      `UPDATE packages SET status = 'manifested' WHERE id IN (${setPlaceholders})`,
       [null, ...package_ids]
     );
 
