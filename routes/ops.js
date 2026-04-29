@@ -91,7 +91,7 @@ router.post('/parcels/:id/receive', authMiddleware, ALLOWED, async (req, res) =>
     const volumetric = calcVolumetric(dimensions);
     const chargeable = Math.max(parseFloat(weight_kg) || 0, volumetric);
 
-    await req.db.query(
+    const orderUpdate = await req.db.query(
       `UPDATE orders
           SET status = 'received_at_warehouse',
               weight_kg = COALESCE($1, weight_kg),
@@ -108,6 +108,13 @@ router.post('/parcels/:id/receive', authMiddleware, ALLOWED, async (req, res) =>
        photo_url || null,
        id]
     );
+
+    if (orderUpdate.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No order found for this id — package may be unlinked. Contact admin.',
+      });
+    }
 
     // The package row must always flip to 'received_at_warehouse' on receive,
     // even when the operator didn't scan a barcode or attach a photo (those
