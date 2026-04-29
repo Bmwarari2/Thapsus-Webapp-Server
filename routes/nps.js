@@ -20,10 +20,38 @@ router.post('/', authMiddleware, async (req, res) => {
        VALUES ($1,$2,$3,$4,$5)`,
       [id, req.user.id, parcel_id || null, s, comment || null]
     );
+    // Mark the matching invitation responded so iOS stops surfacing this
+    // parcel for survey on subsequent /pending polls.
+    if (parcel_id) {
+      await req.db.query(
+        `UPDATE nps_invitations
+            SET responded_at = NOW()
+          WHERE order_id = $1 AND user_id = $2 AND responded_at IS NULL`,
+        [parcel_id, req.user.id]
+      );
+    }
     res.status(201).json({ success: true });
   } catch (err) {
     console.error('POST /nps error:', err);
     res.status(500).json({ success: false, message: 'Failed to record NPS' });
+  }
+});
+
+/** GET /api/nps/pending — outstanding survey invitations for the caller */
+router.get('/pending', authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await req.db.query(
+      `SELECT order_id, created_at
+         FROM nps_invitations
+        WHERE user_id = $1 AND responded_at IS NULL
+        ORDER BY created_at DESC
+        LIMIT 50`,
+      [req.user.id]
+    );
+    res.json({ success: true, pending: rows });
+  } catch (err) {
+    console.error('GET /nps/pending error:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch pending surveys' });
   }
 });
 

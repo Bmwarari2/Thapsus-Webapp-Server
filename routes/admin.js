@@ -463,6 +463,21 @@ router.put('/orders/bulk-update', authMiddleware, isAdmin, async (req, res) => {
     const selectPlaceholders = order_ids.map((_, i) => `$${i + 1}`).join(',');
     const updated = await db.query(`SELECT * FROM orders WHERE id IN (${selectPlaceholders})`, order_ids);
 
+    // Log NPS invitations when an order transitions into delivered. This is
+    // the canonical "we offered a survey for parcel X" record so iOS doesn't
+    // have to rely on UserDefaults across devices and admins can compute
+    // response rate (responded_at / created_at).
+    if (status === 'delivered') {
+      for (const order of updated.rows) {
+        if (!order.user_id) continue;
+        await db.query(
+          `INSERT INTO nps_invitations (id, user_id, order_id)
+           VALUES ($1, $2, $3) ON CONFLICT (order_id) DO NOTHING`,
+          [`NPSI-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, order.user_id, order.id]
+        );
+      }
+    }
+
     // Push real-time SSE notification to each order's owner
     for (const order of updated.rows) {
       pushToUser(order.user_id, 'order_update', { action: 'status_changed', order });

@@ -207,4 +207,37 @@ router.post('/parcels/:id/release', authMiddleware, ALLOWED, async (req, res) =>
   }
 });
 
+/**
+ * GET /api/ops/parcels/:id/customer — Phase C label lookup. Operators need
+ * the customer's display name + personal warehouse code (TC-XXXX) on the
+ * printed SKU label so a parcel sitting on the warehouse shelf can be tied
+ * back to a single user. The orders table only carries user_id; this is the
+ * smallest projection that keeps PII off the per-parcel listing endpoint.
+ */
+router.get('/parcels/:id/customer', authMiddleware, ALLOWED, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await req.db.query(
+      `SELECT u.full_name, u.warehouse_id
+         FROM orders o
+         JOIN users  u ON u.id = o.user_id
+        WHERE o.id = $1`,
+      [id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+    res.json({
+      success: true,
+      customer: {
+        full_name: rows[0].full_name,
+        warehouse_id: rows[0].warehouse_id,
+      },
+    });
+  } catch (err) {
+    console.error('GET /ops/parcels/:id/customer error:', err);
+    res.status(500).json({ success: false, message: 'Failed to load customer' });
+  }
+});
+
 export default router;
