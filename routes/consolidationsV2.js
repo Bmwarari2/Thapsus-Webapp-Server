@@ -235,16 +235,44 @@ router.post('/:id/assign-parcel', authMiddleware, ALLOWED_OPERATOR, async (req, 
     if (!parcel_id) {
       return res.status(400).json({ success: false, message: 'parcel_id is required' });
     }
-    await req.db.query(
-      `UPDATE orders SET consolidation_id = $1, status = 'consolidating', updated_at = NOW()
-        WHERE id = $2`,
+    // `parcel_id` from the iOS client is a `packages.id`. The legacy code only
+    // updated the parent `orders` row, which left `packages.consolidation_id`
+    // null and the operator's manifest panel empty (the iOS cache observes
+    // packages, not orders). Update the package row first; cascade the parent
+    // order so the customer-facing consolidation card stays in sync.
+    const pkgRes = await req.db.query(
+      `UPDATE packages
+          SET consolidation_id = $1,
+              consolidated_with = $1,
+              is_consolidated = true,
+              status = 'manifested',
+              updated_at = NOW()
+        WHERE id = $2
+        RETURNING order_id`,
       [id, parcel_id]
     );
+    if (!pkgRes.rows[0]) {
+      return res.status(404).json({ success: false, message: 'Parcel not found' });
+    }
+    const orderId = pkgRes.rows[0].order_id;
+    if (orderId) {
+      await req.db.query(
+        `UPDATE orders SET consolidation_id = $1, status = 'consolidating', updated_at = NOW()
+          WHERE id = $2`,
+        [id, orderId]
+      );
+    }
     await refreshTotals(req.db, id);
     res.json({ success: true });
   } catch (err) {
     console.error('POST /consolidations/:id/assign-parcel error:', err);
-    res.status(500).json({ success: false, message: 'Failed to assign parcel' });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to assign parcel',
+      detail: err?.message || null,
+      code: err?.code || null,
+      constraint: err?.constraint || null,
+    });
   }
 });
 
@@ -253,11 +281,28 @@ router.post('/:id/remove-parcel', authMiddleware, ALLOWED_OPERATOR, async (req, 
   try {
     const { id } = req.params;
     const { parcel_id } = req.body;
-    await req.db.query(
-      `UPDATE orders SET consolidation_id = NULL, updated_at = NOW()
-        WHERE id = $1 AND consolidation_id = $2`,
+    // Same package-first contract as assign-parcel — clear the package, then
+    // cascade to its parent order. Status drops back to received_at_warehouse
+    // so the parcel is again eligible for another consolidation.
+    const pkgRes = await req.db.query(
+      `UPDATE packages
+          SET consolidation_id = NULL,
+              consolidated_with = NULL,
+              is_consolidated = false,
+              status = 'received_at_warehouse',
+              updated_at = NOW()
+        WHERE id = $1 AND consolidation_id = $2
+        RETURNING order_id`,
       [parcel_id, id]
     );
+    const orderId = pkgRes.rows[0]?.order_id;
+    if (orderId) {
+      await req.db.query(
+        `UPDATE orders SET consolidation_id = NULL, updated_at = NOW()
+          WHERE id = $1 AND consolidation_id = $2`,
+        [orderId, id]
+      );
+    }
     await refreshTotals(req.db, id);
     res.json({ success: true });
   } catch (err) {
@@ -330,12 +375,15 @@ router.post('/:id/manifest', authMiddleware, ALLOWED_OPERATOR, async (req, res) 
  *  Internal helpers
  * ──────────────────────────────────────────────────────────────────────── */
 async function refreshTotals(db, consolidationId) {
+  // Manifest totals are driven by `packages` (the per-parcel intake row), not
+  // `orders` — assign-parcel/remove-parcel operate on packages first now that
+  // the iOS detail view tracks them via cache.observePackagesInConsolidation.
   await db.query(
     `UPDATE consolidations c
-        SET total_parcels = (SELECT COUNT(*) FROM orders WHERE consolidation_id = c.id),
+        SET total_parcels = (SELECT COUNT(*) FROM packages WHERE consolidation_id = c.id),
             total_kg      = COALESCE(
                               (SELECT SUM(COALESCE(chargeable_kg, weight_kg, 0))
-                                 FROM orders WHERE consolidation_id = c.id), 0),
+                                 FROM packages WHERE consolidation_id = c.id), 0),
             updated_at    = NOW()
       WHERE c.id = $1`,
     [consolidationId]
