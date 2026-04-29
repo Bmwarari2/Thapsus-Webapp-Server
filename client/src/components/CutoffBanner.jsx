@@ -66,7 +66,7 @@ export const CutoffBanner = ({ compact = false }) => {
       {cons.total_kg !== undefined && (
         <div className="relative z-10 mt-4 flex items-center gap-4 text-xs text-white/70">
           <span className="inline-flex items-center gap-1"><Clock size={12} /> {cons.total_parcels || 0} parcels booked</span>
-          <span>· {(cons.total_kg || 0).toFixed(1)} kg consolidated so far</span>
+          <span>· {Number(cons.total_kg || 0).toFixed(1)} kg consolidated so far</span>
         </div>
       )}
     </div>
