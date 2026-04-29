@@ -247,4 +247,112 @@ router.get('/parcels/:id/customer', authMiddleware, ALLOWED, async (req, res) =>
   }
 });
 
+/**
+ * GET /api/ops/parcels/by-barcode/:barcode — operator SKU scan lookup.
+ * Returns the full operator-scope projection for the matching parcel so the
+ * iOS scanner can route to either the Receive sheet (pre_registered) or a
+ * detail panel (everything else). Trims + uppercases the input so a slightly
+ * dirty Code 128 read still hits.
+ */
+router.get('/parcels/by-barcode/:barcode', authMiddleware, ALLOWED, async (req, res) => {
+  try {
+    const raw = String(req.params.barcode || '').trim().toUpperCase();
+    if (!raw) {
+      return res.status(400).json({ success: false, message: 'barcode is required' });
+    }
+    const { rows } = await req.db.query(
+      `SELECT p.id            AS package_id,
+              p.order_id,
+              p.barcode,
+              p.status        AS package_status,
+              p.retailer,
+              p.description,
+              p.declared_value_gbp_pence,
+              p.actual_kg,
+              p.volumetric_kg,
+              p.chargeable_kg,
+              p.length_cm,
+              p.width_cm,
+              p.height_cm,
+              p.photo_url,
+              p.received_at,
+              p.photographed_at,
+              p.consolidation_id,
+              p.is_consolidated,
+              p.hold_reason     AS package_hold_reason,
+              o.id              AS order_id_full,
+              o.tracking_number,
+              o.status          AS order_status,
+              o.market,
+              o.hold_reason     AS order_hold_reason,
+              o.hold_resolved_at,
+              c.master_awb,
+              c.flight_date,
+              c.status          AS consolidation_status,
+              u.full_name,
+              u.warehouse_id,
+              u.email           AS customer_email,
+              u.phone           AS customer_phone
+         FROM packages p
+         LEFT JOIN orders        o ON o.id = p.order_id
+         LEFT JOIN consolidations c ON c.id = p.consolidation_id
+         LEFT JOIN users         u ON u.id = COALESCE(o.user_id, p.user_id)
+        WHERE upper(p.barcode) = $1
+        LIMIT 1`,
+      [raw]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No parcel with that SKU. Was the label re-minted?',
+      });
+    }
+    const r = rows[0];
+    res.json({
+      success: true,
+      parcel: {
+        package_id:                  r.package_id,
+        order_id:                    r.order_id_full || r.order_id,
+        barcode:                     r.barcode,
+        tracking_number:             r.tracking_number,
+        package_status:              r.package_status,
+        order_status:                r.order_status,
+        retailer:                    r.retailer,
+        description:                 r.description,
+        market:                      r.market,
+        declared_value_gbp_pence:    r.declared_value_gbp_pence,
+        actual_kg:                   r.actual_kg,
+        volumetric_kg:               r.volumetric_kg,
+        chargeable_kg:               r.chargeable_kg,
+        length_cm:                   r.length_cm,
+        width_cm:                    r.width_cm,
+        height_cm:                   r.height_cm,
+        photo_url:                   r.photo_url,
+        received_at:                 r.received_at,
+        photographed_at:             r.photographed_at,
+        is_consolidated:             r.is_consolidated,
+        consolidation_id:            r.consolidation_id,
+        consolidation_master_awb:    r.master_awb,
+        consolidation_flight_date:   r.flight_date,
+        consolidation_status:        r.consolidation_status,
+        hold_reason:                 r.order_hold_reason || r.package_hold_reason,
+        hold_resolved_at:            r.hold_resolved_at,
+        customer: {
+          full_name:    r.full_name,
+          warehouse_id: r.warehouse_id,
+          email:        r.customer_email,
+          phone:        r.customer_phone,
+        },
+      },
+    });
+  } catch (err) {
+    console.error('GET /ops/parcels/by-barcode/:barcode error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to look up parcel',
+      detail: err?.message || null,
+    });
+  }
+});
+
 export default router;
