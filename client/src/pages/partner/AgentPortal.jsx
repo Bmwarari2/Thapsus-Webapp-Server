@@ -77,7 +77,7 @@ export const AgentPortal = () => {
                     </div>
                     <div className="text-sm space-y-1">
                       <p>AWB: <span className="font-mono">{c.master_awb_no || '—'}</span></p>
-                      <p>{c.total_parcels || 0} parcels · {(c.total_kg || 0).toFixed(1)} kg</p>
+                      <p>{c.total_parcels || 0} parcels · {Number(c.total_kg || 0).toFixed(1)} kg</p>
                       <p>Departure: {c.departure_at ? new Date(c.departure_at).toLocaleString() : '—'}</p>
                     </div>
                   </GlassCard>
@@ -97,7 +97,7 @@ export const AgentPortal = () => {
                   <p className="text-xs text-slate-500">
                     AWB <span className="font-mono">{active.master_awb_no || '—'}</span> ·
                     {' '}{active.total_parcels} parcels ·
-                    {' '}{(active.total_kg || 0).toFixed(1)} kg
+                    {' '}{Number(active.total_kg || 0).toFixed(1)} kg
                   </p>
                 </div>
                 <StatusBadge status={active.status}/>

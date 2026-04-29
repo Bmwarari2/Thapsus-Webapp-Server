@@ -66,7 +66,7 @@ export const OpsConsolidations = () => {
                   </div>
                   <div className="grid grid-cols-3 gap-3 mt-4 text-center">
                     <Stat label="Parcels" value={c.total_parcels || 0} />
-                    <Stat label="Total kg" value={(c.total_kg || 0).toFixed(1)} />
+                    <Stat label="Total kg" value={Number(c.total_kg || 0).toFixed(1)} />
                     <Stat label="AWB" value={c.master_awb_no || '—'} small />
                   </div>
                   <div className="text-xs text-slate-500 mt-4">
@@ -186,7 +186,7 @@ export const OpsConsolidationDetail = () => {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <Stat label="Status"   value={<StatusBadge status={c.status} />} />
             <Stat label="Parcels"  value={c.total_parcels || 0} />
-            <Stat label="Total kg" value={(c.total_kg || 0).toFixed(1)} />
+            <Stat label="Total kg" value={Number(c.total_kg || 0).toFixed(1)} />
             <Stat label="Cut-off"  value={c.cutoff_at ? new Date(c.cutoff_at).toLocaleString() : '—'} small />
             <Stat label="Departure" value={c.departure_at ? new Date(c.departure_at).toLocaleString() : '—'} small />
           </div>
