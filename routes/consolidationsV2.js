@@ -128,7 +128,11 @@ router.post('/', authMiddleware, ALLOWED_OPERATOR, async (req, res) => {
         message: 'week_start and cutoff_at are required',
       });
     }
-    const id = shortId('CON');
+    // The live `consolidations.id` column is `uuid` on this project even
+    // though the on-disk schema declares TEXT, so the legacy `shortId('CON-…')`
+    // helper failed with `invalid input syntax for type uuid`. Use a real UUID
+    // — works against either column type.
+    const id = uuidv4();
     await req.db.query(
       `INSERT INTO consolidations
          (id, week_start, cutoff_at, departure_at, status, notes)
@@ -268,7 +272,9 @@ router.post('/:id/pallets', authMiddleware, ALLOWED_OPERATOR, async (req, res) =
     const { id } = req.params;
     const { label, weight_kg, photo_url } = req.body;
     if (!label) return res.status(400).json({ success: false, message: 'label is required' });
-    const palletId = shortId('PAL');
+    // pallets.id is uuid on this project (same story as consolidations.id);
+    // legacy shortId('PAL-…') would fail with invalid_input_syntax. Use UUID.
+    const palletId = uuidv4();
     await req.db.query(
       `INSERT INTO pallets (id, consolidation_id, label, weight_kg, photo_url)
        VALUES ($1,$2,$3,$4,$5)`,
