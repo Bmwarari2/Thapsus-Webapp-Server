@@ -378,12 +378,17 @@ async function refreshTotals(db, consolidationId) {
   // Manifest totals are driven by `packages` (the per-parcel intake row), not
   // `orders` — assign-parcel/remove-parcel operate on packages first now that
   // the iOS detail view tracks them via cache.observePackagesInConsolidation.
+  //
+  // `consolidations.id` is uuid on the live project but `packages.consolidation_id`
+  // is TEXT (see schema_drift_uuid_ids memory). Postgres has no implicit
+  // text=uuid cast, so we cast c.id explicitly. The pending schema-alignment
+  // migration removes the need for these casts.
   await db.query(
     `UPDATE consolidations c
-        SET total_parcels = (SELECT COUNT(*) FROM packages WHERE consolidation_id = c.id),
+        SET total_parcels = (SELECT COUNT(*) FROM packages WHERE consolidation_id = c.id::text),
             total_kg      = COALESCE(
                               (SELECT SUM(COALESCE(chargeable_kg, weight_kg, 0))
-                                 FROM packages WHERE consolidation_id = c.id), 0),
+                                 FROM packages WHERE consolidation_id = c.id::text), 0),
             updated_at    = NOW()
       WHERE c.id = $1`,
     [consolidationId]
