@@ -43,13 +43,15 @@ export function calculateShippingCost(options) {
     rates_gbp = null,
   } = options;
 
-  // GBP → KES conversion rate (approximate; adjust as needed)
-  const GBP_KES = 164;
-
-  // Effective per-kg rate in GBP
+  // All breakdown amounts are in GBP. Thapsus charges UK customers in GBP for
+  // shipping/handling/insurance; the KES customs liability is collected by KRA
+  // on arrival and shown separately as a duty estimate (the iOS cost breakdown
+  // surfaces the GBP equivalent of that duty so the customer can see a single
+  // pre-flight estimate). The legacy code multiplied each line by 164 and
+  // labelled the result as KES while iOS rendered the same number with £, which
+  // produced absurd "£1312" base-shipping figures for a 1 kg parcel.
   const ratesGbp = rates_gbp || DEFAULT_RATES_GBP;
   const rateGbp  = ratesGbp[market] || ratesGbp['UK'] || DEFAULT_RATES_GBP['UK'];
-  const baseRate = rateGbp * GBP_KES; // convert to KES
 
   // Electronics: apply minimum weight & determine handling fee
   const electronicsCfg = electronics_item ? ELECTRONICS_HANDLING[electronics_item] : null;
@@ -66,35 +68,39 @@ export function calculateShippingCost(options) {
   // Chargeable weight = max of effective weight and dimensional weight
   const chargeableWeight = Math.max(effectiveWeight, dimensionalWeight);
 
-  // Base shipping cost
-  let shippingCost = chargeableWeight * baseRate;
+  // Base shipping cost in GBP
+  let shippingCost = chargeableWeight * rateGbp;
   const speedMultiplier = shipping_speed === 'express' ? 1.5 : 1.0;
   shippingCost *= speedMultiplier;
 
-  // Electronics handling fee (GBP flat fee, always added when item is selected)
-  const electronicsHandlingGbp  = electronicsCfg ? electronicsCfg.fee_gbp : 0;
-  const electronicsHandlingKes  = electronicsHandlingGbp * GBP_KES;
+  // Electronics handling fee (flat GBP fee, applied when an electronics
+  // category is selected). Replaces the legacy KES handling line.
+  const electronicsHandlingGbp = electronicsCfg ? electronicsCfg.fee_gbp : 0;
 
-  // Legacy general handling fee (kept for non-electronics orders)
-  const generalHandlingFee = electronicsCfg ? 0 : Math.max(500, chargeableWeight * 100);
+  // General handling fee in GBP for non-electronics parcels: £3 minimum or
+  // £0.50/kg, whichever is greater. Translates the old KES floor (≈£3) into
+  // GBP so the post-fix total stays in the same ballpark for typical parcels.
+  const generalHandlingFee = electronicsCfg ? 0 : Math.max(3, chargeableWeight * 0.5);
 
-  // Insurance
+  // Insurance: 3% of declared value (declared_value is in GBP)
   let insuranceCost = 0;
   if (insurance && declared_value > 0) {
     insuranceCost = declared_value * 0.03;
   }
 
-  // Customs estimate
+  // Customs estimate: KE VAT (16%) + duty (10%) on the declared GBP value.
+  // The actual KES amount is calculated on arrival; this preview is in GBP
+  // so the customer's pre-flight total stays in a single currency.
   let customsDutyEstimate = 0;
   if (declared_value > 0) {
     customsDutyEstimate = declared_value * 0.16 + declared_value * 0.10;
   }
 
-  const total = shippingCost + electronicsHandlingKes + generalHandlingFee + insuranceCost + customsDutyEstimate;
+  const total = shippingCost + electronicsHandlingGbp + generalHandlingFee + insuranceCost + customsDutyEstimate;
 
   const result = {
     total: parseFloat(total.toFixed(2)),
-    currency: 'KES',
+    currency: 'GBP',
     shipping_speed,
     market,
     breakdown: {
@@ -115,7 +121,7 @@ export function calculateShippingCost(options) {
         item: electronics_item || null,
         label: electronicsCfg ? electronicsCfg.label : null,
         fee_gbp: electronicsHandlingGbp,
-        amount: parseFloat(electronicsHandlingKes.toFixed(2)),
+        amount: parseFloat(electronicsHandlingGbp.toFixed(2)),
         included: !!electronicsCfg,
         description: electronicsCfg
           ? `£${electronicsHandlingGbp} handling fee for ${electronicsCfg.label} (min 1 kg applies)`
