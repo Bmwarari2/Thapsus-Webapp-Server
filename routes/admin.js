@@ -25,6 +25,29 @@ function generateReferralCode() {
   return code;
 }
 
+/**
+ * Maps a `orders.status` value to its v2 `packages.status` counterpart so
+ * admin-side bulk/edit endpoints can keep the parcel row in sync. Without
+ * this, marking an order received leaves the package at 'pre_registered'
+ * and operators never see it in the "Ready to consolidate" list.
+ *
+ * Returns null when there's no sensible package-side equivalent (e.g.
+ * statuses that only describe an order's billing/admin state).
+ */
+function mapOrderStatusToPackage(orderStatus) {
+  switch (orderStatus) {
+    case 'pending':                return 'pre_registered';
+    case 'received_at_warehouse':  return 'received_at_warehouse';
+    case 'consolidating':          return 'manifested';
+    case 'in_transit':             return 'in_transit';
+    case 'customs':                return 'awaiting_duty_payment';
+    case 'out_for_delivery':       return 'out_for_delivery';
+    case 'delivered':              return 'delivered';
+    case 'cancelled':              return 'abandoned';
+    default:                       return null;
+  }
+}
+
 const router = express.Router();
 
 /** GET /api/admin/users */
@@ -426,6 +449,17 @@ router.put('/orders/bulk-update', authMiddleware, isAdmin, async (req, res) => {
     const updatePlaceholders = order_ids.map((_, i) => `$${i + 2}`).join(',');
     await db.query(`UPDATE orders SET status = $1, updated_at = NOW() WHERE id IN (${updatePlaceholders})`, [status, ...order_ids]);
 
+    // Cascade to packages so the operator's "Ready to consolidate" KPI
+    // reflects the admin's status change. iOS observes packages.status, so
+    // updating orders alone hid these parcels from the consolidation flow.
+    const pkgStatus = mapOrderStatusToPackage(status);
+    if (pkgStatus) {
+      await db.query(
+        `UPDATE packages SET status = $1, updated_at = NOW() WHERE order_id IN (${updatePlaceholders})`,
+        [pkgStatus, ...order_ids]
+      );
+    }
+
     const selectPlaceholders = order_ids.map((_, i) => `$${i + 1}`).join(',');
     const updated = await db.query(`SELECT * FROM orders WHERE id IN (${selectPlaceholders})`, order_ids);
 
@@ -505,6 +539,19 @@ router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
     // Also update the package weight if weight changed
     if (weight_kg !== undefined) {
       await db.query('UPDATE packages SET weight_kg = $1, updated_at = NOW() WHERE order_id = $2', [weight_kg, id]);
+    }
+
+    // Cascade status to the package row so iOS observers see it. Without
+    // this an admin-side mark-received leaves packages.status='pre_registered'
+    // and operators can't pick the parcel up for consolidation.
+    if (status !== undefined) {
+      const pkgStatus = mapOrderStatusToPackage(status);
+      if (pkgStatus) {
+        await db.query(
+          'UPDATE packages SET status = $1, updated_at = NOW() WHERE order_id = $2',
+          [pkgStatus, id]
+        );
+      }
     }
 
     await db.query('INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)',
