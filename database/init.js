@@ -483,82 +483,14 @@ export async function initializeDatabase() {
     console.error('⚠ Could not verify tables:', err.message);
   }
 
-  // ── Step 5: check RLS status and attempt to disable ─────────────────────
-  try {
-    const rlsRes = await pool.query(`
-      SELECT tablename, rowsecurity
-      FROM pg_tables
-      WHERE schemaname = 'public'
-    `);
-
-    const rlsEnabled = rlsRes.rows.filter(r => r.rowsecurity === true);
-
-    if (rlsEnabled.length > 0) {
-      console.log(`⚠ RLS is enabled on ${rlsEnabled.length} table(s): ${rlsEnabled.map(r => r.tablename).join(', ')}`);
-
-      if (isReadOnly) {
-        console.error('  ✗ Cannot disable RLS — connection is read-only (pooler mode).');
-        console.error('  → Run this in Supabase SQL Editor to disable RLS:');
-        console.error('  ────────────────────────────────────────────');
-        for (const row of rlsEnabled) {
-          console.error(`  ALTER TABLE public."${row.tablename}" DISABLE ROW LEVEL SECURITY;`);
-        }
-        console.error('  ────────────────────────────────────────────');
-      } else {
-        console.log('  Disabling RLS — this backend handles auth via JWT middleware...');
-        for (const row of rlsEnabled) {
-          try {
-            await pool.query(`ALTER TABLE public."${row.tablename}" DISABLE ROW LEVEL SECURITY`);
-            console.log(`  ✓ RLS disabled on "${row.tablename}"`);
-          } catch (rlsErr) {
-            console.error(`  ✗ Failed to disable RLS on "${row.tablename}": ${rlsErr.message}`);
-          }
-        }
-      }
-    } else {
-      console.log('✓ RLS is not enabled on any tables');
-    }
-  } catch (err) {
-    console.error('⚠ Could not check RLS status:', err.message);
-  }
-
-  // ── Step 6: check for broken RLS policies (uuid = text mismatch) ────────
-  try {
-    const policiesRes = await pool.query(`
-      SELECT schemaname, tablename, policyname, qual, with_check
-      FROM pg_policies
-      WHERE schemaname = 'public'
-    `);
-
-    if (policiesRes.rows.length > 0) {
-      console.log(`⚠ Found ${policiesRes.rows.length} RLS policies on public tables:`);
-      for (const p of policiesRes.rows) {
-        console.log(`  - ${p.tablename}: "${p.policyname}" → ${p.qual || '(no qual)'}`);
-      }
-      if (isReadOnly) {
-        console.error('  → To drop these policies, run in Supabase SQL Editor:');
-        console.error('  ────────────────────────────────────────────');
-        for (const p of policiesRes.rows) {
-          console.error(`  DROP POLICY IF EXISTS "${p.policyname}" ON public."${p.tablename}";`);
-        }
-        console.error('  ────────────────────────────────────────────');
-      } else {
-        console.log('  Dropping RLS policies — this backend uses JWT middleware for auth...');
-        for (const p of policiesRes.rows) {
-          try {
-            await pool.query(`DROP POLICY IF EXISTS "${p.policyname}" ON public."${p.tablename}"`);
-            console.log(`  ✓ Dropped policy "${p.policyname}" on "${p.tablename}"`);
-          } catch (dropErr) {
-            console.error(`  ✗ Failed to drop "${p.policyname}": ${dropErr.message}`);
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.error('⚠ Could not check RLS policies:', err.message);
-  }
-
-  // ── Step 7: quick data test — can we actually read from users? ──────────
+  // ── Step 5: quick data test — can we actually read from users? ──────────
+  // RLS is intentionally ENABLED + FORCED on every public table (see
+  // server-patches/database/migrations/018_rls_relockdown.sql + 019_rls_policy_fill.sql).
+  // The mobile clients read directly via PostgREST under the user's JWT, so the
+  // policies are the only thing isolating one customer's data from another.
+  // This service-role pool already bypasses RLS for the server's own queries —
+  // so previous bootstrap code that disabled RLS / dropped every policy on
+  // every boot was a regression vector and has been removed.
   try {
     const testRes = await pool.query('SELECT COUNT(*) AS cnt FROM users');
     console.log(`✓ Data access test: users table has ${testRes.rows[0].cnt} row(s)`);
