@@ -9,8 +9,16 @@ import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, requireRole, isAdmin } from '../middleware/auth.js';
 import { logRouteError } from '../utils/errorLogger.js';
+import {
+  createSignedUploadUrl,
+  createSignedDownloadUrl,
+  extractAgentInvoicePath,
+  getSupabaseAdmin
+} from '../utils/supabaseAdmin.js';
 
 const router = express.Router();
+
+const AGENT_INVOICE_BUCKET = 'agent-invoices';
 
 /** GET /api/agent-invoices/mine — agent sees their submissions */
 router.get('/mine', authMiddleware, requireRole('clearing_agent'), async (req, res) => {
@@ -70,6 +78,97 @@ router.get('/', authMiddleware, isAdmin, async (req, res) => {
     console.error('GET /agent-invoices error:', err);
     logRouteError(req, res, err, 'List agent invoices');
     res.status(500).json({ success: false, message: 'Failed to fetch invoices' });
+  }
+});
+
+/**
+ * POST /api/agent-invoices/upload-url
+ *
+ * Returns a signed-upload URL the agent's iOS / Android client can PUT the
+ * PDF bytes to without holding a Supabase JWT. The agent-invoices bucket
+ * was flipped private in migration 005 so direct PostgREST + storage RLS
+ * uploads now 403 — this endpoint is the only sanctioned upload path.
+ *
+ * The returned `path` is the canonical in-bucket path that the iOS client
+ * then POSTs back as `doc_url` (server records the path; download URLs are
+ * minted on demand from /agent-invoices/:id/document-url).
+ *
+ * Body (optional): { filename: 'invoice-1234.pdf' }
+ *   — used as the suffix; default is "<ts>.pdf".
+ */
+router.post('/upload-url', authMiddleware, requireRole('clearing_agent'), async (req, res) => {
+  try {
+    if (!getSupabaseAdmin()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Storage admin not configured. Set SUPABASE_SERVICE_KEY on the server.'
+      });
+    }
+    const ts = Date.now();
+    const safeName = String(req.body?.filename || `${ts}.pdf`).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `${req.user.id}/${ts}-${safeName}`;
+    const data = await createSignedUploadUrl(AGENT_INVOICE_BUCKET, path);
+    return res.json({
+      success: true,
+      bucket: AGENT_INVOICE_BUCKET,
+      path,
+      signed_url: data.signedUrl,
+      token: data.token
+    });
+  } catch (err) {
+    console.error('POST /agent-invoices/upload-url error:', err);
+    logRouteError(req, res, err, 'Mint signed upload URL');
+    return res.status(500).json({ success: false, message: 'Failed to mint upload URL' });
+  }
+});
+
+/**
+ * GET /api/agent-invoices/:id/document-url
+ *
+ * Returns a 5-minute signed download URL for the invoice's stored PDF.
+ *
+ *   - The submitting agent can fetch their own invoice URL (RLS-equivalent
+ *     check on agent_id).
+ *   - Admin / staff can fetch any invoice URL.
+ *
+ * Returns 404 if the invoice has no doc_url, or if the requester is not
+ * authorised to view it.
+ */
+router.get('/:id/document-url', authMiddleware, async (req, res) => {
+  try {
+    if (!getSupabaseAdmin()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Storage admin not configured. Set SUPABASE_SERVICE_KEY on the server.'
+      });
+    }
+    const { id } = req.params;
+    const { rows } = await req.db.query(
+      `SELECT id, agent_id, doc_url FROM agent_invoices WHERE id = $1`,
+      [id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Invoice not found' });
+    }
+    const inv = rows[0];
+    const isOwner = inv.agent_id === req.user.id;
+    const isStaff = req.user.role === 'admin' || req.user.role === 'operator';
+    if (!isOwner && !isStaff) {
+      return res.status(403).json({ success: false, message: 'Not authorised to view this invoice' });
+    }
+    if (!inv.doc_url) {
+      return res.status(404).json({ success: false, message: 'No document attached to this invoice' });
+    }
+    const path = extractAgentInvoicePath(inv.doc_url);
+    if (!path) {
+      return res.status(500).json({ success: false, message: 'Stored doc_url could not be parsed' });
+    }
+    const data = await createSignedDownloadUrl(AGENT_INVOICE_BUCKET, path, 300);
+    return res.json({ success: true, signed_url: data.signedUrl, expires_in_seconds: 300 });
+  } catch (err) {
+    console.error('GET /agent-invoices/:id/document-url error:', err);
+    logRouteError(req, res, err, 'Mint signed document URL');
+    return res.status(500).json({ success: false, message: 'Failed to mint document URL' });
   }
 });
 
