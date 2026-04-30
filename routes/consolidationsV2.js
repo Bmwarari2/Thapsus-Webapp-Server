@@ -227,6 +227,67 @@ router.patch('/:id', authMiddleware, ALLOWED_OPERATOR, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/consolidations/:id/assign-parcels — bulk attach (audit S2-6).
+ *
+ * The single-parcel /assign-parcel route is N round-trips per consolidation
+ * load. Operators routinely tag 30–50 parcels at a time, which made the
+ * Liquid-Glass progress sheet hang for 5–10 seconds. This batch endpoint
+ * performs the same package-then-order cascade in two queries instead of
+ * 2 × N. The single-parcel route is kept for backwards compatibility.
+ *
+ * Body: { parcel_ids: string[] } — non-empty, capped at 200 to keep the
+ *       UPDATE plan time bounded.
+ * Returns: { success, assigned: number, missing: string[] }
+ */
+router.post('/:id/assign-parcels', authMiddleware, ALLOWED_OPERATOR, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { parcel_ids } = req.body;
+    if (!Array.isArray(parcel_ids) || parcel_ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'parcel_ids must be a non-empty array' });
+    }
+    if (parcel_ids.length > 200) {
+      return res.status(400).json({ success: false, message: 'too many parcels (max 200 per batch)' });
+    }
+    const pkgRes = await req.db.query(
+      `UPDATE packages
+          SET consolidation_id = $1::uuid,
+              consolidated_with = $1::text,
+              is_consolidated = true,
+              status = 'manifested',
+              updated_at = NOW()
+        WHERE id = ANY($2::text[])
+        RETURNING id, order_id`,
+      [id, parcel_ids]
+    );
+    const updatedIds = pkgRes.rows.map((r) => r.id);
+    const orderIds = pkgRes.rows.map((r) => r.order_id).filter(Boolean);
+    if (orderIds.length > 0) {
+      await req.db.query(
+        `UPDATE orders
+            SET consolidation_id = $1::uuid,
+                status = 'consolidating',
+                updated_at = NOW()
+          WHERE id = ANY($2::text[])`,
+        [id, orderIds]
+      );
+    }
+    await refreshTotals(req.db, id);
+    const missing = parcel_ids.filter((pid) => !updatedIds.includes(pid));
+    res.json({ success: true, assigned: updatedIds.length, missing });
+  } catch (err) {
+    console.error('POST /consolidations/:id/assign-parcels error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to assign parcels',
+      detail: err?.message || null,
+      code: err?.code || null,
+      constraint: err?.constraint || null,
+    });
+  }
+});
+
 /** POST /api/consolidations/:id/assign-parcel  — attach a parcel */
 router.post('/:id/assign-parcel', authMiddleware, ALLOWED_OPERATOR, async (req, res) => {
   try {
