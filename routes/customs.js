@@ -89,7 +89,9 @@ router.post(
       if (!parcel_id) {
         return res.status(400).json({ success: false, message: 'parcel_id is required' });
       }
-      const id = `CE-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
+      // customs_entries.id is uuid on live; the legacy CE-... prefix fails
+      // string_to_uuid. Use a real uuidv4().
+      const id = uuidv4();
       await req.db.query(
         `INSERT INTO customs_entries
            (id, parcel_id, agent_id, idf_no, entry_no, cif_kes,
@@ -214,7 +216,9 @@ router.post(
   async (req, res) => {
     try {
       const { consolidation_id, invoice_no, amount_kes, doc_url, notes } = req.body;
-      const id = `AI-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
+      // agent_invoices.id is uuid on live; the legacy AI-... prefix fails
+      // string_to_uuid. Use a real uuidv4().
+      const id = uuidv4();
       await req.db.query(
         `INSERT INTO agent_invoices
            (id, agent_id, consolidation_id, invoice_no, amount_kes, doc_url, notes)
