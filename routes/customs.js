@@ -94,7 +94,8 @@ router.post(
         `INSERT INTO customs_entries
            (id, parcel_id, agent_id, idf_no, entry_no, cif_kes,
             duty_kes, vat_kes, idf_kes, rdl_kes, status, notes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11,'idf_submitted'),$12)`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+                 COALESCE($11,'idf_submitted')::customs_status,$12)`,
         [id, parcel_id, req.user.id, idf_no || null, entry_no || null,
          cif_kes || 0, duty_kes || 0, vat_kes || 0, idf_kes || 0, rdl_kes || 0,
          status || null, notes || null]
@@ -126,7 +127,10 @@ router.patch(
       for (const k of allowed) {
         if (Object.prototype.hasOwnProperty.call(req.body, k)) {
           params.push(req.body[k]);
-          sets.push(`${k} = $${params.length}`);
+          // status is a Postgres enum (customs_status); cast on the way in.
+          sets.push(k === 'status'
+            ? `${k} = $${params.length}::customs_status`
+            : `${k} = $${params.length}`);
         }
       }
       if (sets.length === 0) {
