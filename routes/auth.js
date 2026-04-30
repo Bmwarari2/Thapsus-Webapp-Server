@@ -2,7 +2,7 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, tokenSha256 } from '../middleware/auth.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { mintSupabaseToken } from '../utils/supabaseJwt.js';
 
@@ -385,6 +385,40 @@ router.post('/supabase-token', authMiddleware, async (req, res) => {
   } catch (e) {
     console.error('[auth/supabase-token]', e);
     return res.status(500).json({ success: false, message: 'Could not mint supabase token' });
+  }
+});
+
+/**
+ * POST /api/auth/logout
+ * Revokes the bearer token used to authenticate this request. Subsequent
+ * requests using the same token return 401 even though the JWT's `exp`
+ * claim has not elapsed. The token's SHA-256 hash is stored alongside the
+ * decoded `exp` so a daily cleanup job can vacuum old entries:
+ *
+ *   DELETE FROM revoked_tokens WHERE expires_at < NOW();
+ *
+ * This is the iOS-side counterpart to AuthRepository.signOut, which was
+ * previously local-only — clearing keychain values does not invalidate
+ * tokens that were captured by an attacker before signOut. Per audit
+ * §2.5 / S-3.
+ */
+router.post('/logout', authMiddleware, async (req, res) => {
+  try {
+    const { id, exp } = req.user;
+    if (!req.authToken || !exp) {
+      return res.status(400).json({ success: false, message: 'Token context missing' });
+    }
+    await req.db.query(
+      `INSERT INTO revoked_tokens (token_sha256, user_id, expires_at)
+       VALUES ($1, $2, to_timestamp($3))
+       ON CONFLICT (token_sha256) DO NOTHING`,
+      [tokenSha256(req.authToken), id, exp]
+    );
+    return res.json({ success: true });
+  } catch (e) {
+    console.error('[auth/logout]', e);
+    logRouteError(req, res, e, 'Logout');
+    return res.status(500).json({ success: false, message: 'Logout failed' });
   }
 });
 
