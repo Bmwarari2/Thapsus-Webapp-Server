@@ -193,8 +193,9 @@ router.post('/login', async (req, res) => {
 router.get('/me', authMiddleware, async (req, res) => {
   try {
     const { rows } = await req.db.query(
-      `SELECT id,email,name,phone,role,warehouse_id,language_pref,referral_code,wallet_balance,created_at,updated_at
-       FROM users WHERE id=$1`,
+      `SELECT id,email,name,phone,role,warehouse_id,language_pref,referral_code,
+              wallet_balance,delivery_address,country_of_residence,created_at,updated_at
+         FROM users WHERE id=$1`,
       [req.user.id]
     );
     if (rows.length === 0) return res.status(404).json({ success: false, message: 'User not found' });
@@ -209,25 +210,33 @@ router.get('/me', authMiddleware, async (req, res) => {
 // PUT /api/auth/profile
 router.put('/profile', authMiddleware, async (req, res) => {
   try {
-    const { name, phone, language_pref } = req.body;
+    const { name, phone, language_pref, delivery_address } = req.body;
     const userId = req.user.id;
-    if (!name && !phone && !language_pref) {
+    // Empty-string is a deliberate clear (e.g. user wants to wipe their
+    // delivery address); only treat undefined as "field not supplied".
+    const hasName            = typeof name !== 'undefined';
+    const hasPhone           = typeof phone !== 'undefined';
+    const hasLanguage        = typeof language_pref !== 'undefined';
+    const hasDeliveryAddress = typeof delivery_address !== 'undefined';
+    if (!hasName && !hasPhone && !hasLanguage && !hasDeliveryAddress) {
       return res.status(400).json({ success: false, message: 'Provide at least one field to update' });
     }
 
     const setClauses = [];
     const params = [];
     let idx = 1;
-    if (name)          { setClauses.push(`name=$${idx++}`);          params.push(name); }
-    if (phone)         { setClauses.push(`phone=$${idx++}`);         params.push(phone); }
-    if (language_pref) { setClauses.push(`language_pref=$${idx++}`); params.push(language_pref); }
+    if (hasName)            { setClauses.push(`name=$${idx++}`);             params.push(name || null); }
+    if (hasPhone)           { setClauses.push(`phone=$${idx++}`);            params.push(phone || null); }
+    if (hasLanguage)        { setClauses.push(`language_pref=$${idx++}`);    params.push(language_pref); }
+    if (hasDeliveryAddress) { setClauses.push(`delivery_address=$${idx++}`); params.push(delivery_address || null); }
     setClauses.push(`updated_at=NOW()`);
     params.push(userId);
 
     await req.db.query(`UPDATE users SET ${setClauses.join(',')} WHERE id=$${idx}`, params);
 
     const { rows } = await req.db.query(
-      `SELECT id,email,name,phone,role,warehouse_id,language_pref,wallet_balance FROM users WHERE id=$1`, [userId]
+      `SELECT id,email,name,phone,role,warehouse_id,language_pref,wallet_balance,delivery_address
+         FROM users WHERE id=$1`, [userId]
     );
     res.json({ success: true, message: 'Profile updated successfully', user: rows[0] });
   } catch (error) {
