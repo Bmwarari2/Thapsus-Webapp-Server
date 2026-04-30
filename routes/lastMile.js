@@ -18,6 +18,36 @@ const ZONES = ['westlands','kilimani','karen','kasarani','eastlands','cbd','sout
  *  OPERATOR — dispatch board
  * ──────────────────────────────────────────────────────────────────────── */
 
+/**
+ * GET /api/last-mile/riders — minimal rider list for the dispatch picker.
+ *
+ * `/api/admin/users?role=rider` is admin-only, which left operators with a
+ * free-text rider-id field on iOS — too easy to mistype. This endpoint is
+ * deliberately narrow (id + display fields only, no audit info) so it can
+ * be opened to operators as well as admins (`requireRole` auto-passes
+ * admin).
+ */
+router.get(
+  '/riders',
+  authMiddleware,
+  requireRole('operator'),
+  async (req, res) => {
+    try {
+      const { rows } = await req.db.query(
+        `SELECT id, name, email, phone
+           FROM users
+          WHERE role = 'rider'
+          ORDER BY name ASC NULLS LAST
+          LIMIT 200`
+      );
+      res.json({ success: true, riders: rows });
+    } catch (err) {
+      console.error('GET /last-mile/riders error:', err);
+      res.status(500).json({ success: false, message: 'Failed to load riders' });
+    }
+  }
+);
+
 /** GET /api/last-mile/dispatch — board view (parcels released, awaiting run) */
 router.get(
   '/dispatch',
