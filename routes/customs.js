@@ -110,6 +110,13 @@ router.post(
       res.status(201).json({ success: true, entry_id: id });
     } catch (err) {
       console.error('POST /customs/entries error:', err);
+      // 23505 unique_violation — uniq_customs_entries_parcel rejects duplicates.
+      if (err && err.code === '23505') {
+        return res.status(409).json({
+          success: false,
+          message: 'A customs entry already exists for this parcel.'
+        });
+      }
       res.status(500).json({ success: false, message: 'Failed to create customs entry' });
     }
   }

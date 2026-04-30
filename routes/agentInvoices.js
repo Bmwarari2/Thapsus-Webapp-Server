@@ -38,7 +38,7 @@ router.post('/', authMiddleware, requireRole('clearing_agent'), async (req, res)
     await req.db.query(
       `INSERT INTO agent_invoices
          (id, agent_id, consolidation_id, invoice_no, amount_kes, doc_url, status, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,'submitted',$7)`,
+       VALUES ($1,$2,$3,$4,$5,$6,'submitted'::invoice_status,$7)`,
       [id, req.user.id, consolidation_id || null, invoice_no || null,
        amount_kes, doc_url || null, notes || null]
     );
