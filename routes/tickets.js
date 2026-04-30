@@ -4,8 +4,15 @@ import { authMiddleware, isAdmin } from '../middleware/auth.js';
 import { pushToUser, pushToAdmins } from './events.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { sendTicketCreatedEmail, sendTicketReplyEmail } from '../utils/email.js';
+import {
+  createSignedUploadUrl,
+  createSignedDownloadUrl,
+  getSupabaseAdmin
+} from '../utils/supabaseAdmin.js';
 
 const router = express.Router();
+
+const TICKET_ATTACHMENT_BUCKET = 'ticket-attachments';
 
 /** GET /api/tickets */
 router.get('/', authMiddleware, async (req, res) => {
@@ -108,7 +115,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
     const ticket = ticketRes.rows[0];
 
     const messages = await db.query(
-      `SELECT tm.id, tm.message, tm.created_at, u.email, u.name, u.role
+      `SELECT tm.id, tm.message, tm.attachment_url, tm.created_at, u.email, u.name, u.role
        FROM ticket_messages tm
        JOIN users u ON tm.sender_id = u.id
        WHERE tm.ticket_id = $1
@@ -129,10 +136,14 @@ router.post('/:id/message', authMiddleware, async (req, res) => {
   try {
     const db = req.db;
     const { id }     = req.params;
-    const { message } = req.body;
+    const { message, attachment_url } = req.body;
     const userId     = req.user.id;
     const isAdminUser = req.user.role === 'admin';
-    if (!message) return res.status(400).json({ success: false, message: 'Message is required' });
+    // Allow attachment-only messages — a customer who just snaps a photo of a
+    // damaged parcel shouldn't be forced to type something.
+    if (!message && !attachment_url) {
+      return res.status(400).json({ success: false, message: 'Message or attachment required' });
+    }
 
     // Admins can message any ticket; customers only their own
     const ticketRes = isAdminUser
@@ -143,12 +154,20 @@ router.post('/:id/message', authMiddleware, async (req, res) => {
     const ticket    = ticketRes.rows[0];
     const messageId = uuidv4();
     await db.query(
-      'INSERT INTO ticket_messages (id, ticket_id, sender_id, message) VALUES ($1,$2,$3,$4)',
-      [messageId, id, userId, message]
+      `INSERT INTO ticket_messages (id, ticket_id, sender_id, message, attachment_url)
+       VALUES ($1,$2,$3,$4,$5)`,
+      [messageId, id, userId, message || '', attachment_url || null]
     );
     await db.query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [id]);
 
-    const payload = { action: 'new_message', ticketId: id, message, senderId: userId, messageId };
+    const payload = {
+      action: 'new_message',
+      ticketId: id,
+      message,
+      attachmentUrl: attachment_url || null,
+      senderId: userId,
+      messageId
+    };
     if (isAdminUser) {
       // Admin replied — push to ticket owner
       pushToUser(ticket.user_id, 'ticket_update', payload);
@@ -240,6 +259,91 @@ router.get('/admin/all', authMiddleware, isAdmin, async (req, res) => {
     console.error('Get all tickets error:', error);
     logRouteError(req, res, error, 'Get all tickets error');
     res.status(500).json({ success: false, message: 'Failed to fetch tickets' });
+  }
+});
+
+/**
+ * POST /api/tickets/attachments/upload-url
+ *
+ * Mints a signed-upload URL into the private `ticket-attachments` bucket
+ * (migration 006). The client PUTs bytes there directly without a Supabase
+ * JWT, then POSTs the returned `path` back as `attachment_url` on
+ * /api/tickets/:id/message.
+ *
+ * Body (optional): { filename: 'damage-photo.jpg' }
+ */
+router.post('/attachments/upload-url', authMiddleware, async (req, res) => {
+  try {
+    if (!getSupabaseAdmin()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Storage admin not configured. Set SUPABASE_SERVICE_KEY on the server.'
+      });
+    }
+    const ts = Date.now();
+    const safeName = String(req.body?.filename || `${ts}.jpg`).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `${req.user.id}/${ts}-${safeName}`;
+    const data = await createSignedUploadUrl(TICKET_ATTACHMENT_BUCKET, path);
+    return res.json({
+      success: true,
+      bucket: TICKET_ATTACHMENT_BUCKET,
+      path,
+      signed_url: data.signedUrl,
+      token: data.token
+    });
+  } catch (err) {
+    console.error('POST /tickets/attachments/upload-url error:', err);
+    logRouteError(req, res, err, 'Mint ticket attachment upload URL');
+    return res.status(500).json({ success: false, message: 'Failed to mint upload URL' });
+  }
+});
+
+/**
+ * GET /api/tickets/messages/:messageId/attachment-url
+ *
+ * Returns a 5-minute signed download URL for an attached photo / PDF.
+ * Caller must own the ticket (or be admin); we resolve through the message
+ * → ticket join.
+ */
+router.get('/messages/:messageId/attachment-url', authMiddleware, async (req, res) => {
+  try {
+    if (!getSupabaseAdmin()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Storage admin not configured. Set SUPABASE_SERVICE_KEY on the server.'
+      });
+    }
+    const { messageId } = req.params;
+    const { rows } = await req.db.query(
+      `SELECT tm.attachment_url, t.user_id
+         FROM ticket_messages tm
+         JOIN tickets t ON t.id = tm.ticket_id
+        WHERE tm.id = $1`,
+      [messageId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Message not found' });
+    }
+    const row = rows[0];
+    const isOwner = row.user_id === req.user.id;
+    const isStaff = req.user.role === 'admin' || req.user.role === 'operator';
+    if (!isOwner && !isStaff) {
+      return res.status(403).json({ success: false, message: 'Not authorised' });
+    }
+    if (!row.attachment_url) {
+      return res.status(404).json({ success: false, message: 'No attachment on this message' });
+    }
+    // attachment_url is the in-bucket path (per upload-url contract). Strip
+    // any leading bucket prefix in case a legacy public URL crept in.
+    const marker = `/${TICKET_ATTACHMENT_BUCKET}/`;
+    const idx = row.attachment_url.indexOf(marker);
+    const path = idx >= 0 ? row.attachment_url.slice(idx + marker.length) : row.attachment_url;
+    const data = await createSignedDownloadUrl(TICKET_ATTACHMENT_BUCKET, path, 300);
+    return res.json({ success: true, signed_url: data.signedUrl, expires_in_seconds: 300 });
+  } catch (err) {
+    console.error('GET /tickets/messages/:messageId/attachment-url error:', err);
+    logRouteError(req, res, err, 'Mint ticket attachment download URL');
+    return res.status(500).json({ success: false, message: 'Failed to mint download URL' });
   }
 });
 

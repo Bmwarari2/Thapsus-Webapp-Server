@@ -85,7 +85,7 @@ router.post(
   async (req, res) => {
     try {
       const { parcel_id, idf_no, entry_no, cif_kes, duty_kes, vat_kes,
-              idf_kes, rdl_kes, status, notes } = req.body;
+              idf_kes, rdl_kes, status, notes, doc_url } = req.body;
       if (!parcel_id) {
         return res.status(400).json({ success: false, message: 'parcel_id is required' });
       }
@@ -95,12 +95,12 @@ router.post(
       await req.db.query(
         `INSERT INTO customs_entries
            (id, parcel_id, agent_id, idf_no, entry_no, cif_kes,
-            duty_kes, vat_kes, idf_kes, rdl_kes, status, notes)
+            duty_kes, vat_kes, idf_kes, rdl_kes, status, notes, doc_url)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-                 COALESCE($11,'idf_submitted')::customs_status,$12)`,
+                 COALESCE($11,'idf_submitted')::customs_status,$12,$13)`,
         [id, parcel_id, req.user.id, idf_no || null, entry_no || null,
          cif_kes || 0, duty_kes || 0, vat_kes || 0, idf_kes || 0, rdl_kes || 0,
-         status || null, notes || null]
+         status || null, notes || null, doc_url || null]
       );
       // Move the parcel into 'customs' state when an IDF is posted
       await req.db.query(
@@ -131,7 +131,7 @@ router.patch(
     try {
       const { id } = req.params;
       const allowed = ['idf_no','entry_no','cif_kes','duty_kes','vat_kes',
-                       'idf_kes','rdl_kes','admin_fee_kes','status','notes'];
+                       'idf_kes','rdl_kes','admin_fee_kes','status','notes','doc_url'];
       const sets = []; const params = [];
       for (const k of allowed) {
         if (Object.prototype.hasOwnProperty.call(req.body, k)) {

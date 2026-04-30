@@ -98,6 +98,68 @@ router.post(
   }
 );
 
+/**
+ * GET /api/last-mile/runs/:id/parcels — operator/rider view of which
+ * parcels are scheduled for a particular run. Reads the JSON-encoded
+ * `planned_parcels` list out of `last_mile_runs.notes` (same shape the
+ * rider PWA pulls in /rider/today) and joins to orders + users so the
+ * client can render addresses, phone, and POD status.
+ *
+ * Used by the iOS dispatch UI to surface "what's on this run" so the
+ * operator can assign / unassign individual parcels (S1-9). Operators,
+ * admins, and the assigned rider can read.
+ */
+router.get(
+  '/runs/:id/parcels',
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { rows: runRows } = await req.db.query(
+        `SELECT id, rider_id, zone, run_date, status, notes
+           FROM last_mile_runs WHERE id = $1`,
+        [id]
+      );
+      if (runRows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Run not found' });
+      }
+      const run = runRows[0];
+      const role = req.user.role;
+      const isStaff = role === 'admin' || role === 'operator';
+      const isAssignedRider = role === 'rider' && run.rider_id === req.user.id;
+      if (!isStaff && !isAssignedRider) {
+        return res.status(403).json({ success: false, message: 'Not authorised to view this run' });
+      }
+
+      let parcelIds = [];
+      try {
+        if (run.notes) {
+          const parsed = JSON.parse(run.notes);
+          if (Array.isArray(parsed.planned_parcels)) parcelIds = parsed.planned_parcels;
+        }
+      } catch (_) { /* notes wasn't JSON — empty list */ }
+
+      let parcels = [];
+      if (parcelIds.length > 0) {
+        const placeholders = parcelIds.map((_, i) => `$${i + 1}`).join(',');
+        const { rows } = await req.db.query(
+          `SELECT o.id, o.tracking_number, o.description, o.status,
+                  u.id AS user_id, u.name, u.phone, u.delivery_address,
+                  EXISTS(SELECT 1 FROM pod_events p WHERE p.parcel_id = o.id) AS has_pod
+             FROM orders o JOIN users u ON u.id = o.user_id
+            WHERE o.id IN (${placeholders})`,
+          parcelIds
+        );
+        parcels = rows;
+      }
+      res.json({ success: true, run, parcels });
+    } catch (err) {
+      console.error('GET /last-mile/runs/:id/parcels error:', err);
+      res.status(500).json({ success: false, message: 'Failed to load run parcels' });
+    }
+  }
+);
+
 /** PATCH /api/last-mile/runs/:id — operator updates run (rider assign etc.) */
 router.patch(
   '/runs/:id',
