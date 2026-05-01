@@ -399,17 +399,20 @@ router.get(
  *   {
  *     add:       [parcelId, ...],                       // optional
  *     remove:    [parcelId, ...],                       // optional
+ *     reorder:   [parcelId, parcelId, ...],             // optional
  *     addresses: { parcelId: "override text" | null }   // optional
  *   }
  *
  * Rules:
- *   • add / remove are only allowed when run.status = 'planned'.  Once a
- *     run is in_progress / completed / cancelled the parcel set is
- *     frozen — completed_stops vs total_stops math depends on it.
+ *   • add / remove / reorder are only allowed when run.status = 'planned'.
+ *     Once a run is in_progress / completed / cancelled the routing is
+ *     frozen — the rider is already executing.
  *   • address overrides may be set on planned or in_progress runs (the
  *     rider may need an updated drop point mid-route).
  *   • adds run the same checks POST /runs uses: parcel exists + not on
  *     another active run.
+ *   • reorder must list every parcel currently on the run exactly once;
+ *     positions are reassigned by index.
  *   • total_stops is recomputed at the end so completion math stays
  *     correct.
  *
@@ -425,10 +428,12 @@ router.patch(
       const { id } = req.params;
       const add = Array.isArray(req.body?.add) ? req.body.add : [];
       const remove = Array.isArray(req.body?.remove) ? req.body.remove : [];
+      const reorder = Array.isArray(req.body?.reorder) ? req.body.reorder : [];
       const addresses = (req.body?.addresses && typeof req.body.addresses === 'object')
         ? req.body.addresses : {};
 
-      if (add.length === 0 && remove.length === 0 && Object.keys(addresses).length === 0) {
+      if (add.length === 0 && remove.length === 0 && reorder.length === 0
+          && Object.keys(addresses).length === 0) {
         return res.status(400).json({ success: false, message: 'Nothing to update' });
       }
 
@@ -446,7 +451,7 @@ router.patch(
         }
         const status = cur.rows[0].status;
 
-        const mutatingParcelSet = add.length > 0 || remove.length > 0;
+        const mutatingParcelSet = add.length > 0 || remove.length > 0 || reorder.length > 0;
         if (mutatingParcelSet && status !== 'planned') {
           await client.query('ROLLBACK');
           return res.status(409).json({
@@ -520,6 +525,38 @@ router.patch(
               WHERE run_id = $1 AND parcel_id = ANY($2::text[])`,
             [id, remove]
           );
+        }
+
+        if (reorder.length > 0) {
+          // Validate that the reorder list matches the current set
+          // exactly — no missing, no extras.  Rejecting partial
+          // reorders avoids silently leaving a parcel at a stale
+          // position the operator didn't account for.
+          const { rows: currentRows } = await client.query(
+            `SELECT parcel_id FROM last_mile_run_parcels WHERE run_id = $1`,
+            [id]
+          );
+          const currentSet = new Set(currentRows.map(r => r.parcel_id));
+          const reorderSet = new Set(reorder);
+          if (
+            currentSet.size !== reorderSet.size ||
+            reorder.length !== reorderSet.size ||
+            ![...currentSet].every(p => reorderSet.has(p))
+          ) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+              success: false,
+              message: 'reorder must list every parcel currently on the run exactly once',
+            });
+          }
+          for (let i = 0; i < reorder.length; i++) {
+            await client.query(
+              `UPDATE last_mile_run_parcels
+                  SET position = $3
+                WHERE run_id = $1 AND parcel_id = $2`,
+              [id, reorder[i], i]
+            );
+          }
         }
 
         if (Object.keys(addresses).length > 0) {
@@ -937,7 +974,26 @@ router.post(
               WHERE order_id = $1`,
             [parcel_id]
           );
+          // Held is a terminal-for-this-run state — bump completed_stops
+          // and flip the run to 'completed' if every stop is now resolved
+          // (delivered OR held).  Without this, runs with one held parcel
+          // never left 'in_progress'.  Audit D12.
+          const runUpd = await client.query(
+            `UPDATE last_mile_runs
+                SET completed_stops = completed_stops + 1,
+                    status = CASE WHEN completed_stops + 1 >= total_stops
+                                  THEN 'completed' ELSE 'in_progress' END,
+                    updated_at = NOW()
+              WHERE id = $1
+              RETURNING completed_stops, total_stops, status`,
+            [runId]
+          );
           held = true;
+          if (runUpd.rows[0]) {
+            // expose the run state alongside `held` so the rider client
+            // can show "Run complete" without a re-fetch.
+            // (the response builder below already references `held`/`fails`)
+          }
         }
         await client.query('COMMIT');
       } catch (txErr) {
@@ -950,6 +1006,46 @@ router.post(
     } catch (err) {
       console.error('POST /last-mile/rider/runs/:runId/fail error:', err);
       res.status(500).json({ success: false, message: 'Failed to record failed delivery' });
+    }
+  }
+);
+
+/**
+ * POST /api/last-mile/rider/runs/:runId/parcels/:parcelId/reissue-otp
+ *
+ * Re-mints the delivery OTP for a parcel on this run and dispatches a fresh
+ * notification to the recipient.  Use case: rider arrives, recipient says
+ * "I never got the code" or the original 24h TTL elapsed because the run
+ * stretched across two days.  Bypassing the rider here would mean rolling
+ * back to the old "trust whatever 4 digits the rider typed" behaviour, so
+ * we keep the OTP gate and just re-issue.
+ *
+ * Auth + run membership + deliverable-state checks reuse authorisePodAttempt.
+ */
+router.post(
+  '/rider/runs/:runId/parcels/:parcelId/reissue-otp',
+  authMiddleware,
+  requireRole('rider'),
+  async (req, res) => {
+    try {
+      const { runId, parcelId } = req.params;
+      const auth = await authorisePodAttempt(req, res, runId, parcelId);
+      if (!auth) return;
+      const client = await req.db.connect();
+      try {
+        await client.query('BEGIN');
+        await issuePodOtp(client, parcelId);
+        await client.query('COMMIT');
+      } catch (txErr) {
+        await client.query('ROLLBACK');
+        throw txErr;
+      } finally {
+        client.release();
+      }
+      res.json({ success: true });
+    } catch (err) {
+      console.error('POST /last-mile/rider/runs/:runId/parcels/:parcelId/reissue-otp error:', err);
+      res.status(500).json({ success: false, message: 'Failed to reissue OTP' });
     }
   }
 );
