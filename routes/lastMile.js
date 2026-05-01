@@ -223,6 +223,74 @@ router.patch(
   }
 );
 
+/**
+ * authorisePodAttempt — shared precondition check for the POD success and
+ * failure endpoints.
+ *
+ * Returns `{ run, parcelIds }` on success, or sends the response and returns
+ * `null` on rejection.  Callers must early-return when the result is null.
+ *
+ * Checks (in order):
+ *   1. The run exists.
+ *   2. The caller is the assigned rider, or admin.
+ *   3. The parcel_id is present in the run's planned_parcels list.
+ *   4. The order is in a deliverable status ('out_for_delivery' or 'customs').
+ *
+ * Audit ticket T4 — without these checks any rider could POD any other
+ * rider's run, and a rider could POD a parcel still sitting in the warehouse.
+ */
+async function authorisePodAttempt(req, res, runId, parcelId) {
+  const { rows: runRows } = await req.db.query(
+    `SELECT id, rider_id, status, notes
+       FROM last_mile_runs
+      WHERE id = $1`,
+    [runId]
+  );
+  if (runRows.length === 0) {
+    res.status(404).json({ success: false, message: 'Run not found' });
+    return null;
+  }
+  const run = runRows[0];
+
+  const isAdmin = req.user.role === 'admin';
+  if (!isAdmin && run.rider_id !== req.user.id) {
+    res.status(403).json({ success: false, message: 'Not the assigned rider for this run' });
+    return null;
+  }
+
+  let parcelIds = [];
+  try {
+    if (run.notes) {
+      const parsed = JSON.parse(run.notes);
+      if (Array.isArray(parsed.planned_parcels)) parcelIds = parsed.planned_parcels;
+    }
+  } catch (_) { /* notes wasn't JSON — empty list */ }
+
+  if (!parcelIds.includes(parcelId)) {
+    res.status(400).json({ success: false, message: 'Parcel is not on this run' });
+    return null;
+  }
+
+  const { rows: orderRows } = await req.db.query(
+    `SELECT status FROM orders WHERE id = $1`,
+    [parcelId]
+  );
+  if (orderRows.length === 0) {
+    res.status(404).json({ success: false, message: 'Parcel not found' });
+    return null;
+  }
+  const orderStatus = orderRows[0].status;
+  if (orderStatus !== 'out_for_delivery' && orderStatus !== 'customs') {
+    res.status(409).json({
+      success: false,
+      message: `Parcel is not deliverable (status: ${orderStatus})`,
+    });
+    return null;
+  }
+
+  return { run, parcelIds };
+}
+
 /* ──────────────────────────────────────────────────────────────────────────
  *  RIDER PWA
  * ──────────────────────────────────────────────────────────────────────── */
@@ -291,6 +359,8 @@ router.post(
       if (!parcel_id) {
         return res.status(400).json({ success: false, message: 'parcel_id is required' });
       }
+      const auth = await authorisePodAttempt(req, res, runId, parcel_id);
+      if (!auth) return;
       const id = `POD-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
       await req.db.query(
         `INSERT INTO pod_events
@@ -348,6 +418,8 @@ router.post(
       if (!parcel_id) {
         return res.status(400).json({ success: false, message: 'parcel_id is required' });
       }
+      const auth = await authorisePodAttempt(req, res, runId, parcel_id);
+      if (!auth) return;
       const id = `POD-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
       await req.db.query(
         `INSERT INTO pod_events
