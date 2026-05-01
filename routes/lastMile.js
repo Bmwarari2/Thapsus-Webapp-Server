@@ -7,12 +7,92 @@
  *   • Riders pick up runs, deliver, and capture POD with OTP confirmation.
  */
 import express from 'express';
+import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
 
 const ZONES = ['westlands','kilimani','karen','kasarani','eastlands','cbd','south-b','industrial'];
+
+const POD_OTP_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+/**
+ * issuePodOtp — generate a 4-digit OTP for a parcel that is entering the
+ * out-for-delivery state, store its SHA-256 in pod_otps, and dispatch the
+ * plain code to the recipient's in-app notification feed.
+ *
+ * Caller must run this on the same client as the orders.status flip so the
+ * OTP and the status change commit together.
+ *
+ * No-ops silently if the orders row has no user_id (defensive — production
+ * shouldn't allow that, but a partial schema state would otherwise leak an
+ * orphaned OTP row).
+ */
+async function issuePodOtp(client, parcelId) {
+  const { rows } = await client.query(
+    `SELECT user_id FROM orders WHERE id = $1`,
+    [parcelId]
+  );
+  const userId = rows[0]?.user_id;
+  if (!userId) return null;
+
+  // 0000–9999 zero-padded. crypto.randomInt picks from a uniform
+  // distribution so the codes aren't biased the way Math.random() is.
+  const otp = String(crypto.randomInt(0, 10000)).padStart(4, '0');
+  const otpHash = crypto.createHash('sha256').update(otp).digest();
+  const expiresAt = new Date(Date.now() + POD_OTP_TTL_MS);
+
+  await client.query(
+    `INSERT INTO pod_otps (parcel_id, otp_hash, expires_at, consumed, consumed_at, updated_at)
+       VALUES ($1, $2, $3, FALSE, NULL, NOW())
+     ON CONFLICT (parcel_id) DO UPDATE
+       SET otp_hash = EXCLUDED.otp_hash,
+           expires_at = EXCLUDED.expires_at,
+           consumed = FALSE,
+           consumed_at = NULL,
+           updated_at = NOW()`,
+    [parcelId, otpHash, expiresAt]
+  );
+
+  await client.query(
+    `INSERT INTO notifications (id, user_id, type, message)
+       VALUES ($1, $2, 'in_app', $3)`,
+    [
+      `NOTIF-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+      userId,
+      `Your delivery OTP is ${otp}. Share it with the rider on arrival.`,
+    ]
+  );
+  return otp;
+}
+
+/**
+ * validatePodOtp — hash-compare the rider-submitted OTP against the stored
+ * hash for the parcel.  On match, mark the row consumed (returns true).
+ * On mismatch / expired / already-consumed, returns false.
+ */
+async function validatePodOtp(client, parcelId, submittedOtp) {
+  if (typeof submittedOtp !== 'string' || submittedOtp.length === 0) return false;
+  const submittedHash = crypto.createHash('sha256').update(submittedOtp).digest();
+  const { rows } = await client.query(
+    `SELECT parcel_id, otp_hash, expires_at, consumed
+       FROM pod_otps WHERE parcel_id = $1`,
+    [parcelId]
+  );
+  if (rows.length === 0) return false;
+  const row = rows[0];
+  if (row.consumed) return false;
+  if (new Date(row.expires_at).getTime() < Date.now()) return false;
+  if (!crypto.timingSafeEqual(submittedHash, row.otp_hash)) return false;
+
+  await client.query(
+    `UPDATE pod_otps SET consumed = TRUE, consumed_at = NOW(), updated_at = NOW()
+      WHERE parcel_id = $1`,
+    [parcelId]
+  );
+  return true;
+}
 
 /* ──────────────────────────────────────────────────────────────────────────
  *  OPERATOR — dispatch board
@@ -108,17 +188,35 @@ router.post(
       // pod_events at completion.  For the planning phase we record the
       // current parcel set in a notes JSON blob.
       if (total > 0) {
-        await req.db.query(
-          `UPDATE last_mile_runs SET notes = $1 WHERE id = $2`,
-          [JSON.stringify({ planned_parcels: parcel_ids }), id]
-        );
-        // Move parcels into out_for_delivery state for visibility
-        const placeholders = parcel_ids.map((_, i) => `$${i + 1}`).join(',');
-        await req.db.query(
-          `UPDATE orders SET status = 'out_for_delivery', updated_at = NOW()
-            WHERE id IN (${placeholders})`,
-          parcel_ids
-        );
+        const client = await req.db.connect();
+        try {
+          await client.query('BEGIN');
+          await client.query(
+            `UPDATE last_mile_runs SET notes = $1 WHERE id = $2`,
+            [JSON.stringify({ planned_parcels: parcel_ids }), id]
+          );
+          // Move parcels into out_for_delivery state for visibility
+          const placeholders = parcel_ids.map((_, i) => `$${i + 1}`).join(',');
+          await client.query(
+            `UPDATE orders SET status = 'out_for_delivery', updated_at = NOW()
+              WHERE id IN (${placeholders})`,
+            parcel_ids
+          );
+          // Issue a one-time delivery OTP per parcel and dispatch it to the
+          // recipient via the existing in-app notifications channel.  Same
+          // transaction so the OTP and the orders.status flip commit
+          // atomically — a recipient never sees "out for delivery" without
+          // a matching OTP, and the rider can never POD without it.
+          for (const pid of parcel_ids) {
+            await issuePodOtp(client, pid);
+          }
+          await client.query('COMMIT');
+        } catch (txErr) {
+          await client.query('ROLLBACK');
+          throw txErr;
+        } finally {
+          client.release();
+        }
       }
       res.status(201).json({ success: true, run_id: id });
     } catch (err) {
@@ -373,6 +471,11 @@ router.post(
       let runState;
       try {
         await client.query('BEGIN');
+        const otpOk = await validatePodOtp(client, parcel_id, otp_used);
+        if (!otpOk) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+        }
         await client.query(
           `INSERT INTO pod_events
              (id, parcel_id, run_id, rider_id, result, photo_url,
