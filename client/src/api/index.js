@@ -374,6 +374,7 @@ export const insuranceApi = {
 /** Last-mile dispatch + rider PWA */
 export const lastMileApi = {
   dispatch:    ()                  => api.get('/last-mile/dispatch'),
+  riders:      ()                  => api.get('/last-mile/riders'),
   createRun:   (data)              => api.post('/last-mile/runs', data),
   updateRun:   (id, data)          => api.patch(`/last-mile/runs/${id}`, data),
   riderToday:  ()                  => api.get('/last-mile/rider/today'),
