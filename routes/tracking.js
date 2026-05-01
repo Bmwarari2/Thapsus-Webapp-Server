@@ -43,10 +43,14 @@ router.get('/:trackingNumber', optionalAuth, async (req, res) => {
     const db = req.db;
     const { trackingNumber } = req.params;
 
+    // Slim public projection.  Any unauthenticated caller can hit this
+    // endpoint with a tracking number — never leak user_id, financial
+    // values (declared_value / actual_cost / customs_duty / estimated_cost),
+    // or insurance toggles.  Audit T11.
     const result = await db.query(
-      `SELECT id, user_id, tracking_number, retailer, market, status, description,
-              weight_kg, dimensions_json, shipping_speed, insurance, declared_value,
-              estimated_cost, actual_cost, customs_duty, hold_reason, hold_resolved_at,
+      `SELECT id, tracking_number, retailer, market, status, description,
+              weight_kg, dimensions_json, shipping_speed,
+              hold_reason, hold_resolved_at,
               created_at, updated_at
        FROM orders WHERE tracking_number = $1`,
       [trackingNumber]
@@ -54,7 +58,13 @@ router.get('/:trackingNumber', optionalAuth, async (req, res) => {
     const order = result.rows[0];
     if (!order) return res.status(404).json({ success: false, message: 'Tracking number not found' });
 
-    const pkgs = await db.query('SELECT * FROM packages WHERE order_id = $1', [order.id]);
+    // Same slim projection on the package list — descriptions and weights
+    // are useful to the recipient, IDs / cost data are not.
+    const pkgs = await db.query(
+      `SELECT id, description, weight_kg, status, warehouse_location, received_at
+         FROM packages WHERE order_id = $1`,
+      [order.id]
+    );
 
     res.json({
       success: true,
