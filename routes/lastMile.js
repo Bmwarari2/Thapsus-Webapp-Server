@@ -95,6 +95,27 @@ async function validatePodOtp(client, parcelId, submittedOtp) {
 }
 
 /**
+ * runParcelIds — return the ordered list of parcel ids attached to a run.
+ *
+ * Reads from the last_mile_run_parcels join table (migration 012). The
+ * historical encoding lived in `last_mile_runs.notes->'planned_parcels'`
+ * but was migrated out so a run's parcel set has FK integrity, an index,
+ * and a position column for routing.
+ *
+ * Caller must be inside a transaction on `client` if it intends to act on
+ * the returned ids; otherwise pass `req.db`.
+ */
+async function runParcelIds(client, runId) {
+  const { rows } = await client.query(
+    `SELECT parcel_id FROM last_mile_run_parcels
+      WHERE run_id = $1
+      ORDER BY position ASC`,
+    [runId]
+  );
+  return rows.map(r => r.parcel_id);
+}
+
+/**
  * activateRunDispatch — flip every parcel on a run to out_for_delivery and
  * issue a delivery OTP for each.  Called when a run actually leaves the
  * yard (rider assigned + status moved to 'in_progress'), not on creation —
@@ -103,8 +124,9 @@ async function validatePodOtp(client, parcelId, submittedOtp) {
  *
  * Caller must already be inside a transaction on `client`.
  */
-async function activateRunDispatch(client, parcelIds) {
-  if (!Array.isArray(parcelIds) || parcelIds.length === 0) return;
+async function activateRunDispatch(client, runId) {
+  const parcelIds = await runParcelIds(client, runId);
+  if (parcelIds.length === 0) return;
   const placeholders = parcelIds.map((_, i) => `$${i + 1}`).join(',');
   await client.query(
     `UPDATE orders SET status = 'out_for_delivery', updated_at = NOW()
@@ -168,11 +190,9 @@ router.get(
       // "Pending" = dispatch-ready: customs-cleared and not yet on any
       // active run.  After T7 the run flips orders.status to
       // out_for_delivery only when the run actually starts, so the
-      // board no longer shows parcels that already left the yard
-      // (they show up under `runs` instead).  We also exclude any
-      // parcel that's already on a planned/in_progress run's
-      // planned_parcels JSON — without that filter every operator who
-      // built a run would still see the parcel in the "to assign" list.
+      // board no longer shows parcels that already left the yard.
+      // The active-run dedup uses last_mile_run_parcels (migration 012)
+      // for an indexed lookup.
       const { rows: pending } = await req.db.query(
         `SELECT o.id, o.tracking_number, o.description, u.name, u.phone,
                 u.delivery_address
@@ -185,12 +205,10 @@ router.get(
             )
             AND NOT EXISTS (
               SELECT 1
-                FROM last_mile_runs r
-                CROSS JOIN LATERAL jsonb_array_elements_text(
-                  COALESCE((r.notes::jsonb)->'planned_parcels', '[]'::jsonb)
-                ) AS p(parcel_id)
-               WHERE r.status IN ('planned','in_progress')
-                 AND p.parcel_id = o.id
+                FROM last_mile_run_parcels lmrp
+                JOIN last_mile_runs r ON r.id = lmrp.run_id
+               WHERE lmrp.parcel_id = o.id
+                 AND r.status IN ('planned','in_progress')
             )
           ORDER BY o.updated_at ASC NULLS LAST
           LIMIT 100`
@@ -251,16 +269,13 @@ router.post(
         }
 
         // Any active runs already containing one of these parcels?
-        // notes is a JSON-encoded text blob; cast to jsonb so we can
-        // probe it with the @> containment operator.
+        // Indexed lookup via the last_mile_run_parcels join table.
         const { rows: clashes } = await req.db.query(
-          `SELECT r.id, p.parcel_id
-             FROM last_mile_runs r
-             CROSS JOIN LATERAL jsonb_array_elements_text(
-               COALESCE((r.notes::jsonb)->'planned_parcels', '[]'::jsonb)
-             ) AS p(parcel_id)
+          `SELECT lmrp.parcel_id
+             FROM last_mile_run_parcels lmrp
+             JOIN last_mile_runs r ON r.id = lmrp.run_id
             WHERE r.status IN ('planned','in_progress')
-              AND p.parcel_id = ANY($1::text[])`,
+              AND lmrp.parcel_id = ANY($1::text[])`,
           [parcelIdsArr]
         );
         if (clashes.length > 0) {
@@ -272,28 +287,46 @@ router.post(
         }
       }
 
-      // last_mile_runs.id is a uuid (default gen_random_uuid()) on prod —
-      // the previous `RUN-${Date.now()}-...` literal blew up with 22P02
-      // invalid input syntax for type uuid. Let the column default fill
-      // the id and capture it via RETURNING.
-      const insertRes = await req.db.query(
-        `INSERT INTO last_mile_runs (rider_id, zone, run_date, status, total_stops)
-         VALUES ($1,$2,$3,'planned',$4)
-         RETURNING id`,
-        [rider_id || null, zone, run_date, total]
-      );
-      const id = insertRes.rows[0].id;
-      // The parcel set is recorded in a notes JSON blob for the rider PWA
-      // to read.  We do NOT flip parcels to out_for_delivery here — the
-      // run is still 'planned' and may not even have a rider yet.  The
-      // flip happens when the operator transitions the run to 'in_progress'
-      // via PATCH /runs/:id.  See activateRunDispatch().
-      if (total > 0) {
-        await req.db.query(
-          `UPDATE last_mile_runs SET notes = $1 WHERE id = $2`,
-          [JSON.stringify({ planned_parcels: parcelIdsArr }), id]
+      // Wrap run creation + parcel attachment in a single transaction so
+      // a failure halfway through doesn't leave a run with no parcels
+      // (or, worse, a partial parcel set silently undercounting
+      // total_stops).  last_mile_runs.id is uuid (default
+      // gen_random_uuid) on prod — RETURNING captures it.
+      const client = await req.db.connect();
+      let id;
+      try {
+        await client.query('BEGIN');
+        const insertRes = await client.query(
+          `INSERT INTO last_mile_runs (rider_id, zone, run_date, status, total_stops)
+           VALUES ($1,$2,$3,'planned',$4)
+           RETURNING id`,
+          [rider_id || null, zone, run_date, total]
         );
+        id = insertRes.rows[0].id;
+
+        // Attach parcels via the join table. Position is the index in
+        // the submitted array — operator decides routing order.
+        if (total > 0) {
+          for (let i = 0; i < parcelIdsArr.length; i++) {
+            await client.query(
+              `INSERT INTO last_mile_run_parcels (run_id, parcel_id, position)
+               VALUES ($1, $2, $3)`,
+              [id, parcelIdsArr[i], i]
+            );
+          }
+        }
+        await client.query('COMMIT');
+      } catch (txErr) {
+        await client.query('ROLLBACK');
+        throw txErr;
+      } finally {
+        client.release();
       }
+
+      // We do NOT flip parcels to out_for_delivery here — the run is
+      // still 'planned' and may not have a rider yet.  The flip happens
+      // when the operator transitions the run to 'in_progress' via
+      // PATCH /runs/:id.  See activateRunDispatch().
       res.status(201).json({ success: true, run_id: id });
     } catch (err) {
       console.error('POST /last-mile/runs error:', err);
@@ -304,10 +337,10 @@ router.post(
 
 /**
  * GET /api/last-mile/runs/:id/parcels — operator/rider view of which
- * parcels are scheduled for a particular run. Reads the JSON-encoded
- * `planned_parcels` list out of `last_mile_runs.notes` (same shape the
- * rider PWA pulls in /rider/today) and joins to orders + users so the
- * client can render addresses, phone, and POD status.
+ * parcels are scheduled for a particular run. Reads the
+ * last_mile_run_parcels join table (migration 012) ordered by
+ * `position`, joining to orders + users so the client can render
+ * addresses, phone, and POD status.
  *
  * Used by the iOS dispatch UI to surface "what's on this run" so the
  * operator can assign / unassign individual parcels (S1-9). Operators,
@@ -335,31 +368,193 @@ router.get(
         return res.status(403).json({ success: false, message: 'Not authorised to view this run' });
       }
 
-      let parcelIds = [];
-      try {
-        if (run.notes) {
-          const parsed = JSON.parse(run.notes);
-          if (Array.isArray(parsed.planned_parcels)) parcelIds = parsed.planned_parcels;
-        }
-      } catch (_) { /* notes wasn't JSON — empty list */ }
-
-      let parcels = [];
-      if (parcelIds.length > 0) {
-        const placeholders = parcelIds.map((_, i) => `$${i + 1}`).join(',');
-        const { rows } = await req.db.query(
-          `SELECT o.id, o.tracking_number, o.description, o.status,
-                  u.id AS user_id, u.name, u.phone, u.delivery_address,
-                  EXISTS(SELECT 1 FROM pod_events p WHERE p.parcel_id = o.id) AS has_pod
-             FROM orders o JOIN users u ON u.id = o.user_id
-            WHERE o.id IN (${placeholders})`,
-          parcelIds
-        );
-        parcels = rows;
-      }
+      // Read the parcel set from the join table (migration 012),
+      // joined to orders/users so the iOS dispatch UI can render
+      // address + phone + POD-state per row in stop order.
+      const { rows: parcels } = await req.db.query(
+        `SELECT o.id, o.tracking_number, o.description, o.status,
+                u.id AS user_id, u.name, u.phone, u.delivery_address,
+                lmrp.delivery_address_override,
+                lmrp.position,
+                EXISTS(SELECT 1 FROM pod_events p WHERE p.parcel_id = o.id) AS has_pod
+           FROM last_mile_run_parcels lmrp
+           JOIN orders o ON o.id = lmrp.parcel_id
+           JOIN users  u ON u.id = o.user_id
+          WHERE lmrp.run_id = $1
+          ORDER BY lmrp.position ASC`,
+        [id]
+      );
       res.json({ success: true, run, parcels });
     } catch (err) {
       console.error('GET /last-mile/runs/:id/parcels error:', err);
       res.status(500).json({ success: false, message: 'Failed to load run parcels' });
+    }
+  }
+);
+
+/**
+ * PATCH /api/last-mile/runs/:id/parcels — manage the parcel set on a run.
+ *
+ * Body:
+ *   {
+ *     add:       [parcelId, ...],                       // optional
+ *     remove:    [parcelId, ...],                       // optional
+ *     addresses: { parcelId: "override text" | null }   // optional
+ *   }
+ *
+ * Rules:
+ *   • add / remove are only allowed when run.status = 'planned'.  Once a
+ *     run is in_progress / completed / cancelled the parcel set is
+ *     frozen — completed_stops vs total_stops math depends on it.
+ *   • address overrides may be set on planned or in_progress runs (the
+ *     rider may need an updated drop point mid-route).
+ *   • adds run the same checks POST /runs uses: parcel exists + not on
+ *     another active run.
+ *   • total_stops is recomputed at the end so completion math stays
+ *     correct.
+ *
+ * All work happens inside a single transaction with the run row
+ * locked FOR UPDATE so concurrent edits serialise.
+ */
+router.patch(
+  '/runs/:id/parcels',
+  authMiddleware,
+  requireRole('operator'),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const add = Array.isArray(req.body?.add) ? req.body.add : [];
+      const remove = Array.isArray(req.body?.remove) ? req.body.remove : [];
+      const addresses = (req.body?.addresses && typeof req.body.addresses === 'object')
+        ? req.body.addresses : {};
+
+      if (add.length === 0 && remove.length === 0 && Object.keys(addresses).length === 0) {
+        return res.status(400).json({ success: false, message: 'Nothing to update' });
+      }
+
+      const client = await req.db.connect();
+      try {
+        await client.query('BEGIN');
+
+        const cur = await client.query(
+          `SELECT status FROM last_mile_runs WHERE id = $1 FOR UPDATE`,
+          [id]
+        );
+        if (cur.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ success: false, message: 'Run not found' });
+        }
+        const status = cur.rows[0].status;
+
+        const mutatingParcelSet = add.length > 0 || remove.length > 0;
+        if (mutatingParcelSet && status !== 'planned') {
+          await client.query('ROLLBACK');
+          return res.status(409).json({
+            success: false,
+            message: `Parcel set is frozen once the run leaves 'planned' (current: '${status}')`,
+          });
+        }
+        if (Object.keys(addresses).length > 0 && status !== 'planned' && status !== 'in_progress') {
+          await client.query('ROLLBACK');
+          return res.status(409).json({
+            success: false,
+            message: `Address overrides cannot be edited on a ${status} run`,
+          });
+        }
+
+        // Validate adds: orders existence + not on another active run.
+        if (add.length > 0) {
+          const { rows: existing } = await client.query(
+            `SELECT id FROM orders WHERE id = ANY($1::text[])`,
+            [add]
+          );
+          if (existing.length !== add.length) {
+            const found = new Set(existing.map(r => r.id));
+            const missing = add.filter(p => !found.has(p));
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+              success: false,
+              message: `Unknown parcel id(s): ${missing.join(', ')}`,
+            });
+          }
+          const { rows: clashes } = await client.query(
+            `SELECT lmrp.parcel_id
+               FROM last_mile_run_parcels lmrp
+               JOIN last_mile_runs r ON r.id = lmrp.run_id
+              WHERE r.status IN ('planned','in_progress')
+                AND lmrp.run_id <> $1
+                AND lmrp.parcel_id = ANY($2::text[])`,
+            [id, add]
+          );
+          if (clashes.length > 0) {
+            const conflictIds = [...new Set(clashes.map(c => c.parcel_id))];
+            await client.query('ROLLBACK');
+            return res.status(409).json({
+              success: false,
+              message: `Parcel(s) already on another active run: ${conflictIds.join(', ')}`,
+            });
+          }
+
+          // Append new rows after the current max position so existing
+          // routing order isn't disturbed.
+          const { rows: maxRows } = await client.query(
+            `SELECT COALESCE(MAX(position), -1) AS max_pos
+               FROM last_mile_run_parcels WHERE run_id = $1`,
+            [id]
+          );
+          let nextPos = maxRows[0].max_pos + 1;
+          for (const pid of add) {
+            await client.query(
+              `INSERT INTO last_mile_run_parcels (run_id, parcel_id, position)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (run_id, parcel_id) DO NOTHING`,
+              [id, pid, nextPos]
+            );
+            nextPos++;
+          }
+        }
+
+        if (remove.length > 0) {
+          await client.query(
+            `DELETE FROM last_mile_run_parcels
+              WHERE run_id = $1 AND parcel_id = ANY($2::text[])`,
+            [id, remove]
+          );
+        }
+
+        if (Object.keys(addresses).length > 0) {
+          for (const [pid, override] of Object.entries(addresses)) {
+            const value = (override === null || override === '') ? null : String(override);
+            await client.query(
+              `UPDATE last_mile_run_parcels
+                  SET delivery_address_override = $3
+                WHERE run_id = $1 AND parcel_id = $2`,
+              [id, pid, value]
+            );
+          }
+        }
+
+        // Resync total_stops so the run-completion check still works.
+        const { rows: countRows } = await client.query(
+          `SELECT COUNT(*)::int AS n FROM last_mile_run_parcels WHERE run_id = $1`,
+          [id]
+        );
+        await client.query(
+          `UPDATE last_mile_runs SET total_stops = $1, updated_at = NOW() WHERE id = $2`,
+          [countRows[0].n, id]
+        );
+
+        await client.query('COMMIT');
+      } catch (txErr) {
+        await client.query('ROLLBACK');
+        throw txErr;
+      } finally {
+        client.release();
+      }
+      res.json({ success: true });
+    } catch (err) {
+      console.error('PATCH /last-mile/runs/:id/parcels error:', err);
+      res.status(500).json({ success: false, message: 'Failed to update run parcels' });
     }
   }
 );
@@ -440,17 +635,12 @@ router.patch(
           requestedStatus === 'in_progress';
         if (isFirstStart) {
           const { rows } = await client.query(
-            `SELECT rider_id, notes FROM last_mile_runs WHERE id = $1`,
+            `SELECT rider_id FROM last_mile_runs WHERE id = $1`,
             [id]
           );
           const run = rows[0];
-          if (run?.rider_id && run?.notes) {
-            let parcelIds = [];
-            try {
-              const parsed = JSON.parse(run.notes);
-              if (Array.isArray(parsed.planned_parcels)) parcelIds = parsed.planned_parcels;
-            } catch (_) { /* notes wasn't JSON */ }
-            await activateRunDispatch(client, parcelIds);
+          if (run?.rider_id) {
+            await activateRunDispatch(client, id);
           }
         }
         await client.query('COMMIT');
@@ -478,7 +668,7 @@ router.patch(
  * Checks (in order):
  *   1. The run exists.
  *   2. The caller is the assigned rider, or admin.
- *   3. The parcel_id is present in the run's planned_parcels list.
+ *   3. The parcel_id is attached to the run via last_mile_run_parcels.
  *   4. The order is in a deliverable status ('out_for_delivery' or 'customs').
  *
  * Audit ticket T4 — without these checks any rider could POD any other
@@ -486,7 +676,7 @@ router.patch(
  */
 async function authorisePodAttempt(req, res, runId, parcelId) {
   const { rows: runRows } = await req.db.query(
-    `SELECT id, rider_id, status, notes
+    `SELECT id, rider_id, status
        FROM last_mile_runs
       WHERE id = $1`,
     [runId]
@@ -503,15 +693,13 @@ async function authorisePodAttempt(req, res, runId, parcelId) {
     return null;
   }
 
-  let parcelIds = [];
-  try {
-    if (run.notes) {
-      const parsed = JSON.parse(run.notes);
-      if (Array.isArray(parsed.planned_parcels)) parcelIds = parsed.planned_parcels;
-    }
-  } catch (_) { /* notes wasn't JSON — empty list */ }
-
-  if (!parcelIds.includes(parcelId)) {
+  // Indexed lookup via the join table — replaces the JSON parse path.
+  const { rows: linkRows } = await req.db.query(
+    `SELECT 1 FROM last_mile_run_parcels
+      WHERE run_id = $1 AND parcel_id = $2`,
+    [runId, parcelId]
+  );
+  if (linkRows.length === 0) {
     res.status(400).json({ success: false, message: 'Parcel is not on this run' });
     return null;
   }
@@ -533,7 +721,7 @@ async function authorisePodAttempt(req, res, runId, parcelId) {
     return null;
   }
 
-  return { run, parcelIds };
+  return { run };
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -554,32 +742,22 @@ router.get(
         [req.user.id]
       );
 
-      // Decode planned parcels per run + fetch the parcel rows
+      // Read parcels per run from the join table in stop order.
       const result = [];
       for (const run of runs) {
-        let parcelIds = [];
-        try {
-          if (run.notes) {
-            const parsed = JSON.parse(run.notes);
-            if (Array.isArray(parsed.planned_parcels)) {
-              parcelIds = parsed.planned_parcels;
-            }
-          }
-        } catch (_) { /* notes wasn't JSON — ignore */ }
-
-        let parcels = [];
-        if (parcelIds.length > 0) {
-          const placeholders = parcelIds.map((_, i) => `$${i + 1}`).join(',');
-          const { rows } = await req.db.query(
-            `SELECT o.id, o.tracking_number, o.description, u.name, u.phone,
-                    u.delivery_address,
-                    EXISTS(SELECT 1 FROM pod_events p WHERE p.parcel_id = o.id) AS has_pod
-               FROM orders o JOIN users u ON u.id = o.user_id
-              WHERE o.id IN (${placeholders})`,
-            parcelIds
-          );
-          parcels = rows;
-        }
+        const { rows: parcels } = await req.db.query(
+          `SELECT o.id, o.tracking_number, o.description, u.name, u.phone,
+                  u.delivery_address,
+                  lmrp.delivery_address_override,
+                  lmrp.position,
+                  EXISTS(SELECT 1 FROM pod_events p WHERE p.parcel_id = o.id) AS has_pod
+             FROM last_mile_run_parcels lmrp
+             JOIN orders o ON o.id = lmrp.parcel_id
+             JOIN users  u ON u.id = o.user_id
+            WHERE lmrp.run_id = $1
+            ORDER BY lmrp.position ASC`,
+          [run.id]
+        );
         result.push({ ...run, parcels });
       }
 
