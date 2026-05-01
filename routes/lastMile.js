@@ -10,9 +10,11 @@ import express from 'express';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
+import { createSignedUploadUrl, getSupabaseAdmin } from '../utils/supabaseAdmin.js';
 
 const router = express.Router();
 
+const POD_BUCKET = 'pods';
 const ZONES = ['westlands','kilimani','karen','kasarani','eastlands','cbd','south-b','industrial'];
 
 const POD_OTP_TTL_MS = 24 * 60 * 60 * 1000; // 24h
@@ -1046,6 +1048,69 @@ router.post(
     } catch (err) {
       console.error('POST /last-mile/rider/runs/:runId/parcels/:parcelId/reissue-otp error:', err);
       res.status(500).json({ success: false, message: 'Failed to reissue OTP' });
+    }
+  }
+);
+
+/**
+ * POST /api/last-mile/pod/upload-url
+ *
+ * Returns a 5-minute signed-upload URL into the `pods` bucket.  The rider
+ * iOS / Android client then PUTs the JPEG (POD photo) or PNG (signature)
+ * directly to `signed_url` via URLSession / OkHttp — no Supabase JWT or
+ * KMP-bridged ByteArray traversal at the upload site.
+ *
+ * The K/N ByteArray bridge cost ~1µs per byte on iOS, so a 4 MB photo
+ * froze the app long enough that Kotlin_processUnhandledException fired
+ * before the upload even started; signed URLs sidestep the bridge entirely
+ * (audit D19, mirroring the agent-invoice fix from PR #35).
+ *
+ * Body: { parcel_id, kind: 'photo' | 'signature' }
+ *   The path is `pod/<parcel_id>/<ts>.<ext>` (jpg for photo, png for
+ *   signature) so existing storage layout / RLS path patterns still hold.
+ *
+ * Returns: { success, bucket, path, signed_url, token, public_url }
+ */
+router.post(
+  '/pod/upload-url',
+  authMiddleware,
+  requireRole('rider'),
+  async (req, res) => {
+    try {
+      if (!getSupabaseAdmin()) {
+        return res.status(503).json({
+          success: false,
+          message: 'Storage admin not configured. Set SUPABASE_SERVICE_KEY on the server.',
+        });
+      }
+      const parcelId = String(req.body?.parcel_id || '').trim();
+      const kind = String(req.body?.kind || 'photo');
+      if (!parcelId) {
+        return res.status(400).json({ success: false, message: 'parcel_id is required' });
+      }
+      if (kind !== 'photo' && kind !== 'signature') {
+        return res.status(400).json({ success: false, message: "kind must be 'photo' or 'signature'" });
+      }
+      const ts = Date.now();
+      const ext = kind === 'signature' ? 'png' : 'jpg';
+      const subdir = kind === 'signature' ? 'signatures' : 'pod';
+      const path = `${subdir}/${parcelId}/${ts}.${ext}`;
+      const data = await createSignedUploadUrl(POD_BUCKET, path);
+
+      const sb = getSupabaseAdmin();
+      const { data: pub } = sb.storage.from(POD_BUCKET).getPublicUrl(path);
+
+      return res.json({
+        success: true,
+        bucket: POD_BUCKET,
+        path,
+        signed_url: data.signedUrl,
+        token: data.token,
+        public_url: pub?.publicUrl ?? null,
+      });
+    } catch (err) {
+      console.error('POST /last-mile/pod/upload-url error:', err);
+      return res.status(500).json({ success: false, message: 'Failed to mint upload URL' });
     }
   }
 );
