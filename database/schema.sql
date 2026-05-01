@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS packages (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   description TEXT NOT NULL,
   weight_kg REAL,
-  status TEXT CHECK(status IN ('pending','received','consolidating','in_transit','customs','out_for_delivery','delivered','lost')) DEFAULT 'pending',
+  status TEXT CHECK(status IN ('pre_registered','received_at_warehouse','photographed','weighed','screened','manifested','in_transit','jkia_arrived','awaiting_duty_payment','released','out_for_delivery','delivered','held','held_at_nairobi_hub','abandoned','lost')) DEFAULT 'pre_registered',
   warehouse_location TEXT,
   is_consolidated BOOLEAN DEFAULT FALSE,
   consolidated_with TEXT,
