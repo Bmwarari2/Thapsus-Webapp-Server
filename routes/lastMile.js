@@ -94,6 +94,28 @@ async function validatePodOtp(client, parcelId, submittedOtp) {
   return true;
 }
 
+/**
+ * activateRunDispatch — flip every parcel on a run to out_for_delivery and
+ * issue a delivery OTP for each.  Called when a run actually leaves the
+ * yard (rider assigned + status moved to 'in_progress'), not on creation —
+ * planned-but-unassigned runs would otherwise mark customer-visible parcels
+ * as out_for_delivery prematurely (audit T7).
+ *
+ * Caller must already be inside a transaction on `client`.
+ */
+async function activateRunDispatch(client, parcelIds) {
+  if (!Array.isArray(parcelIds) || parcelIds.length === 0) return;
+  const placeholders = parcelIds.map((_, i) => `$${i + 1}`).join(',');
+  await client.query(
+    `UPDATE orders SET status = 'out_for_delivery', updated_at = NOW()
+      WHERE id IN (${placeholders})`,
+    parcelIds
+  );
+  for (const pid of parcelIds) {
+    await issuePodOtp(client, pid);
+  }
+}
+
 /* ──────────────────────────────────────────────────────────────────────────
  *  OPERATOR — dispatch board
  * ──────────────────────────────────────────────────────────────────────── */
@@ -183,40 +205,16 @@ router.post(
          VALUES ($1,$2,$3,$4,'planned',$5)`,
         [id, rider_id || null, zone, run_date, total]
       );
-      // No join table — we tag each parcel with the run id via a packages
-      // column? The spec keeps the parcel→run association implicit through
-      // pod_events at completion.  For the planning phase we record the
-      // current parcel set in a notes JSON blob.
+      // The parcel set is recorded in a notes JSON blob for the rider PWA
+      // to read.  We do NOT flip parcels to out_for_delivery here — the
+      // run is still 'planned' and may not even have a rider yet.  The
+      // flip happens when the operator transitions the run to 'in_progress'
+      // via PATCH /runs/:id.  See activateRunDispatch().
       if (total > 0) {
-        const client = await req.db.connect();
-        try {
-          await client.query('BEGIN');
-          await client.query(
-            `UPDATE last_mile_runs SET notes = $1 WHERE id = $2`,
-            [JSON.stringify({ planned_parcels: parcel_ids }), id]
-          );
-          // Move parcels into out_for_delivery state for visibility
-          const placeholders = parcel_ids.map((_, i) => `$${i + 1}`).join(',');
-          await client.query(
-            `UPDATE orders SET status = 'out_for_delivery', updated_at = NOW()
-              WHERE id IN (${placeholders})`,
-            parcel_ids
-          );
-          // Issue a one-time delivery OTP per parcel and dispatch it to the
-          // recipient via the existing in-app notifications channel.  Same
-          // transaction so the OTP and the orders.status flip commit
-          // atomically — a recipient never sees "out for delivery" without
-          // a matching OTP, and the rider can never POD without it.
-          for (const pid of parcel_ids) {
-            await issuePodOtp(client, pid);
-          }
-          await client.query('COMMIT');
-        } catch (txErr) {
-          await client.query('ROLLBACK');
-          throw txErr;
-        } finally {
-          client.release();
-        }
+        await req.db.query(
+          `UPDATE last_mile_runs SET notes = $1 WHERE id = $2`,
+          [JSON.stringify({ planned_parcels: parcel_ids }), id]
+        );
       }
       res.status(201).json({ success: true, run_id: id });
     } catch (err) {
@@ -309,10 +307,43 @@ router.patch(
         return res.status(400).json({ success: false, message: 'No updatable fields' });
       sets.push(`updated_at = NOW()`);
       params.push(id);
-      await req.db.query(
-        `UPDATE last_mile_runs SET ${sets.join(', ')} WHERE id = $${params.length}`,
-        params
-      );
+
+      // If the operator is moving this run into 'in_progress' AND a rider
+      // is assigned (either now or already), this is the moment the parcels
+      // actually leave the yard — flip orders.status and issue OTPs in the
+      // same transaction as the run update.  Per audit T7, a planned-but-
+      // unassigned run must not affect customer-visible tracking.
+      const movingToInProgress = req.body.status === 'in_progress';
+
+      const client = await req.db.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(
+          `UPDATE last_mile_runs SET ${sets.join(', ')} WHERE id = $${params.length}`,
+          params
+        );
+        if (movingToInProgress) {
+          const { rows } = await client.query(
+            `SELECT rider_id, notes FROM last_mile_runs WHERE id = $1`,
+            [id]
+          );
+          const run = rows[0];
+          if (run?.rider_id && run?.notes) {
+            let parcelIds = [];
+            try {
+              const parsed = JSON.parse(run.notes);
+              if (Array.isArray(parsed.planned_parcels)) parcelIds = parsed.planned_parcels;
+            } catch (_) { /* notes wasn't JSON */ }
+            await activateRunDispatch(client, parcelIds);
+          }
+        }
+        await client.query('COMMIT');
+      } catch (txErr) {
+        await client.query('ROLLBACK');
+        throw txErr;
+      } finally {
+        client.release();
+      }
       res.json({ success: true });
     } catch (err) {
       console.error('PATCH /last-mile/runs/:id error:', err);
