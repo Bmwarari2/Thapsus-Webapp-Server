@@ -1,10 +1,15 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, tokenSha256 } from '../middleware/auth.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { mintSupabaseToken } from '../utils/supabaseJwt.js';
+
+function resetTokenSha256(rawToken) {
+  return crypto.createHash('sha256').update(rawToken).digest();
+}
 
 function safeMintSupabaseToken(user, where) {
   try {
@@ -37,15 +42,27 @@ function generateReferralCode() {
   return code;
 }
 
+// Country-of-residence allowlist used by /register and /profile.
+// Mirrors the iOS sign-in form's picker: KE/UG/TZ/RW for the East
+// Africa hub, GB/US for the source corridors, OTHER for anything else.
+const ALLOWED_COUNTRIES = new Set(['KE','UG','TZ','RW','GB','US','OTHER']);
+
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, phone, referral_code } = req.body;
+    const { name, password, phone, referral_code, country_of_residence } = req.body;
+    const rawEmail = req.body.email;
     const db = req.db;
 
-    if (!name || !email || !password || !phone) {
+    if (!name || !rawEmail || !password || !phone) {
       return res.status(400).json({ success: false, message: 'Missing required fields: name, email, password, phone' });
     }
+
+    // Normalise the email before any DB hit so User@x and user@x land in
+    // the same row.  Audit T13 — email is the unique identity key, but
+    // two prod accounts diverged because one signup typed the address
+    // with a capital first letter.
+    const email = String(rawEmail).trim().toLowerCase();
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
@@ -64,6 +81,14 @@ router.post('/register', async (req, res) => {
 
     if (password.length < 8) {
       return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
+    }
+
+    let normalisedCountry = null;
+    if (typeof country_of_residence === 'string' && country_of_residence.trim().length > 0) {
+      normalisedCountry = country_of_residence.trim().toUpperCase();
+      if (!ALLOWED_COUNTRIES.has(normalisedCountry)) {
+        return res.status(400).json({ success: false, message: 'Invalid country_of_residence' });
+      }
     }
 
     const existing = await db.query('SELECT id FROM users WHERE email = $1', [email]);
@@ -91,9 +116,9 @@ router.post('/register', async (req, res) => {
     try {
       await client.query('BEGIN');
       await client.query(
-        `INSERT INTO users (id,email,password,name,phone,role,warehouse_id,language_pref,referral_code,referred_by,wallet_balance,is_active)
-         VALUES ($1,$2,$3,$4,$5,'customer',$6,'en',$7,$8,0,true)`,
-        [userId, email, passwordHash, name, phone, warehouseId, newReferralCode, referredBy]
+        `INSERT INTO users (id,email,password,name,phone,role,warehouse_id,language_pref,referral_code,referred_by,wallet_balance,is_active,country_of_residence)
+         VALUES ($1,$2,$3,$4,$5,'customer',$6,'en',$7,$8,0,true,$9)`,
+        [userId, email, passwordHash, name, phone, warehouseId, newReferralCode, referredBy, normalisedCountry]
       );
       await client.query(
         `INSERT INTO wallet (id,user_id,balance,currency) VALUES ($1,$2,0,'KES')`,
@@ -147,9 +172,14 @@ router.post('/register', async (req, res) => {
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { password } = req.body;
+    const rawEmail = req.body.email;
     const db = req.db;
-    if (!email || !password) return res.status(400).json({ success: false, message: 'Email and password required' });
+    if (!rawEmail || !password) return res.status(400).json({ success: false, message: 'Email and password required' });
+
+    // Same normalisation as /register so the lookup matches even when
+    // the keyboard auto-capitalises the first letter (audit T13).
+    const email = String(rawEmail).trim().toLowerCase();
 
     const { rows } = await db.query(
       `SELECT id,email,password,name,role,warehouse_id,language_pref,wallet_balance,referral_code
@@ -210,7 +240,7 @@ router.get('/me', authMiddleware, async (req, res) => {
 // PUT /api/auth/profile
 router.put('/profile', authMiddleware, async (req, res) => {
   try {
-    const { name, phone, language_pref, delivery_address } = req.body;
+    const { name, phone, language_pref, delivery_address, country_of_residence } = req.body;
     const userId = req.user.id;
     // Empty-string is a deliberate clear (e.g. user wants to wipe their
     // delivery address); only treat undefined as "field not supplied".
@@ -218,8 +248,26 @@ router.put('/profile', authMiddleware, async (req, res) => {
     const hasPhone           = typeof phone !== 'undefined';
     const hasLanguage        = typeof language_pref !== 'undefined';
     const hasDeliveryAddress = typeof delivery_address !== 'undefined';
-    if (!hasName && !hasPhone && !hasLanguage && !hasDeliveryAddress) {
+    const hasCountry         = typeof country_of_residence !== 'undefined';
+    if (!hasName && !hasPhone && !hasLanguage && !hasDeliveryAddress && !hasCountry) {
       return res.status(400).json({ success: false, message: 'Provide at least one field to update' });
+    }
+
+    let normalisedCountry = null;
+    if (hasCountry) {
+      // Allow explicit clear: empty string → NULL.  Otherwise gate against
+      // the same allowlist /register uses so we never write an arbitrary
+      // 100-char string to the column.
+      if (country_of_residence === null || country_of_residence === '') {
+        normalisedCountry = null;
+      } else if (typeof country_of_residence === 'string') {
+        normalisedCountry = country_of_residence.trim().toUpperCase();
+        if (!ALLOWED_COUNTRIES.has(normalisedCountry)) {
+          return res.status(400).json({ success: false, message: 'Invalid country_of_residence' });
+        }
+      } else {
+        return res.status(400).json({ success: false, message: 'Invalid country_of_residence' });
+      }
     }
 
     const setClauses = [];
@@ -229,16 +277,35 @@ router.put('/profile', authMiddleware, async (req, res) => {
     if (hasPhone)           { setClauses.push(`phone=$${idx++}`);            params.push(phone || null); }
     if (hasLanguage)        { setClauses.push(`language_pref=$${idx++}`);    params.push(language_pref); }
     if (hasDeliveryAddress) { setClauses.push(`delivery_address=$${idx++}`); params.push(delivery_address || null); }
+    if (hasCountry)         { setClauses.push(`country_of_residence=$${idx++}`); params.push(normalisedCountry); }
     setClauses.push(`updated_at=NOW()`);
     params.push(userId);
 
     await req.db.query(`UPDATE users SET ${setClauses.join(',')} WHERE id=$${idx}`, params);
 
     const { rows } = await req.db.query(
-      `SELECT id,email,name,phone,role,warehouse_id,language_pref,wallet_balance,delivery_address
+      `SELECT id,email,name,phone,role,warehouse_id,language_pref,wallet_balance,delivery_address,country_of_residence
          FROM users WHERE id=$1`, [userId]
     );
-    res.json({ success: true, message: 'Profile updated successfully', user: rows[0] });
+    const fresh = rows[0];
+
+    // Re-mint the JWT so the `name` and `warehouse_id` claims (which several
+    // routes read from req.user instead of hitting the DB) reflect the new
+    // values immediately.  Audit T21 — without this the operator dispatch
+    // header kept showing the old name until the user signed out and back in.
+    const token = jwt.sign(
+      {
+        id: fresh.id,
+        email: fresh.email,
+        name: fresh.name,
+        role: fresh.role,
+        warehouse_id: fresh.warehouse_id,
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    );
+
+    res.json({ success: true, message: 'Profile updated successfully', user: fresh, token });
   } catch (error) {
     console.error('Profile update error:', error);
     logRouteError(req, res, error, 'Profile update error');
@@ -290,11 +357,19 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
     }
 
-    // Find valid, unused token that hasn't expired
+    // Find valid, unused token that hasn't expired.  Lookup is by
+    // SHA-256 hash so a database dump never lets an attacker mint a
+    // password change.  The legacy `token = $2` clause is kept during
+    // the grace period so emails issued before migration 010 still
+    // resolve; once the plaintext column is dropped the OR branch
+    // can go too.
+    const tokenHash = resetTokenSha256(token);
     const tokenRes = await db.query(
       `SELECT id, user_id FROM password_reset_tokens
-       WHERE token = $1 AND used = false AND expires_at > NOW()`,
-      [token]
+       WHERE (token_sha256 = $1 OR token = $2)
+         AND used = false
+         AND expires_at > NOW()`,
+      [tokenHash, token]
     );
     if (tokenRes.rows.length === 0) {
       return res.status(400).json({ success: false, message: 'Invalid or expired reset link. Please request a new one.' });
@@ -352,8 +427,8 @@ router.post('/forgot-password', async (req, res) => {
     }
 
     const user = userRes.rows[0];
-    const { randomBytes } = await import('crypto');
-    const token = randomBytes(32).toString('hex');
+    const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = resetTokenSha256(token);
     const tokenId = uuidv4();
     const expiresAt = new Date(Date.now() + 3600000).toISOString(); // 1 hour
 
@@ -361,8 +436,8 @@ router.post('/forgot-password', async (req, res) => {
     await db.query('UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND used = false', [user.id]);
 
     await db.query(
-      'INSERT INTO password_reset_tokens (id, user_id, token, expires_at) VALUES ($1, $2, $3, $4)',
-      [tokenId, user.id, token, expiresAt]
+      'INSERT INTO password_reset_tokens (id, user_id, token, token_sha256, expires_at) VALUES ($1, $2, $3, $4, $5)',
+      [tokenId, user.id, token, tokenHash, expiresAt]
     );
 
     const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';

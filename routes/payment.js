@@ -1,6 +1,7 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { logRouteError } from '../utils/errorLogger.js';
+import { getMpesaConfig } from '../utils/mpesaConfig.js';
 
 const router = express.Router();
 
@@ -28,6 +29,7 @@ router.get('/:orderId', async (req, res) => {
     const order = orderRes.rows[0];
     const amountDue = order.actual_cost || order.estimated_cost;
 
+    const { paybillNumber, accountNumber } = getMpesaConfig();
     res.json({
       success: true,
       order: {
@@ -37,7 +39,8 @@ router.get('/:orderId', async (req, res) => {
         status: order.status,
       },
       mpesa_info: {
-        paybill: 'XXXXXX', // Hardcoded for now
+        paybill: paybillNumber,
+        account_number: accountNumber,
       },
     });
   } catch (error) {

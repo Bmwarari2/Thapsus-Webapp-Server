@@ -254,6 +254,22 @@ const paymentLimiter = rateLimit({
     }),
 });
 
+// Public tracking endpoint is unauthenticated by design (anyone with a
+// tracking number can poll status). The keyspace is now ~4B/day after T10
+// but per-IP enumeration should still be capped — 60 hits / 15 min is
+// generous for a real recipient refreshing the timeline.
+const trackingLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) =>
+    res.status(429).json({
+      success: false,
+      message: 'Too many tracking lookups. Please wait a few minutes.',
+    }),
+});
+
 // existing
 app.use('/api/', limiter);
 app.use('/api/auth/login',    authLimiter);
@@ -263,6 +279,7 @@ app.use('/api/auth/register', authLimiter);
 app.use('/api/auth/forgot-password', forgotPasswordLimiter);
 app.use('/api/payment',              paymentLimiter);
 app.use('/api/wallet/mpesa-confirm', paymentLimiter);
+app.use('/api/tracking',             trackingLimiter);
 
 // ── Disable caching on API routes ────────────────────────────────────────────
 app.set('etag', false);

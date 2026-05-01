@@ -43,17 +43,28 @@ router.get('/:trackingNumber', optionalAuth, async (req, res) => {
     const db = req.db;
     const { trackingNumber } = req.params;
 
+    // Slim public projection.  Any unauthenticated caller can hit this
+    // endpoint with a tracking number — never leak user_id, financial
+    // values (declared_value / actual_cost / customs_duty / estimated_cost),
+    // or insurance toggles.  Audit T11.
     const result = await db.query(
-      `SELECT id, user_id, tracking_number, retailer, market, status, description,
-              weight_kg, dimensions_json, shipping_speed, insurance, declared_value,
-              estimated_cost, actual_cost, customs_duty, created_at, updated_at
+      `SELECT id, tracking_number, retailer, market, status, description,
+              weight_kg, dimensions_json, shipping_speed,
+              hold_reason, hold_resolved_at,
+              created_at, updated_at
        FROM orders WHERE tracking_number = $1`,
       [trackingNumber]
     );
     const order = result.rows[0];
     if (!order) return res.status(404).json({ success: false, message: 'Tracking number not found' });
 
-    const pkgs = await db.query('SELECT * FROM packages WHERE order_id = $1', [order.id]);
+    // Same slim projection on the package list — descriptions and weights
+    // are useful to the recipient, IDs / cost data are not.
+    const pkgs = await db.query(
+      `SELECT id, description, weight_kg, status, warehouse_location, received_at
+         FROM packages WHERE order_id = $1`,
+      [order.id]
+    );
 
     res.json({
       success: true,
@@ -73,7 +84,30 @@ router.put('/:id/status', authMiddleware, isAdmin, async (req, res) => {
     const { status, warehouse_location } = req.body;
 
     if (!status) return res.status(400).json({ success: false, message: 'Status is required' });
-    const validStatuses = ['pending','received','consolidating','in_transit','customs','out_for_delivery','delivered','lost'];
+    // packages.status v2 enum (matches database/migrations/002 + the
+    // CHECK on production).  The legacy admin route accepted the
+    // pre-v2 set, which left admins unable to flip a parcel into
+    // photographed/weighed/screened/manifested/jkia_arrived/
+    // awaiting_duty_payment/released/held/held_at_nairobi_hub/
+    // abandoned via this endpoint (audit T26).
+    const validStatuses = [
+      'pre_registered',
+      'received_at_warehouse',
+      'photographed',
+      'weighed',
+      'screened',
+      'manifested',
+      'in_transit',
+      'jkia_arrived',
+      'awaiting_duty_payment',
+      'released',
+      'out_for_delivery',
+      'delivered',
+      'held',
+      'held_at_nairobi_hub',
+      'abandoned',
+      'lost',
+    ];
     if (!validStatuses.includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
 
     const pkgRes = await db.query('SELECT * FROM packages WHERE id = $1', [id]);
@@ -82,7 +116,7 @@ router.put('/:id/status', authMiddleware, isAdmin, async (req, res) => {
     const params = [status];
     const setClauses = ['status = $1', 'updated_at = NOW()'];
     if (warehouse_location) { params.push(warehouse_location); setClauses.push(`warehouse_location = $${params.length}`); }
-    if (status === 'received') setClauses.push('received_at = NOW()');
+    if (status === 'received_at_warehouse') setClauses.push('received_at = NOW()');
     params.push(id);
     await db.query(`UPDATE packages SET ${setClauses.join(', ')} WHERE id = $${params.length}`, params);
 

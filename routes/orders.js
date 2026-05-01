@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
 import { calculateShippingCost, HS_TIERS } from '../utils/pricing.js';
@@ -10,7 +11,11 @@ const router = express.Router();
 
 function generateTrackingNumber() {
   const date   = new Date().toISOString().split('T')[0].replace(/-/g, '');
-  const random = Math.random().toString(36).substr(2, 4).toUpperCase();
+  // 4 random bytes → 8 hex chars.  Math.random() was a CSPRNG bypass in
+  // V8 and gave roughly 1.7M codes/day; crypto.randomBytes pushes the
+  // keyspace to ~4B/day so brute-force enumeration of someone else's
+  // tracking number stops being feasible under the existing rate limit.
+  const random = crypto.randomBytes(4).toString('hex').toUpperCase();
   return `TC-${date}-${random}`;
 }
 
