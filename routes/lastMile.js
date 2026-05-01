@@ -111,6 +111,14 @@ async function activateRunDispatch(client, parcelIds) {
       WHERE id IN (${placeholders})`,
     parcelIds
   );
+  // Mirror to packages so the operator dispatch board (which reads
+  // packages.status, not orders.status) doesn't show parcels stuck at
+  // 'manifested' while the customer-facing order says out_for_delivery.
+  await client.query(
+    `UPDATE packages SET status = 'out_for_delivery', updated_at = NOW()
+      WHERE order_id IN (${placeholders})`,
+    parcelIds
+  );
   for (const pid of parcelIds) {
     await issuePodOtp(client, pid);
   }
@@ -614,6 +622,13 @@ router.post(
         id = podRes.rows[0].id;
         await client.query(
           `UPDATE orders SET status = 'delivered', updated_at = NOW() WHERE id = $1`,
+          [parcel_id]
+        );
+        // Mirror to packages so the operator board no longer shows the
+        // parcel as 'manifested' / 'out_for_delivery' after POD.
+        await client.query(
+          `UPDATE packages SET status = 'delivered', updated_at = NOW()
+            WHERE order_id = $1`,
           [parcel_id]
         );
         // NPS invitation. Pulled from orders since the rider POD doesn't carry
