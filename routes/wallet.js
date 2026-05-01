@@ -2,6 +2,7 @@ import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware } from '../middleware/auth.js';
 import { logRouteError } from '../utils/errorLogger.js';
+import { getMpesaConfig } from '../utils/mpesaConfig.js';
 
 const router = express.Router();
 
@@ -35,19 +36,19 @@ router.get('/', authMiddleware, async (req, res) => {
 /** GET /api/wallet/mpesa-info – Get Mpesa paybill details for payment */
 router.get('/mpesa-info', authMiddleware, async (req, res) => {
   try {
-    // Mpesa paybill details — update these placeholders with your real values
+    const { paybillNumber, accountNumber } = getMpesaConfig();
     res.json({
       success: true,
       mpesa: {
-        paybill_number: 'XXXXXX',         // TODO: Replace with actual paybill number
-        account_number: 'XXXXXX',          // TODO: Replace with actual account number
+        paybill_number: paybillNumber,
+        account_number: accountNumber,
         business_name: 'Thapsus Cargo Ltd',
         instructions: [
           'Go to M-Pesa on your phone',
           'Select "Lipa na M-Pesa"',
           'Select "Pay Bill"',
-          'Enter Business Number: XXXXXX',
-          'Enter Account Number: XXXXXX',
+          `Enter Business Number: ${paybillNumber}`,
+          `Enter Account Number: ${accountNumber}`,
           'Enter the amount',
           'Enter your M-Pesa PIN and confirm',
           'Copy the confirmation message and paste it below'
