@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE NOT NULL,
   password TEXT NOT NULL,
   name TEXT NOT NULL,
+  full_name TEXT,
   phone TEXT NOT NULL,
   role TEXT CHECK(role IN ('customer', 'admin', 'operator', 'clearing_agent', 'rider')) DEFAULT 'customer',
   warehouse_id TEXT UNIQUE NOT NULL,

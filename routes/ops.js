@@ -225,7 +225,7 @@ router.get('/parcels/:id/customer', authMiddleware, ALLOWED, async (req, res) =>
   try {
     const { id } = req.params;
     const { rows } = await req.db.query(
-      `SELECT u.full_name, u.warehouse_id
+      `SELECT COALESCE(u.full_name, u.name) AS full_name, u.warehouse_id
          FROM orders o
          JOIN users  u ON u.id = o.user_id
         WHERE o.id = $1`,
@@ -289,7 +289,7 @@ router.get('/parcels/by-barcode/:barcode', authMiddleware, ALLOWED, async (req, 
               c.master_awb_no,
               c.departure_at,
               c.status          AS consolidation_status,
-              u.full_name,
+              COALESCE(u.full_name, u.name) AS full_name,
               u.warehouse_id,
               u.email           AS customer_email,
               u.phone           AS customer_phone
