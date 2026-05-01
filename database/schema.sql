@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
   password TEXT NOT NULL,
   name TEXT NOT NULL,
   phone TEXT NOT NULL,
-  role TEXT CHECK(role IN ('customer', 'admin')) DEFAULT 'customer',
+  role TEXT CHECK(role IN ('customer', 'admin', 'operator', 'clearing_agent', 'rider')) DEFAULT 'customer',
   warehouse_id TEXT UNIQUE NOT NULL,
   language_pref TEXT DEFAULT 'en',
   referral_code TEXT UNIQUE NOT NULL,
