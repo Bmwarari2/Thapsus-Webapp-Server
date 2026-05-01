@@ -362,43 +362,67 @@ router.post(
       const auth = await authorisePodAttempt(req, res, runId, parcel_id);
       if (!auth) return;
       const id = `POD-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
-      await req.db.query(
-        `INSERT INTO pod_events
-           (id, parcel_id, run_id, rider_id, result, photo_url,
-            signature_url, otp_used, recipient_name, recipient_phone, notes)
-         VALUES ($1,$2,$3,$4,'delivered',$5,$6,$7,$8,$9,$10)`,
-        [id, parcel_id, runId, req.user.id,
-         photo_url || null, signature_url || null,
-         otp_used || null, recipient_name || null,
-         recipient_phone || null, notes || null]
-      );
-      await req.db.query(
-        `UPDATE orders SET status = 'delivered', updated_at = NOW() WHERE id = $1`,
-        [parcel_id]
-      );
-      // NPS invitation. Pulled from orders since the rider POD doesn't carry
-      // user_id directly — keeps the (user_id, order_id) row exact.
-      const ownerRow = await req.db.query(
-        `SELECT user_id FROM orders WHERE id = $1`, [parcel_id]
-      );
-      const ownerId = ownerRow.rows[0]?.user_id;
-      if (ownerId) {
-        await req.db.query(
-          `INSERT INTO nps_invitations (id, user_id, order_id)
-           VALUES ($1, $2, $3) ON CONFLICT (order_id) DO NOTHING`,
-          [`NPSI-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, ownerId, parcel_id]
+
+      // Wrap the four-statement success path in a single transaction on a
+      // dedicated client. Mirrors the pattern in routes/orders.js — pool.query
+      // can dispatch each call to a different connection, which would defeat
+      // BEGIN/COMMIT. A partial failure (e.g. NPS insert errors after
+      // orders.status flipped) would otherwise leave the run, the order, and
+      // pod_events inconsistent with each other.
+      const client = await req.db.connect();
+      let runState;
+      try {
+        await client.query('BEGIN');
+        await client.query(
+          `INSERT INTO pod_events
+             (id, parcel_id, run_id, rider_id, result, photo_url,
+              signature_url, otp_used, recipient_name, recipient_phone, notes)
+           VALUES ($1,$2,$3,$4,'delivered',$5,$6,$7,$8,$9,$10)`,
+          [id, parcel_id, runId, req.user.id,
+           photo_url || null, signature_url || null,
+           otp_used || null, recipient_name || null,
+           recipient_phone || null, notes || null]
         );
+        await client.query(
+          `UPDATE orders SET status = 'delivered', updated_at = NOW() WHERE id = $1`,
+          [parcel_id]
+        );
+        // NPS invitation. Pulled from orders since the rider POD doesn't carry
+        // user_id directly — keeps the (user_id, order_id) row exact.
+        const ownerRow = await client.query(
+          `SELECT user_id FROM orders WHERE id = $1`, [parcel_id]
+        );
+        const ownerId = ownerRow.rows[0]?.user_id;
+        if (ownerId) {
+          await client.query(
+            `INSERT INTO nps_invitations (id, user_id, order_id)
+             VALUES ($1, $2, $3) ON CONFLICT (order_id) DO NOTHING`,
+            [`NPSI-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, ownerId, parcel_id]
+          );
+        }
+        // Atomic increment + completion flip. RETURNING the post-update
+        // values lets us tell the rider whether the whole run is done.
+        // The UPDATE is row-locked by Postgres; concurrent POD posts on
+        // the same run serialise rather than racing on a stale read.
+        const runUpd = await client.query(
+          `UPDATE last_mile_runs
+              SET completed_stops = completed_stops + 1,
+                  status = CASE WHEN completed_stops + 1 >= total_stops
+                                THEN 'completed' ELSE 'in_progress' END,
+                  updated_at = NOW()
+            WHERE id = $1
+            RETURNING completed_stops, total_stops, status`,
+          [runId]
+        );
+        runState = runUpd.rows[0] || null;
+        await client.query('COMMIT');
+      } catch (txErr) {
+        await client.query('ROLLBACK');
+        throw txErr;
+      } finally {
+        client.release();
       }
-      await req.db.query(
-        `UPDATE last_mile_runs
-            SET completed_stops = completed_stops + 1,
-                status = CASE WHEN completed_stops + 1 >= total_stops
-                              THEN 'completed' ELSE 'in_progress' END,
-                updated_at = NOW()
-          WHERE id = $1`,
-        [runId]
-      );
-      res.status(201).json({ success: true, pod_id: id });
+      res.status(201).json({ success: true, pod_id: id, run: runState });
     } catch (err) {
       console.error('POST /last-mile/rider/runs/:runId/pod error:', err);
       res.status(500).json({ success: false, message: 'Failed to record POD' });
