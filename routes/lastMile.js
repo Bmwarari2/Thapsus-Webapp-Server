@@ -392,6 +392,173 @@ router.get(
   }
 );
 
+/**
+ * PATCH /api/last-mile/runs/:id/parcels — manage the parcel set on a run.
+ *
+ * Body:
+ *   {
+ *     add:       [parcelId, ...],                       // optional
+ *     remove:    [parcelId, ...],                       // optional
+ *     addresses: { parcelId: "override text" | null }   // optional
+ *   }
+ *
+ * Rules:
+ *   • add / remove are only allowed when run.status = 'planned'.  Once a
+ *     run is in_progress / completed / cancelled the parcel set is
+ *     frozen — completed_stops vs total_stops math depends on it.
+ *   • address overrides may be set on planned or in_progress runs (the
+ *     rider may need an updated drop point mid-route).
+ *   • adds run the same checks POST /runs uses: parcel exists + not on
+ *     another active run.
+ *   • total_stops is recomputed at the end so completion math stays
+ *     correct.
+ *
+ * All work happens inside a single transaction with the run row
+ * locked FOR UPDATE so concurrent edits serialise.
+ */
+router.patch(
+  '/runs/:id/parcels',
+  authMiddleware,
+  requireRole('operator'),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const add = Array.isArray(req.body?.add) ? req.body.add : [];
+      const remove = Array.isArray(req.body?.remove) ? req.body.remove : [];
+      const addresses = (req.body?.addresses && typeof req.body.addresses === 'object')
+        ? req.body.addresses : {};
+
+      if (add.length === 0 && remove.length === 0 && Object.keys(addresses).length === 0) {
+        return res.status(400).json({ success: false, message: 'Nothing to update' });
+      }
+
+      const client = await req.db.connect();
+      try {
+        await client.query('BEGIN');
+
+        const cur = await client.query(
+          `SELECT status FROM last_mile_runs WHERE id = $1 FOR UPDATE`,
+          [id]
+        );
+        if (cur.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ success: false, message: 'Run not found' });
+        }
+        const status = cur.rows[0].status;
+
+        const mutatingParcelSet = add.length > 0 || remove.length > 0;
+        if (mutatingParcelSet && status !== 'planned') {
+          await client.query('ROLLBACK');
+          return res.status(409).json({
+            success: false,
+            message: `Parcel set is frozen once the run leaves 'planned' (current: '${status}')`,
+          });
+        }
+        if (Object.keys(addresses).length > 0 && status !== 'planned' && status !== 'in_progress') {
+          await client.query('ROLLBACK');
+          return res.status(409).json({
+            success: false,
+            message: `Address overrides cannot be edited on a ${status} run`,
+          });
+        }
+
+        // Validate adds: orders existence + not on another active run.
+        if (add.length > 0) {
+          const { rows: existing } = await client.query(
+            `SELECT id FROM orders WHERE id = ANY($1::text[])`,
+            [add]
+          );
+          if (existing.length !== add.length) {
+            const found = new Set(existing.map(r => r.id));
+            const missing = add.filter(p => !found.has(p));
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+              success: false,
+              message: `Unknown parcel id(s): ${missing.join(', ')}`,
+            });
+          }
+          const { rows: clashes } = await client.query(
+            `SELECT lmrp.parcel_id
+               FROM last_mile_run_parcels lmrp
+               JOIN last_mile_runs r ON r.id = lmrp.run_id
+              WHERE r.status IN ('planned','in_progress')
+                AND lmrp.run_id <> $1
+                AND lmrp.parcel_id = ANY($2::text[])`,
+            [id, add]
+          );
+          if (clashes.length > 0) {
+            const conflictIds = [...new Set(clashes.map(c => c.parcel_id))];
+            await client.query('ROLLBACK');
+            return res.status(409).json({
+              success: false,
+              message: `Parcel(s) already on another active run: ${conflictIds.join(', ')}`,
+            });
+          }
+
+          // Append new rows after the current max position so existing
+          // routing order isn't disturbed.
+          const { rows: maxRows } = await client.query(
+            `SELECT COALESCE(MAX(position), -1) AS max_pos
+               FROM last_mile_run_parcels WHERE run_id = $1`,
+            [id]
+          );
+          let nextPos = maxRows[0].max_pos + 1;
+          for (const pid of add) {
+            await client.query(
+              `INSERT INTO last_mile_run_parcels (run_id, parcel_id, position)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (run_id, parcel_id) DO NOTHING`,
+              [id, pid, nextPos]
+            );
+            nextPos++;
+          }
+        }
+
+        if (remove.length > 0) {
+          await client.query(
+            `DELETE FROM last_mile_run_parcels
+              WHERE run_id = $1 AND parcel_id = ANY($2::text[])`,
+            [id, remove]
+          );
+        }
+
+        if (Object.keys(addresses).length > 0) {
+          for (const [pid, override] of Object.entries(addresses)) {
+            const value = (override === null || override === '') ? null : String(override);
+            await client.query(
+              `UPDATE last_mile_run_parcels
+                  SET delivery_address_override = $3
+                WHERE run_id = $1 AND parcel_id = $2`,
+              [id, pid, value]
+            );
+          }
+        }
+
+        // Resync total_stops so the run-completion check still works.
+        const { rows: countRows } = await client.query(
+          `SELECT COUNT(*)::int AS n FROM last_mile_run_parcels WHERE run_id = $1`,
+          [id]
+        );
+        await client.query(
+          `UPDATE last_mile_runs SET total_stops = $1, updated_at = NOW() WHERE id = $2`,
+          [countRows[0].n, id]
+        );
+
+        await client.query('COMMIT');
+      } catch (txErr) {
+        await client.query('ROLLBACK');
+        throw txErr;
+      } finally {
+        client.release();
+      }
+      res.json({ success: true });
+    } catch (err) {
+      console.error('PATCH /last-mile/runs/:id/parcels error:', err);
+      res.status(500).json({ success: false, message: 'Failed to update run parcels' });
+    }
+  }
+);
+
 /** PATCH /api/last-mile/runs/:id — operator updates run (rider assign etc.) */
 router.patch(
   '/runs/:id',
