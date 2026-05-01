@@ -310,24 +310,62 @@ router.patch(
       }
       if (sets.length === 0)
         return res.status(400).json({ success: false, message: 'No updatable fields' });
+
+      // State-machine guard: only allow forward transitions.  Without it
+      // a re-PATCH with status='in_progress' would re-run
+      // activateRunDispatch and issue a fresh OTP every time, and a
+      // backwards 'completed → planned' would un-do completion math.
+      const TRANSITIONS = {
+        planned:     new Set(['planned','in_progress','cancelled']),
+        in_progress: new Set(['in_progress','completed','cancelled']),
+        completed:   new Set(['completed']),
+        cancelled:   new Set(['cancelled']),
+      };
+
+      const requestedStatus = req.body.status;
+
       sets.push(`updated_at = NOW()`);
       params.push(id);
-
-      // If the operator is moving this run into 'in_progress' AND a rider
-      // is assigned (either now or already), this is the moment the parcels
-      // actually leave the yard — flip orders.status and issue OTPs in the
-      // same transaction as the run update.  Per audit T7, a planned-but-
-      // unassigned run must not affect customer-visible tracking.
-      const movingToInProgress = req.body.status === 'in_progress';
 
       const client = await req.db.connect();
       try {
         await client.query('BEGIN');
+
+        // Lock the run row for the duration of the transaction so a
+        // concurrent PATCH can't race the state-machine check.
+        const cur = await client.query(
+          `SELECT status FROM last_mile_runs WHERE id = $1 FOR UPDATE`,
+          [id]
+        );
+        if (cur.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ success: false, message: 'Run not found' });
+        }
+        const previousStatus = cur.rows[0].status;
+
+        if (typeof requestedStatus !== 'undefined') {
+          const allowedNext = TRANSITIONS[previousStatus];
+          if (!allowedNext || !allowedNext.has(requestedStatus)) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({
+              success: false,
+              message: `Cannot transition run from '${previousStatus}' to '${requestedStatus}'`,
+            });
+          }
+        }
+
         await client.query(
           `UPDATE last_mile_runs SET ${sets.join(', ')} WHERE id = $${params.length}`,
           params
         );
-        if (movingToInProgress) {
+
+        // Run dispatch activation only fires on the *first* transition
+        // from 'planned' → 'in_progress' AND the run has a rider.  No
+        // double-issue OTPs on a re-PATCH.
+        const isFirstStart =
+          previousStatus === 'planned' &&
+          requestedStatus === 'in_progress';
+        if (isFirstStart) {
           const { rows } = await client.query(
             `SELECT rider_id, notes FROM last_mile_runs WHERE id = $1`,
             [id]
