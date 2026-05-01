@@ -46,7 +46,8 @@ router.get('/:trackingNumber', optionalAuth, async (req, res) => {
     const result = await db.query(
       `SELECT id, user_id, tracking_number, retailer, market, status, description,
               weight_kg, dimensions_json, shipping_speed, insurance, declared_value,
-              estimated_cost, actual_cost, customs_duty, created_at, updated_at
+              estimated_cost, actual_cost, customs_duty, hold_reason, hold_resolved_at,
+              created_at, updated_at
        FROM orders WHERE tracking_number = $1`,
       [trackingNumber]
     );

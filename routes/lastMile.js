@@ -579,27 +579,60 @@ router.post(
       const auth = await authorisePodAttempt(req, res, runId, parcel_id);
       if (!auth) return;
       const id = `POD-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
-      await req.db.query(
-        `INSERT INTO pod_events
-           (id, parcel_id, run_id, rider_id, result, notes)
-         VALUES ($1,$2,$3,$4,'failed',$5)`,
-        [id, parcel_id, runId, req.user.id, reason || 'Recipient unavailable']
-      );
-      // After two failed attempts → held_at_nairobi_hub (custom tracking
-      // status surfaced via order_notes field)
-      const { rows } = await req.db.query(
-        `SELECT COUNT(*)::int AS fails FROM pod_events
-          WHERE parcel_id = $1 AND result = 'failed'`,
-        [parcel_id]
-      );
-      if (rows[0].fails >= 2) {
-        await req.db.query(
-          `UPDATE orders SET hold_reason = 'held_at_nairobi_hub',
-                  updated_at = NOW() WHERE id = $1`,
+
+      // Transactional: insert the failure event + read the new fail count,
+      // and on the second fail flip orders.status / hold_reason and the
+      // package.status to held_at_nairobi_hub in the same transaction so
+      // customer-visible tracking matches the dispatch board.
+      const client = await req.db.connect();
+      let fails;
+      let held = false;
+      try {
+        await client.query('BEGIN');
+        await client.query(
+          `INSERT INTO pod_events
+             (id, parcel_id, run_id, rider_id, result, notes)
+           VALUES ($1,$2,$3,$4,'failed',$5)`,
+          [id, parcel_id, runId, req.user.id, reason || 'Recipient unavailable']
+        );
+        const failsRes = await client.query(
+          `SELECT COUNT(*)::int AS fails FROM pod_events
+            WHERE parcel_id = $1 AND result = 'failed'`,
           [parcel_id]
         );
+        fails = failsRes.rows[0].fails;
+        if (fails >= 2) {
+          // Customer-visible flip. orders.status uses the legacy v1 enum
+          // (no 'held' value yet) so we settle on 'customs' + hold_reason
+          // to surface the held state on the public tracking timeline.
+          // packages.status carries the v2 enum which does include
+          // 'held_at_nairobi_hub' — set it directly so the operator
+          // dispatch board picks it up in one place.
+          await client.query(
+            `UPDATE orders
+                SET status = 'customs',
+                    hold_reason = 'held_at_nairobi_hub',
+                    updated_at = NOW()
+              WHERE id = $1`,
+            [parcel_id]
+          );
+          await client.query(
+            `UPDATE packages
+                SET status = 'held_at_nairobi_hub',
+                    updated_at = NOW()
+              WHERE order_id = $1`,
+            [parcel_id]
+          );
+          held = true;
+        }
+        await client.query('COMMIT');
+      } catch (txErr) {
+        await client.query('ROLLBACK');
+        throw txErr;
+      } finally {
+        client.release();
       }
-      res.status(201).json({ success: true, pod_id: id, fails: rows[0].fails });
+      res.status(201).json({ success: true, pod_id: id, fails, held });
     } catch (err) {
       console.error('POST /last-mile/rider/runs/:runId/fail error:', err);
       res.status(500).json({ success: false, message: 'Failed to record failed delivery' });
