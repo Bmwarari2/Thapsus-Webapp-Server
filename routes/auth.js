@@ -1,10 +1,15 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, tokenSha256 } from '../middleware/auth.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { mintSupabaseToken } from '../utils/supabaseJwt.js';
+
+function resetTokenSha256(rawToken) {
+  return crypto.createHash('sha256').update(rawToken).digest();
+}
 
 function safeMintSupabaseToken(user, where) {
   try {
@@ -290,11 +295,19 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
     }
 
-    // Find valid, unused token that hasn't expired
+    // Find valid, unused token that hasn't expired.  Lookup is by
+    // SHA-256 hash so a database dump never lets an attacker mint a
+    // password change.  The legacy `token = $2` clause is kept during
+    // the grace period so emails issued before migration 010 still
+    // resolve; once the plaintext column is dropped the OR branch
+    // can go too.
+    const tokenHash = resetTokenSha256(token);
     const tokenRes = await db.query(
       `SELECT id, user_id FROM password_reset_tokens
-       WHERE token = $1 AND used = false AND expires_at > NOW()`,
-      [token]
+       WHERE (token_sha256 = $1 OR token = $2)
+         AND used = false
+         AND expires_at > NOW()`,
+      [tokenHash, token]
     );
     if (tokenRes.rows.length === 0) {
       return res.status(400).json({ success: false, message: 'Invalid or expired reset link. Please request a new one.' });
@@ -352,8 +365,8 @@ router.post('/forgot-password', async (req, res) => {
     }
 
     const user = userRes.rows[0];
-    const { randomBytes } = await import('crypto');
-    const token = randomBytes(32).toString('hex');
+    const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = resetTokenSha256(token);
     const tokenId = uuidv4();
     const expiresAt = new Date(Date.now() + 3600000).toISOString(); // 1 hour
 
@@ -361,8 +374,8 @@ router.post('/forgot-password', async (req, res) => {
     await db.query('UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND used = false', [user.id]);
 
     await db.query(
-      'INSERT INTO password_reset_tokens (id, user_id, token, expires_at) VALUES ($1, $2, $3, $4)',
-      [tokenId, user.id, token, expiresAt]
+      'INSERT INTO password_reset_tokens (id, user_id, token, token_sha256, expires_at) VALUES ($1, $2, $3, $4, $5)',
+      [tokenId, user.id, token, tokenHash, expiresAt]
     );
 
     const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
