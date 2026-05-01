@@ -45,12 +45,19 @@ function generateReferralCode() {
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, phone, referral_code } = req.body;
+    const { name, password, phone, referral_code } = req.body;
+    const rawEmail = req.body.email;
     const db = req.db;
 
-    if (!name || !email || !password || !phone) {
+    if (!name || !rawEmail || !password || !phone) {
       return res.status(400).json({ success: false, message: 'Missing required fields: name, email, password, phone' });
     }
+
+    // Normalise the email before any DB hit so User@x and user@x land in
+    // the same row.  Audit T13 — email is the unique identity key, but
+    // two prod accounts diverged because one signup typed the address
+    // with a capital first letter.
+    const email = String(rawEmail).trim().toLowerCase();
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
@@ -152,9 +159,14 @@ router.post('/register', async (req, res) => {
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { password } = req.body;
+    const rawEmail = req.body.email;
     const db = req.db;
-    if (!email || !password) return res.status(400).json({ success: false, message: 'Email and password required' });
+    if (!rawEmail || !password) return res.status(400).json({ success: false, message: 'Email and password required' });
+
+    // Same normalisation as /register so the lookup matches even when
+    // the keyboard auto-capitalises the first letter (audit T13).
+    const email = String(rawEmail).trim().toLowerCase();
 
     const { rows } = await db.query(
       `SELECT id,email,password,name,role,warehouse_id,language_pref,wallet_balance,referral_code
