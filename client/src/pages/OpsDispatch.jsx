@@ -11,6 +11,7 @@ export const OpsDispatch = () => {
   const [pending, setPending] = useState([])
   const [runs,    setRuns]    = useState([])
   const [zones,   setZones]   = useState([])
+  const [riders,  setRiders]  = useState([])
   const [picked,  setPicked]  = useState([])
   const [zone,    setZone]    = useState('')
   const [date,    setDate]    = useState(new Date().toISOString().slice(0,10))
@@ -25,7 +26,15 @@ export const OpsDispatch = () => {
     })
     .catch(() => toast.error('Failed to load dispatch'))
 
-  useEffect(() => { refresh() /* eslint-disable-next-line */ }, [])
+  const refreshRiders = () => lastMileApi.riders()
+    .then(r => setRiders(r.data?.riders || []))
+    .catch(() => { /* operator may not be admin in some envs; fall through silently */ })
+
+  useEffect(() => {
+    refresh()
+    refreshRiders()
+    /* eslint-disable-next-line */
+  }, [])
 
   const togglePick = (id) => {
     setPicked(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])
@@ -67,9 +76,11 @@ export const OpsDispatch = () => {
                     options={zones.map(z => [z, z])} />
             <input type="date" value={date} onChange={e => setDate(e.target.value)}
               className="px-3 py-2 rounded-xl border border-slate-200 bg-white/80" />
-            <input value={riderId} onChange={e => setRiderId(e.target.value)}
-              placeholder="Rider user-id (optional)"
-              className="px-3 py-2 rounded-xl border border-slate-200 bg-white/80" />
+            <Select label="Rider" value={riderId} onChange={setRiderId}
+                    options={[
+                      ['', riders.length === 0 ? '— no riders provisioned —' : '— unassigned —'],
+                      ...riders.map(r => [r.id, riderLabel(r)]),
+                    ]} />
             <button onClick={onCreateRun}
               className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold">
               <Plus size={16}/> Create run ({picked.length})
@@ -148,3 +159,9 @@ const Select = ({ label, value, onChange, options }) => (
     </select>
   </label>
 )
+
+const riderLabel = (r) => {
+  const name = (r.name || '').trim()
+  if (name) return r.phone ? `${name} · ${r.phone}` : name
+  return r.email || r.id
+}
