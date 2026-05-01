@@ -42,10 +42,15 @@ function generateReferralCode() {
   return code;
 }
 
+// Country-of-residence allowlist used by /register and /profile.
+// Mirrors the iOS sign-in form's picker: KE/UG/TZ/RW for the East
+// Africa hub, GB/US for the source corridors, OTHER for anything else.
+const ALLOWED_COUNTRIES = new Set(['KE','UG','TZ','RW','GB','US','OTHER']);
+
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
-    const { name, password, phone, referral_code } = req.body;
+    const { name, password, phone, referral_code, country_of_residence } = req.body;
     const rawEmail = req.body.email;
     const db = req.db;
 
@@ -78,6 +83,14 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
     }
 
+    let normalisedCountry = null;
+    if (typeof country_of_residence === 'string' && country_of_residence.trim().length > 0) {
+      normalisedCountry = country_of_residence.trim().toUpperCase();
+      if (!ALLOWED_COUNTRIES.has(normalisedCountry)) {
+        return res.status(400).json({ success: false, message: 'Invalid country_of_residence' });
+      }
+    }
+
     const existing = await db.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existing.rows.length > 0) {
       return res.status(409).json({ success: false, message: 'Email already registered' });
@@ -103,9 +116,9 @@ router.post('/register', async (req, res) => {
     try {
       await client.query('BEGIN');
       await client.query(
-        `INSERT INTO users (id,email,password,name,phone,role,warehouse_id,language_pref,referral_code,referred_by,wallet_balance,is_active)
-         VALUES ($1,$2,$3,$4,$5,'customer',$6,'en',$7,$8,0,true)`,
-        [userId, email, passwordHash, name, phone, warehouseId, newReferralCode, referredBy]
+        `INSERT INTO users (id,email,password,name,phone,role,warehouse_id,language_pref,referral_code,referred_by,wallet_balance,is_active,country_of_residence)
+         VALUES ($1,$2,$3,$4,$5,'customer',$6,'en',$7,$8,0,true,$9)`,
+        [userId, email, passwordHash, name, phone, warehouseId, newReferralCode, referredBy, normalisedCountry]
       );
       await client.query(
         `INSERT INTO wallet (id,user_id,balance,currency) VALUES ($1,$2,0,'KES')`,
@@ -227,7 +240,7 @@ router.get('/me', authMiddleware, async (req, res) => {
 // PUT /api/auth/profile
 router.put('/profile', authMiddleware, async (req, res) => {
   try {
-    const { name, phone, language_pref, delivery_address } = req.body;
+    const { name, phone, language_pref, delivery_address, country_of_residence } = req.body;
     const userId = req.user.id;
     // Empty-string is a deliberate clear (e.g. user wants to wipe their
     // delivery address); only treat undefined as "field not supplied".
@@ -235,8 +248,26 @@ router.put('/profile', authMiddleware, async (req, res) => {
     const hasPhone           = typeof phone !== 'undefined';
     const hasLanguage        = typeof language_pref !== 'undefined';
     const hasDeliveryAddress = typeof delivery_address !== 'undefined';
-    if (!hasName && !hasPhone && !hasLanguage && !hasDeliveryAddress) {
+    const hasCountry         = typeof country_of_residence !== 'undefined';
+    if (!hasName && !hasPhone && !hasLanguage && !hasDeliveryAddress && !hasCountry) {
       return res.status(400).json({ success: false, message: 'Provide at least one field to update' });
+    }
+
+    let normalisedCountry = null;
+    if (hasCountry) {
+      // Allow explicit clear: empty string → NULL.  Otherwise gate against
+      // the same allowlist /register uses so we never write an arbitrary
+      // 100-char string to the column.
+      if (country_of_residence === null || country_of_residence === '') {
+        normalisedCountry = null;
+      } else if (typeof country_of_residence === 'string') {
+        normalisedCountry = country_of_residence.trim().toUpperCase();
+        if (!ALLOWED_COUNTRIES.has(normalisedCountry)) {
+          return res.status(400).json({ success: false, message: 'Invalid country_of_residence' });
+        }
+      } else {
+        return res.status(400).json({ success: false, message: 'Invalid country_of_residence' });
+      }
     }
 
     const setClauses = [];
@@ -246,13 +277,14 @@ router.put('/profile', authMiddleware, async (req, res) => {
     if (hasPhone)           { setClauses.push(`phone=$${idx++}`);            params.push(phone || null); }
     if (hasLanguage)        { setClauses.push(`language_pref=$${idx++}`);    params.push(language_pref); }
     if (hasDeliveryAddress) { setClauses.push(`delivery_address=$${idx++}`); params.push(delivery_address || null); }
+    if (hasCountry)         { setClauses.push(`country_of_residence=$${idx++}`); params.push(normalisedCountry); }
     setClauses.push(`updated_at=NOW()`);
     params.push(userId);
 
     await req.db.query(`UPDATE users SET ${setClauses.join(',')} WHERE id=$${idx}`, params);
 
     const { rows } = await req.db.query(
-      `SELECT id,email,name,phone,role,warehouse_id,language_pref,wallet_balance,delivery_address
+      `SELECT id,email,name,phone,role,warehouse_id,language_pref,wallet_balance,delivery_address,country_of_residence
          FROM users WHERE id=$1`, [userId]
     );
     res.json({ success: true, message: 'Profile updated successfully', user: rows[0] });
