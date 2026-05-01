@@ -111,6 +111,14 @@ async function activateRunDispatch(client, parcelIds) {
       WHERE id IN (${placeholders})`,
     parcelIds
   );
+  // Mirror to packages so the operator dispatch board (which reads
+  // packages.status, not orders.status) doesn't show parcels stuck at
+  // 'manifested' while the customer-facing order says out_for_delivery.
+  await client.query(
+    `UPDATE packages SET status = 'out_for_delivery', updated_at = NOW()
+      WHERE order_id IN (${placeholders})`,
+    parcelIds
+  );
   for (const pid of parcelIds) {
     await issuePodOtp(client, pid);
   }
@@ -157,14 +165,32 @@ router.get(
   requireRole('operator'),
   async (req, res) => {
     try {
+      // "Pending" = dispatch-ready: customs-cleared and not yet on any
+      // active run.  After T7 the run flips orders.status to
+      // out_for_delivery only when the run actually starts, so the
+      // board no longer shows parcels that already left the yard
+      // (they show up under `runs` instead).  We also exclude any
+      // parcel that's already on a planned/in_progress run's
+      // planned_parcels JSON — without that filter every operator who
+      // built a run would still see the parcel in the "to assign" list.
       const { rows: pending } = await req.db.query(
         `SELECT o.id, o.tracking_number, o.description, u.name, u.phone,
                 u.delivery_address
            FROM orders o
            JOIN users u ON u.id = o.user_id
-          WHERE o.status IN ('out_for_delivery','customs')
+          WHERE o.status = 'customs'
+            AND COALESCE(o.hold_reason, '') = ''
             AND NOT EXISTS (
               SELECT 1 FROM pod_events p WHERE p.parcel_id = o.id
+            )
+            AND NOT EXISTS (
+              SELECT 1
+                FROM last_mile_runs r
+                CROSS JOIN LATERAL jsonb_array_elements_text(
+                  COALESCE((r.notes::jsonb)->'planned_parcels', '[]'::jsonb)
+                ) AS p(parcel_id)
+               WHERE r.status IN ('planned','in_progress')
+                 AND p.parcel_id = o.id
             )
           ORDER BY o.updated_at ASC NULLS LAST
           LIMIT 100`
@@ -198,13 +224,65 @@ router.post(
       if (!zone || !run_date) {
         return res.status(400).json({ success: false, message: 'zone and run_date are required' });
       }
-      const id = `RUN-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
-      const total = Array.isArray(parcel_ids) ? parcel_ids.length : 0;
-      await req.db.query(
-        `INSERT INTO last_mile_runs (id, rider_id, zone, run_date, status, total_stops)
-         VALUES ($1,$2,$3,$4,'planned',$5)`,
-        [id, rider_id || null, zone, run_date, total]
+
+      const parcelIdsArr = Array.isArray(parcel_ids) ? parcel_ids : [];
+      const total = parcelIdsArr.length;
+
+      // Pre-validate the parcel set so a typo in one id doesn't
+      // create a half-broken run that only fails at activation time.
+      // Two checks:
+      //   1. Every id resolves to an existing orders row.
+      //   2. None of those orders is already on another active run
+      //      (planned/in_progress) — assigning a parcel to two runs
+      //      would double-count completed_stops and let two riders
+      //      race to POD it.
+      if (total > 0) {
+        const { rows: existing } = await req.db.query(
+          `SELECT id FROM orders WHERE id = ANY($1::text[])`,
+          [parcelIdsArr]
+        );
+        if (existing.length !== total) {
+          const found = new Set(existing.map(r => r.id));
+          const missing = parcelIdsArr.filter(p => !found.has(p));
+          return res.status(400).json({
+            success: false,
+            message: `Unknown parcel id(s): ${missing.join(', ')}`,
+          });
+        }
+
+        // Any active runs already containing one of these parcels?
+        // notes is a JSON-encoded text blob; cast to jsonb so we can
+        // probe it with the @> containment operator.
+        const { rows: clashes } = await req.db.query(
+          `SELECT r.id, p.parcel_id
+             FROM last_mile_runs r
+             CROSS JOIN LATERAL jsonb_array_elements_text(
+               COALESCE((r.notes::jsonb)->'planned_parcels', '[]'::jsonb)
+             ) AS p(parcel_id)
+            WHERE r.status IN ('planned','in_progress')
+              AND p.parcel_id = ANY($1::text[])`,
+          [parcelIdsArr]
+        );
+        if (clashes.length > 0) {
+          const conflictIds = [...new Set(clashes.map(c => c.parcel_id))];
+          return res.status(409).json({
+            success: false,
+            message: `Parcel(s) already on an active run: ${conflictIds.join(', ')}`,
+          });
+        }
+      }
+
+      // last_mile_runs.id is a uuid (default gen_random_uuid()) on prod —
+      // the previous `RUN-${Date.now()}-...` literal blew up with 22P02
+      // invalid input syntax for type uuid. Let the column default fill
+      // the id and capture it via RETURNING.
+      const insertRes = await req.db.query(
+        `INSERT INTO last_mile_runs (rider_id, zone, run_date, status, total_stops)
+         VALUES ($1,$2,$3,'planned',$4)
+         RETURNING id`,
+        [rider_id || null, zone, run_date, total]
       );
+      const id = insertRes.rows[0].id;
       // The parcel set is recorded in a notes JSON blob for the rider PWA
       // to read.  We do NOT flip parcels to out_for_delivery here — the
       // run is still 'planned' and may not even have a rider yet.  The
@@ -213,7 +291,7 @@ router.post(
       if (total > 0) {
         await req.db.query(
           `UPDATE last_mile_runs SET notes = $1 WHERE id = $2`,
-          [JSON.stringify({ planned_parcels: parcel_ids }), id]
+          [JSON.stringify({ planned_parcels: parcelIdsArr }), id]
         );
       }
       res.status(201).json({ success: true, run_id: id });
@@ -305,24 +383,62 @@ router.patch(
       }
       if (sets.length === 0)
         return res.status(400).json({ success: false, message: 'No updatable fields' });
+
+      // State-machine guard: only allow forward transitions.  Without it
+      // a re-PATCH with status='in_progress' would re-run
+      // activateRunDispatch and issue a fresh OTP every time, and a
+      // backwards 'completed → planned' would un-do completion math.
+      const TRANSITIONS = {
+        planned:     new Set(['planned','in_progress','cancelled']),
+        in_progress: new Set(['in_progress','completed','cancelled']),
+        completed:   new Set(['completed']),
+        cancelled:   new Set(['cancelled']),
+      };
+
+      const requestedStatus = req.body.status;
+
       sets.push(`updated_at = NOW()`);
       params.push(id);
-
-      // If the operator is moving this run into 'in_progress' AND a rider
-      // is assigned (either now or already), this is the moment the parcels
-      // actually leave the yard — flip orders.status and issue OTPs in the
-      // same transaction as the run update.  Per audit T7, a planned-but-
-      // unassigned run must not affect customer-visible tracking.
-      const movingToInProgress = req.body.status === 'in_progress';
 
       const client = await req.db.connect();
       try {
         await client.query('BEGIN');
+
+        // Lock the run row for the duration of the transaction so a
+        // concurrent PATCH can't race the state-machine check.
+        const cur = await client.query(
+          `SELECT status FROM last_mile_runs WHERE id = $1 FOR UPDATE`,
+          [id]
+        );
+        if (cur.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ success: false, message: 'Run not found' });
+        }
+        const previousStatus = cur.rows[0].status;
+
+        if (typeof requestedStatus !== 'undefined') {
+          const allowedNext = TRANSITIONS[previousStatus];
+          if (!allowedNext || !allowedNext.has(requestedStatus)) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({
+              success: false,
+              message: `Cannot transition run from '${previousStatus}' to '${requestedStatus}'`,
+            });
+          }
+        }
+
         await client.query(
           `UPDATE last_mile_runs SET ${sets.join(', ')} WHERE id = $${params.length}`,
           params
         );
-        if (movingToInProgress) {
+
+        // Run dispatch activation only fires on the *first* transition
+        // from 'planned' → 'in_progress' AND the run has a rider.  No
+        // double-issue OTPs on a re-PATCH.
+        const isFirstStart =
+          previousStatus === 'planned' &&
+          requestedStatus === 'in_progress';
+        if (isFirstStart) {
           const { rows } = await client.query(
             `SELECT rider_id, notes FROM last_mile_runs WHERE id = $1`,
             [id]
@@ -490,7 +606,6 @@ router.post(
       }
       const auth = await authorisePodAttempt(req, res, runId, parcel_id);
       if (!auth) return;
-      const id = `POD-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
 
       // Wrap the four-statement success path in a single transaction on a
       // dedicated client. Mirrors the pattern in routes/orders.js — pool.query
@@ -500,6 +615,7 @@ router.post(
       // pod_events inconsistent with each other.
       const client = await req.db.connect();
       let runState;
+      let id;
       try {
         await client.query('BEGIN');
         const otpOk = await validatePodOtp(client, parcel_id, otp_used);
@@ -507,18 +623,30 @@ router.post(
           await client.query('ROLLBACK');
           return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
         }
-        await client.query(
+        // pod_events.id is a uuid (default gen_random_uuid()) on prod;
+        // letting the column default fill it avoids the 22P02 mismatch
+        // that bit POST /runs.
+        const podRes = await client.query(
           `INSERT INTO pod_events
-             (id, parcel_id, run_id, rider_id, result, photo_url,
+             (parcel_id, run_id, rider_id, result, photo_url,
               signature_url, otp_used, recipient_name, recipient_phone, notes)
-           VALUES ($1,$2,$3,$4,'delivered',$5,$6,$7,$8,$9,$10)`,
-          [id, parcel_id, runId, req.user.id,
+           VALUES ($1,$2,$3,'delivered',$4,$5,$6,$7,$8,$9)
+           RETURNING id`,
+          [parcel_id, runId, req.user.id,
            photo_url || null, signature_url || null,
            otp_used || null, recipient_name || null,
            recipient_phone || null, notes || null]
         );
+        id = podRes.rows[0].id;
         await client.query(
           `UPDATE orders SET status = 'delivered', updated_at = NOW() WHERE id = $1`,
+          [parcel_id]
+        );
+        // Mirror to packages so the operator board no longer shows the
+        // parcel as 'manifested' / 'out_for_delivery' after POD.
+        await client.query(
+          `UPDATE packages SET status = 'delivered', updated_at = NOW()
+            WHERE order_id = $1`,
           [parcel_id]
         );
         // NPS invitation. Pulled from orders since the rider POD doesn't carry
@@ -578,7 +706,6 @@ router.post(
       }
       const auth = await authorisePodAttempt(req, res, runId, parcel_id);
       if (!auth) return;
-      const id = `POD-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
 
       // Transactional: insert the failure event + read the new fail count,
       // and on the second fail flip orders.status / hold_reason and the
@@ -587,18 +714,27 @@ router.post(
       const client = await req.db.connect();
       let fails;
       let held = false;
+      let id;
       try {
         await client.query('BEGIN');
-        await client.query(
+        // pod_events.id is uuid (default gen_random_uuid()) on prod.
+        const failRes = await client.query(
           `INSERT INTO pod_events
-             (id, parcel_id, run_id, rider_id, result, notes)
-           VALUES ($1,$2,$3,$4,'failed',$5)`,
-          [id, parcel_id, runId, req.user.id, reason || 'Recipient unavailable']
+             (parcel_id, run_id, rider_id, result, notes)
+           VALUES ($1,$2,$3,'failed',$4)
+           RETURNING id`,
+          [parcel_id, runId, req.user.id, reason || 'Recipient unavailable']
         );
+        id = failRes.rows[0].id;
+        // Count failures on THIS run only.  An earlier global count
+        // tripped the held-at-hub flip on the first fail of a re-run
+        // because a previous run had already racked up two fails on
+        // the same parcel — the parcel was supposed to get a fresh
+        // pair of attempts under the new rider.
         const failsRes = await client.query(
           `SELECT COUNT(*)::int AS fails FROM pod_events
-            WHERE parcel_id = $1 AND result = 'failed'`,
-          [parcel_id]
+            WHERE parcel_id = $1 AND run_id = $2 AND result = 'failed'`,
+          [parcel_id, runId]
         );
         fails = failsRes.rows[0].fails;
         if (fails >= 2) {
