@@ -198,7 +198,54 @@ router.post(
       if (!zone || !run_date) {
         return res.status(400).json({ success: false, message: 'zone and run_date are required' });
       }
-      const total = Array.isArray(parcel_ids) ? parcel_ids.length : 0;
+
+      const parcelIdsArr = Array.isArray(parcel_ids) ? parcel_ids : [];
+      const total = parcelIdsArr.length;
+
+      // Pre-validate the parcel set so a typo in one id doesn't
+      // create a half-broken run that only fails at activation time.
+      // Two checks:
+      //   1. Every id resolves to an existing orders row.
+      //   2. None of those orders is already on another active run
+      //      (planned/in_progress) — assigning a parcel to two runs
+      //      would double-count completed_stops and let two riders
+      //      race to POD it.
+      if (total > 0) {
+        const { rows: existing } = await req.db.query(
+          `SELECT id FROM orders WHERE id = ANY($1::text[])`,
+          [parcelIdsArr]
+        );
+        if (existing.length !== total) {
+          const found = new Set(existing.map(r => r.id));
+          const missing = parcelIdsArr.filter(p => !found.has(p));
+          return res.status(400).json({
+            success: false,
+            message: `Unknown parcel id(s): ${missing.join(', ')}`,
+          });
+        }
+
+        // Any active runs already containing one of these parcels?
+        // notes is a JSON-encoded text blob; cast to jsonb so we can
+        // probe it with the @> containment operator.
+        const { rows: clashes } = await req.db.query(
+          `SELECT r.id, p.parcel_id
+             FROM last_mile_runs r
+             CROSS JOIN LATERAL jsonb_array_elements_text(
+               COALESCE((r.notes::jsonb)->'planned_parcels', '[]'::jsonb)
+             ) AS p(parcel_id)
+            WHERE r.status IN ('planned','in_progress')
+              AND p.parcel_id = ANY($1::text[])`,
+          [parcelIdsArr]
+        );
+        if (clashes.length > 0) {
+          const conflictIds = [...new Set(clashes.map(c => c.parcel_id))];
+          return res.status(409).json({
+            success: false,
+            message: `Parcel(s) already on an active run: ${conflictIds.join(', ')}`,
+          });
+        }
+      }
+
       // last_mile_runs.id is a uuid (default gen_random_uuid()) on prod —
       // the previous `RUN-${Date.now()}-...` literal blew up with 22P02
       // invalid input syntax for type uuid. Let the column default fill
@@ -218,7 +265,7 @@ router.post(
       if (total > 0) {
         await req.db.query(
           `UPDATE last_mile_runs SET notes = $1 WHERE id = $2`,
-          [JSON.stringify({ planned_parcels: parcel_ids }), id]
+          [JSON.stringify({ planned_parcels: parcelIdsArr }), id]
         );
       }
       res.status(201).json({ success: true, run_id: id });
