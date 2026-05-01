@@ -287,7 +287,25 @@ router.put('/profile', authMiddleware, async (req, res) => {
       `SELECT id,email,name,phone,role,warehouse_id,language_pref,wallet_balance,delivery_address,country_of_residence
          FROM users WHERE id=$1`, [userId]
     );
-    res.json({ success: true, message: 'Profile updated successfully', user: rows[0] });
+    const fresh = rows[0];
+
+    // Re-mint the JWT so the `name` and `warehouse_id` claims (which several
+    // routes read from req.user instead of hitting the DB) reflect the new
+    // values immediately.  Audit T21 — without this the operator dispatch
+    // header kept showing the old name until the user signed out and back in.
+    const token = jwt.sign(
+      {
+        id: fresh.id,
+        email: fresh.email,
+        name: fresh.name,
+        role: fresh.role,
+        warehouse_id: fresh.warehouse_id,
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    );
+
+    res.json({ success: true, message: 'Profile updated successfully', user: fresh, token });
   } catch (error) {
     console.error('Profile update error:', error);
     logRouteError(req, res, error, 'Profile update error');
