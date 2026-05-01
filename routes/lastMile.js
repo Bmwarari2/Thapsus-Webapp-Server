@@ -165,14 +165,32 @@ router.get(
   requireRole('operator'),
   async (req, res) => {
     try {
+      // "Pending" = dispatch-ready: customs-cleared and not yet on any
+      // active run.  After T7 the run flips orders.status to
+      // out_for_delivery only when the run actually starts, so the
+      // board no longer shows parcels that already left the yard
+      // (they show up under `runs` instead).  We also exclude any
+      // parcel that's already on a planned/in_progress run's
+      // planned_parcels JSON — without that filter every operator who
+      // built a run would still see the parcel in the "to assign" list.
       const { rows: pending } = await req.db.query(
         `SELECT o.id, o.tracking_number, o.description, u.name, u.phone,
                 u.delivery_address
            FROM orders o
            JOIN users u ON u.id = o.user_id
-          WHERE o.status IN ('out_for_delivery','customs')
+          WHERE o.status = 'customs'
+            AND COALESCE(o.hold_reason, '') = ''
             AND NOT EXISTS (
               SELECT 1 FROM pod_events p WHERE p.parcel_id = o.id
+            )
+            AND NOT EXISTS (
+              SELECT 1
+                FROM last_mile_runs r
+                CROSS JOIN LATERAL jsonb_array_elements_text(
+                  COALESCE((r.notes::jsonb)->'planned_parcels', '[]'::jsonb)
+                ) AS p(parcel_id)
+               WHERE r.status IN ('planned','in_progress')
+                 AND p.parcel_id = o.id
             )
           ORDER BY o.updated_at ASC NULLS LAST
           LIMIT 100`
