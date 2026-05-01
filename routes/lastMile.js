@@ -708,10 +708,15 @@ router.post(
           [parcel_id, runId, req.user.id, reason || 'Recipient unavailable']
         );
         id = failRes.rows[0].id;
+        // Count failures on THIS run only.  An earlier global count
+        // tripped the held-at-hub flip on the first fail of a re-run
+        // because a previous run had already racked up two fails on
+        // the same parcel — the parcel was supposed to get a fresh
+        // pair of attempts under the new rider.
         const failsRes = await client.query(
           `SELECT COUNT(*)::int AS fails FROM pod_events
-            WHERE parcel_id = $1 AND result = 'failed'`,
-          [parcel_id]
+            WHERE parcel_id = $1 AND run_id = $2 AND result = 'failed'`,
+          [parcel_id, runId]
         );
         fails = failsRes.rows[0].fails;
         if (fails >= 2) {
