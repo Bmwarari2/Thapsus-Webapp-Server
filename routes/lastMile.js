@@ -198,13 +198,18 @@ router.post(
       if (!zone || !run_date) {
         return res.status(400).json({ success: false, message: 'zone and run_date are required' });
       }
-      const id = `RUN-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
       const total = Array.isArray(parcel_ids) ? parcel_ids.length : 0;
-      await req.db.query(
-        `INSERT INTO last_mile_runs (id, rider_id, zone, run_date, status, total_stops)
-         VALUES ($1,$2,$3,$4,'planned',$5)`,
-        [id, rider_id || null, zone, run_date, total]
+      // last_mile_runs.id is a uuid (default gen_random_uuid()) on prod —
+      // the previous `RUN-${Date.now()}-...` literal blew up with 22P02
+      // invalid input syntax for type uuid. Let the column default fill
+      // the id and capture it via RETURNING.
+      const insertRes = await req.db.query(
+        `INSERT INTO last_mile_runs (rider_id, zone, run_date, status, total_stops)
+         VALUES ($1,$2,$3,'planned',$4)
+         RETURNING id`,
+        [rider_id || null, zone, run_date, total]
       );
+      const id = insertRes.rows[0].id;
       // The parcel set is recorded in a notes JSON blob for the rider PWA
       // to read.  We do NOT flip parcels to out_for_delivery here — the
       // run is still 'planned' and may not even have a rider yet.  The
@@ -490,7 +495,6 @@ router.post(
       }
       const auth = await authorisePodAttempt(req, res, runId, parcel_id);
       if (!auth) return;
-      const id = `POD-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
 
       // Wrap the four-statement success path in a single transaction on a
       // dedicated client. Mirrors the pattern in routes/orders.js — pool.query
@@ -500,6 +504,7 @@ router.post(
       // pod_events inconsistent with each other.
       const client = await req.db.connect();
       let runState;
+      let id;
       try {
         await client.query('BEGIN');
         const otpOk = await validatePodOtp(client, parcel_id, otp_used);
@@ -507,16 +512,21 @@ router.post(
           await client.query('ROLLBACK');
           return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
         }
-        await client.query(
+        // pod_events.id is a uuid (default gen_random_uuid()) on prod;
+        // letting the column default fill it avoids the 22P02 mismatch
+        // that bit POST /runs.
+        const podRes = await client.query(
           `INSERT INTO pod_events
-             (id, parcel_id, run_id, rider_id, result, photo_url,
+             (parcel_id, run_id, rider_id, result, photo_url,
               signature_url, otp_used, recipient_name, recipient_phone, notes)
-           VALUES ($1,$2,$3,$4,'delivered',$5,$6,$7,$8,$9,$10)`,
-          [id, parcel_id, runId, req.user.id,
+           VALUES ($1,$2,$3,'delivered',$4,$5,$6,$7,$8,$9)
+           RETURNING id`,
+          [parcel_id, runId, req.user.id,
            photo_url || null, signature_url || null,
            otp_used || null, recipient_name || null,
            recipient_phone || null, notes || null]
         );
+        id = podRes.rows[0].id;
         await client.query(
           `UPDATE orders SET status = 'delivered', updated_at = NOW() WHERE id = $1`,
           [parcel_id]
@@ -578,7 +588,6 @@ router.post(
       }
       const auth = await authorisePodAttempt(req, res, runId, parcel_id);
       if (!auth) return;
-      const id = `POD-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
 
       // Transactional: insert the failure event + read the new fail count,
       // and on the second fail flip orders.status / hold_reason and the
@@ -587,14 +596,18 @@ router.post(
       const client = await req.db.connect();
       let fails;
       let held = false;
+      let id;
       try {
         await client.query('BEGIN');
-        await client.query(
+        // pod_events.id is uuid (default gen_random_uuid()) on prod.
+        const failRes = await client.query(
           `INSERT INTO pod_events
-             (id, parcel_id, run_id, rider_id, result, notes)
-           VALUES ($1,$2,$3,$4,'failed',$5)`,
-          [id, parcel_id, runId, req.user.id, reason || 'Recipient unavailable']
+             (parcel_id, run_id, rider_id, result, notes)
+           VALUES ($1,$2,$3,'failed',$4)
+           RETURNING id`,
+          [parcel_id, runId, req.user.id, reason || 'Recipient unavailable']
         );
+        id = failRes.rows[0].id;
         const failsRes = await client.query(
           `SELECT COUNT(*)::int AS fails FROM pod_events
             WHERE parcel_id = $1 AND result = 'failed'`,
