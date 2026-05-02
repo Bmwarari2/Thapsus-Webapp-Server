@@ -2,11 +2,13 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["YOUR_TEAM_ID.uk.thapsus.cargo"],
+        "appIDs": ["6G6CDB79G6.uk.thapsus.cargo"],
         "components": [
           { "/": "/pay/*" },
           { "/": "/track/*" },
-          { "/": "/orders/*" }
+          { "/": "/orders/*" },
+          { "/": "/orders" },
+          { "/": "/reset-password*" }
         ]
       }
     ]
