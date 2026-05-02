@@ -671,7 +671,9 @@ router.patch(
       const requestedStatus = req.body.status;
 
       sets.push(`updated_at = NOW()`);
-      params.push(id);
+      // Defer pushing `id` (the WHERE param) until after the auto-start
+      // branch below may inject another column — keeping the placeholder
+      // index for `id` always at the end of `params`.
 
       const client = await req.db.connect();
       try {
@@ -689,17 +691,38 @@ router.patch(
         }
         const previousStatus = cur.rows[0].status;
 
-        if (typeof requestedStatus !== 'undefined') {
+        // Auto-start: assigning a rider to a still-planned run is the
+        // implicit signal that it's leaving the yard. Without this, the
+        // operator had to remember to tap "Start run" in DispatchView
+        // separately — and if they forgot, the rider would tap Capture
+        // POD only to hit `otp_not_issued` because activateRunDispatch
+        // never fired.  We only auto-flip when the caller didn't supply
+        // an explicit `status` (so an operator who deliberately PATCHes
+        // `status: 'planned'` to stage a run still gets that behaviour).
+        let effectiveStatus = requestedStatus;
+        const isAutoStart =
+          previousStatus === 'planned' &&
+          typeof requestedStatus === 'undefined' &&
+          typeof req.body.rider_id === 'string' &&
+          req.body.rider_id.length > 0;
+        if (isAutoStart) {
+          params.push('in_progress');
+          sets.push(`status = $${params.length}`);
+          effectiveStatus = 'in_progress';
+        }
+
+        if (typeof effectiveStatus !== 'undefined') {
           const allowedNext = TRANSITIONS[previousStatus];
-          if (!allowedNext || !allowedNext.has(requestedStatus)) {
+          if (!allowedNext || !allowedNext.has(effectiveStatus)) {
             await client.query('ROLLBACK');
             return res.status(409).json({
               success: false,
-              message: `Cannot transition run from '${previousStatus}' to '${requestedStatus}'`,
+              message: `Cannot transition run from '${previousStatus}' to '${effectiveStatus}'`,
             });
           }
         }
 
+        params.push(id);
         await client.query(
           `UPDATE last_mile_runs SET ${sets.join(', ')} WHERE id = $${params.length}`,
           params
@@ -710,7 +733,7 @@ router.patch(
         // double-issue OTPs on a re-PATCH.
         const isFirstStart =
           previousStatus === 'planned' &&
-          requestedStatus === 'in_progress';
+          effectiveStatus === 'in_progress';
         if (isFirstStart) {
           const { rows } = await client.query(
             `SELECT rider_id FROM last_mile_runs WHERE id = $1`,
