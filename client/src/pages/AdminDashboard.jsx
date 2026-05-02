@@ -128,7 +128,14 @@ export const AdminDashboard = () => {
       setLoading(true)
       const results = await Promise.allSettled([
         adminApi.getDashboardStats(),
-        adminApi.listUsers(),
+        // listUsers() defaults the server to limit=10 (routes/admin.js:58),
+        // which truncated the dashboard's user table — accounts past the
+        // first page (e.g. wanderibrian@gmail.com at rank 11 of 15) were
+        // missing while the iOS admin tab, which passes limit=20, showed
+        // them. Match parity at 100 — the dashboard renders a single
+        // summary table and isn't paginated, so a higher cap covers the
+        // whole user base for any realistic operator workload.
+        adminApi.listUsers({ limit: 100 }),
         adminApi.listOrders(),
         adminApi.getExchangeRates(),
         adminApi.getPendingPayments(),
