@@ -35,12 +35,34 @@ router.get('/mine', authMiddleware, requireRole('clearing_agent'), async (req, r
   }
 });
 
+/**
+ * docPathBelongsToCaller — agents may only submit invoices that point at a
+ * file inside their own per-user namespace in the bucket (the upload-url
+ * endpoint above mints `${req.user.id}/...` paths exclusively).  Without
+ * this check an agent could submit an invoice whose doc_url points at
+ * another agent's PDF and quietly impersonate them on the admin queue.
+ *
+ * Accepts either a bucket-relative path or a full Supabase storage URL;
+ * extractAgentInvoicePath strips the host/bucket prefix in both cases.
+ * Returns true when the path is empty (no document attached — allowed),
+ * or when it starts with `${userId}/`.  Audit M6.
+ */
+function docPathBelongsToCaller(docUrl, userId) {
+  if (!docUrl) return true; // empty doc_url is allowed
+  const path = extractAgentInvoicePath(docUrl);
+  if (!path) return false;  // unparseable / wrong bucket
+  return path.startsWith(`${userId}/`);
+}
+
 /** POST /api/agent-invoices — agent submits a new invoice. */
 router.post('/', authMiddleware, requireRole('clearing_agent'), async (req, res) => {
   try {
     const { consolidation_id, invoice_no, amount_kes, doc_url, notes } = req.body;
     if (!amount_kes || amount_kes <= 0) {
       return res.status(400).json({ success: false, message: 'amount_kes is required' });
+    }
+    if (!docPathBelongsToCaller(doc_url, req.user.id)) {
+      return res.status(403).json({ success: false, message: 'doc_url is not owned by the caller' });
     }
     const id = uuidv4();
     await req.db.query(
@@ -176,10 +198,30 @@ router.get('/:id/document-url', authMiddleware, async (req, res) => {
 router.patch('/:id', authMiddleware, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, notes } = req.body;
+    const { status, notes, doc_url } = req.body;
     if (!['submitted','approved','paid','rejected'].includes(status)) {
       return res.status(400).json({ success: false, message: 'invalid status' });
     }
+
+    // If the caller is updating doc_url (currently the admin route only
+    // accepts status/notes, but guard defensively for future schema
+    // expansion), verify the path lives in the invoice's owning agent's
+    // bucket namespace.  An admin shouldn't be able to swap in a path
+    // outside the agent's namespace — that would let a malicious admin
+    // attribute someone else's PDF to this agent's invoice.  Audit M6.
+    if (typeof doc_url !== 'undefined' && doc_url !== null) {
+      const { rows: invRows } = await req.db.query(
+        `SELECT agent_id FROM agent_invoices WHERE id = $1`,
+        [id]
+      );
+      if (invRows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Invoice not found' });
+      }
+      if (!docPathBelongsToCaller(doc_url, invRows[0].agent_id)) {
+        return res.status(403).json({ success: false, message: 'doc_url is not owned by the invoice agent' });
+      }
+    }
+
     const paidClause = status === 'paid' ? `, paid_at = NOW()` : '';
     await req.db.query(
       `UPDATE agent_invoices SET status = $1, notes = COALESCE($2, notes)${paidClause}
