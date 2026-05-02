@@ -435,6 +435,29 @@ export const npsApi = {
   summary:   () => api.get('/nps/summary'),
 }
 
+/**
+ * Customer-consolidations — per-user grouping of parcels with one shared
+ * invoice. Admin-only writes; the customer-side read uses Supabase
+ * realtime via the iOS client.  See routes/customerConsolidations.js
+ * for endpoint behaviour.
+ */
+export const customerConsolidationsApi = {
+  /** GET /api/customer-consolidations  — filters: { user_id, status, shipping_consolidation_id }. */
+  list:      (params = {}) => api.get('/customer-consolidations', { params }),
+  /** POST /api/customer-consolidations  — { user_id, parcel_ids[], notes? }. */
+  create:    (data)        => api.post('/customer-consolidations', data),
+  /** PATCH /api/customer-consolidations/:id/invoice  — { amount, currency? }. */
+  setInvoice:(id, amount, currency) =>
+    api.patch(`/customer-consolidations/${id}/invoice`, { amount, currency }),
+  /** POST /api/customer-consolidations/:id/mark-paid  — admin marks invoice settled. */
+  markPaid:  (id)          => api.post(`/customer-consolidations/${id}/mark-paid`),
+  /** POST /api/customer-consolidations/attach-to-shipping/:shippingId  — { customer_consolidation_ids[] }. */
+  attachToShipping: (shippingId, customerConsolidationIds) =>
+    api.post(`/customer-consolidations/attach-to-shipping/${shippingId}`, {
+      customer_consolidation_ids: customerConsolidationIds,
+    }),
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Default export (raw axios instance) – handy for one-off calls
 // ─────────────────────────────────────────────────────────────────────────────
