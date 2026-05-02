@@ -11,6 +11,7 @@
 import express from 'express';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
 import { checkItem as checkProhibited } from '../utils/prohibited.js';
+import { notifyParcelStatus } from '../utils/parcelStatusNotify.js';
 
 const router = express.Router();
 const ALLOWED = requireRole('operator');
@@ -131,6 +132,13 @@ router.post('/parcels/:id/receive', authMiddleware, ALLOWED, async (req, res) =>
               received_at = NOW()
         WHERE order_id = $3`,
       [barcode || null, photo_url || null, id]
+    );
+
+    // Best-effort customer notification + SSE push. Fire-and-forget: the
+    // intake operator's success response must not wait on Gmail, and a
+    // mail-server outage must not roll back the warehouse-receive flip.
+    notifyParcelStatus(req.db, id, 'received_at_warehouse').catch((err) =>
+      console.warn('notifyParcelStatus(received_at_warehouse) failed:', err.message)
     );
 
     res.json({

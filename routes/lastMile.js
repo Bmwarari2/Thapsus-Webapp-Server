@@ -15,6 +15,7 @@ import {
   createSignedDownloadUrl,
   getSupabaseAdmin,
 } from '../utils/supabaseAdmin.js';
+import { notifyParcelStatus } from '../utils/parcelStatusNotify.js';
 
 const router = express.Router();
 
@@ -165,8 +166,24 @@ async function activateRunDispatch(client, runId) {
       WHERE order_id IN (${placeholders})`,
     parcelIds
   );
+  // Capture each OTP so the dispatch fan-out can email it directly to the
+  // customer.  Until this audit pass, the OTP only landed in the in-app
+  // `notifications` table — a customer who wasn't actively in the iOS
+  // inbox had nothing to give the rider, and POD posts 400'd with
+  // "Invalid or expired OTP".
+  const issued = [];
   for (const pid of parcelIds) {
-    await issuePodOtp(client, pid);
+    const otp = await issuePodOtp(client, pid);
+    if (otp) issued.push({ parcelId: pid, otp });
+  }
+  // Fan out *after* the lifecycle UPDATEs and OTP inserts, but before the
+  // caller commits — passing `client` (the in-flight transaction) so the
+  // notification's INSERT is part of the same atomic dispatch.  Email +
+  // SSE are best-effort and explicitly fire-and-forget; we don't await
+  // them so a Gmail timeout cannot stall the dispatch.
+  for (const { parcelId, otp } of issued) {
+    notifyParcelStatus(client, parcelId, 'out_for_delivery', { otp, skipInApp: true })
+      .catch((err) => console.warn('notifyParcelStatus(out_for_delivery) failed:', err.message));
   }
 }
 
@@ -951,6 +968,12 @@ router.post(
       } finally {
         client.release();
       }
+      // Customer notification + receipt + NPS invite. Fire-and-forget;
+      // the rider's POD has already committed and any email/SSE failure
+      // must not surface as a 500 to the rider.
+      notifyParcelStatus(req.db, parcel_id, 'delivered').catch((err) =>
+        console.warn('notifyParcelStatus(delivered) failed:', err.message)
+      );
       res.status(201).json({ success: true, pod_id: id, run: runState });
     } catch (err) {
       console.error('POST /last-mile/rider/runs/:runId/pod error:', err);
@@ -1054,6 +1077,16 @@ router.post(
       } finally {
         client.release();
       }
+      // Customer-facing notification.  Two distinct paths:
+      //  • held = true: the parcel just hit the two-fails-then-hold rule
+      //    and is now sitting at the Nairobi hub.  We send the
+      //    delivery-attempted email but tag the in-app message with the
+      //    held context.
+      //  • fails === 1: first failed attempt, parcel still on the run.
+      //    Customer gets the standard "we tried, we'll come back" copy.
+      notifyParcelStatus(req.db, parcel_id, 'delivery_attempted', { failReason: reason })
+        .catch((err) => console.warn('notifyParcelStatus(delivery_attempted) failed:', err.message));
+
       res.status(201).json({ success: true, pod_id: id, fails, held });
     } catch (err) {
       console.error('POST /last-mile/rider/runs/:runId/fail error:', err);
