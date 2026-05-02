@@ -35,12 +35,34 @@ router.get('/mine', authMiddleware, requireRole('clearing_agent'), async (req, r
   }
 });
 
+/**
+ * docPathBelongsToCaller — agents may only submit invoices that point at a
+ * file inside their own per-user namespace in the bucket (the upload-url
+ * endpoint above mints `${req.user.id}/...` paths exclusively).  Without
+ * this check an agent could submit an invoice whose doc_url points at
+ * another agent's PDF and quietly impersonate them on the admin queue.
+ *
+ * Accepts either a bucket-relative path or a full Supabase storage URL;
+ * extractAgentInvoicePath strips the host/bucket prefix in both cases.
+ * Returns true when the path is empty (no document attached — allowed),
+ * or when it starts with `${userId}/`.  Audit M6.
+ */
+function docPathBelongsToCaller(docUrl, userId) {
+  if (!docUrl) return true; // empty doc_url is allowed
+  const path = extractAgentInvoicePath(docUrl);
+  if (!path) return false;  // unparseable / wrong bucket
+  return path.startsWith(`${userId}/`);
+}
+
 /** POST /api/agent-invoices — agent submits a new invoice. */
 router.post('/', authMiddleware, requireRole('clearing_agent'), async (req, res) => {
   try {
     const { consolidation_id, invoice_no, amount_kes, doc_url, notes } = req.body;
     if (!amount_kes || amount_kes <= 0) {
       return res.status(400).json({ success: false, message: 'amount_kes is required' });
+    }
+    if (!docPathBelongsToCaller(doc_url, req.user.id)) {
+      return res.status(403).json({ success: false, message: 'doc_url is not owned by the caller' });
     }
     const id = uuidv4();
     await req.db.query(
@@ -123,6 +145,58 @@ router.post('/upload-url', authMiddleware, requireRole('clearing_agent'), async 
 });
 
 /**
+ * DELETE /api/agent-invoices/upload-url
+ *
+ * Orphan cleanup: when the iOS client mints a signed-upload URL, PUTs the
+ * bytes, but then aborts the invoice submit (user cancels, app crashes,
+ * network drops between PUT-success and POST /agent-invoices), the
+ * uploaded PDF sits in storage with no DB row pointing at it.  This
+ * endpoint lets the client back out of the upload by deleting the bucket
+ * object it owns.
+ *
+ * Body: { path }
+ *
+ * The path must live inside the caller's per-user namespace
+ * (`${req.user.id}/...`) — same constraint the upload-url enforces.
+ * Idempotent: a "not found" from Supabase is returned as success so a
+ * client that retries can finish without papering over real failures.
+ */
+router.delete('/upload-url', authMiddleware, requireRole('clearing_agent'), async (req, res) => {
+  try {
+    if (!getSupabaseAdmin()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Storage admin not configured. Set SUPABASE_SERVICE_KEY on the server.'
+      });
+    }
+    const path = String(req.body?.path || '').trim();
+    if (!path) {
+      return res.status(400).json({ success: false, message: 'path is required' });
+    }
+    if (!path.startsWith(`${req.user.id}/`)) {
+      return res.status(403).json({ success: false, message: 'path is not owned by the caller' });
+    }
+    const { error } = await getSupabaseAdmin()
+      .storage.from(AGENT_INVOICE_BUCKET).remove([path]);
+    // Treat 'not found' as success — orphan cleanup is idempotent and a
+    // client that retries the cleanup after an earlier 200 must not 404.
+    // Supabase's remove() doesn't reliably distinguish a missing object
+    // from a real failure, but the only client that should ever call this
+    // owns the path it submitted, so we accept the call as long as no
+    // hard error came back.
+    if (error && !/not\s*found/i.test(String(error.message || ''))) {
+      console.error('DELETE /agent-invoices/upload-url storage error:', error);
+      return res.status(500).json({ success: false, message: 'Failed to delete upload' });
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('DELETE /agent-invoices/upload-url error:', err);
+    logRouteError(req, res, err, 'Delete orphan invoice upload');
+    return res.status(500).json({ success: false, message: 'Failed to delete upload' });
+  }
+});
+
+/**
  * GET /api/agent-invoices/:id/document-url
  *
  * Returns a 5-minute signed download URL for the invoice's stored PDF.
@@ -176,10 +250,30 @@ router.get('/:id/document-url', authMiddleware, async (req, res) => {
 router.patch('/:id', authMiddleware, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, notes } = req.body;
+    const { status, notes, doc_url } = req.body;
     if (!['submitted','approved','paid','rejected'].includes(status)) {
       return res.status(400).json({ success: false, message: 'invalid status' });
     }
+
+    // If the caller is updating doc_url (currently the admin route only
+    // accepts status/notes, but guard defensively for future schema
+    // expansion), verify the path lives in the invoice's owning agent's
+    // bucket namespace.  An admin shouldn't be able to swap in a path
+    // outside the agent's namespace — that would let a malicious admin
+    // attribute someone else's PDF to this agent's invoice.  Audit M6.
+    if (typeof doc_url !== 'undefined' && doc_url !== null) {
+      const { rows: invRows } = await req.db.query(
+        `SELECT agent_id FROM agent_invoices WHERE id = $1`,
+        [id]
+      );
+      if (invRows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Invoice not found' });
+      }
+      if (!docPathBelongsToCaller(doc_url, invRows[0].agent_id)) {
+        return res.status(403).json({ success: false, message: 'doc_url is not owned by the invoice agent' });
+      }
+    }
+
     const paidClause = status === 'paid' ? `, paid_at = NOW()` : '';
     await req.db.query(
       `UPDATE agent_invoices SET status = $1, notes = COALESCE($2, notes)${paidClause}

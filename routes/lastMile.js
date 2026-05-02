@@ -10,12 +10,34 @@ import express from 'express';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
-import { createSignedUploadUrl, getSupabaseAdmin } from '../utils/supabaseAdmin.js';
+import {
+  createSignedUploadUrl,
+  createSignedDownloadUrl,
+  getSupabaseAdmin,
+} from '../utils/supabaseAdmin.js';
 
 const router = express.Router();
 
 const POD_BUCKET = 'pods';
 const ZONES = ['westlands','kilimani','karen','kasarani','eastlands','cbd','south-b','industrial'];
+
+/**
+ * extractPodPath — strip the bucket prefix off a stored POD asset URL,
+ * returning the in-bucket path the Supabase signing API expects.  Mirrors
+ * extractAgentInvoicePath in utils/supabaseAdmin.js.  Handles:
+ *   • full URLs:           https://{ref}.supabase.co/storage/v1/object/.../pods/<path>
+ *   • already-relative:    pod/<parcelId>/<ts>.jpg
+ * Returns null if the URL is for a different bucket / not parseable, or if
+ * the input is empty.
+ */
+function extractPodPath(url) {
+  if (!url) return null;
+  if (!url.includes('://')) return url;
+  const marker = '/pods/';
+  const idx = url.indexOf(marker);
+  if (idx === -1) return null;
+  return url.slice(idx + marker.length);
+}
 
 const POD_OTP_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
@@ -821,6 +843,19 @@ router.post(
       if (!parcel_id) {
         return res.status(400).json({ success: false, message: 'parcel_id is required' });
       }
+
+      // Photo is mandatory.  Either the legacy `photo_url` (full URL from
+      // older clients) or the new `photo_path` (bucket-relative, post
+      // migration 023) satisfies the check; rejecting both-blank surfaces
+      // the M4 audit issue rather than letting a POD row land without
+      // proof of delivery.
+      const hasPhoto =
+        (typeof photo_url === 'string' && photo_url.trim().length > 0) ||
+        (typeof req.body?.photo_path === 'string' && req.body.photo_path.trim().length > 0);
+      if (!hasPhoto) {
+        return res.status(422).json({ success: false, error: 'photo_required' });
+      }
+
       const auth = await authorisePodAttempt(req, res, runId, parcel_id);
       if (!auth) return;
 
@@ -843,14 +878,29 @@ router.post(
         // pod_events.id is a uuid (default gen_random_uuid()) on prod;
         // letting the column default fill it avoids the 22P02 mismatch
         // that bit POST /runs.
+        //
+        // Persist both legacy *_url and new *_path columns (migration 023).
+        // Older clients may still send full URLs as photo_url/signature_url
+        // — extract the bucket-relative path with extractPodPath so the
+        // path columns are populated regardless.  Newer clients (post-I1)
+        // will send paths directly via photo_path/signature_path; we
+        // accept either shape during the rollout window.
+        const photoPath = req.body?.photo_path
+          ? String(req.body.photo_path)
+          : extractPodPath(photo_url);
+        const signaturePath = req.body?.signature_path
+          ? String(req.body.signature_path)
+          : extractPodPath(signature_url);
         const podRes = await client.query(
           `INSERT INTO pod_events
-             (parcel_id, run_id, rider_id, result, photo_url,
-              signature_url, otp_used, recipient_name, recipient_phone, notes)
-           VALUES ($1,$2,$3,'delivered',$4,$5,$6,$7,$8,$9)
+             (parcel_id, run_id, rider_id, result, photo_url, photo_path,
+              signature_url, signature_path, otp_used, recipient_name,
+              recipient_phone, notes)
+           VALUES ($1,$2,$3,'delivered',$4,$5,$6,$7,$8,$9,$10,$11)
            RETURNING id`,
           [parcel_id, runId, req.user.id,
-           photo_url || null, signature_url || null,
+           photo_url || null, photoPath || null,
+           signature_url || null, signaturePath || null,
            otp_used || null, recipient_name || null,
            recipient_phone || null, notes || null]
         );
@@ -1069,7 +1119,11 @@ router.post(
  *   The path is `pod/<parcel_id>/<ts>.<ext>` (jpg for photo, png for
  *   signature) so existing storage layout / RLS path patterns still hold.
  *
- * Returns: { success, bucket, path, signed_url, token, public_url }
+ * Returns: { success, bucket, path, signed_url, token }
+ *
+ * Note: the bucket has been private since migration 015, so a public URL
+ * would 400 on read.  Reads go through POST /last-mile/pod/document-url
+ * (short-lived signed URL minted on demand).
  */
 router.post(
   '/pod/upload-url',
@@ -1091,26 +1145,143 @@ router.post(
       if (kind !== 'photo' && kind !== 'signature') {
         return res.status(400).json({ success: false, message: "kind must be 'photo' or 'signature'" });
       }
+
+      // Authorisation: the rider may only mint upload URLs for parcels
+      // that live on one of *their* active runs.  Without this any rider
+      // could mint a path against any parcel id and overwrite another
+      // rider's POD photo — and we'd leak existence by 200ing for every
+      // valid parcel.  We deliberately collapse "not on a run at all"
+      // and "on someone else's run" into one 403.  Audit M5.
+      const { rows: scopeRows } = await req.db.query(
+        `SELECT 1
+           FROM last_mile_run_parcels lmrp
+           JOIN last_mile_runs r ON r.id = lmrp.run_id
+          WHERE lmrp.parcel_id = $1
+            AND r.rider_id = $2
+            AND r.status IN ('planned','in_progress')
+          LIMIT 1`,
+        [parcelId, req.user.id]
+      );
+      if (scopeRows.length === 0) {
+        return res.status(403).json({ success: false, error: 'parcel_not_assigned_to_caller' });
+      }
+
       const ts = Date.now();
       const ext = kind === 'signature' ? 'png' : 'jpg';
       const subdir = kind === 'signature' ? 'signatures' : 'pod';
       const path = `${subdir}/${parcelId}/${ts}.${ext}`;
       const data = await createSignedUploadUrl(POD_BUCKET, path);
 
-      const sb = getSupabaseAdmin();
-      const { data: pub } = sb.storage.from(POD_BUCKET).getPublicUrl(path);
-
+      // Drop public_url — bucket is private (migration 015), the URL is
+      // meaningless to clients.  Reads go through /pod/document-url.
       return res.json({
         success: true,
         bucket: POD_BUCKET,
         path,
         signed_url: data.signedUrl,
         token: data.token,
-        public_url: pub?.publicUrl ?? null,
       });
     } catch (err) {
       console.error('POST /last-mile/pod/upload-url error:', err);
       return res.status(500).json({ success: false, message: 'Failed to mint upload URL' });
+    }
+  }
+);
+
+/**
+ * POST /api/last-mile/pod/document-url
+ *
+ * Mints a 5-minute signed download URL for a previously uploaded POD asset
+ * (photo or signature).  The pods bucket is private (migration 015), so
+ * this endpoint is the only sanctioned read path.
+ *
+ * Body: { parcel_id, kind: 'photo' | 'signature' }
+ *
+ * Authorisation: caller must be either
+ *   • the rider on the run that contains this parcel, OR
+ *   • an operator / admin (mirrors agent-invoices /:id/document-url).
+ *
+ * Returns 404 when no pod_events row exists for the parcel, 404 when the
+ * requested kind has no asset stored, and 403 when the caller is not the
+ * assigned rider and not staff.  We deliberately don't disambiguate "no
+ * such parcel" from "not your run" so a rider can't probe other runs.
+ */
+router.post(
+  '/pod/document-url',
+  authMiddleware,
+  async (req, res) => {
+    try {
+      if (!getSupabaseAdmin()) {
+        return res.status(503).json({
+          success: false,
+          message: 'Storage admin not configured. Set SUPABASE_SERVICE_KEY on the server.',
+        });
+      }
+      const parcelId = String(req.body?.parcel_id || '').trim();
+      const kind = String(req.body?.kind || '');
+      if (!parcelId) {
+        return res.status(400).json({ success: false, message: 'parcel_id is required' });
+      }
+      if (kind !== 'photo' && kind !== 'signature') {
+        return res.status(400).json({ success: false, message: "kind must be 'photo' or 'signature'" });
+      }
+
+      // Look up the latest POD row for this parcel.  Multiple POD rows can
+      // exist (e.g. two failure attempts then a delivered) — the most recent
+      // delivered/failed-with-photo row is what we want; ordering by
+      // created_at desc yields that.
+      const { rows } = await req.db.query(
+        `SELECT id, run_id, photo_path, signature_path, photo_url, signature_url
+           FROM pod_events
+          WHERE parcel_id = $1
+          ORDER BY created_at DESC
+          LIMIT 1`,
+        [parcelId]
+      );
+      if (rows.length === 0) {
+        return res.status(404).json({ success: false, message: 'No POD record for this parcel' });
+      }
+      const pod = rows[0];
+
+      // Authorisation: staff (admin/operator) always allowed.  Riders
+      // allowed only when they're the assigned rider on the run that holds
+      // this parcel.
+      const role = req.user.role;
+      const isStaff = role === 'admin' || role === 'operator';
+      if (!isStaff) {
+        if (role !== 'rider') {
+          return res.status(403).json({ success: false, message: 'Not authorised to view this POD' });
+        }
+        const { rows: runRows } = await req.db.query(
+          `SELECT rider_id FROM last_mile_runs WHERE id = $1`,
+          [pod.run_id]
+        );
+        if (runRows.length === 0 || runRows[0].rider_id !== req.user.id) {
+          return res.status(403).json({ success: false, message: 'Not authorised to view this POD' });
+        }
+      }
+
+      // Prefer the migration-023 path columns; fall back to extracting a
+      // path from the legacy URL columns during the rollout window.
+      const pathFromColumn = kind === 'photo' ? pod.photo_path : pod.signature_path;
+      const legacyUrl       = kind === 'photo' ? pod.photo_url  : pod.signature_url;
+      const path = pathFromColumn || extractPodPath(legacyUrl);
+      if (!path) {
+        return res.status(404).json({
+          success: false,
+          message: `No ${kind} attached to this POD`,
+        });
+      }
+
+      const data = await createSignedDownloadUrl(POD_BUCKET, path, 300);
+      return res.json({
+        success: true,
+        signed_url: data.signedUrl,
+        expires_at: new Date(Date.now() + 300 * 1000).toISOString(),
+      });
+    } catch (err) {
+      console.error('POST /last-mile/pod/document-url error:', err);
+      return res.status(500).json({ success: false, message: 'Failed to mint document URL' });
     }
   }
 );
