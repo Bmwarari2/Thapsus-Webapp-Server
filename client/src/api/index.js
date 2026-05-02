@@ -449,6 +449,8 @@ export const customerConsolidationsApi = {
   /** PATCH /api/customer-consolidations/:id/invoice  — { amount, currency? }. */
   setInvoice:(id, amount, currency) =>
     api.patch(`/customer-consolidations/${id}/invoice`, { amount, currency }),
+  /** GET /api/customer-consolidations/:id/suggested-invoice — admin invoice prefill. */
+  suggestedInvoice: (id) => api.get(`/customer-consolidations/${id}/suggested-invoice`),
   /** POST /api/customer-consolidations/:id/mark-paid  — admin marks invoice settled. */
   markPaid:  (id)          => api.post(`/customer-consolidations/${id}/mark-paid`),
   /** POST /api/customer-consolidations/attach-to-shipping/:shippingId  — { customer_consolidation_ids[] }. */

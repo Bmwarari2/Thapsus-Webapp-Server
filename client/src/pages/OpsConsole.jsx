@@ -21,7 +21,7 @@ export const OpsConsole = () => {
   const [status,   setStatus]   = useState('')
   const [loading,  setLoading]  = useState(true)
   const [active,   setActive]   = useState(null) // parcel being worked on
-  const [receive,  setReceive]  = useState({ weight_kg: '', length: '', width: '', height: '', barcode: '' })
+  const [receive,  setReceive]  = useState({ weight_kg: '', length: '', width: '', height: '', barcode: '', customs_duty: '' })
 
   const fetchToday   = () => opsApi.today().then(r => setToday(r.data?.today || {})).catch(() => {})
   const fetchParcels = () => opsApi.parcels({ status: status || undefined, q: filter || undefined })
@@ -44,10 +44,13 @@ export const OpsConsole = () => {
         weight_kg: receive.weight_kg ? +receive.weight_kg : null,
         dimensions: dims,
         barcode: receive.barcode || null,
+        // Customs duty (KES) — operator-stamped here so the Phase 2
+        // invoice prefill can sum it across the customer's bundle.
+        customs_duty: receive.customs_duty ? +receive.customs_duty : null,
       })
       toast.success(`Received — chargeable ${res.data?.chargeable_kg || 0} kg`)
       setActive(null)
-      setReceive({ weight_kg: '', length: '', width: '', height: '', barcode: '' })
+      setReceive({ weight_kg: '', length: '', width: '', height: '', barcode: '', customs_duty: '' })
       fetchParcels(); fetchToday()
     } catch {
       toast.error('Failed to receive parcel')
@@ -210,10 +213,13 @@ export const OpsConsole = () => {
                 onChange={(v) => setReceive({ ...receive, width: v })} />
               <Input label="Height (cm)"        type="number" value={receive.height}
                 onChange={(v) => setReceive({ ...receive, height: v })} />
+              <Input label="Customs duty (KES)" type="number" step="1" value={receive.customs_duty}
+                onChange={(v) => setReceive({ ...receive, customs_duty: v })} />
             </div>
 
             <div className="mt-3 text-xs text-slate-500">
               Volumetric kg = (L × W × H) / 6 000.  Chargeable = max(actual, volumetric).
+              Duty feeds the Phase 2 invoice prefill on the admin console.
             </div>
 
             <div className="flex gap-3 justify-end mt-6">

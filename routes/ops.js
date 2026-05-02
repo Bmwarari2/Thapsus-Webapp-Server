@@ -87,10 +87,19 @@ router.get('/parcels', authMiddleware, ALLOWED, async (req, res) => {
 router.post('/parcels/:id/receive', authMiddleware, ALLOWED, async (req, res) => {
   try {
     const { id } = req.params;
-    const { weight_kg, dimensions, photo_url, barcode } = req.body;
+    const { weight_kg, dimensions, photo_url, barcode, customs_duty } = req.body;
 
     const volumetric = calcVolumetric(dimensions);
     const chargeable = Math.max(parseFloat(weight_kg) || 0, volumetric);
+    // Customs duty is operator-stamped at receive (the customer no longer
+    // has weight + dims at order time, so the cost-side fields all
+    // settle here). Treat any non-numeric input as "leave unchanged" so
+    // a partial UI submit (e.g. just weight + dims) doesn't blank a duty
+    // an admin already set.
+    const dutyParsed = customs_duty === undefined || customs_duty === null || customs_duty === ''
+      ? null
+      : Number.parseFloat(customs_duty);
+    const dutyValue = Number.isFinite(dutyParsed) ? dutyParsed : null;
 
     const orderUpdate = await req.db.query(
       `UPDATE orders
@@ -99,13 +108,15 @@ router.post('/parcels/:id/receive', authMiddleware, ALLOWED, async (req, res) =>
               dimensions_json = COALESCE($2, dimensions_json),
               volumetric_kg = $3,
               chargeable_kg = $4,
-              photographed_at = CASE WHEN $5::text IS NOT NULL THEN NOW() ELSE photographed_at END,
+              customs_duty = COALESCE($5, customs_duty),
+              photographed_at = CASE WHEN $6::text IS NOT NULL THEN NOW() ELSE photographed_at END,
               updated_at = NOW()
-        WHERE id = $6`,
+        WHERE id = $7`,
       [weight_kg || null,
        dimensions ? JSON.stringify(dimensions) : null,
        volumetric,
        chargeable,
+       dutyValue,
        photo_url || null,
        id]
     );
@@ -146,6 +157,7 @@ router.post('/parcels/:id/receive', authMiddleware, ALLOWED, async (req, res) =>
       weight_kg: parseFloat(weight_kg) || 0,
       volumetric_kg: volumetric,
       chargeable_kg: chargeable,
+      customs_duty: dutyValue,
     });
   } catch (err) {
     console.error('POST /ops/parcels/:id/receive error:', err);

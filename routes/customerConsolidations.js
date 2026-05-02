@@ -23,6 +23,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
 import { sendInvoiceReadyEmail, sendInvoicePaidEmail } from '../utils/email.js';
 import { pushToUser, pushToAdmins } from './events.js';
+import { calculateShippingCost } from '../utils/pricing.js';
 
 const router = express.Router();
 const ALLOWED_ADMIN = requireRole('admin');
@@ -238,6 +239,116 @@ router.post('/', authMiddleware, ALLOWED_ADMIN, async (req, res) => {
   } catch (err) {
     console.error('POST /customer-consolidations error:', err);
     res.status(500).json({ success: false, message: 'Failed to create customer consolidation' });
+  }
+});
+
+/**
+ * GET /api/customer-consolidations/:id/suggested-invoice  (admin)
+ *
+ * Re-computes the per-parcel shipping cost (using calculateShippingCost
+ * with the operator-stamped weight + dims at intake), converts to KES at
+ * the latest GBP_KES rate, and adds the operator-set customs_duty for
+ * each child parcel. Returns the per-parcel breakdown plus a final KES
+ * total so the admin's "Set invoice" sheet can prefill instead of asking
+ * the operator to do mental arithmetic.
+ *
+ * Returned numbers are *suggestions*. The admin still confirms the final
+ * amount via PATCH /:id/invoice — they may bump it for handling notes,
+ * round, etc. We don't auto-issue.
+ */
+router.get('/:id/suggested-invoice', authMiddleware, ALLOWED_ADMIN, async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Pull every parcel attached to this customer-consolidation along
+    // with the cost-relevant fields. orders carries the operator-set
+    // customs_duty + weight_kg + dimensions_json + market /
+    // shipping_speed / declared_value / hs_tier inputs we need to
+    // recompute the shipping leg.
+    const { rows: parcels } = await req.db.query(
+      `SELECT o.id, o.tracking_number, o.market, o.shipping_speed,
+              o.weight_kg, o.dimensions_json,
+              o.declared_value, o.insurance,
+              o.electronics_item, o.hs_tier,
+              o.customs_duty,
+              o.chargeable_kg
+         FROM orders o
+        WHERE EXISTS (
+                SELECT 1 FROM packages p
+                 WHERE p.order_id = o.id
+                   AND p.customer_consolidation_id = $1::uuid
+              )
+        ORDER BY o.created_at ASC`,
+      [id]
+    );
+
+    if (parcels.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Customer consolidation has no parcels attached',
+      });
+    }
+
+    // Live GBP→KES rate. buyForMe.js uses the same lookup; fall back to
+    // the exchange.js DEFAULT_RATES.GBP_KES if the row is missing so
+    // the prefill still surfaces a sensible number on a fresh DB.
+    const rateRow = await req.db.query(
+      `SELECT rate FROM exchange_rates WHERE currency_pair = 'GBP_KES' LIMIT 1`
+    );
+    const gbpToKes = Number(rateRow.rows[0]?.rate) || 164.2;
+
+    // Per-parcel breakdown so the admin UI can show a transparent
+    // "where this number comes from" table next to the prefilled total.
+    let totalKes = 0;
+    const breakdown = parcels.map((p) => {
+      const dims = p.dimensions_json ? JSON.parse(p.dimensions_json) : null;
+      let shippingGbp = 0;
+      try {
+        const cost = calculateShippingCost({
+          weight_kg: p.weight_kg || 0,
+          dimensions: dims,
+          market: p.market,
+          shipping_speed: p.shipping_speed || 'economy',
+          insurance: p.insurance || false,
+          declared_value: p.declared_value || 0,
+          electronics_item: p.electronics_item || null,
+          hs_tier: p.hs_tier || null,
+        });
+        // calculateShippingCost.total includes a CIF-based customs
+        // *estimate*. We swap that for the operator's actual stamp
+        // (orders.customs_duty in KES) below, so subtract the estimate
+        // here to avoid double-counting. The other legs
+        // (shipping/handling/insurance) stay in GBP.
+        const customsEstimateGbp = cost.breakdown?.customs_estimate?.amount || 0;
+        shippingGbp = (cost.total || 0) - customsEstimateGbp;
+      } catch (err) {
+        console.warn(`suggested-invoice: pricing compute failed for ${p.id}: ${err.message}`);
+      }
+
+      const shippingKes = shippingGbp * gbpToKes;
+      const dutyKes = Number(p.customs_duty) || 0;
+      const lineTotalKes = shippingKes + dutyKes;
+      totalKes += lineTotalKes;
+
+      return {
+        parcel_id: p.id,
+        tracking_number: p.tracking_number,
+        chargeable_kg: Number(p.chargeable_kg) || 0,
+        shipping_kes: Math.round(shippingKes * 100) / 100,
+        customs_duty_kes: dutyKes,
+        line_total_kes: Math.round(lineTotalKes * 100) / 100,
+      };
+    });
+
+    res.json({
+      success: true,
+      currency: 'KES',
+      gbp_to_kes_rate: gbpToKes,
+      total: Math.round(totalKes * 100) / 100,
+      breakdown,
+    });
+  } catch (err) {
+    console.error('GET /customer-consolidations/:id/suggested-invoice error:', err);
+    res.status(500).json({ success: false, message: 'Failed to compute suggested invoice' });
   }
 });
 

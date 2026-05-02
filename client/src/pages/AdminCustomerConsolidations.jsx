@@ -41,6 +41,8 @@ export const AdminCustomerConsolidations = () => {
   const [createdId, setCreatedId] = useState(null)
   const [invoiceAmount, setInvoiceAmount] = useState('')
   const [invoicing, setInvoicing] = useState(false)
+  const [suggestion, setSuggestion] = useState(null)
+  const [suggestionLoading, setSuggestionLoading] = useState(false)
 
   const onSearch = async (e) => {
     e?.preventDefault()
@@ -105,6 +107,24 @@ export const AdminCustomerConsolidations = () => {
       if (!id) throw new Error('No id returned')
       toast.success('Customer consolidation created')
       setCreatedId(id)
+      // Auto-prefill the invoice amount from the server's suggested
+      // total (sum of per-parcel shipping + operator-set duty across
+      // every parcel). Admin can still override.
+      setSuggestionLoading(true)
+      try {
+        const sugRes = await customerConsolidationsApi.suggestedInvoice(id)
+        const total = Number(sugRes.data?.total)
+        if (Number.isFinite(total) && total > 0) {
+          setSuggestion(sugRes.data)
+          setInvoiceAmount(String(Math.round(total)))
+        }
+      } catch (sugErr) {
+        // Suggestion is best-effort — admin still sees a blank field
+        // they can fill manually if it doesn't load.
+        console.warn('suggested-invoice failed', sugErr)
+      } finally {
+        setSuggestionLoading(false)
+      }
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Failed to create consolidation')
     } finally {
@@ -140,6 +160,8 @@ export const AdminCustomerConsolidations = () => {
     setNotes('')
     setCreatedId(null)
     setInvoiceAmount('')
+    setSuggestion(null)
+    setSuggestionLoading(false)
   }
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -155,6 +177,36 @@ export const AdminCustomerConsolidations = () => {
           <p className="text-sm text-gray-600 mb-6 font-mono">{createdId}</p>
 
           <form onSubmit={onSetInvoice} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-4">
+            {suggestionLoading && (
+              <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500">
+                Computing suggested total…
+              </div>
+            )}
+            {suggestion && (
+              <div className="rounded-lg bg-orange-50 border border-orange-200 px-3 py-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-orange-700 uppercase tracking-wider">
+                      Suggested
+                    </p>
+                    <p className="text-lg font-bold text-orange-900">
+                      {suggestion.currency} {Number(suggestion.total).toLocaleString()}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setInvoiceAmount(String(Math.round(Number(suggestion.total))))}
+                    className="px-3 py-1.5 bg-orange-500 text-white rounded-md text-sm font-medium hover:bg-orange-600"
+                  >
+                    Use
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-orange-700/80">
+                  (chargeable kg × shipping rate) + customs duty across {suggestion.breakdown?.length || 0} parcel{(suggestion.breakdown?.length || 0) === 1 ? '' : 's'}.
+                  Confirm before issuing.
+                </p>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Invoice amount (KES)
