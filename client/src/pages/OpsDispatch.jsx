@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Truck, MapPin, Plus, RefreshCw, CheckCircle } from 'lucide-react'
+import { Truck, MapPin, Plus, Play, RefreshCw, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { lastMileApi } from '../api'
 import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '../components/GlassUI'
@@ -52,6 +52,19 @@ export const OpsDispatch = () => {
       setPicked([])
       refresh()
     } catch { toast.error('Failed to create run') }
+  }
+
+  const onStartRun = async (run) => {
+    if (!run.rider_id) { toast.error('Assign a rider before starting'); return }
+    if (!window.confirm(
+      `Start run for ${run.zone}? This flips ${run.total_stops || 0} parcels to ` +
+      `out_for_delivery and notifies recipients with a one-time delivery code.`
+    )) return
+    try {
+      await lastMileApi.updateRun(run.id, { status: 'in_progress' })
+      toast.success('Run started — recipients notified')
+      refresh()
+    } catch { toast.error('Failed to start run') }
   }
 
   return (
@@ -140,6 +153,15 @@ export const OpsDispatch = () => {
                   <p className="text-xs mt-2">
                     <span className="font-bold">{r.completed_stops}</span>/{r.total_stops} delivered
                   </p>
+                  {r.status === 'planned' && (
+                    <button
+                      onClick={() => onStartRun(r)}
+                      disabled={!r.rider_id}
+                      title={r.rider_id ? '' : 'Assign a rider first'}
+                      className="mt-3 w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-bold">
+                      <Play size={14}/> Start run
+                    </button>
+                  )}
                 </GlassCard>
               ))}
             </div>
