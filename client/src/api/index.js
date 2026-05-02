@@ -400,10 +400,16 @@ export const dsarApi = {
 
 /** Buy-for-me concierge */
 export const buyForMeApi = {
-  create:    (data)        => api.post('/buy-for-me', data),
-  mine:      ()            => api.get('/buy-for-me'),
-  queue:     ()            => api.get('/buy-for-me/queue'),
-  update:    (id, data)    => api.patch(`/buy-for-me/${id}`, data),
+  create:    (data)         => api.post('/buy-for-me', data),
+  mine:      ()             => api.get('/buy-for-me'),
+  queue:     ()             => api.get('/buy-for-me/queue'),
+  update:    (id, data)     => api.patch(`/buy-for-me/${id}`, data),
+  // Operator: submit a quote (also fires the customer's "quote ready" email).
+  quote:     (id, data)     => api.post(`/buy-for-me/${id}/quote`, data),
+  // Customer accept (debits wallet) / reject (with reason).
+  accept:    (id, reason)   => api.post(`/buy-for-me/${id}/accept`, { reason }),
+  reject:    (id, reason)   => api.post(`/buy-for-me/${id}/reject`, { reason }),
+  cancel:    (id)           => api.post(`/buy-for-me/${id}/cancel`),
 }
 
 /** Operator console */

@@ -910,6 +910,49 @@ async function sendNpsInvitationEmail(toEmail, toName, trackingNumber, surveyLin
 }
 
 /**
+ * Buy-for-me concierge: operator has set a quote on the request. Customer
+ * accepts or rejects from the Orders tab — deep-linked via the existing
+ * `/orders` Universal Link that iOS already handles (PR #54).
+ */
+async function sendBuyForMeQuoteEmail(toEmail, toName, orderId, itemName, estimateGbp, markupPct) {
+  const ordersUrl = `${process.env.APP_URL || 'https://www.thapsus.uk'}/orders`;
+  const gbp = Number(estimateGbp || 0).toFixed(2);
+  const total = (Number(estimateGbp || 0) * (1 + Number(markupPct || 0) / 100)).toFixed(2);
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Your quote is ready</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      We've reviewed your concierge request for <strong>${itemName}</strong> and prepared a quote.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 24px;">
+      <tr><td align="center" style="background:#1e3a5f;border-radius:12px;padding:24px;">
+        <p style="margin:0 0 6px;color:#94a3b8;font-size:13px;letter-spacing:1px;text-transform:uppercase;">Quoted total (incl. ${Number(markupPct || 0)}% service)</p>
+        <p style="margin:0;color:#ffffff;font-size:32px;font-weight:bold;">£ ${total}</p>
+        <p style="margin:6px 0 0;color:#94a3b8;font-size:12px;">Item cost: £${gbp}</p>
+      </td></tr>
+    </table>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:14px;line-height:1.6;">
+      Open the Orders tab to <strong>accept</strong> (we'll buy it for you) or <strong>reject</strong> the quote.
+      We hold quotes for 7 days.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
+      <tr><td style="background-color:#f97316;border-radius:8px;">
+        <a href="${ordersUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">Review quote</a>
+      </td></tr>
+    </table>`;
+
+  const subject = `Quote ready · ${itemName} · £${total}`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'bfm_quote', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'bfm_quote', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
+/**
  * Email config diagnostics — backs the admin /api/admin/email-config endpoint
  * so the app can tell whether Gmail OAuth credentials are present without
  * exposing the secrets themselves.
@@ -964,6 +1007,7 @@ export {
   sendNpsInvitationEmail,
   sendInvoiceReadyEmail,
   sendInvoicePaidEmail,
+  sendBuyForMeQuoteEmail,
   emailConfigStatus,
 };
 
@@ -985,5 +1029,6 @@ export default {
   sendNpsInvitationEmail,
   sendInvoiceReadyEmail,
   sendInvoicePaidEmail,
+  sendBuyForMeQuoteEmail,
   emailConfigStatus,
 };
