@@ -166,24 +166,73 @@ async function activateRunDispatch(client, runId) {
       WHERE order_id IN (${placeholders})`,
     parcelIds
   );
-  // Capture each OTP so the dispatch fan-out can email it directly to the
-  // customer.  Until this audit pass, the OTP only landed in the in-app
-  // `notifications` table — a customer who wasn't actively in the iOS
-  // inbox had nothing to give the rider, and POD posts 400'd with
-  // "Invalid or expired OTP".
-  const issued = [];
-  for (const pid of parcelIds) {
-    const otp = await issuePodOtp(client, pid);
-    if (otp) issued.push({ parcelId: pid, otp });
+  // Phase 3 — group parcels by user and issue a single OTP per
+  // user-group rather than per-parcel. The rider only takes one POD
+  // (one photo, one signature, one OTP) per recipient even if the
+  // run has multiple parcels for the same person, so the OTPs need
+  // to match. We mint one 4-digit code per distinct user_id in the
+  // run, hash it once, and upsert the same hash + code into pod_otps
+  // for every parcel that user owns. Customer-side, we send the OTP
+  // email + in-app row once per user instead of N times.
+  const { rows: ownerRows } = await client.query(
+    `SELECT id AS parcel_id, user_id
+       FROM orders
+      WHERE id IN (${placeholders})`,
+    parcelIds
+  );
+  // Group by user_id → [parcelId,…]
+  const parcelsByUser = new Map();
+  for (const r of ownerRows) {
+    if (!r.user_id) continue;
+    if (!parcelsByUser.has(r.user_id)) parcelsByUser.set(r.user_id, []);
+    parcelsByUser.get(r.user_id).push(r.parcel_id);
   }
-  // Fan out *after* the lifecycle UPDATEs and OTP inserts, but before the
-  // caller commits — passing `client` (the in-flight transaction) so the
-  // notification's INSERT is part of the same atomic dispatch.  Email +
-  // SSE are best-effort and explicitly fire-and-forget; we don't await
-  // them so a Gmail timeout cannot stall the dispatch.
-  for (const { parcelId, otp } of issued) {
-    notifyParcelStatus(client, parcelId, 'out_for_delivery', { otp, skipInApp: true })
-      .catch((err) => console.warn('notifyParcelStatus(out_for_delivery) failed:', err.message));
+  const issuedPerUser = []; // [{ userId, otp, parcelIds }]
+  for (const [userId, userParcelIds] of parcelsByUser) {
+    const otp = String(crypto.randomInt(0, 10000)).padStart(4, '0');
+    const otpHash = crypto.createHash('sha256').update(otp).digest();
+    const expiresAt = new Date(Date.now() + POD_OTP_TTL_MS);
+    for (const pid of userParcelIds) {
+      await client.query(
+        `INSERT INTO pod_otps (parcel_id, otp_hash, expires_at, consumed, consumed_at, updated_at)
+           VALUES ($1, $2, $3, FALSE, NULL, NOW())
+         ON CONFLICT (parcel_id) DO UPDATE
+           SET otp_hash = EXCLUDED.otp_hash,
+               expires_at = EXCLUDED.expires_at,
+               consumed = FALSE,
+               consumed_at = NULL,
+               updated_at = NOW()`,
+        [pid, otpHash, expiresAt]
+      );
+    }
+    // Single in-app notification per user, listing the shared OTP.
+    await client.query(
+      `INSERT INTO notifications (id, user_id, type, message)
+         VALUES ($1, $2, 'in_app', $3)`,
+      [
+        `NOTIF-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        userId,
+        userParcelIds.length === 1
+          ? `Your delivery OTP is ${otp}. Share it with the rider on arrival.`
+          : `Your delivery OTP is ${otp}. Covers all ${userParcelIds.length} of your parcels — share it once with the rider.`,
+      ]
+    );
+    issuedPerUser.push({ userId, otp, parcelIds: userParcelIds });
+  }
+  // Fan out *after* the lifecycle UPDATEs and OTP inserts, but before
+  // the caller commits — passing `client` (the in-flight transaction)
+  // so the notification's INSERT is part of the same atomic dispatch.
+  // Email + SSE are best-effort and explicitly fire-and-forget; we
+  // don't await them so a Gmail timeout cannot stall the dispatch.
+  // Per-parcel fan-out so the customer's status feed shows each
+  // parcel flipping to out_for_delivery — but we use skipInApp here
+  // because the OTP-bearing in-app row was just inserted above (one
+  // per user), and we don't want a second redundant row per parcel.
+  for (const { otp, parcelIds: userParcelIds } of issuedPerUser) {
+    for (const parcelId of userParcelIds) {
+      notifyParcelStatus(client, parcelId, 'out_for_delivery', { otp, skipInApp: true })
+        .catch((err) => console.warn('notifyParcelStatus(out_for_delivery) failed:', err.message));
+    }
   }
 }
 
@@ -870,7 +919,18 @@ router.get(
   }
 );
 
-/** POST /api/last-mile/rider/runs/:runId/pod — capture proof of delivery */
+/** POST /api/last-mile/rider/runs/:runId/pod — capture proof of delivery
+ *
+ *  Phase 3: accepts an array of parcel_ids in addition to the legacy single
+ *  parcel_id. The rider's UI groups parcels by user (one card per recipient,
+ *  N parcels each), so a single capture (one photo, one signature, one OTP)
+ *  covers every parcel in the user-group. activateRunDispatch issued the
+ *  same OTP to every parcel a user owns, so OTP validation against the
+ *  first parcel id is sufficient for the whole array. We write one
+ *  pod_events row per parcel inside the same transaction, flip each
+ *  parcel's orders + packages status, insert one NPS invite per
+ *  *parcel*, and bump completed_stops by N.
+ */
 router.post(
   '/rider/runs/:runId/pod',
   authMiddleware,
@@ -878,10 +938,20 @@ router.post(
   async (req, res) => {
     try {
       const { runId } = req.params;
-      const { parcel_id, photo_url, otp_used, recipient_name,
+      const { parcel_id, parcel_ids, photo_url, otp_used, recipient_name,
               recipient_phone, signature_url, notes } = req.body;
-      if (!parcel_id) {
-        return res.status(400).json({ success: false, message: 'parcel_id is required' });
+
+      // Normalise to an array so the rest of the path is uniform regardless
+      // of which client shape we got. Older iOS / Android still send a
+      // singleton parcel_id; new iOS multi-parcel POD sends parcel_ids.
+      const parcels = Array.isArray(parcel_ids) && parcel_ids.length > 0
+        ? parcel_ids
+        : (typeof parcel_id === 'string' ? [parcel_id] : []);
+      if (parcels.length === 0) {
+        return res.status(400).json({ success: false, message: 'parcel_id or parcel_ids is required' });
+      }
+      if (parcels.length > 50) {
+        return res.status(400).json({ success: false, message: 'Too many parcels per POD (max 50)' });
       }
 
       // Photo is mandatory.  Either the legacy `photo_url` (full URL from
@@ -896,8 +966,12 @@ router.post(
         return res.status(422).json({ success: false, error: 'photo_required' });
       }
 
-      const auth = await authorisePodAttempt(req, res, runId, parcel_id);
-      if (!auth) return;
+      // Authorise every parcel in the group. The first failure short-
+      // circuits and authorisePodAttempt sends the response.
+      for (const p of parcels) {
+        const auth = await authorisePodAttempt(req, res, runId, p);
+        if (!auth) return;
+      }
 
       // Wrap the four-statement success path in a single transaction on a
       // dedicated client. Mirrors the pattern in routes/orders.js — pool.query
@@ -907,10 +981,16 @@ router.post(
       // pod_events inconsistent with each other.
       const client = await req.db.connect();
       let runState;
-      let id;
+      const podIds = [];
       try {
         await client.query('BEGIN');
-        const otpOk = await validatePodOtp(client, parcel_id, otp_used);
+
+        // OTP validates against the first parcel only — all parcels in
+        // a user-group share the same OTP hash by construction
+        // (activateRunDispatch). validatePodOtp marks the row consumed
+        // on success, so we re-issue the same hash to the rest of the
+        // group's parcels in the loop below to keep them consistent.
+        const otpOk = await validatePodOtp(client, parcels[0], otp_used);
         if (!otpOk) {
           // Distinguish "no OTP row at all" from "OTP mismatch / expired"
           // so the rider's outbox-failure banner can show a useful
@@ -919,7 +999,7 @@ router.post(
           // riders to retry the same wrong code repeatedly.
           const { rows: otpRows } = await client.query(
             `SELECT 1 FROM pod_otps WHERE parcel_id = $1 LIMIT 1`,
-            [parcel_id]
+            [parcels[0]]
           );
           await client.query('ROLLBACK');
           if (otpRows.length === 0) {
@@ -931,73 +1011,77 @@ router.post(
           }
           return res.status(400).json({ success: false, error: 'otp_invalid', message: 'Invalid or expired OTP' });
         }
-        // pod_events.id is a uuid (default gen_random_uuid()) on prod;
-        // letting the column default fill it avoids the 22P02 mismatch
-        // that bit POST /runs.
-        //
+
         // Persist both legacy *_url and new *_path columns (migration 023).
-        // Older clients may still send full URLs as photo_url/signature_url
-        // — extract the bucket-relative path with extractPodPath so the
-        // path columns are populated regardless.  Newer clients (post-I1)
-        // will send paths directly via photo_path/signature_path; we
-        // accept either shape during the rollout window.
         const photoPath = req.body?.photo_path
           ? String(req.body.photo_path)
           : extractPodPath(photo_url);
         const signaturePath = req.body?.signature_path
           ? String(req.body.signature_path)
           : extractPodPath(signature_url);
-        const podRes = await client.query(
-          `INSERT INTO pod_events
-             (parcel_id, run_id, rider_id, result, photo_url, photo_path,
-              signature_url, signature_path, otp_used, recipient_name,
-              recipient_phone, notes)
-           VALUES ($1,$2,$3,'delivered',$4,$5,$6,$7,$8,$9,$10,$11)
-           RETURNING id`,
-          [parcel_id, runId, req.user.id,
-           photo_url || null, photoPath || null,
-           signature_url || null, signaturePath || null,
-           otp_used || null, recipient_name || null,
-           recipient_phone || null, notes || null]
-        );
-        id = podRes.rows[0].id;
+
+        // One pod_events row per parcel, sharing the same photo/signature
+        // bytes and OTP. The rider only captured once but every parcel in
+        // the bundle needs its own audit row so per-parcel queries (admin
+        // history, customer tracking) keep working.
+        for (const pid of parcels) {
+          const podRes = await client.query(
+            `INSERT INTO pod_events
+               (parcel_id, run_id, rider_id, result, photo_url, photo_path,
+                signature_url, signature_path, otp_used, recipient_name,
+                recipient_phone, notes)
+             VALUES ($1,$2,$3,'delivered',$4,$5,$6,$7,$8,$9,$10,$11)
+             RETURNING id`,
+            [pid, runId, req.user.id,
+             photo_url || null, photoPath || null,
+             signature_url || null, signaturePath || null,
+             otp_used || null, recipient_name || null,
+             recipient_phone || null, notes || null]
+          );
+          podIds.push(podRes.rows[0].id);
+        }
+
+        // Bulk flip status across the user-group in two queries.
+        const placeholders = parcels.map((_, i) => `$${i + 1}`).join(',');
         await client.query(
-          `UPDATE orders SET status = 'delivered', updated_at = NOW() WHERE id = $1`,
-          [parcel_id]
+          `UPDATE orders SET status = 'delivered', updated_at = NOW()
+            WHERE id IN (${placeholders})`,
+          parcels
         );
-        // Mirror to packages so the operator board no longer shows the
-        // parcel as 'manifested' / 'out_for_delivery' after POD.
         await client.query(
           `UPDATE packages SET status = 'delivered', updated_at = NOW()
-            WHERE order_id = $1`,
-          [parcel_id]
+            WHERE order_id IN (${placeholders})`,
+          parcels
         );
-        // NPS invitation. Pulled from orders since the rider POD doesn't carry
-        // user_id directly — keeps the (user_id, order_id) row exact.
-        const ownerRow = await client.query(
-          `SELECT user_id FROM orders WHERE id = $1`, [parcel_id]
+
+        // NPS invitation per parcel — the survey is per-order, not
+        // per-delivery, so a multi-parcel POD legitimately yields N
+        // invites (one per parcel/order).
+        const { rows: ownerRows } = await client.query(
+          `SELECT id, user_id FROM orders WHERE id IN (${placeholders})`,
+          parcels
         );
-        const ownerId = ownerRow.rows[0]?.user_id;
-        if (ownerId) {
+        for (const row of ownerRows) {
+          if (!row.user_id) continue;
           await client.query(
             `INSERT INTO nps_invitations (id, user_id, order_id)
              VALUES ($1, $2, $3) ON CONFLICT (order_id) DO NOTHING`,
-            [`NPSI-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, ownerId, parcel_id]
+            [`NPSI-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, row.user_id, row.id]
           );
         }
-        // Atomic increment + completion flip. RETURNING the post-update
-        // values lets us tell the rider whether the whole run is done.
-        // The UPDATE is row-locked by Postgres; concurrent POD posts on
-        // the same run serialise rather than racing on a stale read.
+
+        // Atomic increment by N + completion flip. The UPDATE is row-
+        // locked by Postgres; concurrent POD posts on the same run
+        // serialise rather than racing on a stale read.
         const runUpd = await client.query(
           `UPDATE last_mile_runs
-              SET completed_stops = completed_stops + 1,
-                  status = CASE WHEN completed_stops + 1 >= total_stops
+              SET completed_stops = completed_stops + $2,
+                  status = CASE WHEN completed_stops + $2 >= total_stops
                                 THEN 'completed' ELSE 'in_progress' END,
                   updated_at = NOW()
             WHERE id = $1
             RETURNING completed_stops, total_stops, status`,
-          [runId]
+          [runId, parcels.length]
         );
         runState = runUpd.rows[0] || null;
         await client.query('COMMIT');
@@ -1007,13 +1091,24 @@ router.post(
       } finally {
         client.release();
       }
-      // Customer notification + receipt + NPS invite. Fire-and-forget;
-      // the rider's POD has already committed and any email/SSE failure
-      // must not surface as a 500 to the rider.
-      notifyParcelStatus(req.db, parcel_id, 'delivered').catch((err) =>
-        console.warn('notifyParcelStatus(delivered) failed:', err.message)
-      );
-      res.status(201).json({ success: true, pod_id: id, run: runState });
+      // Per-parcel notification fan-out (delivered email + NPS invite +
+      // SSE push) for each child parcel. Fire-and-forget; the rider's
+      // POD has already committed and any email/SSE failure must not
+      // surface as a 500 to the rider.
+      for (const pid of parcels) {
+        notifyParcelStatus(req.db, pid, 'delivered').catch((err) =>
+          console.warn('notifyParcelStatus(delivered) failed:', err.message)
+        );
+      }
+      // Old single-parcel clients expect `pod_id`; new clients should
+      // read `pod_ids`. Return both for the rollout window.
+      res.status(201).json({
+        success: true,
+        pod_id: podIds[0],
+        pod_ids: podIds,
+        parcel_ids: parcels,
+        run: runState,
+      });
     } catch (err) {
       console.error('POST /last-mile/rider/runs/:runId/pod error:', err);
       res.status(500).json({ success: false, message: 'Failed to record POD' });
