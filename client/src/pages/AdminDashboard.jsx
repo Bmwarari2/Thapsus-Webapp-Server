@@ -719,7 +719,16 @@ export const AdminDashboard = () => {
           <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <h2 className="text-3xl font-black text-[#0f172a] uppercase tracking-tighter leading-none">User Directory</h2>
-              <button onClick={() => setShowCreateUserForm(true)} className={btnPrimary}><UserPlus size={16}/> Provision Account</button>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href="/admin/customer-consolidations"
+                  className={btnPrimary + " no-underline"}
+                  style={{ textDecoration: 'none' }}
+                >
+                  <Package size={16}/> New customer consolidation
+                </a>
+                <button onClick={() => setShowCreateUserForm(true)} className={btnPrimary}><UserPlus size={16}/> Provision Account</button>
+              </div>
             </div>
             <div className={tableWrapper}>
               <table className="w-full text-left">
