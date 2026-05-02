@@ -365,19 +365,18 @@ async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, 
       </tbody>
     </table>
 
-    ${order ? `
-    <h3 style="margin:0 0 8px;color:#1e3a5f;font-size:16px;font-weight:700;">Cost Breakdown</h3>
-    ${costBreakdownTable(order)}
-    ` : `
     <div style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;margin:0 0 24px;">
       <p style="margin:0;color:#92400e;font-size:14px;line-height:1.6;">
-        💡 Your order cost will be calculated once our warehouse team weighs and measures your package. You'll receive a payment request once it arrives.
+        We'll send you a separate email with the final price once your parcel
+        has arrived at our warehouse and been consolidated for shipment. No
+        payment is due until then.
       </p>
     </div>
-    `}
 
     <p style="margin:0 0 24px;color:#4b5563;font-size:14px;line-height:1.6;">
-      You will receive further updates as your order progresses. You can track your order at any time using the button below.
+      You'll get further updates as your order progresses through receiving,
+      consolidation, and dispatch. You can track it any time using the button
+      below.
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
       <tr>
