@@ -1145,6 +1145,27 @@ router.post(
       if (kind !== 'photo' && kind !== 'signature') {
         return res.status(400).json({ success: false, message: "kind must be 'photo' or 'signature'" });
       }
+
+      // Authorisation: the rider may only mint upload URLs for parcels
+      // that live on one of *their* active runs.  Without this any rider
+      // could mint a path against any parcel id and overwrite another
+      // rider's POD photo — and we'd leak existence by 200ing for every
+      // valid parcel.  We deliberately collapse "not on a run at all"
+      // and "on someone else's run" into one 403.  Audit M5.
+      const { rows: scopeRows } = await req.db.query(
+        `SELECT 1
+           FROM last_mile_run_parcels lmrp
+           JOIN last_mile_runs r ON r.id = lmrp.run_id
+          WHERE lmrp.parcel_id = $1
+            AND r.rider_id = $2
+            AND r.status IN ('planned','in_progress')
+          LIMIT 1`,
+        [parcelId, req.user.id]
+      );
+      if (scopeRows.length === 0) {
+        return res.status(403).json({ success: false, error: 'parcel_not_assigned_to_caller' });
+      }
+
       const ts = Date.now();
       const ext = kind === 'signature' ? 'png' : 'jpg';
       const subdir = kind === 'signature' ? 'signatures' : 'pod';
