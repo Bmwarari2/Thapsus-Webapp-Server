@@ -889,8 +889,24 @@ router.post(
         await client.query('BEGIN');
         const otpOk = await validatePodOtp(client, parcel_id, otp_used);
         if (!otpOk) {
+          // Distinguish "no OTP row at all" from "OTP mismatch / expired"
+          // so the rider's outbox-failure banner can show a useful
+          // diagnosis ("operator hasn't started the run yet") instead of
+          // the generic "Invalid or expired OTP" message that drove
+          // riders to retry the same wrong code repeatedly.
+          const { rows: otpRows } = await client.query(
+            `SELECT 1 FROM pod_otps WHERE parcel_id = $1 LIMIT 1`,
+            [parcel_id]
+          );
           await client.query('ROLLBACK');
-          return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+          if (otpRows.length === 0) {
+            return res.status(400).json({
+              success: false,
+              error: 'otp_not_issued',
+              message: 'No delivery OTP has been issued for this parcel — ask the operator to start the run.',
+            });
+          }
+          return res.status(400).json({ success: false, error: 'otp_invalid', message: 'Invalid or expired OTP' });
         }
         // pod_events.id is a uuid (default gen_random_uuid()) on prod;
         // letting the column default fill it avoids the 22P02 mismatch
