@@ -843,6 +843,19 @@ router.post(
       if (!parcel_id) {
         return res.status(400).json({ success: false, message: 'parcel_id is required' });
       }
+
+      // Photo is mandatory.  Either the legacy `photo_url` (full URL from
+      // older clients) or the new `photo_path` (bucket-relative, post
+      // migration 023) satisfies the check; rejecting both-blank surfaces
+      // the M4 audit issue rather than letting a POD row land without
+      // proof of delivery.
+      const hasPhoto =
+        (typeof photo_url === 'string' && photo_url.trim().length > 0) ||
+        (typeof req.body?.photo_path === 'string' && req.body.photo_path.trim().length > 0);
+      if (!hasPhoto) {
+        return res.status(422).json({ success: false, error: 'photo_required' });
+      }
+
       const auth = await authorisePodAttempt(req, res, runId, parcel_id);
       if (!auth) return;
 
