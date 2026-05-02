@@ -145,6 +145,58 @@ router.post('/upload-url', authMiddleware, requireRole('clearing_agent'), async 
 });
 
 /**
+ * DELETE /api/agent-invoices/upload-url
+ *
+ * Orphan cleanup: when the iOS client mints a signed-upload URL, PUTs the
+ * bytes, but then aborts the invoice submit (user cancels, app crashes,
+ * network drops between PUT-success and POST /agent-invoices), the
+ * uploaded PDF sits in storage with no DB row pointing at it.  This
+ * endpoint lets the client back out of the upload by deleting the bucket
+ * object it owns.
+ *
+ * Body: { path }
+ *
+ * The path must live inside the caller's per-user namespace
+ * (`${req.user.id}/...`) — same constraint the upload-url enforces.
+ * Idempotent: a "not found" from Supabase is returned as success so a
+ * client that retries can finish without papering over real failures.
+ */
+router.delete('/upload-url', authMiddleware, requireRole('clearing_agent'), async (req, res) => {
+  try {
+    if (!getSupabaseAdmin()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Storage admin not configured. Set SUPABASE_SERVICE_KEY on the server.'
+      });
+    }
+    const path = String(req.body?.path || '').trim();
+    if (!path) {
+      return res.status(400).json({ success: false, message: 'path is required' });
+    }
+    if (!path.startsWith(`${req.user.id}/`)) {
+      return res.status(403).json({ success: false, message: 'path is not owned by the caller' });
+    }
+    const { error } = await getSupabaseAdmin()
+      .storage.from(AGENT_INVOICE_BUCKET).remove([path]);
+    // Treat 'not found' as success — orphan cleanup is idempotent and a
+    // client that retries the cleanup after an earlier 200 must not 404.
+    // Supabase's remove() doesn't reliably distinguish a missing object
+    // from a real failure, but the only client that should ever call this
+    // owns the path it submitted, so we accept the call as long as no
+    // hard error came back.
+    if (error && !/not\s*found/i.test(String(error.message || ''))) {
+      console.error('DELETE /agent-invoices/upload-url storage error:', error);
+      return res.status(500).json({ success: false, message: 'Failed to delete upload' });
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('DELETE /agent-invoices/upload-url error:', err);
+    logRouteError(req, res, err, 'Delete orphan invoice upload');
+    return res.status(500).json({ success: false, message: 'Failed to delete upload' });
+  }
+});
+
+/**
  * GET /api/agent-invoices/:id/document-url
  *
  * Returns a 5-minute signed download URL for the invoice's stored PDF.
