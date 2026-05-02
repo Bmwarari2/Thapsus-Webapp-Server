@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { ShoppingBag, ExternalLink, Plus } from 'lucide-react'
+import { ShoppingBag, ExternalLink, Plus, Check, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { buyForMeApi } from '../api'
 import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '../components/GlassUI'
@@ -8,12 +8,18 @@ import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '..
  * /app/buy-for-me — concierge orders (Spec §4.10).
  *
  * Customer pastes a retailer URL → we buy + ship to UK → consolidate.
+ * Operator quotes server-side; customer reviews here and accepts (wallet
+ * debit) or rejects with a free-text reason so the operator can re-quote.
  */
 export const BuyForMe = () => {
   const [orders, setOrders] = useState([])
   const [draft, setDraft] = useState({
     retailer_url: '', item_name: '', size: '', qty: 1, notes: '',
   })
+
+  // Reject modal — `null` means closed.
+  const [rejectingFor, setRejectingFor] = useState(null)
+  const [rejectReason, setRejectReason] = useState('')
 
   const refresh = () => buyForMeApi.mine().then(r => setOrders(r.data?.orders || []))
                                           .catch(() => toast.error('Failed to load orders'))
@@ -30,6 +36,29 @@ export const BuyForMe = () => {
       setDraft({ retailer_url: '', item_name: '', size: '', qty: 1, notes: '' })
       refresh()
     } catch { toast.error('Failed to submit') }
+  }
+
+  const onAccept = async (id) => {
+    try {
+      const { data } = await buyForMeApi.accept(id)
+      toast.success(`Accepted · KES ${(data?.paid_kes || 0).toLocaleString()} debited`)
+      refresh()
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to accept')
+    }
+  }
+
+  const onSubmitReject = async () => {
+    const reason = rejectReason.trim()
+    if (reason.length < 3) { toast.error('Tell us briefly why'); return }
+    try {
+      await buyForMeApi.reject(rejectingFor, reason)
+      toast.success('Quote rejected — thanks for the feedback')
+      setRejectingFor(null); setRejectReason('')
+      refresh()
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to reject')
+    }
   }
 
   return (
@@ -82,19 +111,71 @@ export const BuyForMe = () => {
                     </a>
                     {o.size && <p className="text-xs text-slate-500">Size: {o.size}</p>}
                     <p className="text-xs text-slate-500">Qty: {o.qty}</p>
+                    {o.status === 'rejected' && o.customer_decision_reason && (
+                      <p className="mt-2 text-xs text-rose-700 italic">
+                        Your reason: "{o.customer_decision_reason}"
+                      </p>
+                    )}
                   </div>
                   <div className="text-right">
                     <StatusBadge status={o.status}/>
                     {o.estimate_gbp != null && (
-                      <p className="mt-2 text-sm font-bold text-[#1e3a5f]">£{o.estimate_gbp}</p>
+                      <>
+                        <p className="mt-2 text-sm font-bold text-[#1e3a5f]">
+                          £{Number(o.estimate_gbp).toFixed(2)}
+                        </p>
+                        {o.markup_pct != null && (
+                          <p className="text-[10px] text-slate-500">
+                            +{Number(o.markup_pct)}% service
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
+
+                {o.status === 'quoted' && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button onClick={() => onAccept(o.id)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold">
+                      <Check size={14}/> Accept &amp; buy
+                    </button>
+                    <button onClick={() => { setRejectingFor(o.id); setRejectReason('') }}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-white border border-rose-300 text-rose-700 hover:bg-rose-50 text-sm font-bold">
+                      <X size={14}/> Reject
+                    </button>
+                  </div>
+                )}
               </GlassCard>
             ))}
           </div>
         )}
       </div>
+
+      {rejectingFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4">
+          <GlassCard className="p-6 w-full max-w-md">
+            <h4 className="text-lg font-black text-[#1e3a5f] mb-1">Reject quote</h4>
+            <p className="text-sm text-slate-500 mb-3">
+              Tell us why so we can re-quote with a better option.
+            </p>
+            <textarea rows={4} value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="e.g. Out of budget, found cheaper, wrong size…"
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => { setRejectingFor(null); setRejectReason('') }}
+                className="px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-700 text-sm font-semibold">
+                Cancel
+              </button>
+              <button onClick={onSubmitReject}
+                className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold">
+                Submit reject
+              </button>
+            </div>
+          </GlassCard>
+        </div>
+      )}
     </div>
   )
 }

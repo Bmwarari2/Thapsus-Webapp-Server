@@ -53,6 +53,7 @@ const OpsConsole          = lazy(() => import('./pages/OpsConsole').then(m => ({
 const OpsConsolidations   = lazy(() => import('./pages/OpsConsolidations').then(m => ({ default: m.OpsConsolidations })))
 const OpsConsolidationDetail = lazy(() => import('./pages/OpsConsolidations').then(m => ({ default: m.OpsConsolidationDetail })))
 const OpsDispatch         = lazy(() => import('./pages/OpsDispatch').then(m => ({ default: m.OpsDispatch })))
+const OpsBuyForMe         = lazy(() => import('./pages/OpsBuyForMe').then(m => ({ default: m.OpsBuyForMe })))
 const OpsSettings         = lazy(() => import('./pages/OpsSettings').then(m => ({ default: m.OpsSettings })))
 const KpiDashboard        = lazy(() => import('./pages/KpiDashboard').then(m => ({ default: m.KpiDashboard })))
 const Insurance           = lazy(() => import('./pages/Insurance').then(m => ({ default: m.Insurance })))
@@ -141,6 +142,7 @@ function App() {
             <Route path="/ops/consolidations"           element={<ProtectedRoute roles={['operator']}><OpsConsolidations /></ProtectedRoute>} />
             <Route path="/ops/consolidations/:id"       element={<ProtectedRoute roles={['operator']}><OpsConsolidationDetail /></ProtectedRoute>} />
             <Route path="/ops/dispatch"                 element={<ProtectedRoute roles={['operator']}><OpsDispatch /></ProtectedRoute>} />
+            <Route path="/ops/buy-for-me"               element={<ProtectedRoute roles={['operator']}><OpsBuyForMe /></ProtectedRoute>} />
             <Route path="/ops/settings"                 element={<ProtectedRoute adminOnly><OpsSettings /></ProtectedRoute>} />
 
             {/* Admin Routes */}
