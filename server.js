@@ -101,6 +101,7 @@ import notificationsRoutes    from './routes/notifications.js';
 import agentInvoicesRoutes   from './routes/agentInvoices.js';
 import amlFlagsRoutes         from './routes/amlFlags.js';
 import appConfigRoutes        from './routes/appConfig.js';
+import customerConsolidationsRoutes from './routes/customerConsolidations.js';
 
 const app      = express();
 const PORT     = process.env.PORT     || 5000;
@@ -349,6 +350,7 @@ app.use('/api/notifications',  notificationsRoutes);
 app.use('/api/agent-invoices', agentInvoicesRoutes);
 app.use('/api/admin/aml-flags', amlFlagsRoutes);
 app.use('/api/app-config',     appConfigRoutes);
+app.use('/api/customer-consolidations', customerConsolidationsRoutes);
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 app.get(/^\/(?!api).*/, (req, res) => {

@@ -802,6 +802,83 @@ async function sendDeliveryAttemptedEmail(toEmail, toName, trackingNumber, reaso
   }
 }
 
+// ── Invoice emails (Phase 2: per-user customer-consolidation invoicing) ────
+
+/**
+ * Sent the moment an admin stamps an invoice on a customer-consolidation.
+ * Carries the amount but no parcel-by-parcel breakdown — the customer
+ * has already received per-parcel "received at warehouse" emails. CTA
+ * deep-links to the iOS Orders tab via /orders (Universal Link match
+ * added in PR #54).
+ */
+async function sendInvoiceReadyEmail(toEmail, toName, customerConsolidationId, amount, currency = 'KES') {
+  const ordersUrl = `${process.env.APP_URL || 'https://www.thapsus.uk'}/orders`;
+  const formattedAmount = Number(amount || 0).toLocaleString();
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Your invoice is ready</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      We've consolidated your parcels and prepared a single invoice covering
+      shipping for everything in this batch.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 24px;">
+      <tr><td align="center" style="background:#1e3a5f;border-radius:12px;padding:24px;">
+        <p style="margin:0 0 6px;color:#94a3b8;font-size:13px;letter-spacing:1px;text-transform:uppercase;">Amount due</p>
+        <p style="margin:0;color:#ffffff;font-size:32px;font-weight:bold;">${currency} ${formattedAmount}</p>
+      </td></tr>
+    </table>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:14px;line-height:1.6;">
+      Pay from your wallet or top up via the Orders tab. Once payment clears,
+      your parcels will be batched onto the next outgoing shipment.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
+      <tr><td style="background-color:#f97316;border-radius:8px;">
+        <a href="${ordersUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">View invoice</a>
+      </td></tr>
+    </table>`;
+
+  const subject = `Invoice ready · ${currency} ${formattedAmount}`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'invoice_ready', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'invoice_ready', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
+/**
+ * Receipt email after the customer-consolidation invoice is marked paid.
+ */
+async function sendInvoicePaidEmail(toEmail, toName, customerConsolidationId, amount, currency = 'KES') {
+  const ordersUrl = `${process.env.APP_URL || 'https://www.thapsus.uk'}/orders`;
+  const formattedAmount = Number(amount || 0).toLocaleString();
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment received ✓</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      Thanks — we've received <strong>${currency} ${formattedAmount}</strong> for
+      your shipping invoice. Your parcels are now queued for the next outgoing
+      shipment, and you'll get a fresh email once they're on their way.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
+      <tr><td style="background-color:#f97316;border-radius:8px;">
+        <a href="${ordersUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">View receipt</a>
+      </td></tr>
+    </table>`;
+
+  const subject = `Payment received · ${currency} ${formattedAmount}`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'invoice_paid', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'invoice_paid', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
 /**
  * NPS survey invite. Memory's `parity_audit_followups.md` flagged the
  * auto-trigger as TODO — the row was always being inserted into
@@ -886,6 +963,8 @@ export {
   sendDeliveredEmail,
   sendDeliveryAttemptedEmail,
   sendNpsInvitationEmail,
+  sendInvoiceReadyEmail,
+  sendInvoicePaidEmail,
   emailConfigStatus,
 };
 
@@ -905,5 +984,7 @@ export default {
   sendDeliveredEmail,
   sendDeliveryAttemptedEmail,
   sendNpsInvitationEmail,
+  sendInvoiceReadyEmail,
+  sendInvoicePaidEmail,
   emailConfigStatus,
 };
