@@ -358,8 +358,17 @@ router.post('/:id/remove-parcel', authMiddleware, ALLOWED_OPERATOR, async (req, 
     );
     const orderId = pkgRes.rows[0]?.order_id;
     if (orderId) {
+      // Reset orders.status alongside consolidation_id so the order isn't
+      // left stuck at 'consolidating' when its package has already
+      // dropped back to received_at_warehouse.  The audit punch list
+      // flagged this as a state-machine inconsistency: removing a parcel
+      // detached the package but never told the parent order it was
+      // back in the intake pool.
       await req.db.query(
-        `UPDATE orders SET consolidation_id = NULL, updated_at = NOW()
+        `UPDATE orders
+            SET consolidation_id = NULL,
+                status = 'received_at_warehouse',
+                updated_at = NOW()
           WHERE id = $1 AND consolidation_id = $2::uuid`,
         [orderId, id]
       );

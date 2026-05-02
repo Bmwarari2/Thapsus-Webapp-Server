@@ -648,6 +648,191 @@ async function sendTicketReplyEmail(toEmail, toName, ticket, replyMessage) {
   }
 }
 
+// ── Parcel-lifecycle status emails ─────────────────────────────────────────
+//
+// Until now the customer received a single confirmation email at order
+// creation and nothing else for the entire lifecycle. The audit punch list
+// flagged this as the top customer-facing gap (every status flip on the
+// server fired no email and no realtime push).  These four helpers cover
+// the remaining lifecycle states that the customer cares about: arrival
+// at the warehouse, dispatch (with delivery OTP), delivered, and a failed
+// delivery attempt.  All four reuse the standard emailLayout so the
+// branding matches the existing transactional emails.
+
+const STATUS_LABEL = {
+  received_at_warehouse: 'Received at warehouse',
+  consolidating:         'Consolidating',
+  in_transit:            'In transit',
+  customs:               'Clearing customs',
+  out_for_delivery:      'Out for delivery',
+  delivered:             'Delivered',
+};
+
+async function sendStatusUpdateEmail(toEmail, toName, trackingNumber, newStatus) {
+  const trackUrl = `${process.env.APP_URL || 'https://www.thapsus.uk'}/track/${encodeURIComponent(trackingNumber)}`;
+  const label = STATUS_LABEL[newStatus] || newStatus;
+
+  const blurb = {
+    received_at_warehouse: 'Your parcel has arrived at our warehouse and is being weighed and photographed. You can view it on the tracking page.',
+    consolidating:         'Your parcel is being grouped with others on the next flight to Nairobi. We\'ll email again once it leaves the UK.',
+    in_transit:            'Your parcel is on its way to Nairobi.',
+    customs:               'Your parcel is clearing customs in Nairobi.',
+  }[newStatus] || `Status updated to ${label}.`;
+
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">${label}</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">${blurb}</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 24px;font-size:15px;">
+      <tbody>
+        <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:10px 12px;color:#6b7280;font-weight:600;width:40%;">Tracking number</td><td style="padding:10px 12px;color:#111827;font-family:monospace;">${trackingNumber}</td></tr>
+        <tr style="background:#f9fafb;"><td style="padding:10px 12px;color:#6b7280;font-weight:600;">Status</td><td style="padding:10px 12px;color:#111827;font-weight:700;">${label}</td></tr>
+      </tbody>
+    </table>
+    <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
+      <tr><td style="background-color:#f97316;border-radius:8px;">
+        <a href="${trackUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">Track parcel</a>
+      </td></tr>
+    </table>`;
+
+  const subject = `Thapsus Cargo · ${trackingNumber} — ${label}`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: `status_${newStatus}`, subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: `status_${newStatus}`, subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
+/**
+ * Out-for-delivery email that carries the 4-digit POD OTP the rider will ask
+ * for on arrival.  Until now the OTP was only delivered as an in-app
+ * `notifications` row, so a customer who wasn't actively in the iOS inbox
+ * (or who wasn't signed in) had nothing to give the rider — every POD
+ * attempt would 400 with "Invalid or expired OTP".
+ */
+async function sendDeliveryOtpEmail(toEmail, toName, trackingNumber, otp) {
+  const trackUrl = `${process.env.APP_URL || 'https://www.thapsus.uk'}/track/${encodeURIComponent(trackingNumber)}`;
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Out for delivery</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      Your parcel <strong>${trackingNumber}</strong> is on its way. Share the code below
+      with the rider when they arrive — they need it to confirm delivery.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 24px;">
+      <tr><td align="center" style="background:#1e3a5f;border-radius:12px;padding:24px;">
+        <p style="margin:0 0 6px;color:#94a3b8;font-size:13px;letter-spacing:1px;text-transform:uppercase;">Delivery OTP</p>
+        <p style="margin:0;color:#ffffff;font-size:40px;font-weight:bold;letter-spacing:8px;font-family:monospace;">${otp}</p>
+      </td></tr>
+    </table>
+    <p style="margin:0 0 16px;color:#9ca3af;font-size:13px;line-height:1.6;">
+      Don't share this code with anyone except the rider on arrival. The code expires once delivery is confirmed.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
+      <tr><td style="background-color:#f97316;border-radius:8px;">
+        <a href="${trackUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">Track parcel</a>
+      </td></tr>
+    </table>`;
+
+  const subject = `Out for delivery · ${trackingNumber} — your delivery code is ${otp}`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'delivery_otp', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'delivery_otp', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
+async function sendDeliveredEmail(toEmail, toName, trackingNumber) {
+  const trackUrl = `${process.env.APP_URL || 'https://www.thapsus.uk'}/track/${encodeURIComponent(trackingNumber)}`;
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Delivered ✓</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      Your parcel <strong>${trackingNumber}</strong> has been delivered. Thank you for shipping with us!
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
+      <tr><td style="background-color:#f97316;border-radius:8px;">
+        <a href="${trackUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">View receipt</a>
+      </td></tr>
+    </table>`;
+
+  const subject = `Delivered · ${trackingNumber}`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'delivered', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'delivered', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
+async function sendDeliveryAttemptedEmail(toEmail, toName, trackingNumber, reason) {
+  const trackUrl = `${process.env.APP_URL || 'https://www.thapsus.uk'}/track/${encodeURIComponent(trackingNumber)}`;
+  const reasonText = reason || 'Recipient unavailable';
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Delivery attempted</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      We tried to deliver parcel <strong>${trackingNumber}</strong> but couldn't complete it. Reason given: <em>${reasonText}</em>.
+    </p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      We'll attempt re-delivery on the next run. If you'd like to reach us about this delivery, reply to this email or open a ticket from the app.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
+      <tr><td style="background-color:#f97316;border-radius:8px;">
+        <a href="${trackUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">Track parcel</a>
+      </td></tr>
+    </table>`;
+
+  const subject = `Delivery attempted · ${trackingNumber}`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'delivery_attempted', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'delivery_attempted', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
+/**
+ * NPS survey invite. Memory's `parity_audit_followups.md` flagged the
+ * auto-trigger as TODO — the row was always being inserted into
+ * `nps_invitations` on POD success but no email ever fired.
+ */
+async function sendNpsInvitationEmail(toEmail, toName, trackingNumber, surveyLink) {
+  const link = surveyLink || `${process.env.APP_URL || 'https://www.thapsus.uk'}/nps?tn=${encodeURIComponent(trackingNumber)}`;
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">How did we do?</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      Now that parcel <strong>${trackingNumber}</strong> has been delivered, we'd love to know how it went.
+      One question, takes about ten seconds.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
+      <tr><td style="background-color:#f97316;border-radius:8px;">
+        <a href="${link}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">Rate this delivery</a>
+      </td></tr>
+    </table>`;
+
+  const subject = `Quick favour · how did your delivery go?`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'nps_invitation', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'nps_invitation', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
 /**
  * Email config diagnostics — backs the admin /api/admin/email-config endpoint
  * so the app can tell whether Gmail OAuth credentials are present without
@@ -696,6 +881,11 @@ export {
   sendOrderUpdatedEmail,
   sendTicketCreatedEmail,
   sendTicketReplyEmail,
+  sendStatusUpdateEmail,
+  sendDeliveryOtpEmail,
+  sendDeliveredEmail,
+  sendDeliveryAttemptedEmail,
+  sendNpsInvitationEmail,
   emailConfigStatus,
 };
 
@@ -710,5 +900,10 @@ export default {
   sendOrderUpdatedEmail,
   sendTicketCreatedEmail,
   sendTicketReplyEmail,
+  sendStatusUpdateEmail,
+  sendDeliveryOtpEmail,
+  sendDeliveredEmail,
+  sendDeliveryAttemptedEmail,
+  sendNpsInvitationEmail,
   emailConfigStatus,
 };
