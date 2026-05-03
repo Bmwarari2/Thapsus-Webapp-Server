@@ -109,6 +109,11 @@ export const OpsBuyForMe = () => {
                         Customer rejected: "{o.customer_decision_reason}"
                       </p>
                     )}
+                    {o.status === 'paid' && o.parcel_tracking_number && (
+                      <p className="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 ring-1 ring-emerald-200 text-emerald-800 text-xs font-semibold">
+                        <span>📦</span> Pre-registered as <span className="font-mono font-bold">{o.parcel_tracking_number}</span>
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex flex-col items-end gap-2">
