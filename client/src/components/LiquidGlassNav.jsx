@@ -303,6 +303,7 @@ function buildLinkSets({ isAuthenticated, isAdmin, role, t }) {
         { to: '/admin',                          label: t('nav.admin') || 'Admin dashboard', icon: BarChart3 },
         { to: '/admin/customer-consolidations',  label: 'Customer consolidations',           icon: Receipt },
         { to: '/admin/issue-invoice',            label: 'Issue invoice',                     icon: FileText },
+        { to: '/admin/create-bfm',               label: 'Create Buy-for-me',                 icon: ShoppingBag },
         { to: '/kpi',                            label: 'KPI dashboard',                     icon: Activity },
         { to: '/ops/settings',                   label: 'Pricing settings',                  icon: Settings },
       ],

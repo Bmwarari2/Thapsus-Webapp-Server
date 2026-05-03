@@ -175,6 +175,106 @@ router.post('/:id/cancel', authMiddleware, async (req, res) => {
 });
 
 /**
+ * POST /api/buy-for-me/admin-create — admin creates a BFM on behalf of a
+ * customer (e.g. when the customer placed the order via WhatsApp).
+ *
+ * Body: { user_id, retailer_id?|retailer_url, item_name, size?, qty?,
+ *         notes?, estimate_gbp?, markup_pct? }
+ *
+ * If `estimate_gbp` is provided, the row starts at status='quoted' with
+ * `quoted_at = NOW()` and the quote-ready email fires immediately — the
+ * customer can accept + pay straight away. Otherwise the row enters the
+ * regular operator queue at status='pending_quote' for normal triage.
+ */
+router.post('/admin-create', authMiddleware, requireRole('admin', 'operator'), async (req, res) => {
+  try {
+    const {
+      user_id, retailer_id, retailer_url, item_name, size, qty, notes,
+      estimate_gbp, markup_pct,
+    } = req.body || {};
+
+    if (!user_id || typeof user_id !== 'string') {
+      return res.status(400).json({ success: false, message: 'user_id is required' });
+    }
+    if (!item_name || typeof item_name !== 'string') {
+      return res.status(400).json({ success: false, message: 'item_name is required' });
+    }
+
+    // Resolve retailer_url: explicit URL wins; otherwise look up the
+    // picker id (PR 4 catalog).
+    let resolvedUrl = (typeof retailer_url === 'string' && retailer_url.trim().length > 0)
+      ? retailer_url.trim()
+      : null;
+    if (!resolvedUrl && retailer_id) {
+      const { rows } = await req.db.query(
+        `SELECT base_url FROM retailers WHERE id = $1 AND is_active = true`,
+        [retailer_id]
+      );
+      if (rows[0]) resolvedUrl = rows[0].base_url;
+    }
+    if (!resolvedUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'Provide either retailer_id (picker) or retailer_url (item link)',
+      });
+    }
+
+    const { rows: ownerRows } = await req.db.query(
+      `SELECT id, email, name FROM users WHERE id = $1`, [user_id]
+    );
+    if (ownerRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Customer not found' });
+    }
+    const owner = ownerRows[0];
+
+    // Optional pre-quote — admin can set estimate_gbp + markup_pct in
+    // the same call so the customer doesn't have to wait for an
+    // operator round-trip.
+    const hasQuote = estimate_gbp != null && Number.isFinite(Number(estimate_gbp)) && Number(estimate_gbp) > 0;
+    const estimateNum = hasQuote ? Number(estimate_gbp) : null;
+    const markupNum   = hasQuote
+      ? (Number.isFinite(Number(markup_pct)) ? Number(markup_pct) : 10)
+      : null;
+
+    const id = `BFM-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
+    await req.db.query(
+      `INSERT INTO buy_for_me_orders
+         (id, user_id, retailer_url, item_name, size, qty, notes,
+          status, estimate_gbp, markup_pct, quoted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7,
+               $8, $9, $10, ${hasQuote ? 'NOW()' : 'NULL'})`,
+      [
+        id, user_id, resolvedUrl, item_name, size || null,
+        parseInt(qty, 10) || 1, notes || null,
+        hasQuote ? 'quoted' : 'pending_quote',
+        estimateNum, markupNum,
+      ]
+    );
+
+    // Fire the customer's quote-ready email if we pre-quoted. Best-effort
+    // — a mail outage shouldn't roll back the row creation.
+    if (hasQuote && owner.email) {
+      try {
+        await sendBuyForMeQuoteEmail(
+          owner.email, owner.name, id, item_name, estimateNum, markupNum
+        );
+      } catch (mailErr) {
+        console.error('Admin BFM quote email failed (non-fatal):', mailErr.message);
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      order_id: id,
+      pre_quoted: hasQuote,
+    });
+  } catch (err) {
+    console.error('POST /buy-for-me/admin-create error:', err);
+    res.status(500).json({ success: false, message: 'Failed to create concierge order' });
+  }
+});
+
+/**
  * POST /api/buy-for-me/:id/quote — operator sets the quote.
  *
  * Atomic single-write that flips status pending_quote → quoted, stamps
