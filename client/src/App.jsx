@@ -38,6 +38,7 @@ const Support           = lazy(() => import('./pages/Support').then(m => ({ defa
 const WarehouseAddresses = lazy(() => import('./pages/WarehouseAddresses').then(m => ({ default: m.WarehouseAddresses })))
 const AdminDashboard    = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })))
 const AdminCustomerConsolidations = lazy(() => import('./pages/AdminCustomerConsolidations').then(m => ({ default: m.AdminCustomerConsolidations })))
+const AdminIssueInvoice = lazy(() => import('./pages/AdminIssueInvoice').then(m => ({ default: m.AdminIssueInvoice })))
 const ResetPassword     = lazy(() => import('./pages/ResetPassword').then(m => ({ default: m.ResetPassword })))
 const ForgotPassword    = lazy(() => import('./pages/ForgotPassword').then(m => ({ default: m.ForgotPassword })))
 const OrderDetail       = lazy(() => import('./pages/OrderDetail').then(m => ({ default: m.OrderDetail })))
@@ -150,6 +151,7 @@ function App() {
             {/* Admin Routes */}
             <Route path="/admin" element={<ProtectedRoute adminOnly={true}><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/customer-consolidations" element={<ProtectedRoute adminOnly={true}><AdminCustomerConsolidations /></ProtectedRoute>} />
+            <Route path="/admin/issue-invoice" element={<ProtectedRoute adminOnly={true}><AdminIssueInvoice /></ProtectedRoute>} />
             <Route path="/kpi"   element={<ProtectedRoute adminOnly={true}><KpiDashboard /></ProtectedRoute>} />
 
             {/* Partner portals */}
