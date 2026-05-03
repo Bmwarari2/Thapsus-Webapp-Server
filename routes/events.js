@@ -3,10 +3,10 @@
  * GET /api/events  — authenticated, persistent connection
  *
  * The server pushes events whenever an order, ticket, notification,
- * wallet balance, or admin stat changes.  Clients never need to reload.
+ * credit balance, or admin stat changes.  Clients never need to reload.
  *
  * Event shape:
- *   { type: 'order_update' | 'ticket_update' | 'notification' | 'wallet_update' | 'admin_stats', data: {} }
+ *   { type: 'order_update' | 'ticket_update' | 'notification' | 'credit_update' | 'admin_stats', data: {} }
  */
 import express from 'express';
 import { authMiddleware } from '../middleware/auth.js';
