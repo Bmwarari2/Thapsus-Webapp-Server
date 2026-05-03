@@ -97,14 +97,17 @@ export function PayInvoiceModal({
     }
   }
 
-  if (!open) return null
-
-  // Stripe Elements is keyed by client_secret so its internal state doesn't
-  // leak between distinct PaymentIntents.
+  // Hooks MUST run before any conditional return — React's Rules of Hooks.
+  // Calling useMemo after `if (!open) return null` flipped the hook order
+  // when the modal opened and threw React #310 in production. The promise
+  // is cached inside getStripeInstance() so the recompute is cheap when
+  // open=false (publishableKey hasn't been fetched yet → returns null).
   const stripePromise = useMemo(
     () => getStripeInstance(publishableKey),
     [publishableKey]
   )
+
+  if (!open) return null
 
   return (
     <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm grid place-items-center p-4 animate-in fade-in duration-200">
