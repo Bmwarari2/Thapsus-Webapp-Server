@@ -75,7 +75,7 @@ router.get('/users', authMiddleware, isAdmin, async (req, res) => {
     params.push(limit, offset);
 
     const users = await db.query(
-      `SELECT id, email, name, phone, role, warehouse_id, referral_code, wallet_balance, is_active, created_at
+      `SELECT id, email, name, phone, role, warehouse_id, referral_code, is_active, created_at
        FROM users ${conditions} ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params
     );
@@ -112,7 +112,7 @@ router.get('/users/:id', authMiddleware, isAdmin, async (req, res) => {
     const { id } = req.params;
     const userRes = await db.query(
       `SELECT id, email, name, phone, role, warehouse_id, language_pref, referral_code,
-              wallet_balance, is_active, delivery_address, admin_notes, created_at, updated_at
+              is_active, delivery_address, admin_notes, created_at, updated_at
        FROM users WHERE id = $1`,
       [id]
     );
@@ -951,15 +951,34 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
         const countRes = await client.query('SELECT COUNT(*) AS cnt FROM orders WHERE user_id = $1', [customer.id]);
         if (parseInt(countRes.rows[0].cnt) === 1) {
           const reward = 50;
-          await client.query(`UPDATE referrals SET status = 'completed', completed_at = NOW(), reward_amount = $1 WHERE id = $2`, [reward, pendingReferral.id]);
-          await client.query('UPDATE users  SET wallet_balance = wallet_balance + $1 WHERE id = $2', [reward, pendingReferral.referrer_id]);
-          await client.query('UPDATE wallet SET balance = balance + $1, last_updated = NOW() WHERE user_id = $2', [reward, pendingReferral.referrer_id]);
-          await client.query(`INSERT INTO transactions (id, user_id, type, amount, currency, status) VALUES ($1,$2,'referral_credit',$3,'KES','completed')`, [uuidv4(), pendingReferral.referrer_id, reward]);
-          await client.query('UPDATE users  SET wallet_balance = wallet_balance + $1 WHERE id = $2', [reward, customer.id]);
-          await client.query('UPDATE wallet SET balance = balance + $1, last_updated = NOW() WHERE user_id = $2', [reward, customer.id]);
-          await client.query(`INSERT INTO transactions (id, user_id, type, amount, currency, status) VALUES ($1,$2,'referral_credit',$3,'KES','completed')`, [uuidv4(), customer.id, reward]);
-          pushToUser(pendingReferral.referrer_id, 'wallet_update', { balance: (await client.query('SELECT balance FROM wallet WHERE user_id = $1', [pendingReferral.referrer_id])).rows[0]?.balance });
-          pushToUser(customer.id, 'wallet_update', { balance: (await client.query('SELECT balance FROM wallet WHERE user_id = $1', [customer.id])).rows[0]?.balance });
+          await client.query(
+            `UPDATE referrals SET status = 'completed', completed_at = NOW(), reward_amount = $1 WHERE id = $2`,
+            [reward, pendingReferral.id]
+          );
+          // Wallet replaced by user_credits + credit_ledger (PR A / migration 028).
+          // Mirror the orders.js reward path so the admin "create order for client"
+          // flow grants the same KES 50 credit to both parties.
+          for (const beneficiary of [pendingReferral.referrer_id, customer.id]) {
+            await client.query(
+              `INSERT INTO user_credits (user_id, balance_kes, updated_at)
+               VALUES ($1, 0, NOW())
+               ON CONFLICT (user_id) DO NOTHING`,
+              [beneficiary]
+            );
+            await client.query(
+              `UPDATE user_credits SET balance_kes = balance_kes + $1, updated_at = NOW() WHERE user_id = $2`,
+              [reward, beneficiary]
+            );
+            await client.query(
+              `INSERT INTO credit_ledger (id, user_id, delta_kes, reason, source_id, note)
+               VALUES ($1, $2, $3, 'referral', $4, $5)`,
+              [`CRD-RFR-${pendingReferral.id}-${beneficiary === pendingReferral.referrer_id ? 'A' : 'B'}`,
+               beneficiary, reward, pendingReferral.id,
+               `Referral reward (admin-created order) ${pendingReferral.id}`]
+            );
+          }
+          pushToUser(pendingReferral.referrer_id, 'credit_update', { delta_kes: reward });
+          pushToUser(customer.id, 'credit_update', { delta_kes: reward });
         }
       }
 
@@ -1227,11 +1246,17 @@ router.post('/users/create', authMiddleware, isAdmin, async (req, res) => {
     try {
       await client.query('BEGIN');
       await client.query(
-        `INSERT INTO users (id, email, password, name, phone, role, warehouse_id, language_pref, referral_code, wallet_balance, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'en', $8, 0, true)`,
+        `INSERT INTO users (id, email, password, name, phone, role, warehouse_id, language_pref, referral_code, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'en', $8, true)`,
         [userId, email.toLowerCase().trim(), passwordHash, name, phone, accountRole, warehouseId, referralCode]
       );
-      await client.query(`INSERT INTO wallet (id, user_id, balance, currency) VALUES ($1, $2, 0, 'KES')`, [uuidv4(), userId]);
+      // Wallet replaced by user_credits (PR A / migration 028).
+      await client.query(
+        `INSERT INTO user_credits (user_id, balance_kes, updated_at)
+         VALUES ($1, 0, NOW())
+         ON CONFLICT (user_id) DO NOTHING`,
+        [userId]
+      );
       await client.query('INSERT INTO password_reset_tokens (id, user_id, token, expires_at) VALUES ($1, $2, $3, $4)', [setupTokenId, userId, setupToken, expiresAt]);
       await client.query('INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1, $2, $3, $4)', [uuidv4(), adminId, 'create_user_account', JSON.stringify({ user_id: userId, email: email.toLowerCase().trim(), role: accountRole, warehouse_id: warehouseId })]);
       await client.query('COMMIT');

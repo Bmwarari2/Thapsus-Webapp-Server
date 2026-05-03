@@ -9,8 +9,15 @@ router.get('/', authMiddleware, async (req, res) => {
     const db = req.db;
     const userId = req.user.id;
 
-    const userRes = await db.query('SELECT referral_code, wallet_balance FROM users WHERE id = $1', [userId]);
+    // Wallet replaced by user_credits in PR A / migration 028. The
+    // referral page's "current_balance" tile now reads from user_credits.
+    const userRes = await db.query('SELECT referral_code FROM users WHERE id = $1', [userId]);
     if (!userRes.rows[0]) return res.status(404).json({ success: false, message: 'User not found' });
+    const creditRes = await db.query(
+      'SELECT balance_kes FROM user_credits WHERE user_id = $1',
+      [userId]
+    );
+    const currentBalance = Number(creditRes.rows[0]?.balance_kes ?? 0);
 
     const stats = await db.query(
       `SELECT
@@ -41,7 +48,7 @@ router.get('/', authMiddleware, async (req, res) => {
       success: true,
       referral: {
         referral_code: userRes.rows[0].referral_code,
-        current_balance: userRes.rows[0].wallet_balance,
+        current_balance: currentBalance,
         statistics: {
           total_referrals:     parseInt(s.total_referrals) || 0,
           completed_referrals: parseInt(s.completed_referrals) || 0,
