@@ -180,10 +180,21 @@ router.post('/parcels/:id/screen', authMiddleware, ALLOWED, async (req, res) => 
       screening = result.risk_level === 'high' ? 'held' : 'dg_suspect';
     }
 
+    // Audit P2.2: the legacy cascade wrote `packages.status='pending'` on
+    // a 'held' screen. Migration 002 widened packages.status to the v2
+    // CHECK list (pre_registered, received_at_warehouse, …, held,
+    // held_at_nairobi_hub, …) and dropped the legacy 'pending' value
+    // entirely — every high-risk re-screen 500'd against
+    // `check_violation` on `packages_status_check` and the screening_result
+    // column never updated either (the whole UPDATE rolled back).
+    //
+    // Use the v2-allowed 'held' value. orders.hold_reason carries the
+    // screening category for the hold pill on the operator board.
     await req.db.query(
       `UPDATE packages
           SET screening_result = $1,
-              status = CASE WHEN $1 = 'held' THEN 'pending' ELSE status END
+              status = CASE WHEN $1 = 'held' THEN 'held' ELSE status END,
+              updated_at = NOW()
         WHERE order_id = $2`,
       [screening, id]
     );
