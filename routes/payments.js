@@ -26,11 +26,57 @@ const router = express.Router();
 
 const MPESA_TILL = process.env.MPESA_TILL_NUMBER || '5530500';
 
-/** GET /api/config/stripe — publishable key + Apple Pay flag for clients. */
-router.get('/config/stripe', (_req, res) => {
+/**
+ * Resolve which payment methods are available in this environment.
+ *
+ * Per-environment kill-switches via env vars (Railway):
+ *   PAYMENT_METHOD_STRIPE_ENABLED  'true' | 'false'  (default: derived from STRIPE_SECRET_KEY presence)
+ *   PAYMENT_METHOD_MPESA_ENABLED   'true' | 'false'  (default: 'true')
+ *   APPLE_PAY_ENABLED              'true' | 'false'  (default: 'false')
+ *
+ * Single source of truth — both /api/payments/methods (matrix) and the
+ * legacy /api/payments/config/stripe (publishable_key + apple_pay) read
+ * from this; POST /api/payments rejects creates against disabled methods.
+ */
+function resolvePaymentMethods() {
   const pk = stripePublishableKey();
-  if (!pk) return res.status(503).json({ success: false, message: 'Stripe not configured' });
-  res.json({ success: true, publishable_key: pk, apple_pay: false });
+  const stripeEnabledFlag = process.env.PAYMENT_METHOD_STRIPE_ENABLED;
+  const mpesaEnabledFlag  = process.env.PAYMENT_METHOD_MPESA_ENABLED;
+  const applePayFlag      = process.env.APPLE_PAY_ENABLED;
+
+  const stripeEnabled = stripeEnabledFlag === 'false'
+    ? false
+    : (stripeEnabledFlag === 'true' ? true : Boolean(pk)); // auto when flag unset
+  const mpesaEnabled  = mpesaEnabledFlag === 'false' ? false : true;
+  const applePay      = applePayFlag === 'true';
+
+  return {
+    stripe: { enabled: stripeEnabled, publishable_key: stripeEnabled ? pk : null, apple_pay: applePay },
+    mpesa:  { enabled: mpesaEnabled,  till_number: MPESA_TILL },
+  };
+}
+
+/**
+ * GET /api/payments/methods — full payment-method matrix.
+ * iOS PayInvoiceView and webapp PayInvoiceModal call this at bootstrap
+ * to decide which buttons to render. Hides "Pay with card" when Stripe
+ * is disabled, hides "Pay via M-Pesa" when M-Pesa is disabled.
+ */
+router.get('/methods', (_req, res) => {
+  res.json({ success: true, methods: resolvePaymentMethods() });
+});
+
+/**
+ * GET /api/payments/config/stripe — legacy shape, kept for older
+ * iOS clients that pre-date PR F. Returns the publishable key + Apple
+ * Pay flag flat at the top level. New clients should call /methods.
+ */
+router.get('/config/stripe', (_req, res) => {
+  const m = resolvePaymentMethods();
+  if (!m.stripe.enabled || !m.stripe.publishable_key) {
+    return res.status(503).json({ success: false, message: 'Stripe not configured' });
+  }
+  res.json({ success: true, publishable_key: m.stripe.publishable_key, apple_pay: m.stripe.apple_pay });
 });
 
 /** GET /api/me/credit — running KES credit balance for the auth'd user. */
@@ -71,6 +117,17 @@ router.post('/', authMiddleware, async (req, res) => {
   }
   if (!['stripe','mpesa'].includes(method)) {
     return res.status(400).json({ success: false, message: 'method must be stripe or mpesa' });
+  }
+  // PR F: enforce per-environment method kill-switches. Same matrix
+  // surfaces via GET /api/payments/methods so the client can hide the
+  // button up-front; this 409 is the belt-and-braces check for stale
+  // clients that didn't refresh after a flag flip.
+  const enabledMethods = resolvePaymentMethods();
+  if (method === 'stripe' && (!enabledMethods.stripe.enabled || !enabledMethods.stripe.publishable_key)) {
+    return res.status(409).json({ success: false, message: 'Card payments are not available right now. Please use M-Pesa.' });
+  }
+  if (method === 'mpesa' && !enabledMethods.mpesa.enabled) {
+    return res.status(409).json({ success: false, message: 'M-Pesa payments are not available right now. Please use a card.' });
   }
 
   const client = await req.db.connect();
