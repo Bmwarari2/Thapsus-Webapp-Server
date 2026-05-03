@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { Package, Wallet, TrendingUp, Eye, Copy, CheckCheck, MapPin, ArrowRight, Box } from 'lucide-react'
+import { Package, Gift, TrendingUp, Eye, Copy, CheckCheck, MapPin, ArrowRight, Box } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
-import { ordersApi, walletApi, warehouseApi } from '../api'
+import { ordersApi, paymentsApi, warehouseApi } from '../api'
 import toast from 'react-hot-toast'
-import { useOrderUpdates, useWalletUpdates } from '../hooks/useRealtimeUpdates'
+import { useOrderUpdates, useCreditUpdates } from '../hooks/useRealtimeUpdates'
 import { CutoffBanner } from '../components/CutoffBanner'
 
 // --- CUSTOM STYLES & GLASS COMPONENTS ---
@@ -54,7 +54,7 @@ export const Dashboard = () => {
   const [copied, setCopied] = useState(false)
   const [stats, setStats] = useState({
     activeOrders: 0,
-    walletBalance: 0,
+    creditBalance: 0,
   })
   // UK warehouse address lines loaded from the API (falls back to inline defaults)
   const [ukAddressLines, setUkAddressLines] = useState([])
@@ -65,21 +65,24 @@ export const Dashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [ordersResult, walletResult, warehouseResult] = await Promise.allSettled([
+        // Wallet replaced by per-user credit (server PR #61, migration 028).
+        // Credit auto-applies on every payment; the dashboard tile shows the
+        // remaining balance the customer can use against their next invoice.
+        const [ordersResult, creditResult, warehouseResult] = await Promise.allSettled([
           ordersApi.list(),
-          walletApi.getBalance(),
+          paymentsApi.myCredit(),
           warehouseApi.getAddresses(),
         ])
 
         let fetchedOrders = []
-        let walletBalance = 0
+        let creditBalance = 0
 
         if (ordersResult.status === 'fulfilled') {
           fetchedOrders = ordersResult.value.data?.orders || []
         }
 
-        if (walletResult.status === 'fulfilled') {
-          walletBalance = walletResult.value.data?.wallet?.balance ?? 0
+        if (creditResult.status === 'fulfilled') {
+          creditBalance = creditResult.value.data?.balance_kes ?? 0
         }
 
         if (warehouseResult.status === 'fulfilled') {
@@ -94,7 +97,7 @@ export const Dashboard = () => {
         setOrders(activeOrders)
         setStats({
           activeOrders: activeOrders.length,
-          walletBalance,
+          creditBalance,
         })
       } catch (err) {
         toast.error('Failed to load dashboard')
@@ -129,12 +132,13 @@ export const Dashboard = () => {
     })
   })
 
-  useWalletUpdates((payload) => {
-    if (!payload || typeof payload.balance !== 'number') return
-    setStats((prevStats) => ({
-      ...prevStats,
-      walletBalance: payload.balance,
-    }))
+  // Re-fetch credit balance on any credit-update event (e.g. referral
+  // bonus from routes/orders.js). The server pushes `delta_kes` only;
+  // simpler + safer to re-read the authoritative balance than mutate.
+  useCreditUpdates(() => {
+    paymentsApi.myCredit()
+      .then((r) => setStats((prev) => ({ ...prev, creditBalance: r.data?.balance_kes ?? prev.creditBalance })))
+      .catch(() => {})
   })
 
   // Build address lines: personal identifier first, then warehouse location from API
@@ -283,14 +287,14 @@ export const Dashboard = () => {
           <GlassCard className="p-8 group hover:-translate-y-2 transition-all duration-500">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{t('dashboard.walletBalance')}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">My credit</p>
                 <h3 className="text-4xl md:text-5xl font-black text-green-600 tracking-tighter">
-                  <span className="text-2xl">KES</span> {stats.walletBalance.toLocaleString()}
+                  <span className="text-2xl">KES</span> {stats.creditBalance.toLocaleString()}
                 </h3>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-2">Referral credit</p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-2">Auto-applied to next invoice</p>
               </div>
               <div className="p-4 bg-green-50 border border-green-100 rounded-[1.5rem] text-green-600 group-hover:scale-110 transition-transform shadow-sm">
-                <Wallet size={28} />
+                <Gift size={28} />
               </div>
             </div>
           </GlassCard>
@@ -321,11 +325,11 @@ export const Dashboard = () => {
               View My Orders
             </Link>
             <Link
-              to="/wallet"
+              to="/credit"
               className="glass-sheen flex-1 bg-orange-500 hover:bg-orange-600 text-white px-6 py-6 rounded-[2.5rem] font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all shadow-xl hover:-translate-y-1"
             >
-              <Wallet size={20} />
-              Wallet & Referrals
+              <Gift size={20} />
+              Credit & Referrals
             </Link>
           </div>
         </div>

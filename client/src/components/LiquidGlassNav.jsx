@@ -242,7 +242,7 @@ function buildLinkSets({ isAuthenticated, isAdmin, role, t }) {
   const account = isAuthenticated ? [
     { to: '/dashboard',  label: t('nav.dashboard') || 'Dashboard', icon: LayoutDashboard },
     { to: '/orders',     label: 'My orders',                       icon: Receipt },
-    { to: '/wallet',     label: t('nav.wallet') || 'Wallet',       icon: WalletIcon },
+    { to: '/credit',     label: 'My credit',                       icon: WalletIcon },
     { to: '/insurance',  label: 'Insurance',                       icon: Shield },
     { to: '/buy-for-me', label: 'Buy for me',                      icon: ShoppingBag },
     { to: '/consolidation', label: 'Consolidation',                icon: Plane },
