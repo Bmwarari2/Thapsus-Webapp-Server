@@ -85,7 +85,7 @@ function PaymentsList() {
     setError(null)
     try {
       const nextOffset = reset ? 0 : offset
-      const r = await paymentsApi.list({ limit: PAGE_SIZE, offset: nextOffset })
+      const r = await paymentsApi.list({ limit: PAGE_SIZE, offset: nextOffset, group: 'target' })
       const next = r.data?.payments ?? []
       setRows(prev => reset ? next : [...prev, ...next])
       setOffset(nextOffset + next.length)
@@ -165,8 +165,13 @@ function PaymentRow({ p }) {
             <span>£{(p.stripe_amount_pence_gbp / 100).toFixed(2)}</span>
           )}
           {reference && <span className="font-mono truncate">{reference}</span>}
+          {p.attempts_count > 1 && (
+            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-wider">
+              +{p.attempts_count - 1} earlier attempt{p.attempts_count - 1 === 1 ? '' : 's'}
+            </span>
+          )}
         </div>
-        {p.rejection_reason && (
+        {p.rejection_reason && p.status !== 'cancelled' && (
           <p className="mt-2 text-xs text-rose-600">Rejected: {p.rejection_reason}</p>
         )}
       </div>
