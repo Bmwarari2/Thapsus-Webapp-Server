@@ -7,6 +7,7 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
+import { notifyParcelStatus } from '../utils/parcelStatusNotify.js';
 
 const router = express.Router();
 
@@ -154,16 +155,40 @@ router.patch(
         params
       );
 
-      // Cascade parcel status when entry is marked released
+      // Audit P2.1: when an agent marks the entry 'released', the parcel is
+      // KRA-cleared but NOT yet on a rider's run. The previous cascade
+      // flipped orders.status='out_for_delivery' here, which:
+      //   • removed the parcel from the dispatch board (filter requires
+      //     orders.status='customs');
+      //   • skipped activateRunDispatch's OTP issuance — riders later
+      //     hit /pod with otp_not_issued because pod_otps had no row;
+      //   • showed "out for delivery" to the customer before any
+      //     rider had accepted the run.
+      //
+      // The fix is to leave orders.status='customs'. The dispatch
+      // board picks up customs-cleared parcels via the released-entry
+      // join (see GET /api/last-mile/dispatch). orders.status flips
+      // to 'out_for_delivery' only when activateRunDispatch fires.
+      // We still notify the customer that customs is cleared so
+      // they get progress visibility.
       if (req.body.status === 'released') {
         const parcelRow = await req.db.query(
           `SELECT parcel_id FROM customs_entries WHERE id = $1`, [id]
         );
-        if (parcelRow.rows[0]) {
+        const parcelId = parcelRow.rows[0]?.parcel_id;
+        if (parcelId) {
+          // Stamp updated_at on orders so the dispatch board ordering
+          // (oldest-cleared-first) reflects the release time.
           await req.db.query(
-            `UPDATE orders SET status = 'out_for_delivery', updated_at = NOW()
-              WHERE id = $1`,
-            [parcelRow.rows[0].parcel_id]
+            `UPDATE orders SET updated_at = NOW() WHERE id = $1`,
+            [parcelId]
+          );
+          // Best-effort customer fan-out. Generic STATUS_MESSAGE for
+          // 'customs' covers it ("Your parcel ... is clearing customs.")
+          // — for now we reuse it post-release; a dedicated
+          // 'customs_cleared' template can land in a follow-up.
+          notifyParcelStatus(req.db, parcelId, 'customs').catch((err) =>
+            console.warn('notifyParcelStatus(customs released) failed:', err.message)
           );
         }
       }

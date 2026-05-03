@@ -43,7 +43,11 @@ export const AgentPortal = () => {
   const onMarkReleased = async (entryId) => {
     try {
       await customsApi.updateEntry(entryId, { status: 'released' })
-      toast.success('Released — moving to last-mile')
+      // Audit P2.1: the parcel is now KRA-cleared but stays on
+      // orders.status='customs' until an operator puts it on a rider
+      // run (activateRunDispatch flips it to 'out_for_delivery' and
+      // mints the OTP). Copy reflects the new invariant.
+      toast.success('Released — awaiting dispatch')
       onOpen(active)
     } catch { toast.error('Failed to mark released') }
   }
