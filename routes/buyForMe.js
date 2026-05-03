@@ -98,95 +98,20 @@ router.get('/:id', authMiddleware, async (req, res) => {
 });
 
 /**
- * POST /api/buy-for-me/:id/pay — customer accepts a quote and pays from wallet.
- * Atomically debits wallet by (estimate_gbp * (1 + markup_pct/100)) — converted
- * via current GBP→KES rate — and flips status to 'paid'. Insufficient balance
- * fails with 402.
+ * POST /api/buy-for-me/:id/pay — DEPRECATED.
+ * Kept as a 410 Gone so any stale client gets a clear "switch to /api/payments"
+ * message instead of attempting to debit a wallet that no longer exists
+ * (migration 028). The replacement flow is:
+ *   POST /api/payments
+ *     { target_kind: 'buy_for_me', target_id: <bfm_id>,
+ *       method: 'stripe' | 'mpesa' }
+ * which returns a Stripe client_secret OR M-Pesa Till instructions.
  */
-router.post('/:id/pay', authMiddleware, async (req, res) => {
-  const client = await req.db.connect();
-  try {
-    await client.query('BEGIN');
-
-    const { rows: orderRows } = await client.query(
-      `SELECT * FROM buy_for_me_orders WHERE id = $1 FOR UPDATE`,
-      [req.params.id]
-    );
-    if (orderRows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ success: false, message: 'Concierge order not found' });
-    }
-    const order = orderRows[0];
-    if (order.user_id !== req.user.id) {
-      await client.query('ROLLBACK');
-      return res.status(403).json({ success: false, message: 'Access denied' });
-    }
-    if (order.status !== 'quoted') {
-      await client.query('ROLLBACK');
-      return res.status(409).json({
-        success: false,
-        message: `Cannot pay an order in status '${order.status}'`,
-      });
-    }
-    if (!order.estimate_gbp || order.estimate_gbp <= 0) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ success: false, message: 'Quote not set' });
-    }
-
-    const markup = (order.markup_pct || 0) / 100;
-    const totalGbp = order.estimate_gbp * (1 + markup);
-
-    const { rows: rateRows } = await client.query(
-      `SELECT rate FROM exchange_rates WHERE currency_pair = 'GBP_KES' LIMIT 1`
-    );
-    const gbpToKes = rateRows[0]?.rate || 165;
-    const totalKes = Math.round(totalGbp * gbpToKes);
-
-    const { rows: walletRows } = await client.query(
-      `SELECT balance FROM wallet WHERE user_id = $1 FOR UPDATE`,
-      [req.user.id]
-    );
-    const balance = walletRows[0]?.balance || 0;
-    if (balance < totalKes) {
-      await client.query('ROLLBACK');
-      return res.status(402).json({
-        success: false,
-        message: `Insufficient wallet balance. Need KES ${totalKes.toLocaleString()}, have KES ${balance.toLocaleString()}.`,
-      });
-    }
-
-    await client.query(
-      `UPDATE wallet SET balance = balance - $1, last_updated = NOW() WHERE user_id = $2`,
-      [totalKes, req.user.id]
-    );
-    await client.query(
-      `INSERT INTO transactions (id, user_id, type, amount, currency, payment_method, status)
-       VALUES ($1, $2, 'payment', $3, 'KES', 'wallet', 'completed')`,
-      [
-        `TXN-BFM-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
-        req.user.id,
-        -totalKes,
-      ]
-    );
-    await client.query(
-      `UPDATE buy_for_me_orders SET status = 'paid', updated_at = NOW() WHERE id = $1`,
-      [req.params.id]
-    );
-
-    await client.query('COMMIT');
-    res.json({
-      success: true,
-      paid_kes: totalKes,
-      paid_gbp: totalGbp,
-      new_balance_kes: balance - totalKes,
-    });
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('POST /buy-for-me/:id/pay error:', err);
-    res.status(500).json({ success: false, message: 'Failed to pay concierge order' });
-  } finally {
-    client.release();
-  }
+router.post('/:id/pay', authMiddleware, async (_req, res) => {
+  return res.status(410).json({
+    success: false,
+    message: 'Wallet pay is removed. Use POST /api/payments with target_kind=buy_for_me.',
+  });
 });
 
 /** POST /api/buy-for-me/:id/cancel — customer cancels a not-yet-purchased order. */
@@ -282,89 +207,18 @@ router.post('/:id/quote', authMiddleware, requireRole('operator'), async (req, r
 });
 
 /**
- * POST /api/buy-for-me/:id/accept — customer accepts a quote.
- *
- * Thin wrapper over /pay that also captures an optional acceptance note
- * (e.g. "please buy size M instead"). Accepts the same wallet rules as
- * /pay so older clients pointing at /pay continue to work unchanged.
+ * POST /api/buy-for-me/:id/accept — DEPRECATED (wallet path removed).
+ * The /accept verb survives only for the optional acceptance note. The
+ * customer's actual money flow is now POST /api/payments with
+ * target_kind='buy_for_me'. The note can be passed to that endpoint via
+ * a follow-up call once the payment is created. We keep this endpoint as
+ * a 410 Gone so any stale client gets a clear redirect message.
  */
-router.post('/:id/accept', authMiddleware, async (req, res) => {
-  const client = await req.db.connect();
-  try {
-    await client.query('BEGIN');
-    const { rows: orderRows } = await client.query(
-      `SELECT * FROM buy_for_me_orders WHERE id = $1 FOR UPDATE`, [req.params.id]
-    );
-    if (orderRows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ success: false, message: 'Concierge order not found' });
-    }
-    const order = orderRows[0];
-    if (order.user_id !== req.user.id) {
-      await client.query('ROLLBACK');
-      return res.status(403).json({ success: false, message: 'Access denied' });
-    }
-    if (order.status !== 'quoted') {
-      await client.query('ROLLBACK');
-      return res.status(409).json({
-        success: false,
-        message: `Cannot accept an order in status '${order.status}'`,
-      });
-    }
-    if (!order.estimate_gbp || order.estimate_gbp <= 0) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ success: false, message: 'Quote not set' });
-    }
-    const markup  = (order.markup_pct || 0) / 100;
-    const totalGbp = order.estimate_gbp * (1 + markup);
-    const { rows: rateRows } = await client.query(
-      `SELECT rate FROM exchange_rates WHERE currency_pair = 'GBP_KES' LIMIT 1`
-    );
-    const gbpToKes = rateRows[0]?.rate || 165;
-    const totalKes = Math.round(totalGbp * gbpToKes);
-    const { rows: walletRows } = await client.query(
-      `SELECT balance FROM wallet WHERE user_id = $1 FOR UPDATE`, [req.user.id]
-    );
-    const balance = walletRows[0]?.balance || 0;
-    if (balance < totalKes) {
-      await client.query('ROLLBACK');
-      return res.status(402).json({
-        success: false,
-        message: `Insufficient wallet balance. Need KES ${totalKes.toLocaleString()}, have KES ${balance.toLocaleString()}.`,
-      });
-    }
-    await client.query(
-      `UPDATE wallet SET balance = balance - $1, last_updated = NOW() WHERE user_id = $2`,
-      [totalKes, req.user.id]
-    );
-    await client.query(
-      `INSERT INTO transactions (id, user_id, type, amount, currency, payment_method, status)
-       VALUES ($1, $2, 'payment', $3, 'KES', 'wallet', 'completed')`,
-      [`TXN-BFM-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, req.user.id, -totalKes]
-    );
-    await client.query(
-      `UPDATE buy_for_me_orders
-          SET status = 'paid',
-              customer_decision_reason = $2,
-              decided_at = NOW(),
-              updated_at = NOW()
-        WHERE id = $1`,
-      [req.params.id, req.body?.reason || null]
-    );
-    await client.query('COMMIT');
-    res.json({
-      success: true,
-      paid_kes: totalKes,
-      paid_gbp: totalGbp,
-      new_balance_kes: balance - totalKes,
-    });
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('POST /buy-for-me/:id/accept error:', err);
-    res.status(500).json({ success: false, message: 'Failed to accept quote' });
-  } finally {
-    client.release();
-  }
+router.post('/:id/accept', authMiddleware, async (_req, res) => {
+  return res.status(410).json({
+    success: false,
+    message: 'Wallet accept is removed. Use POST /api/payments with target_kind=buy_for_me.',
+  });
 });
 
 /**

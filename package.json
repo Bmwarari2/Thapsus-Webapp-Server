@@ -34,7 +34,8 @@
     "nodemailer": "^6.9.9",
     "googleapis": "^144.0.0",
     "xss": "^1.0.15",
-    "@supabase/supabase-js": "^2.45.0"
+    "@supabase/supabase-js": "^2.45.0",
+    "stripe": "^17.4.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",

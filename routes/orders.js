@@ -111,7 +111,10 @@ router.post('/', authMiddleware, async (req, res) => {
         [uuidv4(), orderId, userId, description, weight_kg || null]
       );
 
-      // referral reward check — both referrer AND referee get KES 50
+      // Referral reward check — both referrer AND referee get KES 50 of credit.
+      // Migration 028 replaced the wallet model with user_credits + credit_ledger;
+      // this reward path now bumps the credit balance and appends a ledger row
+      // instead of touching wallet/users.wallet_balance/transactions.
       const refResult = await client.query(
         `SELECT id, referrer_id, reward_amount FROM referrals WHERE referee_id = $1 AND status = 'pending' LIMIT 1`,
         [userId]
@@ -122,31 +125,37 @@ router.post('/', authMiddleware, async (req, res) => {
         if (parseInt(countRes.rows[0].cnt) === 1) {
           const reward = 50; // KES 50 for each party
 
-          await client.query(`UPDATE referrals SET status = 'completed', completed_at = NOW(), reward_amount = $1 WHERE id = $2`, [reward, pendingReferral.id]);
-
-          // Reward the REFERRER (person who shared the code)
-          await client.query('UPDATE users  SET wallet_balance = wallet_balance + $1 WHERE id = $2', [reward, pendingReferral.referrer_id]);
-          await client.query('UPDATE wallet SET balance = balance + $1, last_updated = NOW() WHERE user_id = $2', [reward, pendingReferral.referrer_id]);
           await client.query(
-            `INSERT INTO transactions (id, user_id, type, amount, currency, status)
-             VALUES ($1,$2,'referral_credit',$3,'KES','completed')`,
-            [uuidv4(), pendingReferral.referrer_id, reward]
+            `UPDATE referrals SET status = 'completed', completed_at = NOW(), reward_amount = $1 WHERE id = $2`,
+            [reward, pendingReferral.id]
           );
 
-          // Reward the REFEREE (person who was referred)
-          await client.query('UPDATE users  SET wallet_balance = wallet_balance + $1 WHERE id = $2', [reward, userId]);
-          await client.query('UPDATE wallet SET balance = balance + $1, last_updated = NOW() WHERE user_id = $2', [reward, userId]);
-          await client.query(
-            `INSERT INTO transactions (id, user_id, type, amount, currency, status)
-             VALUES ($1,$2,'referral_credit',$3,'KES','completed')`,
-            [uuidv4(), userId, reward]
-          );
+          // Ensure both users have a user_credits row, then bump + ledger.
+          for (const beneficiary of [pendingReferral.referrer_id, userId]) {
+            await client.query(
+              `INSERT INTO user_credits (user_id, balance_kes, updated_at)
+               VALUES ($1, 0, NOW())
+               ON CONFLICT (user_id) DO NOTHING`,
+              [beneficiary]
+            );
+            await client.query(
+              `UPDATE user_credits
+                  SET balance_kes = balance_kes + $1, updated_at = NOW()
+                WHERE user_id = $2`,
+              [reward, beneficiary]
+            );
+            await client.query(
+              `INSERT INTO credit_ledger (id, user_id, delta_kes, reason, source_id, note)
+               VALUES ($1, $2, $3, 'referral', $4, $5)`,
+              [`CRD-RFR-${pendingReferral.id}-${beneficiary === pendingReferral.referrer_id ? 'A' : 'B'}`,
+               beneficiary, reward, pendingReferral.id,
+               `Referral reward for ${pendingReferral.id}`]
+            );
+          }
 
-          // Push wallet updates to both users (read inside the txn so values are accurate)
-          const referrerWallet = await client.query('SELECT balance FROM wallet WHERE user_id = $1', [pendingReferral.referrer_id]);
-          pushToUser(pendingReferral.referrer_id, 'wallet_update', { balance: referrerWallet.rows[0]?.balance });
-          const refereeWallet = await client.query('SELECT balance FROM wallet WHERE user_id = $1', [userId]);
-          pushToUser(userId, 'wallet_update', { balance: refereeWallet.rows[0]?.balance });
+          // SSE push so each user's credit widget refreshes live.
+          pushToUser(pendingReferral.referrer_id, 'credit_update', { delta_kes: reward });
+          pushToUser(userId, 'credit_update', { delta_kes: reward });
         }
       }
 

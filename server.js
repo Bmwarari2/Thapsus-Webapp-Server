@@ -73,7 +73,9 @@ import authRoutes          from './routes/auth.js';
 import ordersRoutes        from './routes/orders.js';
 import trackingRoutes      from './routes/tracking.js';
 import adminRoutes         from './routes/admin.js';
-import walletRoutes        from './routes/wallet.js';
+// import walletRoutes from './routes/wallet.js'; // REMOVED in PR A — wallet replaced by payments + credits (migration 028).
+import paymentsRoutes, { stripeWebhookHandler } from './routes/payments.js';
+import adminPaymentsRoutes from './routes/adminPayments.js';
 import exchangeRoutes      from './routes/exchange.js';
 import referralRoutes      from './routes/referral.js';
 import ticketsRoutes       from './routes/tickets.js';
@@ -161,6 +163,15 @@ app.options('*', cors());
 
 app.use(compression());
 app.use(morgan(NODE_ENV === 'development' ? 'dev' : 'combined'));
+// Stripe webhook MUST receive the raw body for signature verification.
+// Mount it BEFORE express.json() so the JSON parser doesn't consume the
+// stream first. The handler attaches req.db itself via getPool().
+app.post('/api/payments/stripe/webhook',
+  express.raw({ type: 'application/json', limit: '1mb' }),
+  (req, _res, next) => { req.db = getPool(); next(); },
+  stripeWebhookHandler
+);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(sanitizeBody);
@@ -279,8 +290,9 @@ app.use('/api/auth/register', authLimiter);
 
 // new
 app.use('/api/auth/forgot-password', forgotPasswordLimiter);
-app.use('/api/payment',              paymentLimiter);
-app.use('/api/wallet/mpesa-confirm', paymentLimiter);
+app.use('/api/payment',                       paymentLimiter); // legacy /api/payment (read-only order lookup)
+app.use('/api/payments/:id/mpesa-confirmation', paymentLimiter); // new flow rate-limit
+app.use('/api/payments/stripe/webhook',       paymentLimiter);
 app.use('/api/tracking',             trackingLimiter);
 
 // ── Disable caching on API routes ────────────────────────────────────────────
@@ -322,7 +334,15 @@ app.use('/api/auth',          authRoutes);
 app.use('/api/orders',        ordersRoutes);
 app.use('/api/tracking',      trackingRoutes);
 app.use('/api/admin',         adminRoutes);
-app.use('/api/wallet',        walletRoutes);
+// /api/wallet REMOVED — wallet table dropped in migration 028. Stub responds
+// with 410 Gone so any stale iOS/web client gets a clear "switch to /api/payments"
+// signal instead of a confusing 404.
+app.all('/api/wallet*', (_req, res) => res.status(410).json({
+  success: false,
+  message: 'Wallet has been removed. Use POST /api/payments instead.',
+}));
+app.use('/api/payments',         paymentsRoutes);
+app.use('/api/admin/payments',   adminPaymentsRoutes);
 app.use('/api/exchange',      exchangeRoutes);
 app.use('/api/referral',      referralRoutes);
 app.use('/api/tickets',       ticketsRoutes);
