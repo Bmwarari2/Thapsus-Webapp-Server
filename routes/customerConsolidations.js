@@ -142,6 +142,70 @@ router.get('/', authMiddleware, ALLOWED_ADMIN, async (req, res) => {
 });
 
 /**
+ * POST /api/customer-consolidations/standalone-invoice  (admin)  [PR 5]
+ *
+ * Mints a one-off "standalone" invoice — no parcels attached, just an
+ * amount + description. Customer pays via the existing PayInvoiceModal /
+ * PayInvoiceView flow with target_kind='consolidation'. Same single
+ * state-machine flips it to 'paid' on Stripe webhook OR M-Pesa admin
+ * approval.
+ *
+ * Body: { user_id, amount_kes, description, currency?, notes? }
+ * Returns: { success, customer_consolidation_id }
+ */
+router.post('/standalone-invoice', authMiddleware, ALLOWED_ADMIN, async (req, res) => {
+  try {
+    const { user_id, amount_kes, description, currency, notes } = req.body || {};
+    if (!user_id || typeof user_id !== 'string') {
+      return res.status(400).json({ success: false, message: 'user_id is required' });
+    }
+    const amount = Number(amount_kes);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ success: false, message: 'amount_kes must be a positive number' });
+    }
+    if (!description || typeof description !== 'string' || description.trim().length === 0) {
+      return res.status(400).json({ success: false, message: 'description is required' });
+    }
+
+    // Confirm the customer exists before issuing — typo'd user_id would
+    // otherwise create an orphan invoice no one can pay.
+    const { rows: ownerRows } = await req.db.query(
+      `SELECT id, email FROM users WHERE id = $1`, [user_id]
+    );
+    if (ownerRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Customer not found' });
+    }
+
+    const client = await req.db.connect();
+    let row;
+    try {
+      await client.query('BEGIN');
+      const ins = await client.query(
+        `INSERT INTO customer_consolidations
+           (user_id, status, notes, description, is_standalone,
+            invoice_amount, invoice_currency, invoice_status, created_by)
+         VALUES ($1, 'invoiced', $2, $3, true, $4, COALESCE($5, 'KES'), 'pending', $6)
+         RETURNING *`,
+        [user_id, notes || null, description.trim(), amount, currency || null, req.user.id]
+      );
+      row = ins.rows[0];
+      await notifyInvoice(client, row, 'invoiced');
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
+
+    res.status(201).json({ success: true, customer_consolidation: row });
+  } catch (err) {
+    console.error('POST /customer-consolidations/standalone-invoice error:', err);
+    res.status(500).json({ success: false, message: 'Failed to issue invoice' });
+  }
+});
+
+/**
  * POST /api/customer-consolidations  (admin)
  *
  * Mints a customer-consolidation by selecting parcels owned by a single

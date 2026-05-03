@@ -300,9 +300,11 @@ function buildLinkSets({ isAuthenticated, isAdmin, role, t }) {
       label: 'Admin tools',
       icon:  BarChart3,
       links: [
-        { to: '/admin',        label: t('nav.admin') || 'Admin dashboard', icon: BarChart3 },
-        { to: '/kpi',          label: 'KPI dashboard',                     icon: Activity },
-        { to: '/ops/settings', label: 'Pricing settings',                  icon: Settings },
+        { to: '/admin',                          label: t('nav.admin') || 'Admin dashboard', icon: BarChart3 },
+        { to: '/admin/customer-consolidations',  label: 'Customer consolidations',           icon: Receipt },
+        { to: '/admin/issue-invoice',            label: 'Issue invoice',                     icon: FileText },
+        { to: '/kpi',                            label: 'KPI dashboard',                     icon: Activity },
+        { to: '/ops/settings',                   label: 'Pricing settings',                  icon: Settings },
       ],
     })
   }
