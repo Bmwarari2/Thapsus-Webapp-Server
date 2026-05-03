@@ -5,7 +5,8 @@
 // No deposits — credit is referral-only.
 
 import React, { useEffect, useState } from 'react'
-import { Gift, TrendingUp } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Gift, TrendingUp, ChevronRight } from 'lucide-react'
 import { paymentsApi, referralApi } from '../api'
 import { useCreditUpdates } from '../hooks/useRealtimeUpdates'
 
@@ -58,6 +59,12 @@ export function CreditCenter() {
               ? 'Refer a friend to earn KES 50.'
               : 'Will be deducted from your next invoice.'}
           </p>
+          <Link
+            to="/transactions"
+            className="mt-6 inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-orange-600 hover:text-orange-700"
+          >
+            View transactions <ChevronRight size={14} />
+          </Link>
         </div>
 
         <div className="bg-white/70 backdrop-blur-2xl rounded-[2.5rem] border border-slate-200 shadow-sm p-8 mb-8">

@@ -314,17 +314,95 @@ router.post('/:id/mpesa-confirmation', authMiddleware, async (req, res) => {
   }
 });
 
-/** GET /api/payments — customer's recent payments (any status). */
+/**
+ * GET /api/payments — customer's payments, paginated + filterable.
+ *
+ * Query:
+ *   status  optional CSV filter, e.g. ?status=paid,awaiting_review
+ *   limit   default 20, max 100
+ *   offset  default 0
+ *
+ * Each row is enriched with `target_label` (tracking number / item name /
+ * consolidation prefix) via a LATERAL lookup so the client doesn't have
+ * to do a second round-trip for the human-readable name.
+ */
 router.get('/', authMiddleware, async (req, res) => {
   try {
+    const limit  = Math.min(Math.max(parseInt(req.query.limit, 10)  || 20, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const statusCsv = String(req.query.status || '').trim();
+    const statusList = statusCsv
+      ? statusCsv.split(',').map(s => s.trim()).filter(Boolean)
+      : null;
+
+    const params = [req.user.id];
+    let where = `WHERE p.user_id = $1`;
+    if (statusList && statusList.length > 0) {
+      params.push(statusList);
+      where += ` AND p.status = ANY($${params.length}::text[])`;
+    }
+    params.push(limit, offset);
+    const limitIdx  = params.length - 1;
+    const offsetIdx = params.length;
+
     const { rows } = await req.db.query(
-      `SELECT * FROM payments WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50`,
-      [req.user.id]
+      `SELECT p.*,
+              COALESCE(
+                CASE p.target_kind
+                  WHEN 'order'         THEN (SELECT tracking_number FROM orders WHERE id = p.target_id)
+                  WHEN 'consolidation' THEN (SELECT substring(id::text, 1, 8) FROM customer_consolidations WHERE id::text = p.target_id)
+                  WHEN 'buy_for_me'    THEN (SELECT item_name FROM buy_for_me_orders WHERE id = p.target_id)
+                END,
+                p.target_id
+              ) AS target_label
+         FROM payments p
+        ${where}
+        ORDER BY p.created_at DESC
+        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      params
     );
-    res.json({ success: true, payments: rows.map(serializePayment) });
+    res.json({
+      success: true,
+      payments: rows.map(r => ({ ...serializePayment(r), target_label: r.target_label })),
+      limit, offset,
+    });
   } catch (err) {
     logRouteError(req, res, err, 'GET /api/payments');
     res.status(500).json({ success: false, message: 'Failed to load payments' });
+  }
+});
+
+/**
+ * GET /api/payments/me/credit/ledger — paginated credit ledger for the
+ * auth'd user. Mirrors the payments list shape (limit/offset).
+ */
+router.get('/me/credit/ledger', authMiddleware, async (req, res) => {
+  try {
+    const limit  = Math.min(Math.max(parseInt(req.query.limit, 10)  || 50, 1), 200);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const { rows } = await req.db.query(
+      `SELECT id, delta_kes, reason, source_id, note, created_at
+         FROM credit_ledger
+        WHERE user_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3`,
+      [req.user.id, limit, offset]
+    );
+    res.json({
+      success: true,
+      entries: rows.map(r => ({
+        id: r.id,
+        delta_kes: Number(r.delta_kes),
+        reason: r.reason,
+        source_id: r.source_id,
+        note: r.note,
+        created_at: r.created_at,
+      })),
+      limit, offset,
+    });
+  } catch (err) {
+    logRouteError(req, res, err, 'GET /api/payments/me/credit/ledger');
+    res.status(500).json({ success: false, message: 'Failed to load credit ledger' });
   }
 });
 
