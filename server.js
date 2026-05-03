@@ -129,9 +129,15 @@ app.use(helmet({
       styleSrc:   ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       styleSrcElem: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc:    ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc:  ["'self'", "'unsafe-inline'", "https://www.googletagmanager.com", "https://connect.facebook.net"],
+      // Stripe.js loads from js.stripe.com; Stripe Elements iframes load
+      // from m.stripe.network and js.stripe.com; webhook redirects come
+      // from hooks.stripe.com; XHRs hit api.stripe.com + r.stripe.com.
+      // Stripe's official CSP guide: https://docs.stripe.com/security/guide#content-security-policy
+      scriptSrc:  ["'self'", "'unsafe-inline'", "https://www.googletagmanager.com", "https://connect.facebook.net", "https://js.stripe.com"],
+      scriptSrcElem: ["'self'", "'unsafe-inline'", "https://www.googletagmanager.com", "https://connect.facebook.net", "https://js.stripe.com"],
+      frameSrc:   ["'self'", "https://js.stripe.com", "https://hooks.stripe.com", "https://m.stripe.network"],
       imgSrc:     ["'self'", 'data:', 'https:', "https://www.facebook.com"],
-      connectSrc: ["'self'", 'https:', 'wss:', "https://www.google-analytics.com", "https://analytics.google.com", "https://www.googletagmanager.com", "https://connect.facebook.net", "https://www.facebook.com"],
+      connectSrc: ["'self'", 'https:', 'wss:', "https://www.google-analytics.com", "https://analytics.google.com", "https://www.googletagmanager.com", "https://connect.facebook.net", "https://www.facebook.com", "https://api.stripe.com", "https://m.stripe.network", "https://r.stripe.com"],
     },
   },
   // Strict-Transport-Security: enforce HTTPS for 1 year + include subdomains
