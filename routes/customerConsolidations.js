@@ -24,6 +24,7 @@ import { authMiddleware, requireRole } from '../middleware/auth.js';
 import { sendInvoiceReadyEmail, sendInvoicePaidEmail } from '../utils/email.js';
 import { pushToUser, pushToAdmins } from './events.js';
 import { calculateShippingCost } from '../utils/pricing.js';
+import { getGbpToKesRate, FxRateUnavailableError } from '../utils/fx.js';
 
 const router = express.Router();
 const ALLOWED_ADMIN = requireRole('admin');
@@ -352,13 +353,19 @@ router.get('/:id/suggested-invoice', authMiddleware, ALLOWED_ADMIN, async (req, 
       });
     }
 
-    // Live GBP→KES rate. buyForMe.js uses the same lookup; fall back to
-    // the exchange.js DEFAULT_RATES.GBP_KES if the row is missing so
-    // the prefill still surfaces a sensible number on a fresh DB.
-    const rateRow = await req.db.query(
-      `SELECT rate FROM exchange_rates WHERE currency_pair = 'GBP_KES' LIMIT 1`
-    );
-    const gbpToKes = Number(rateRow.rows[0]?.rate) || 164.2;
+    // Live GBP→KES rate. Audit P1.3: hard-fail when the row is missing
+    // so the admin sees an explicit "set GBP_KES under /admin/rates"
+    // banner rather than a silently-wrong prefill that they then issue
+    // verbatim. The prefill is the basis for what the customer pays.
+    let gbpToKes;
+    try {
+      ({ rate: gbpToKes } = await getGbpToKesRate(req.db));
+    } catch (e) {
+      if (e instanceof FxRateUnavailableError) {
+        return res.status(503).json({ success: false, error: e.code, message: e.message });
+      }
+      throw e;
+    }
 
     // Per-parcel breakdown so the admin UI can show a transparent
     // "where this number comes from" table next to the prefilled total.
