@@ -31,6 +31,7 @@ const ExchangeRate      = lazy(() => import('./pages/ExchangeRate').then(m => ({
 const PricingCalculator = lazy(() => import('./pages/PricingCalculator').then(m => ({ default: m.PricingCalculator })))
 const Orders            = lazy(() => import('./pages/Orders').then(m => ({ default: m.Orders })))
 const CreditCenter      = lazy(() => import('./pages/CreditCenter').then(m => ({ default: m.CreditCenter })))
+const Transactions      = lazy(() => import('./pages/Transactions').then(m => ({ default: m.Transactions })))
 const Consolidation     = lazy(() => import('./pages/Consolidation').then(m => ({ default: m.Consolidation })))
 const ProhibitedItems   = lazy(() => import('./pages/ProhibitedItems').then(m => ({ default: m.ProhibitedItems })))
 const Support           = lazy(() => import('./pages/Support').then(m => ({ default: m.Support })))
@@ -128,6 +129,7 @@ function App() {
             <Route path="/orders/new" element={<ProtectedRoute><NewOrder /></ProtectedRoute>} />
             <Route path="/orders/confirmation" element={<ProtectedRoute><OrderConfirmation /></ProtectedRoute>} />
             <Route path="/credit" element={<ProtectedRoute><CreditCenter /></ProtectedRoute>} />
+            <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
             <Route path="/consolidation" element={<ProtectedRoute><Consolidation /></ProtectedRoute>} />
             <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
             <Route path="/warehouse" element={<ProtectedRoute><WarehouseAddresses /></ProtectedRoute>} />

@@ -83,8 +83,24 @@ export const paymentsApi = {
   submitMpesaConfirmation: (paymentId, message_raw) =>
     api.post(`/payments/${paymentId}/mpesa-confirmation`, { message_raw }),
 
-  list: () => api.get('/payments'),
+  list: ({ status, limit, offset } = {}) => {
+    const qs = new URLSearchParams()
+    if (status) qs.set('status', Array.isArray(status) ? status.join(',') : status)
+    if (limit  != null) qs.set('limit', String(limit))
+    if (offset != null) qs.set('offset', String(offset))
+    const tail = qs.toString() ? `?${qs.toString()}` : ''
+    return api.get(`/payments${tail}`)
+  },
   detail: (id) => api.get(`/payments/${id}`),
+
+  /** GET /api/payments/me/credit/ledger → { entries: [...] } */
+  creditLedger: ({ limit, offset } = {}) => {
+    const qs = new URLSearchParams()
+    if (limit  != null) qs.set('limit', String(limit))
+    if (offset != null) qs.set('offset', String(offset))
+    const tail = qs.toString() ? `?${qs.toString()}` : ''
+    return api.get(`/payments/me/credit/ledger${tail}`)
+  },
 
   // ── Admin-only ──
   pendingMpesaQueue: () => api.get('/admin/payments/pending'),
