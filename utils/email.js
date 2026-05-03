@@ -953,6 +953,120 @@ async function sendBuyForMeQuoteEmail(toEmail, toName, orderId, itemName, estima
 }
 
 /**
+ * Unified payment receipt — fired from markPaymentPaid for both Stripe and
+ * M-Pesa, every target_kind (order / consolidation / buy_for_me). Replaces
+ * the old M-Pesa-only `sendPaymentReceiptEmail`.
+ *
+ * opts shape:
+ *   {
+ *     paymentId, method ('stripe'|'mpesa'),
+ *     amountGrossKes, amountCreditKes, amountDueKes,
+ *     reference (stripe PI or M-Pesa ref), paidAt,
+ *     stripeAmountPenceGbp (optional),
+ *     targetKind ('order'|'consolidation'|'buy_for_me'),
+ *     targetLabel (tracking number / item name / consolidation id),
+ *     userId
+ *   }
+ */
+async function sendUnifiedPaymentReceiptEmail(toEmail, toName, opts) {
+  const {
+    paymentId, method,
+    amountGrossKes, amountCreditKes, amountDueKes,
+    reference, paidAt,
+    stripeAmountPenceGbp,
+    targetKind, targetLabel,
+    userId,
+  } = opts;
+
+  const fmtKes = (n) => Number(n || 0).toLocaleString();
+  const formattedDate = new Date(paidAt || Date.now())
+    .toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
+
+  const methodLabel = method === 'stripe' ? 'Card (via Stripe)' : 'M-Pesa';
+  const targetLine = {
+    order:         `Order ${targetLabel}`,
+    consolidation: `Shipping invoice ${targetLabel}`,
+    buy_for_me:    `Buy-for-me · ${targetLabel}`,
+  }[targetKind] || targetKind;
+
+  const ordersUrl = `${process.env.APP_URL || 'https://www.thapsus.uk'}/orders`;
+
+  const gbpRow = (method === 'stripe' && stripeAmountPenceGbp)
+    ? `<tr style="border-bottom:1px solid #e5e7eb;">
+         <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Charged on card</td>
+         <td style="padding:10px 12px;color:#111827;">£ ${(stripeAmountPenceGbp / 100).toFixed(2)}</td>
+       </tr>`
+    : '';
+
+  const creditRow = Number(amountCreditKes || 0) > 0
+    ? `<tr style="border-bottom:1px solid #e5e7eb;background:#f0fdf4;">
+         <td style="padding:10px 12px;color:#166534;font-weight:600;">Credit applied</td>
+         <td style="padding:10px 12px;color:#166534;font-weight:700;">- KES ${fmtKes(amountCreditKes)}</td>
+       </tr>`
+    : '';
+
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment received ✓</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 24px;color:#4b5563;font-size:16px;line-height:1.6;">
+      Thanks — we've received your payment. Here is your receipt for your records.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 24px;font-size:15px;">
+      <tbody>
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;width:45%;">Receipt no.</td>
+          <td style="padding:10px 12px;color:#1e3a5f;font-weight:700;font-family:monospace;">${paymentId}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">For</td>
+          <td style="padding:10px 12px;color:#111827;">${targetLine}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Method</td>
+          <td style="padding:10px 12px;color:#111827;">${methodLabel}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Reference</td>
+          <td style="padding:10px 12px;color:#111827;font-family:monospace;">${reference || 'N/A'}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Subtotal</td>
+          <td style="padding:10px 12px;color:#111827;">KES ${fmtKes(amountGrossKes)}</td>
+        </tr>
+        ${creditRow}
+        <tr style="background:#eff6ff;">
+          <td style="padding:12px;color:#1e3a5f;font-weight:700;">Amount paid</td>
+          <td style="padding:12px;color:#1e3a5f;font-weight:700;">KES ${fmtKes(amountDueKes)}</td>
+        </tr>
+        ${gbpRow}
+        <tr style="background:#f9fafb;">
+          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Date</td>
+          <td style="padding:10px 12px;color:#111827;">${formattedDate}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:0 0 24px;">
+      <p style="margin:0;color:#166534;font-size:15px;font-weight:600;">✓ Payment confirmed</p>
+      <p style="margin:4px 0 0;color:#166534;font-size:14px;">Your order is now in our queue. You'll receive separate emails as it progresses.</p>
+    </div>
+    <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
+      <tr><td style="background-color:#f97316;border-radius:8px;">
+        <a href="${ordersUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">View my orders</a>
+      </td></tr>
+    </table>`;
+
+  const subject = `Receipt · KES ${fmtKes(amountDueKes)} · ${targetLine}`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'payment_receipt', subject, userId: userId || null });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'payment_receipt', subject, userId: userId || null, errorMessage: error.message });
+    throw error;
+  }
+}
+
+/**
  * Email config diagnostics — backs the admin /api/admin/email-config endpoint
  * so the app can tell whether Gmail OAuth credentials are present without
  * exposing the secrets themselves.
@@ -1008,6 +1122,7 @@ export {
   sendInvoiceReadyEmail,
   sendInvoicePaidEmail,
   sendBuyForMeQuoteEmail,
+  sendUnifiedPaymentReceiptEmail,
   emailConfigStatus,
 };
 
@@ -1030,5 +1145,6 @@ export default {
   sendInvoiceReadyEmail,
   sendInvoicePaidEmail,
   sendBuyForMeQuoteEmail,
+  sendUnifiedPaymentReceiptEmail,
   emailConfigStatus,
 };

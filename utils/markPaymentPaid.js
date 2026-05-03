@@ -7,7 +7,7 @@
 // Caller must NOT have an open transaction — this function opens its own
 // so it can FOR UPDATE the target rows safely.
 
-import { sendOrderCreatedEmail } from './email.js'; // existing import surface
+import { sendUnifiedPaymentReceiptEmail } from './email.js';
 
 /**
  * Marks the payment paid, deducts any consumed credit, and flips the
@@ -140,10 +140,66 @@ async function flipTarget(client, kind, id) {
   }
 }
 
-async function firePostPaidHook(_db, _payment) {
-  // Placeholder. Plug in:
-  //   - sendOrderCreatedEmail / sendBuyForMeReceivedEmail
-  //   - parcelStatusNotify for downstream realtime fan-out
-  // Left empty in the foundation PR — emails will be wired in PR B/C
-  // once the iOS surfaces are confirmed.
+async function firePostPaidHook(db, payment) {
+  // 1) Look up the customer's email + name.
+  const { rows: userRows } = await db.query(
+    `SELECT email, name FROM users WHERE id = $1`,
+    [payment.user_id]
+  );
+  const user = userRows[0];
+  if (!user?.email) {
+    console.warn(`[firePostPaidHook:${payment.id}] no user/email for ${payment.user_id} — skip receipt`);
+    return;
+  }
+
+  // 2) Look up a human-readable label for the target.
+  const targetLabel = await lookupTargetLabel(db, payment.target_kind, payment.target_id);
+
+  // 3) Pick the reference field that matches the method.
+  const reference = payment.method === 'stripe'
+    ? payment.stripe_payment_intent_id
+    : payment.mpesa_reference;
+
+  await sendUnifiedPaymentReceiptEmail(user.email, user.name, {
+    paymentId:            payment.id,
+    method:               payment.method,
+    amountGrossKes:       Number(payment.amount_gross_kes || 0),
+    amountCreditKes:      Number(payment.amount_credit_kes || 0),
+    amountDueKes:         Number(payment.amount_due_kes || 0),
+    reference,
+    paidAt:               payment.paid_at || new Date(),
+    stripeAmountPenceGbp: payment.stripe_amount_pence_gbp
+                            ? Number(payment.stripe_amount_pence_gbp)
+                            : null,
+    targetKind:           payment.target_kind,
+    targetLabel,
+    userId:               payment.user_id,
+  });
+}
+
+async function lookupTargetLabel(db, kind, id) {
+  try {
+    if (kind === 'order') {
+      const { rows } = await db.query(
+        `SELECT tracking_number FROM orders WHERE id = $1`, [id]
+      );
+      return rows[0]?.tracking_number || id;
+    }
+    if (kind === 'consolidation') {
+      const { rows } = await db.query(
+        `SELECT id FROM customer_consolidations WHERE id = $1`, [id]
+      );
+      // Use the short prefix of the uuid as a human label
+      return rows[0] ? String(rows[0].id).slice(0, 8) : String(id).slice(0, 8);
+    }
+    if (kind === 'buy_for_me') {
+      const { rows } = await db.query(
+        `SELECT item_name FROM buy_for_me_orders WHERE id = $1`, [id]
+      );
+      return rows[0]?.item_name || id;
+    }
+  } catch (e) {
+    console.warn(`[lookupTargetLabel] failed for ${kind}/${id}:`, e?.message);
+  }
+  return String(id);
 }
