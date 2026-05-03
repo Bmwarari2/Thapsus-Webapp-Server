@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { ShoppingBag, ExternalLink, Plus, Check, X } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { buyForMeApi } from '../api'
+import { buyForMeApi, retailersApi } from '../api'
 import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '../components/GlassUI'
 import { PayInvoiceModal } from '../components/PayInvoiceModal'
+
+const OTHER_RETAILER_ID = '__other__'
 
 /**
  * /app/buy-for-me — concierge orders (Spec §4.10).
@@ -16,8 +18,9 @@ import { PayInvoiceModal } from '../components/PayInvoiceModal'
  */
 export const BuyForMe = () => {
   const [orders, setOrders] = useState([])
+  const [retailers, setRetailers] = useState([])
   const [draft, setDraft] = useState({
-    retailer_url: '', item_name: '', size: '', qty: 1, notes: '',
+    retailer_id: '', retailer_url: '', item_name: '', size: '', qty: 1, notes: '',
   })
 
   // Reject modal — `null` means closed.
@@ -31,18 +34,45 @@ export const BuyForMe = () => {
                                           .catch(() => toast.error('Failed to load orders'))
 
   useEffect(() => { refresh() }, [])
+  useEffect(() => {
+    retailersApi.list()
+      .then(r => setRetailers(r.data?.retailers || []))
+      .catch(() => {/* picker is enhancement — fall back to URL field */})
+  }, [])
+
+  const isOtherPicked = draft.retailer_id === OTHER_RETAILER_ID
 
   const onSubmit = async () => {
-    if (!draft.retailer_url || !draft.item_name) {
-      toast.error('Retailer URL and item name are required'); return
+    if (!draft.item_name) { toast.error('Item name is required'); return }
+    if (!draft.retailer_id) { toast.error('Pick a retailer (or "Other")'); return }
+    const isOther = draft.retailer_id === OTHER_RETAILER_ID
+    if (isOther && !draft.retailer_url) {
+      toast.error('Paste the retailer URL for "Other"'); return
     }
     try {
-      await buyForMeApi.create(draft)
+      await buyForMeApi.create({
+        retailer_id:  isOther ? null : draft.retailer_id,
+        retailer_url: draft.retailer_url || null,
+        item_name:    draft.item_name,
+        size:         draft.size,
+        qty:          draft.qty,
+        notes:        draft.notes,
+      })
       toast.success('Concierge request submitted — we will quote within 24h')
-      setDraft({ retailer_url: '', item_name: '', size: '', qty: 1, notes: '' })
+      setDraft({ retailer_id: '', retailer_url: '', item_name: '', size: '', qty: 1, notes: '' })
       refresh()
     } catch { toast.error('Failed to submit') }
   }
+
+  // Group retailers by country for the picker, in catalog sort order.
+  const retailerGroups = useMemo(() => {
+    const groups = {}
+    for (const r of retailers) {
+      groups[r.country] = groups[r.country] || []
+      groups[r.country].push(r)
+    }
+    return groups
+  }, [retailers])
 
   // Open the pay modal — replaces the legacy buyForMeApi.accept() wallet
   // debit. PayInvoiceModal calls POST /api/payments and routes through
@@ -75,9 +105,34 @@ export const BuyForMe = () => {
         <GlassCard className="p-6 mb-8">
           <h3 className="text-lg font-black text-[#1e3a5f] mb-4">New concierge order</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Field label="Retailer URL" value={draft.retailer_url}
-                   onChange={(v) => setDraft({ ...draft, retailer_url: v })}
-                   placeholder="https://www.amazon.co.uk/…" />
+            <div className="md:col-span-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
+                Retailer
+              </label>
+              <select
+                value={draft.retailer_id || ''}
+                onChange={(e) => setDraft({ ...draft, retailer_id: e.target.value })}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white/80 text-sm text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-orange-300"
+              >
+                <option value="">— Choose a retailer —</option>
+                {Object.entries(retailerGroups).map(([country, rs]) => (
+                  <optgroup key={country} label={country}>
+                    {rs.map(r => (
+                      <option key={r.id} value={r.id}>{r.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+                <option value={OTHER_RETAILER_ID}>Other (paste a URL)</option>
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <Field
+                label={isOtherPicked ? 'Retailer URL (required)' : 'Item URL (optional)'}
+                value={draft.retailer_url}
+                onChange={(v) => setDraft({ ...draft, retailer_url: v })}
+                placeholder="https://…"
+              />
+            </div>
             <Field label="Item name" value={draft.item_name}
                    onChange={(v) => setDraft({ ...draft, item_name: v })} />
             <Field label="Size / variant" value={draft.size}
