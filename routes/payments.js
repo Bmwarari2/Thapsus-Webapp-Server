@@ -103,8 +103,21 @@ router.post('/', authMiddleware, async (req, res) => {
     );
     if (existingRows[0] && existingRows[0].method === method) {
       await client.query('ROLLBACK');
-      return res.json({ success: true, payment: serializePayment(existingRows[0]),
-                        ...nextStep(existingRows[0]) });
+      const existing = existingRows[0];
+      // For Stripe rehydrate the client_secret from Stripe — we don't
+      // store it (it's session-scoped and Stripe lets you re-retrieve).
+      let existingClientSecret = null;
+      if (existing.method === 'stripe' && existing.stripe_payment_intent_id) {
+        try {
+          const stripe = getStripe();
+          const intent = await stripe.paymentIntents.retrieve(existing.stripe_payment_intent_id);
+          existingClientSecret = intent.client_secret || null;
+        } catch (e) {
+          console.warn(`[payments] retrieve PI ${existing.stripe_payment_intent_id} failed:`, e.message);
+        }
+      }
+      return res.json({ success: true, payment: serializePayment(existing),
+                        ...nextStep(existing, existingClientSecret) });
     }
 
     // Apply credit (read FOR UPDATE so a concurrent payment can't double-spend).
@@ -124,6 +137,7 @@ router.post('/', authMiddleware, async (req, res) => {
     let stripePi = null;
     let stripePence = null;
     let fxRate = null;
+    let stripeClientSecret = null;
 
     if (method === 'stripe') {
       // FX KES → GBP. Lock the rate into the payment row so the customer
@@ -152,6 +166,7 @@ router.post('/', authMiddleware, async (req, res) => {
         },
       }, { idempotencyKey: paymentId });
       stripePi = intent.id;
+      stripeClientSecret = intent.client_secret;
     }
 
     const { rows: insertedRows } = await client.query(
@@ -186,7 +201,7 @@ router.post('/', authMiddleware, async (req, res) => {
     return res.json({
       success: true,
       payment: serializePayment(payment),
-      ...nextStep(payment),
+      ...nextStep(payment, stripeClientSecret),
     });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
@@ -317,12 +332,25 @@ async function loadTarget(client, kind, id) {
   return { ok: false, status: 400, message: 'Unknown target_kind' };
 }
 
-function nextStep(payment) {
+/**
+ * Build the next-step payload returned to the client.
+ *
+ * For stripe payments the iOS PaymentSheet needs the PaymentIntent
+ * `client_secret` — without it the sheet bails with
+ * "Stripe client_secret missing — refresh and retry". Caller is
+ * responsible for sourcing the secret:
+ *   - On fresh create: pass `intent.client_secret` from the
+ *     `stripe.paymentIntents.create()` return.
+ *   - On replaying an existing pending payment: retrieve the
+ *     PaymentIntent via `stripe.paymentIntents.retrieve(id)` and
+ *     pass that returned `client_secret`.
+ */
+function nextStep(payment, stripeClientSecret = null) {
   if (payment.method === 'stripe') {
     return {
       next: {
         kind: 'stripe',
-        client_secret: null, // re-fetch via Stripe API if needed; the create endpoint already returned it
+        client_secret: stripeClientSecret,
         amount_pence_gbp: payment.stripe_amount_pence_gbp,
         fx_rate_kes_gbp: payment.stripe_fx_rate_kes_gbp,
       },
