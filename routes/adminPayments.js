@@ -31,14 +31,107 @@ router.get('/pending', authMiddleware, ADMIN, async (req, res) => {
   }
 });
 
-/** POST /api/admin/payments/:id/approve — admin confirms the M-Pesa SMS. */
+/**
+ * POST /api/admin/payments/:id/approve — admin confirms the M-Pesa SMS.
+ *
+ * Audit P1.2 enforcement layered on top of the existing
+ * markPaymentPaid state machine:
+ *
+ *   1. Block approval when the parsed SMS amount is LESS than the
+ *      payment's amount_due_kes. The webapp surfaces a red mismatch chip
+ *      already; this is the belt-and-braces server check so a misclick
+ *      can't settle a short payment. Equal or greater is fine — the
+ *      customer over-paid, the admin can refund the difference offline.
+ *
+ *   2. Allow override when the admin supplies `override_reason` (>=10
+ *      chars). The justification is persisted on the payments row in
+ *      `approval_override_reason` so the audit trail captures *why* a
+ *      mismatched approval went through.
+ *
+ *   3. Reject-with-409 when no SMS has been pasted yet
+ *      (mpesa_message_amount_kes IS NULL) — admins should not approve
+ *      a payment that never received its confirmation step.
+ *
+ * Cross-payment reference reuse is blocked by migration 032's
+ * `uq_payments_mpesa_ref` partial unique index, which fires at the
+ * `mpesa-confirmation` step (not here).
+ */
 router.post('/:id/approve', authMiddleware, ADMIN, async (req, res) => {
   try {
+    const { override_reason } = req.body || {};
+    const overrideReason = typeof override_reason === 'string'
+      ? override_reason.trim() : '';
+
+    const { rows } = await req.db.query(
+      `SELECT id, status, method, amount_due_kes,
+              mpesa_message_amount_kes, mpesa_reference
+         FROM payments WHERE id = $1`,
+      [req.params.id]
+    );
+    const payment = rows[0];
+    if (!payment) {
+      return res.status(404).json({ success: false, message: 'Payment not found' });
+    }
+    if (payment.method !== 'mpesa') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only M-Pesa payments can be approved here. Stripe payments settle via webhook.',
+      });
+    }
+    if (payment.status !== 'awaiting_review') {
+      // Already paid → markPaymentPaid still no-ops below; explicit guard
+      // here gives the admin a clearer message than a generic 409.
+      return res.status(409).json({
+        success: false,
+        message: `Payment is in status '${payment.status}', not 'awaiting_review'.`,
+      });
+    }
+    if (payment.mpesa_message_amount_kes == null) {
+      return res.status(409).json({
+        success: false,
+        message: 'No M-Pesa SMS on file. Ask the customer to paste their confirmation message before approving.',
+      });
+    }
+
+    const claimed = Number(payment.mpesa_message_amount_kes);
+    const due     = Number(payment.amount_due_kes);
+    const isShort = Number.isFinite(claimed) && Number.isFinite(due) && claimed < due;
+
+    if (isShort && overrideReason.length < 10) {
+      return res.status(409).json({
+        success: false,
+        error: 'amount_mismatch',
+        message: `M-Pesa SMS shows KES ${claimed.toLocaleString()} but the invoice is KES ${due.toLocaleString()}. Provide override_reason (>=10 chars) to approve anyway, or reject with a reason.`,
+        amount_due_kes: due,
+        amount_claimed_kes: claimed,
+      });
+    }
+
+    // Persist the override BEFORE markPaymentPaid flips the row, since
+    // markPaymentPaid sets reviewed_by/reviewed_at + status='paid' and
+    // we want the override note to land in the same DB visit. The flip
+    // doesn't touch approval_override_reason.
+    if (isShort) {
+      await req.db.query(
+        `UPDATE payments
+            SET approval_override_reason = $2,
+                updated_at = NOW()
+          WHERE id = $1 AND status = 'awaiting_review'`,
+        [req.params.id, overrideReason]
+      );
+    }
+
     const result = await markPaymentPaid(req.db, req.params.id, { adminUserId: req.user.id });
     if (!result.ok) {
       return res.status(409).json({ success: false, message: result.reason || 'Failed to approve' });
     }
-    res.json({ success: true, alreadyPaid: result.alreadyPaid, target_kind: result.target_kind, target_id: result.target_id });
+    res.json({
+      success: true,
+      alreadyPaid: result.alreadyPaid,
+      target_kind: result.target_kind,
+      target_id: result.target_id,
+      override_applied: isShort,
+    });
   } catch (err) {
     logRouteError(req, res, err, 'POST /admin/payments/:id/approve');
     res.status(500).json({ success: false, message: 'Failed to approve payment' });
