@@ -41,22 +41,26 @@ async function ensureAdminUser(pool) {
   }
 
   const adminId       = uuidv4();
-  const adminWalletId = uuidv4();
   const adminHash     = bcrypt.hashSync(adminPassword, 10);
   const adminRefCode  = generateReferralCode();
   const warehouseId   = `TC-ADM-${Date.now()}`;
 
+  // Wallet replaced by user_credits in PR A / migration 028. Seed the
+  // bootstrap admin into the new shape so first-boot doesn't crash with
+  // "column wallet_balance does not exist" on a fresh deploy.
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     await client.query(
-      `INSERT INTO users (id, email, password, name, phone, role, warehouse_id, language_pref, referral_code, wallet_balance, is_active)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-      [adminId, adminEmail, adminHash, 'Thapsus Cargo Admin', '+254700000000', 'admin', warehouseId, 'en', adminRefCode, 0, true]
+      `INSERT INTO users (id, email, password, name, phone, role, warehouse_id, language_pref, referral_code, is_active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [adminId, adminEmail, adminHash, 'Thapsus Cargo Admin', '+254700000000', 'admin', warehouseId, 'en', adminRefCode, true]
     );
     await client.query(
-      `INSERT INTO wallet (id, user_id, balance, currency) VALUES ($1,$2,$3,$4)`,
-      [adminWalletId, adminId, 0, 'KES']
+      `INSERT INTO user_credits (user_id, balance_kes, updated_at)
+       VALUES ($1, 0, NOW())
+       ON CONFLICT (user_id) DO NOTHING`,
+      [adminId]
     );
     await client.query('COMMIT');
     console.log(`✓ Admin user created: ${adminEmail}`);

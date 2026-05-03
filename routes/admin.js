@@ -245,7 +245,10 @@ router.delete('/users/:id', authMiddleware, isAdmin, async (req, res) => {
       await client.query('DELETE FROM packages WHERE user_id = $1', [id]);
       await client.query('DELETE FROM orders WHERE user_id = $1', [id]);
       await client.query('DELETE FROM transactions WHERE user_id = $1', [id]);
-      await client.query('DELETE FROM wallet WHERE user_id = $1', [id]);
+      // wallet table dropped in migration 028 (PR A). Replacement
+      // user_credits has ON DELETE CASCADE on users(id), so the
+      // user_credits + credit_ledger rows clean up automatically when
+      // the users row goes — no explicit DELETE needed here.
       await client.query('UPDATE referrals SET referee_id = NULL WHERE referee_id = $1', [id]);
       await client.query('DELETE FROM referrals WHERE referrer_id = $1', [id]);
       await client.query('UPDATE users SET referred_by = NULL WHERE referred_by = $1', [id]);

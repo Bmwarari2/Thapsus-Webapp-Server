@@ -21,7 +21,7 @@ const PUBLIC_ROUTES = [
 const DISALLOWED_PATHS = [
   '/admin',
   '/dashboard',
-  '/wallet',
+  '/credit',
   '/orders',
   '/orders/*',
   '/consolidation',

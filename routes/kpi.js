@@ -57,10 +57,15 @@ router.get('/', authMiddleware, requireRole('admin'), async (req, res) => {
         FROM nps_responses
        WHERE created_at >= NOW() - INTERVAL '30 days'`);
 
+    // Days-cash: wallet was dropped in migration 028 (PR A) so the
+    // "wallet_kes" half is gone. We surface total user_credits sitting
+    // on accounts (a near-equivalent liability the business owes back
+    // as discounts) and count payments.status='awaiting_review' as the
+    // pending-inbound side (M-Pesa awaiting admin approval).
     const cash = await db.query(`
-      SELECT (SELECT COALESCE(SUM(balance),0)::float FROM wallet) AS wallet_kes,
-             (SELECT COALESCE(SUM(amount),0)::float FROM transactions
-               WHERE status='pending' AND created_at >= NOW() - INTERVAL '7 days')
+      SELECT (SELECT COALESCE(SUM(balance_kes),0)::float FROM user_credits) AS credit_kes,
+             (SELECT COALESCE(SUM(amount_due_kes),0)::float FROM payments
+               WHERE status='awaiting_review' AND created_at >= NOW() - INTERVAL '7 days')
               AS pending_inbound`);
 
     const insuranceClaims = await db.query(`
@@ -96,7 +101,7 @@ router.get('/', authMiddleware, requireRole('admin'), async (req, res) => {
         nps_avg:             nps.rows[0].avg_score === null ? null
                               : Number(nps.rows[0].avg_score.toFixed(1)),
         nps_responses:       nps.rows[0].responses,
-        wallet_kes:          Number(cash.rows[0].wallet_kes.toFixed(0)),
+        credit_kes:          Number(cash.rows[0].credit_kes.toFixed(0)),
         pending_inbound:     Number(cash.rows[0].pending_inbound.toFixed(0)),
         insurance_claims_gbp: Number(insuranceClaims.rows[0].claims_paid_gbp.toFixed(2)),
         insurance_premiums_gbp: Number(insuranceClaims.rows[0].premiums_collected_gbp.toFixed(2)),
