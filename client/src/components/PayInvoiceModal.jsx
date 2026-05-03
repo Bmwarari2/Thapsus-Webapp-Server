@@ -279,6 +279,19 @@ function StripeCardForm({ clientSecret, onPaid }) {
     setSubmitting(true)
     setErr(null)
     try {
+      // Stripe's deferred-flow PaymentElement requires elements.submit()
+      // BEFORE confirmPayment() — without it, redirect-based methods
+      // (Revolut Pay, Klarna, Afterpay, etc.) error with:
+      //   "elements.submit() must be called before stripe.confirmPayment()"
+      // Card-only flows happen to work without it, but per-method behaviour
+      // shouldn't depend on the integration being non-deferred. Always
+      // submit first to validate inputs and prep the chosen method.
+      // Source: https://stripe.com/docs/payments/accept-a-payment-deferred
+      const { error: submitError } = await elements.submit()
+      if (submitError) {
+        setErr(submitError.message || 'Please check your payment details and try again.')
+        return
+      }
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         clientSecret,
