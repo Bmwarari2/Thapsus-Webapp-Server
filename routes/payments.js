@@ -109,8 +109,15 @@ router.get('/me/credit', authMiddleware, async (req, res) => {
  */
 router.post('/', authMiddleware, async (req, res) => {
   const { target_kind, target_id, method, apply_credit = true } = req.body || {};
-  if (!['order','consolidation','buy_for_me'].includes(target_kind)) {
-    return res.status(400).json({ success: false, message: 'Invalid target_kind' });
+  // 'order' was retired 2026-05-04 (audit P1.1) — see loadTarget for the
+  // rationale. The kind stays valid in the DB CHECK for backwards
+  // compatibility with existing rows but new payments may only target
+  // consolidation invoices or buy-for-me orders.
+  if (!['consolidation','buy_for_me'].includes(target_kind)) {
+    return res.status(400).json({
+      success: false,
+      message: 'target_kind must be consolidation or buy_for_me',
+    });
   }
   if (!target_id || typeof target_id !== 'string') {
     return res.status(400).json({ success: false, message: 'Missing target_id' });
@@ -498,12 +505,25 @@ router.get('/:id', authMiddleware, async (req, res) => {
 async function loadTarget(client, kind, id) {
   switch (kind) {
     case 'order': {
-      const { rows } = await client.query(
-        `SELECT id, user_id, COALESCE(actual_cost, estimated_cost, 0)::bigint AS amount_kes, status
-           FROM orders WHERE id = $1 FOR UPDATE`, [id]
-      );
-      if (!rows[0]) return { ok: false, status: 404, message: 'Order not found' };
-      return { ok: true, user_id: rows[0].user_id, amount_kes: Number(rows[0].amount_kes), target_status: rows[0].status };
+      // RETIRED 2026-05-04 (audit P1.1).
+      //
+      // The previous implementation read `orders.estimated_cost` as KES, but
+      // `routes/orders.js` stores that field in GBP (from
+      // `calculateShippingCost(...).total`). A direct order-pay would have
+      // settled a £X invoice for KSh X — a ~165× under-charge.
+      //
+      // Production never reached this branch (iOS / webapp only POST
+      // `target_kind` ∈ {consolidation, buy_for_me}). Customer shipping
+      // charges flow through `customer_consolidations` invoices instead.
+      //
+      // Re-enable only with an FX-aware design that mirrors the buy_for_me
+      // branch: read the GBP amount, convert at the live `exchange_rates`
+      // row, lock the snapshot into the payments row.
+      return {
+        ok: false,
+        status: 503,
+        message: 'Order payments are routed through consolidation invoices. Use target_kind=consolidation.',
+      };
     }
     case 'consolidation': {
       const { rows } = await client.query(
