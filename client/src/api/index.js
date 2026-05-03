@@ -55,8 +55,16 @@ export const ordersApi = {
 //            in M-Pesa, then submits the SMS via submitMpesaConfirmation()
 // ─────────────────────────────────────────────────────────────────────────────
 export const paymentsApi = {
-  /** GET /api/payments/config/stripe → { publishable_key, apple_pay } */
+  /** GET /api/payments/config/stripe → { publishable_key, apple_pay }.
+   *  Legacy single-method endpoint kept for older webapp builds. */
   stripeConfig: () => api.get('/payments/config/stripe'),
+
+  /** PR F: GET /api/payments/methods — full payment-method matrix.
+   *  { methods: { stripe: { enabled, publishable_key, apple_pay },
+   *              mpesa:  { enabled, till_number } } }
+   *  PayInvoiceModal calls this at bootstrap and falls back to
+   *  stripeConfig() if /methods isn't deployed yet. */
+  methods: () => api.get('/payments/methods'),
 
   /** GET /api/payments/me/credit → { balance_kes, updated_at } */
   myCredit: () => api.get('/payments/me/credit'),

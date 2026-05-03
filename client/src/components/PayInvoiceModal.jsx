@@ -50,19 +50,42 @@ export function PayInvoiceModal({
 }) {
   const [creditKes, setCreditKes] = useState(0)
   const [publishableKey, setPublishableKey] = useState(null)
+  // PR F: per-environment payment-method kill-switches.
+  // Default both enabled so the modal renders optimistically while the
+  // matrix loads; the server enforces too via 409 on POST /api/payments.
+  const [methodFlags, setMethodFlags] = useState({
+    stripeEnabled: true,
+    mpesaEnabled: true,
+    mpesaTill: '5530500',
+  })
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState(null)
   const [paymentSession, setPaymentSession] = useState(null) // { payment, next, method }
 
-  // Bootstrap on open: fetch publishable key + credit balance.
+  // Bootstrap on open: fetch payment-method matrix + credit balance.
+  // /payments/methods is the PR F endpoint; /payments/config/stripe is
+  // the legacy fallback for older server builds that don't have /methods.
   useEffect(() => {
     if (!open) return
     setPaymentSession(null)
     setError(null)
-    Promise.allSettled([paymentsApi.stripeConfig(), paymentsApi.myCredit()])
-      .then(([cfg, credit]) => {
-        if (cfg.status === 'fulfilled') setPublishableKey(cfg.value.data?.publishable_key)
+    Promise.allSettled([paymentsApi.methods(), paymentsApi.myCredit()])
+      .then(([m, credit]) => {
         if (credit.status === 'fulfilled') setCreditKes(credit.value.data?.balance_kes ?? 0)
+        if (m.status === 'fulfilled' && m.value.data?.methods) {
+          const matrix = m.value.data.methods
+          setPublishableKey(matrix.stripe?.publishable_key ?? null)
+          setMethodFlags({
+            stripeEnabled: !!matrix.stripe?.enabled,
+            mpesaEnabled:  matrix.mpesa?.enabled !== false,
+            mpesaTill:     matrix.mpesa?.till_number || '5530500',
+          })
+        } else {
+          // /methods unavailable → fall back to legacy /config/stripe.
+          paymentsApi.stripeConfig()
+            .then((r) => setPublishableKey(r.data?.publishable_key))
+            .catch(() => setPublishableKey(null))
+        }
       })
   }, [open])
 
@@ -147,6 +170,9 @@ export function PayInvoiceModal({
               amountDueKes={amountDueKes}
               creating={creating}
               onPick={startPayment}
+              stripeEnabled={methodFlags.stripeEnabled}
+              mpesaEnabled={methodFlags.mpesaEnabled}
+              mpesaTill={methodFlags.mpesaTill}
             />
           )}
 
@@ -224,7 +250,11 @@ function Row({ label, value, emphasis = false, muted = false, positive = false }
 
 // ─── Method chooser ────────────────────────────────────────────────────────
 
-function MethodChooser({ amountDueKes, creating, onPick }) {
+function MethodChooser({ amountDueKes, creating, onPick, stripeEnabled = true, mpesaEnabled = true, mpesaTill = '5530500' }) {
+  // Credit fully covers the invoice — single confirm button. Routes
+  // through Stripe but the server short-circuits to paid without
+  // touching Stripe (per server PR #61). Even with Stripe disabled
+  // this path is safe because amount_due is zero.
   if (amountDueKes === 0) {
     return (
       <button
@@ -237,30 +267,50 @@ function MethodChooser({ amountDueKes, creating, onPick }) {
       </button>
     )
   }
+
+  // PR F: per-environment kill-switches. Hide a button entirely when
+  // its method is disabled. If both end up disabled (misconfig), surface
+  // a clear note instead of an empty modal.
+  if (!stripeEnabled && !mpesaEnabled) {
+    return (
+      <div className="flex gap-3 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700">
+        <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="font-bold text-sm">Payments unavailable</p>
+          <p className="text-xs">No payment methods are enabled right now. Please contact support.</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-2">
-      <button
-        onClick={() => onPick('stripe')}
-        disabled={creating}
-        className="w-full py-4 px-5 rounded-2xl bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white flex items-center gap-3 transition"
-      >
-        <CreditCard size={20} />
-        <div className="flex-1 text-left">
-          <p className="font-black uppercase tracking-widest text-xs">Pay with card</p>
-          <p className="text-[10px] opacity-90">Stripe · KES → GBP at checkout</p>
-        </div>
-      </button>
-      <button
-        onClick={() => onPick('mpesa')}
-        disabled={creating}
-        className="w-full py-4 px-5 rounded-2xl bg-green-100 hover:bg-green-200 disabled:opacity-50 text-green-800 flex items-center gap-3 transition"
-      >
-        <Phone size={20} />
-        <div className="flex-1 text-left">
-          <p className="font-black uppercase tracking-widest text-xs">Pay via M-Pesa</p>
-          <p className="text-[10px] opacity-90">Till 5530500 · admin review</p>
-        </div>
-      </button>
+      {stripeEnabled && (
+        <button
+          onClick={() => onPick('stripe')}
+          disabled={creating}
+          className="w-full py-4 px-5 rounded-2xl bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white flex items-center gap-3 transition"
+        >
+          <CreditCard size={20} />
+          <div className="flex-1 text-left">
+            <p className="font-black uppercase tracking-widest text-xs">Pay with card</p>
+            <p className="text-[10px] opacity-90">Stripe · KES → GBP at checkout</p>
+          </div>
+        </button>
+      )}
+      {mpesaEnabled && (
+        <button
+          onClick={() => onPick('mpesa')}
+          disabled={creating}
+          className="w-full py-4 px-5 rounded-2xl bg-green-100 hover:bg-green-200 disabled:opacity-50 text-green-800 flex items-center gap-3 transition"
+        >
+          <Phone size={20} />
+          <div className="flex-1 text-left">
+            <p className="font-black uppercase tracking-widest text-xs">Pay via M-Pesa</p>
+            <p className="text-[10px] opacity-90">Till {mpesaTill} · admin review</p>
+          </div>
+        </button>
+      )}
     </div>
   )
 }
