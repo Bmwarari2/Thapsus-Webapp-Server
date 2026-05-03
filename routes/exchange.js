@@ -1,4 +1,5 @@
 import express from 'express';
+import { getGbpToKesRate, FxRateUnavailableError } from '../utils/fx.js';
 
 const router = express.Router();
 
@@ -47,6 +48,48 @@ router.get('/rates', async (req, res) => {
   } catch (error) {
     console.error('Get rates error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch exchange rates' });
+  }
+});
+
+/**
+ * GET /api/exchange/health — payments-side FX health (audit P1.3).
+ *
+ * Surfaces whether the GBP→KES rate is configured and how stale the
+ * stored rate is. Designed for an admin dashboard / KPI tile / cron
+ * monitor — not for public consumption. Returns 200 when healthy, 503
+ * when missing so a probe can alert.
+ *
+ *   200  { healthy: true,  gbp_kes_rate, updated_at, age_hours }
+ *   503  { healthy: false, error, message }
+ *
+ * Distinct from `/rates` which returns the *display* rates with
+ * fallbacks; this one tells you whether `POST /api/payments` will
+ * actually succeed right now.
+ */
+router.get('/health', async (req, res) => {
+  try {
+    const { rate, updatedAt } = await getGbpToKesRate(req.db);
+    const ageHours = updatedAt
+      ? (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60)
+      : null;
+    res.json({
+      success: true,
+      healthy: true,
+      gbp_kes_rate: rate,
+      updated_at: updatedAt,
+      age_hours: ageHours != null ? Math.round(ageHours * 10) / 10 : null,
+    });
+  } catch (e) {
+    if (e instanceof FxRateUnavailableError) {
+      return res.status(503).json({
+        success: false,
+        healthy: false,
+        error: e.code,
+        message: e.message,
+      });
+    }
+    console.error('GET /exchange/health error:', e);
+    res.status(500).json({ success: false, healthy: false, message: 'Failed to read FX health' });
   }
 });
 

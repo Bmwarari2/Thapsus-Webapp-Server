@@ -21,6 +21,7 @@ import { logRouteError } from '../utils/errorLogger.js';
 import { getStripe, stripePublishableKey, stripeWebhookSecret } from '../utils/stripeClient.js';
 import { parseMpesaMessage } from '../utils/mpesaParser.js';
 import { markPaymentPaid } from '../utils/markPaymentPaid.js';
+import { getGbpToKesRate, FxRateUnavailableError } from '../utils/fx.js';
 
 const router = express.Router();
 
@@ -240,11 +241,10 @@ router.post('/', authMiddleware, async (req, res) => {
 
     if (method === 'stripe') {
       // FX KES → GBP. Lock the rate into the payment row so the customer
-      // can't be re-quoted mid-flow.
-      const { rows: rr } = await client.query(
-        `SELECT rate FROM exchange_rates WHERE currency_pair = 'GBP_KES' LIMIT 1`
-      );
-      const gbpToKes = Number(rr[0]?.rate || 165);
+      // can't be re-quoted mid-flow. Audit P1.3: hard-fail when the
+      // exchange_rates row is missing — silent fallback risked locking
+      // a wrong rate into the receipt with no audit trail.
+      const { rate: gbpToKes } = await getGbpToKesRate(client);
       fxRate = gbpToKes;
       // Stripe charges in pence GBP. Round up so we never under-charge.
       const gbp = amountDueKes / gbpToKes;
@@ -304,6 +304,16 @@ router.post('/', authMiddleware, async (req, res) => {
     });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
+    // Audit P1.3: surface FX outages as a clean 503 so the iOS / web
+    // PaymentSheet renders the "card payments temporarily unavailable"
+    // banner instead of a generic 500.
+    if (err instanceof FxRateUnavailableError) {
+      return res.status(503).json({
+        success: false,
+        error: err.code,
+        message: err.message,
+      });
+    }
     logRouteError(req, res, err, 'POST /api/payments');
     res.status(500).json({ success: false, message: err.message || 'Failed to create payment' });
   } finally {
@@ -582,10 +592,11 @@ async function loadTarget(client, kind, id) {
       if (rows[0].status !== 'quoted') {
         return { ok: false, status: 409, message: `Cannot pay an order in status '${rows[0].status}'` };
       }
-      const { rows: rr } = await client.query(
-        `SELECT rate FROM exchange_rates WHERE currency_pair = 'GBP_KES' LIMIT 1`
-      );
-      const gbpToKes = Number(rr[0]?.rate || 165);
+      // Audit P1.3: hard-fail when GBP_KES row absent. The BFM total is
+      // computed in GBP from the operator's quote; any miscalculation
+      // here is locked into payments.amount_gross_kes and the customer
+      // pays whatever falls out, so a silent fallback is unacceptable.
+      const { rate: gbpToKes } = await getGbpToKesRate(client);
       const totalGbp = Number(rows[0].estimate_gbp) * (1 + Number(rows[0].markup_pct) / 100);
       const amountKes = Math.ceil(totalGbp * gbpToKes);
       return { ok: true, user_id: rows[0].user_id, amount_kes: amountKes, target_status: rows[0].status };
