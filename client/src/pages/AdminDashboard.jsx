@@ -385,13 +385,36 @@ export const AdminDashboard = () => {
     } catch (err) { toast.error('Failed to delete user') }
   }
 
-  const handleApprovePayment = async (paymentId) => {
+  // Audit P1.2: when the customer-claimed M-Pesa amount is short of the
+  // invoice, /approve 409s with `error: 'amount_mismatch'` unless the
+  // admin sends `override_reason` >= 10 chars. The Verify button on a
+  // mismatched row opens `mismatchOverride` instead of approving
+  // directly; clean rows still go through the unguarded path below.
+  const [mismatchOverride, setMismatchOverride] = useState(null)
+  // null when no override sheet open. Otherwise:
+  //   { paymentId, amountDueKes, amountClaimedKes, reasonText }
+
+  const handleApprovePayment = async (paymentId, { overrideReason } = {}) => {
     try {
       setApprovingPayment(paymentId)
-      await adminApi.approvePayment(paymentId)
-      toast.success('Payment approved')
+      await adminApi.approvePayment(paymentId, { overrideReason })
+      toast.success(overrideReason ? 'Payment approved with override' : 'Payment approved')
       setPendingPayments(pendingPayments.filter(p => p.id !== paymentId))
-    } catch (err) { toast.error('Approval failed') } finally { setApprovingPayment(null) }
+      setMismatchOverride(null)
+    } catch (err) {
+      const data = err?.response?.data
+      if (data?.error === 'amount_mismatch' && !overrideReason) {
+        // Open the override sheet with the server-returned figures.
+        setMismatchOverride({
+          paymentId,
+          amountDueKes: Number(data.amount_due_kes ?? 0),
+          amountClaimedKes: Number(data.amount_claimed_kes ?? 0),
+          reasonText: '',
+        })
+      } else {
+        toast.error(data?.message || 'Approval failed')
+      }
+    } finally { setApprovingPayment(null) }
   }
 
   const handleRejectPayment = async (paymentId) => {
@@ -867,7 +890,16 @@ export const AdminDashboard = () => {
                       </p>
                     </div>
                     <div className="flex gap-3">
-                      <button onClick={() => handleApprovePayment(p.id)} disabled={approvingPayment===p.id} className="glass-sheen bg-green-500 text-white px-8 py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-green-600 shadow-xl transition-all hover:-translate-y-1"><CheckCircle size={16}/> Verify</button>
+                      <button
+                        onClick={() => mismatch
+                          ? setMismatchOverride({ paymentId: p.id, amountDueKes: Number(dueKes||0), amountClaimedKes: Number(claimedKes||0), reasonText: '' })
+                          : handleApprovePayment(p.id)}
+                        disabled={approvingPayment===p.id}
+                        className={`glass-sheen text-white px-8 py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-xl transition-all hover:-translate-y-1 ${mismatch ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-500 hover:bg-green-600'}`}
+                        title={mismatch ? 'Amount mismatch — opens override sheet' : 'Approve payment'}
+                      >
+                        <CheckCircle size={16}/> {mismatch ? 'Verify w/ override' : 'Verify'}
+                      </button>
                       <button onClick={() => handleRejectPayment(p.id)} disabled={approvingPayment===p.id} className="bg-red-50 text-red-600 border border-red-200 px-8 py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest hover:bg-red-100 transition-colors shadow-sm">Reject</button>
                     </div>
                   </div>
@@ -1556,6 +1588,62 @@ export const AdminDashboard = () => {
                     <button type="button" onClick={() => setEditOrderModal(null)} className={btnOutline + " flex-1 !py-5"}>Cancel</button>
                   </div>
                 </form>
+              </GlassCard>
+            </div>
+          </div>
+        )}
+
+        {/* M-Pesa amount-mismatch override sheet (audit P1.2). Opens when
+            an admin clicks Verify on a row whose claimed amount is
+            short of amount_due_kes — the server 409s without an
+            `override_reason` >=10 chars, and we surface the same gate
+            in the UI so admins can't accidentally settle a short pay. */}
+        {mismatchOverride && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="w-full max-w-md">
+              <GlassCard className="bg-white p-8">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="p-3 rounded-2xl bg-amber-50 text-amber-600">
+                    <AlertTriangle size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-black text-[#0f172a] tracking-tight">Amount mismatch</h3>
+                    <p className="text-sm text-slate-500 font-bold mt-1">Customer's M-Pesa SMS is short of the invoice. Approving requires a written reason.</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mb-6">
+                  <div className="p-4 rounded-2xl bg-rose-50 border border-rose-100">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-rose-600">Customer claimed</p>
+                    <p className="text-2xl font-black text-rose-700 mt-1 tracking-tighter">KES {mismatchOverride.amountClaimedKes.toLocaleString()}</p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Invoice due</p>
+                    <p className="text-2xl font-black text-slate-700 mt-1 tracking-tighter">KES {mismatchOverride.amountDueKes.toLocaleString()}</p>
+                  </div>
+                </div>
+                <label className="block mb-1 text-[9px] font-black uppercase tracking-widest text-slate-500">Reason (min 10 chars)</label>
+                <textarea
+                  value={mismatchOverride.reasonText}
+                  onChange={e => setMismatchOverride({ ...mismatchOverride, reasonText: e.target.value })}
+                  rows={3}
+                  placeholder="e.g. Customer forwarded the second receipt offline; total clears amount."
+                  className={inputClass + " resize-none"}
+                />
+                <p className={`mt-1 text-[10px] font-bold ${mismatchOverride.reasonText.trim().length >= 10 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                  {mismatchOverride.reasonText.trim().length}/10 chars minimum
+                </p>
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => handleApprovePayment(mismatchOverride.paymentId, { overrideReason: mismatchOverride.reasonText.trim() })}
+                    disabled={mismatchOverride.reasonText.trim().length < 10 || approvingPayment === mismatchOverride.paymentId}
+                    className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest shadow-xl transition-all"
+                  >
+                    Approve with override
+                  </button>
+                  <button onClick={() => setMismatchOverride(null)} className="flex-1 bg-slate-50 border border-slate-200 text-slate-700 px-6 py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest hover:bg-slate-100">
+                    Cancel
+                  </button>
+                </div>
               </GlassCard>
             </div>
           </div>

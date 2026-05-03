@@ -105,7 +105,14 @@ export const paymentsApi = {
 
   // ── Admin-only ──
   pendingMpesaQueue: () => api.get('/admin/payments/pending'),
-  approve: (id) => api.post(`/admin/payments/${id}/approve`),
+  /**
+   * Approve an M-Pesa payment. Pass `overrideReason` when the SMS amount
+   * is short of the invoice — server requires >=10 chars and persists it
+   * on the payments row as `approval_override_reason` (audit P1.2).
+   */
+  approve: (id, { overrideReason } = {}) =>
+    api.post(`/admin/payments/${id}/approve`,
+      overrideReason ? { override_reason: overrideReason } : {}),
   reject: (id, reason) => api.post(`/admin/payments/${id}/reject`, { reason }),
 }
 
@@ -234,7 +241,7 @@ export const adminApi = {
    *  in PR A; raw SMS + parsed fields are inlined on each row, so the
    *  separate /proof round-trip from the legacy flow is gone. */
   getPendingPayments: () => paymentsApi.pendingMpesaQueue(),
-  approvePayment:    (id)         => paymentsApi.approve(id),
+  approvePayment:    (id, opts)   => paymentsApi.approve(id, opts),
   rejectPayment:     (id, reason) => paymentsApi.reject(id, reason),
 
   /** Get email logs for a user */

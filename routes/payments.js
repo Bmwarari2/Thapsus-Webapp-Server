@@ -338,17 +338,54 @@ router.post('/:id/mpesa-confirmation', authMiddleware, async (req, res) => {
       return res.status(400).json({ success: false, message: parsed.reason });
     }
 
-    await req.db.query(
-      `UPDATE payments
-          SET status = 'awaiting_review',
-              mpesa_message_raw = $2,
-              mpesa_reference = $3,
-              mpesa_phone = $4,
-              mpesa_message_amount_kes = $5,
-              updated_at = NOW()
-        WHERE id = $1`,
-      [id, message_raw, parsed.reference, parsed.phone, parsed.amountKes]
+    // Audit P1.2: pre-check the reference against existing
+    // paid/awaiting_review rows. The DB has a partial unique index
+    // (`uq_payments_mpesa_ref`, migration 032) that backstops this — but
+    // the index would surface as a generic 500; the explicit lookup
+    // gives the customer a clear "this SMS was already used" message
+    // and lets us include the reference in the response.
+    const dup = await req.db.query(
+      `SELECT id FROM payments
+        WHERE mpesa_reference = $1
+          AND status IN ('paid','awaiting_review')
+          AND id <> $2
+        LIMIT 1`,
+      [parsed.reference, id]
     );
+    if (dup.rows[0]) {
+      return res.status(409).json({
+        success: false,
+        error: 'mpesa_reference_already_used',
+        message: `This M-Pesa reference (${parsed.reference}) has already been submitted. If you genuinely paid twice, contact support.`,
+      });
+    }
+
+    try {
+      await req.db.query(
+        `UPDATE payments
+            SET status = 'awaiting_review',
+                mpesa_message_raw = $2,
+                mpesa_reference = $3,
+                mpesa_phone = $4,
+                mpesa_message_amount_kes = $5,
+                updated_at = NOW()
+          WHERE id = $1`,
+        [id, message_raw, parsed.reference, parsed.phone, parsed.amountKes]
+      );
+    } catch (e) {
+      // 23505 = unique_violation. Race against another concurrent paste
+      // of the same reference (extremely unlikely but possible if the
+      // customer mashes Submit twice). Translate to the same 409 shape
+      // as the pre-check.
+      if (e && e.code === '23505') {
+        return res.status(409).json({
+          success: false,
+          error: 'mpesa_reference_already_used',
+          message: `This M-Pesa reference (${parsed.reference}) has already been submitted.`,
+        });
+      }
+      throw e;
+    }
     res.json({ success: true, message: 'Submitted — an admin will review your payment shortly.' });
   } catch (err) {
     logRouteError(req, res, err, 'POST /api/payments/:id/mpesa-confirmation');
