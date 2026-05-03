@@ -278,11 +278,19 @@ router.get(
   async (req, res) => {
     try {
       // "Pending" = dispatch-ready: customs-cleared and not yet on any
-      // active run.  After T7 the run flips orders.status to
-      // out_for_delivery only when the run actually starts, so the
-      // board no longer shows parcels that already left the yard.
-      // The active-run dedup uses last_mile_run_parcels (migration 012)
-      // for an indexed lookup.
+      // active run. Audit T7 + P2.1: orders.status='customs' until a
+      // rider's run actually starts (activateRunDispatch flips to
+      // 'out_for_delivery'). The customs entry's status decides
+      // whether the parcel is *cleared*:
+      //   • released                 → ready for dispatch
+      //   • no customs_entries row   → low-value fast lane (no entry
+      //                                required), also ready
+      //   • idf_submitted / pending  → still being processed; hide
+      //
+      // Without the entry-status check the board listed parcels that
+      // were merely at 'customs' but not yet released — operators
+      // mistakenly built runs for parcels still being cleared, and
+      // riders later 400'd on POD because no OTP had been minted.
       const { rows: pending } = await req.db.query(
         `SELECT o.id, o.tracking_number, o.description, u.name, u.phone,
                 u.delivery_address
@@ -299,6 +307,14 @@ router.get(
                 JOIN last_mile_runs r ON r.id = lmrp.run_id
                WHERE lmrp.parcel_id = o.id
                  AND r.status IN ('planned','in_progress')
+            )
+            AND (
+              -- Cleared or no customs-entry workflow at all.
+              NOT EXISTS (SELECT 1 FROM customs_entries ce WHERE ce.parcel_id = o.id)
+              OR EXISTS (
+                SELECT 1 FROM customs_entries ce
+                 WHERE ce.parcel_id = o.id AND ce.status = 'released'
+              )
             )
           ORDER BY o.updated_at ASC NULLS LAST
           LIMIT 100`
