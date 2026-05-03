@@ -102,7 +102,7 @@ function connectSSE(token) {
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   });
 
-  ['order_update', 'ticket_update', 'notification', 'wallet_update', 'admin_stats', 'package_update']
+  ['order_update', 'ticket_update', 'notification', 'credit_update', 'admin_stats', 'package_update']
     .forEach(type => {
       source.addEventListener(type, e => {
         try {
@@ -168,10 +168,15 @@ export function useNotificationUpdates(cb) {
   const ref = useRef(cb); ref.current = cb;
   useEffect(() => on('notification',  data => ref.current(data)), [on]);
 }
-export function useWalletUpdates(cb) {
+/**
+ * Replaced useWalletUpdates in PR C — wallet was dropped in
+ * migration 028. The new SSE event is `credit_update`, fired from
+ * routes/orders.js when a referral reward bumps user_credits.
+ */
+export function useCreditUpdates(cb) {
   const { on } = useRealtimeUpdates();
   const ref = useRef(cb); ref.current = cb;
-  useEffect(() => on('wallet_update', data => ref.current(data)), [on]);
+  useEffect(() => on('credit_update', data => ref.current(data)), [on]);
 }
 export function useAdminStats(cb) {
   const { on } = useRealtimeUpdates();

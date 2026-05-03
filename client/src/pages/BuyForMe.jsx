@@ -3,13 +3,16 @@ import { ShoppingBag, ExternalLink, Plus, Check, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { buyForMeApi } from '../api'
 import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '../components/GlassUI'
+import { PayInvoiceModal } from '../components/PayInvoiceModal'
 
 /**
  * /app/buy-for-me — concierge orders (Spec §4.10).
  *
  * Customer pastes a retailer URL → we buy + ship to UK → consolidate.
- * Operator quotes server-side; customer reviews here and accepts (wallet
- * debit) or rejects with a free-text reason so the operator can re-quote.
+ * Operator quotes server-side; customer reviews here and accepts (now
+ * via Stripe or M-Pesa via the PayInvoiceModal — wallet was dropped in
+ * server PR #61 / migration 028) or rejects with a free-text reason
+ * so the operator can re-quote.
  */
 export const BuyForMe = () => {
   const [orders, setOrders] = useState([])
@@ -20,6 +23,9 @@ export const BuyForMe = () => {
   // Reject modal — `null` means closed.
   const [rejectingFor, setRejectingFor] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
+
+  // Pay modal — non-null = open. Holds the BFM order being paid for.
+  const [payingFor, setPayingFor] = useState(null)
 
   const refresh = () => buyForMeApi.mine().then(r => setOrders(r.data?.orders || []))
                                           .catch(() => toast.error('Failed to load orders'))
@@ -38,15 +44,10 @@ export const BuyForMe = () => {
     } catch { toast.error('Failed to submit') }
   }
 
-  const onAccept = async (id) => {
-    try {
-      const { data } = await buyForMeApi.accept(id)
-      toast.success(`Accepted · KES ${(data?.paid_kes || 0).toLocaleString()} debited`)
-      refresh()
-    } catch (e) {
-      toast.error(e.response?.data?.message || 'Failed to accept')
-    }
-  }
+  // Open the pay modal — replaces the legacy buyForMeApi.accept() wallet
+  // debit. PayInvoiceModal calls POST /api/payments and routes through
+  // Stripe or M-Pesa; on success the webhook flips the BFM row to 'paid'.
+  const onAccept = (order) => setPayingFor(order)
 
   const onSubmitReject = async () => {
     const reason = rejectReason.trim()
@@ -136,7 +137,7 @@ export const BuyForMe = () => {
 
                 {o.status === 'quoted' && (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <button onClick={() => onAccept(o.id)}
+                    <button onClick={() => onAccept(o)}
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold">
                       <Check size={14}/> Accept &amp; buy
                     </button>
@@ -176,6 +177,23 @@ export const BuyForMe = () => {
           </GlassCard>
         </div>
       )}
+
+      <PayInvoiceModal
+        open={!!payingFor}
+        onClose={() => setPayingFor(null)}
+        targetKind="buy_for_me"
+        targetId={payingFor?.id}
+        targetTitle={payingFor ? `Buy-for-me · ${payingFor.item_name}` : ''}
+        amountKesGross={(() => {
+          if (!payingFor) return 0
+          const gbp = Number(payingFor.estimate_gbp || 0) * (1 + Number(payingFor.markup_pct || 10) / 100)
+          // Approx KES at 165 — server's PaymentDto.amount_due_kes is
+          // authoritative once the create POST returns; this only primes
+          // the summary card before that.
+          return Math.ceil(gbp * 165)
+        })()}
+        onPaid={refresh}
+      />
     </div>
   )
 }

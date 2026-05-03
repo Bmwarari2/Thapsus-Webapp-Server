@@ -47,26 +47,41 @@ export const ordersApi = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// WALLET  →  GET /api/wallet  |  GET /api/wallet/transactions  |  POST /api/wallet/deposit
+// PAYMENTS  →  POST /api/payments  |  per-user credit  |  Stripe public config
+// Replaces the legacy walletApi (server PR #61, migration 028). Two methods
+// supported on every "money in" surface:
+//   stripe → response.next.client_secret powers Stripe Elements / PaymentSheet
+//   mpesa  → response.next.{paybill, account, amount_due_kes}; customer pays
+//            in M-Pesa, then submits the SMS via submitMpesaConfirmation()
 // ─────────────────────────────────────────────────────────────────────────────
-export const walletApi = {
-  getBalance: () => api.get('/wallet'),
+export const paymentsApi = {
+  /** GET /api/payments/config/stripe → { publishable_key, apple_pay } */
+  stripeConfig: () => api.get('/payments/config/stripe'),
 
-  getTransactions: (params = {}) => api.get('/wallet/transactions', { params }),
-
-  /**
-   * Get Mpesa paybill info.
-   */
-  getMpesaInfo: () => api.get('/wallet/mpesa-info'),
+  /** GET /api/payments/me/credit → { balance_kes, updated_at } */
+  myCredit: () => api.get('/payments/me/credit'),
 
   /**
-   * Submit Mpesa confirmation message after payment.
-   * @param {string} mpesa_message - The full Mpesa SMS confirmation
-   * @param {string|null} order_id - Optional order ID being paid for
-   * @param {number} amount - Amount paid in KES
+   * POST /api/payments
+   * @param {'order'|'consolidation'|'buy_for_me'} target_kind
+   * @param {string} target_id
+   * @param {'stripe'|'mpesa'} method
+   * @param {boolean} [apply_credit=true]
    */
-  submitMpesaConfirmation: (mpesa_message, order_id, amount) =>
-    api.post('/wallet/mpesa-confirm', { mpesa_message, order_id, amount }),
+  create: (target_kind, target_id, method, apply_credit = true) =>
+    api.post('/payments', { target_kind, target_id, method, apply_credit }),
+
+  /** POST /api/payments/:id/mpesa-confirmation — customer pastes the SMS. */
+  submitMpesaConfirmation: (paymentId, message_raw) =>
+    api.post(`/payments/${paymentId}/mpesa-confirmation`, { message_raw }),
+
+  list: () => api.get('/payments'),
+  detail: (id) => api.get(`/payments/${id}`),
+
+  // ── Admin-only ──
+  pendingMpesaQueue: () => api.get('/admin/payments/pending'),
+  approve: (id) => api.post(`/admin/payments/${id}/approve`),
+  reject: (id, reason) => api.post(`/admin/payments/${id}/reject`, { reason }),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -190,17 +205,12 @@ export const adminApi = {
   /** Create order for a client */
   createOrderForClient: (data) => api.post('/admin/orders/create-for-client', data),
 
-  /** Get pending M-Pesa transactions */
-  getPendingPayments: () => api.get('/admin/transactions/pending'),
-
-  /** Approve a payment transaction */
-  approvePayment: (id) => api.post(`/admin/transactions/${id}/approve`),
-
-  /** Reject a payment transaction */
-  rejectPayment: (id, reason) => api.post(`/admin/transactions/${id}/reject`, { reason }),
-
-  /** View the raw Mpesa message submitted as proof of payment */
-  getPaymentProof: (id) => api.get(`/admin/transactions/${id}/proof`),
+  /** Get pending M-Pesa payments. Server moved to /admin/payments
+   *  in PR A; raw SMS + parsed fields are inlined on each row, so the
+   *  separate /proof round-trip from the legacy flow is gone. */
+  getPendingPayments: () => paymentsApi.pendingMpesaQueue(),
+  approvePayment:    (id)         => paymentsApi.approve(id),
+  rejectPayment:     (id, reason) => paymentsApi.reject(id, reason),
 
   /** Get email logs for a user */
   getUserEmails: (id) => api.get(`/admin/users/${id}/emails`),

@@ -148,7 +148,7 @@ export const AdminDashboard = () => {
         const ratesData = results[3].value.data
         if (ratesData?.rates) setExchangeRates(ratesData.rates)
       }
-      if (results[4].status === 'fulfilled') setPendingPayments(results[4].value.data?.transactions || [])
+      if (results[4].status === 'fulfilled') setPendingPayments(results[4].value.data?.payments || [])
       if (results[5].status === 'fulfilled') setTickets(results[5].value.data?.tickets || [])
 
       try {
@@ -736,7 +736,6 @@ export const AdminDashboard = () => {
                   <tr>
                     <th className={thClass}>User Entity</th>
                     <th className={thClass}>Credentials</th>
-                    <th className={thClass}>Wallet</th>
                     <th className={thClass}>Status</th>
                     <th className={thClass + " text-right"}>Actions</th>
                   </tr>
@@ -746,7 +745,6 @@ export const AdminDashboard = () => {
                     <tr key={u.id} className="hover:bg-white/40 transition-colors">
                       <td className={tdClass}><p className="font-black text-[#0f172a]">{u.name}</p><p className="text-[10px] font-mono text-orange-700 font-bold mt-1">{u.warehouse_id}</p></td>
                       <td className={tdClass}><p className="font-bold text-slate-700">{u.email}</p><p className="text-xs text-slate-400 font-medium mt-1">{u.phone}</p></td>
-                      <td className={tdClass}><p className="font-black text-green-600">KES {(u.wallet_balance||0).toLocaleString()}</p></td>
                       <td className={tdClass}><span className={`inline-flex px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm border ${u.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>{u.is_active ? 'Active' : 'Disabled'}</span></td>
                       <td className={tdClass + " text-right"}>
                         <button onClick={() => handleOpenUserDetail(u)} className="p-2 hover:bg-blue-100 text-blue-600 bg-white rounded-xl transition-all inline-flex shadow-sm"><Eye size={16}/></button>
@@ -846,15 +844,27 @@ export const AdminDashboard = () => {
                   <CreditCard className="text-slate-300 mb-6" size={56} />
                   <p className="font-black text-slate-400 uppercase text-xs tracking-widest">No pending transactions</p>
                 </GlassCard>
-              ) : pendingPayments.map(p => (
+              ) : pendingPayments.map(p => {
+                // PaymentDto field names from server PR #61 (migration 028).
+                const claimedKes = p.mpesa_message_amount_kes
+                const dueKes     = p.amount_due_kes
+                const mismatch   = claimedKes != null && Number(claimedKes) !== Number(dueKes)
+                return (
                 <GlassCard key={p.id} className="flex flex-col gap-6 p-8">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div>
                       <div className="flex items-center gap-4 mb-2">
-                        <span className="font-black text-3xl text-green-600 tracking-tighter">KES {p.amount.toLocaleString()}</span>
-                        <span className="px-3 py-1.5 bg-orange-50 text-orange-600 border border-orange-200 rounded-full font-mono text-[10px] font-black uppercase tracking-widest shadow-sm">{p.payment_reference}</span>
+                        <span className="font-black text-3xl text-green-600 tracking-tighter">KES {Number(dueKes||0).toLocaleString()}</span>
+                        <span className="px-3 py-1.5 bg-orange-50 text-orange-600 border border-orange-200 rounded-full font-mono text-[10px] font-black uppercase tracking-widest shadow-sm">{p.mpesa_reference || '—'}</span>
+                        {claimedKes != null && (
+                          <span className={`px-3 py-1.5 rounded-full font-mono text-[10px] font-black uppercase tracking-widest shadow-sm border ${mismatch ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                            Customer claimed KES {Number(claimedKes).toLocaleString()}
+                          </span>
+                        )}
                       </div>
-                      <p className="text-sm text-slate-500 font-bold">{p.name || p.email} • {new Date(p.created_at).toLocaleDateString()}</p>
+                      <p className="text-sm text-slate-500 font-bold">
+                        {p.user_name || p.user_email || p.user_id} • {new Date(p.created_at).toLocaleDateString()} • {p.target_kind}
+                      </p>
                     </div>
                     <div className="flex gap-3">
                       <button onClick={() => handleApprovePayment(p.id)} disabled={approvingPayment===p.id} className="glass-sheen bg-green-500 text-white px-8 py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-green-600 shadow-xl transition-all hover:-translate-y-1"><CheckCircle size={16}/> Verify</button>
@@ -871,20 +881,19 @@ export const AdminDashboard = () => {
                         <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">Full M-Pesa SMS</span>
                       </div>
                       <div className="font-mono text-sm text-slate-700 whitespace-pre-wrap leading-relaxed bg-white/40 p-4 rounded-xl border border-white/50">
-                        {p.mpesa_message || 'No message logged. Check admin logs for transaction proof.'}
+                        {p.mpesa_message_raw || 'No message logged.'}
                       </div>
                     </div>
                   </div>
 
-                  {/* Payer details if available */}
-                  {(p.payer_name || p.payer_phone) && (
+                  {p.mpesa_phone && (
                     <div className="flex flex-wrap gap-3">
-                      {p.payer_name && <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500">Payer: {p.payer_name}</span>}
-                      {p.payer_phone && <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500">Phone: {p.payer_phone}</span>}
+                      <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500">Phone: {p.mpesa_phone}</span>
                     </div>
                   )}
                 </GlassCard>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
@@ -1183,11 +1192,7 @@ export const AdminDashboard = () => {
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-6 mb-12">
-                <GlassCard className="p-8 border-green-200/50 bg-green-50/50 shadow-none">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-green-700/60 mb-2">Wallet Funds</p>
-                  <p className="text-3xl md:text-4xl font-black text-green-700 tracking-tighter">KES {(selectedUserData.user?.wallet_balance||0).toLocaleString()}</p>
-                </GlassCard>
+              <div className="grid grid-cols-1 gap-6 mb-12">
                 <GlassCard className="p-8 border-blue-200/50 bg-blue-50/50 shadow-none">
                   <p className="text-[10px] font-black uppercase tracking-widest text-blue-700/60 mb-2">Active Orders</p>
                   <p className="text-3xl md:text-4xl font-black text-blue-700 tracking-tighter">{selectedUserData.user?.orders?.length || 0}</p>
