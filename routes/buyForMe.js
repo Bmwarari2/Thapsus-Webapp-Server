@@ -53,16 +53,17 @@ router.get('/', authMiddleware, async (req, res) => {
 router.get('/queue', authMiddleware, requireRole('operator'), async (req, res) => {
   try {
     const { rows } = await req.db.query(
-      `SELECT b.*, u.email, u.name
+      `SELECT b.*, u.email, u.name, o.tracking_number AS parcel_tracking_number
          FROM buy_for_me_orders b
          JOIN users u ON u.id = b.user_id
+         LEFT JOIN orders o ON o.id = b.parcel_id
         WHERE b.status IN ('pending_quote','quoted','paid','rejected')
         ORDER BY
           CASE b.status
-            WHEN 'pending_quote' THEN 0
-            WHEN 'rejected'      THEN 1
-            WHEN 'quoted'        THEN 2
-            WHEN 'paid'          THEN 3
+            WHEN 'paid'          THEN 0
+            WHEN 'pending_quote' THEN 1
+            WHEN 'rejected'      THEN 2
+            WHEN 'quoted'        THEN 3
             ELSE 4
           END,
           b.created_at ASC`

@@ -7,6 +7,8 @@
 // Caller must NOT have an open transaction — this function opens its own
 // so it can FOR UPDATE the target rows safely.
 
+import crypto from 'node:crypto';
+import { v4 as uuidv4 } from 'uuid';
 import { sendUnifiedPaymentReceiptEmail } from './email.js';
 
 /**
@@ -134,9 +136,83 @@ async function flipTarget(client, kind, id) {
           WHERE id = $1 AND status = 'quoted'`,
         [id]
       );
+      // Auto-create a pre-registered parcel so the customer immediately
+      // sees a tracking entry + the operator gets it in the warehouse
+      // intake queue. Idempotent: if buy_for_me_orders.parcel_id is
+      // already set, skip.
+      await maybeCreatePreRegisteredParcelForBfm(client, id);
       break;
     default:
       throw new Error(`Unknown payment target_kind: ${kind}`);
+  }
+}
+
+/**
+ * After a BFM accept payment lands, create a pre_registered parcel for
+ * the customer. Mirrors the customer POST /api/orders flow so this row
+ * shows up in tracking + the operator intake queue.
+ *
+ * Idempotent: if buy_for_me_orders.parcel_id is already set, no-op.
+ *
+ * Runs inside the same transaction as the buy_for_me_orders status flip.
+ */
+async function maybeCreatePreRegisteredParcelForBfm(client, bfmId) {
+  const { rows: bfmRows } = await client.query(
+    `SELECT id, user_id, retailer_url, item_name, parcel_id
+       FROM buy_for_me_orders WHERE id = $1`, [bfmId]
+  );
+  const bfm = bfmRows[0];
+  if (!bfm) return;
+  if (bfm.parcel_id) return; // already linked — idempotent
+
+  const orderId        = uuidv4();
+  const trackingNumber = generateBfmTrackingNumber();
+  const retailer       = parseRetailerLabel(bfm.retailer_url);
+  const market         = inferMarketFromUrl(bfm.retailer_url); // defaults 'UK'
+
+  await client.query(
+    `INSERT INTO orders (id, user_id, tracking_number, retailer, market,
+        status, description, weight_kg, dimensions_json, shipping_speed,
+        insurance, declared_value, estimated_cost, hs_tier, electronics_item)
+     VALUES ($1,$2,$3,$4,$5,'pending',$6,NULL,NULL,'economy',false,0,0,'general',NULL)`,
+    [orderId, bfm.user_id, trackingNumber, retailer, market, bfm.item_name]
+  );
+  await client.query(
+    `INSERT INTO packages (id, order_id, user_id, description, weight_kg, status)
+     VALUES ($1,$2,$3,$4,NULL,'pre_registered')`,
+    [uuidv4(), orderId, bfm.user_id, bfm.item_name]
+  );
+  await client.query(
+    `UPDATE buy_for_me_orders SET parcel_id = $1, updated_at = NOW() WHERE id = $2`,
+    [orderId, bfmId]
+  );
+}
+
+function generateBfmTrackingNumber() {
+  const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
+  const rand = crypto.randomBytes(4).toString('hex').toUpperCase();
+  return `TC-${date}-${rand}`;
+}
+
+function parseRetailerLabel(url) {
+  if (!url) return 'Buy-for-me';
+  try {
+    const host = new URL(url).hostname.replace(/^www\./i, '');
+    return host || 'Buy-for-me';
+  } catch {
+    return 'Buy-for-me';
+  }
+}
+
+function inferMarketFromUrl(url) {
+  if (!url) return 'UK';
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (/(\.cn$|taobao|tmall|1688|aliexpress)/.test(host)) return 'China';
+    if (/\.com$/.test(host) && /(amazon\.com|ebay\.com|walmart|bestbuy|target)/.test(host)) return 'USA';
+    return 'UK';
+  } catch {
+    return 'UK';
   }
 }
 
