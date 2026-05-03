@@ -10,19 +10,47 @@ import { sendBuyForMeQuoteEmail } from '../utils/email.js';
 
 const router = express.Router();
 
-/** POST /api/buy-for-me — customer creates a request */
+/**
+ * POST /api/buy-for-me — customer creates a request.
+ *
+ * PR 4: accepts an optional `retailer_id` from the picker. When present,
+ * the server resolves the retailer's `base_url` and stores it as
+ * `retailer_url` (the customer can still type a more specific item URL
+ * — `retailer_url` from the body wins if both are sent). When absent,
+ * `retailer_url` is required (the "Other" path).
+ */
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { retailer_url, item_name, size, qty, notes } = req.body;
-    if (!retailer_url || !item_name) {
-      return res.status(400).json({ success: false, message: 'retailer_url and item_name are required' });
+    const { retailer_id, retailer_url, item_name, size, qty, notes } = req.body;
+    if (!item_name) {
+      return res.status(400).json({ success: false, message: 'item_name is required' });
     }
+
+    // Resolve final retailer_url. Item URL (retailer_url) wins; otherwise
+    // fall back to the picker's base_url. At least one is required.
+    let resolvedUrl = (typeof retailer_url === 'string' && retailer_url.trim().length > 0)
+      ? retailer_url.trim()
+      : null;
+    if (!resolvedUrl && retailer_id) {
+      const { rows } = await req.db.query(
+        `SELECT base_url FROM retailers WHERE id = $1 AND is_active = true`,
+        [retailer_id]
+      );
+      if (rows[0]) resolvedUrl = rows[0].base_url;
+    }
+    if (!resolvedUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'Provide either retailer_id (picker) or retailer_url (item link)',
+      });
+    }
+
     const id = `BFM-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
     await req.db.query(
       `INSERT INTO buy_for_me_orders
          (id, user_id, retailer_url, item_name, size, qty, notes, status)
        VALUES ($1,$2,$3,$4,$5,$6,$7,'pending_quote')`,
-      [id, req.user.id, retailer_url, item_name, size || null,
+      [id, req.user.id, resolvedUrl, item_name, size || null,
        parseInt(qty, 10) || 1, notes || null]
     );
     res.status(201).json({ success: true, order_id: id });

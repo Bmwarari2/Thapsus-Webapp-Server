@@ -91,6 +91,7 @@ import eventsRoutes        from './routes/events.js';
 import paymentRoutes       from './routes/payment.js';
 import sitemapRoutes       from './routes/sitemap.js';
 import warehouseRoutes     from './routes/warehouse.js';
+import retailersRoutes     from './routes/retailers.js';
 // ── Framework v2 routes ───────────────────────────────────────────────────────
 import consolidationsV2Routes from './routes/consolidationsV2.js';
 import customsRoutes          from './routes/customs.js';
@@ -363,6 +364,7 @@ app.use('/api/admin/backups', backupRoutes);
 app.use('/api/events',        eventsRoutes);
 app.use('/api/payment',       paymentRoutes);
 app.use('/api/warehouse',     warehouseRoutes);
+app.use('/api/retailers',     retailersRoutes);
 
 // ── Framework v2 mounts ───────────────────────────────────────────────────────
 app.use('/api/consolidations', consolidationsV2Routes);

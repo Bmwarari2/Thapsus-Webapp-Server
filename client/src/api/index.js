@@ -433,6 +433,11 @@ export const dsarApi = {
   export:    (id)          => api.post(`/dsar/${id}/export`),
 }
 
+/** Curated retailers catalog (PR 4 / migration 029). Backs the BFM picker. */
+export const retailersApi = {
+  list: () => api.get('/retailers'),
+}
+
 /** Buy-for-me concierge */
 export const buyForMeApi = {
   create:    (data)         => api.post('/buy-for-me', data),
