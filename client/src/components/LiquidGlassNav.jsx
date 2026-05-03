@@ -5,7 +5,7 @@ import {
   Shield, ShoppingBag, Activity, ChevronDown, ChevronRight,
   Home as HomeIcon, Search, Calculator, LayoutDashboard, LogIn,
   Wallet as WalletIcon, FileText, ShieldAlert, Database, Receipt,
-  Warehouse as WarehouseIcon, LifeBuoy, Globe, BookOpen, ScrollText,
+  Warehouse as WarehouseIcon, LifeBuoy, Globe, BookOpen, ScrollText, History,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
@@ -243,6 +243,7 @@ function buildLinkSets({ isAuthenticated, isAdmin, role, t }) {
     { to: '/dashboard',  label: t('nav.dashboard') || 'Dashboard', icon: LayoutDashboard },
     { to: '/orders',     label: 'My orders',                       icon: Receipt },
     { to: '/credit',     label: 'My credit',                       icon: WalletIcon },
+    { to: '/transactions', label: 'Transactions',                  icon: History },
     { to: '/insurance',  label: 'Insurance',                       icon: Shield },
     { to: '/buy-for-me', label: 'Buy for me',                      icon: ShoppingBag },
     { to: '/consolidation', label: 'Consolidation',                icon: Plane },

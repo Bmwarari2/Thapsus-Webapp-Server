@@ -83,11 +83,12 @@ export const paymentsApi = {
   submitMpesaConfirmation: (paymentId, message_raw) =>
     api.post(`/payments/${paymentId}/mpesa-confirmation`, { message_raw }),
 
-  list: ({ status, limit, offset } = {}) => {
+  list: ({ status, limit, offset, group } = {}) => {
     const qs = new URLSearchParams()
     if (status) qs.set('status', Array.isArray(status) ? status.join(',') : status)
     if (limit  != null) qs.set('limit', String(limit))
     if (offset != null) qs.set('offset', String(offset))
+    if (group) qs.set('group', group)
     const tail = qs.toString() ? `?${qs.toString()}` : ''
     return api.get(`/payments${tail}`)
   },

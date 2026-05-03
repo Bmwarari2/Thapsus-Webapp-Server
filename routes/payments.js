@@ -177,6 +177,41 @@ router.post('/', authMiddleware, async (req, res) => {
                         ...nextStep(existing, existingClientSecret) });
     }
 
+    // Customer is switching method (e.g. abandoned M-Pesa, now trying card).
+    // Cancel ALL prior pending/awaiting_review rows for this target so the
+    // Transactions list doesn't show them as visual duplicates. Best-effort
+    // Stripe PI cancel for any pending Stripe attempts to release the FX
+    // lock — failures here MUST NOT block creating the new payment.
+    const { rows: stale } = await client.query(
+      `SELECT id, method, stripe_payment_intent_id
+         FROM payments
+        WHERE target_kind = $1 AND target_id = $2 AND user_id = $3
+          AND status IN ('pending','awaiting_review')`,
+      [target_kind, target_id, req.user.id]
+    );
+    if (stale.length > 0) {
+      await client.query(
+        `UPDATE payments
+            SET status = 'cancelled',
+                rejection_reason = COALESCE(rejection_reason, 'Superseded by new payment attempt'),
+                updated_at = NOW()
+          WHERE target_kind = $1 AND target_id = $2 AND user_id = $3
+            AND status IN ('pending','awaiting_review')`,
+        [target_kind, target_id, req.user.id]
+      );
+      for (const s of stale) {
+        if (s.method === 'stripe' && s.stripe_payment_intent_id) {
+          try {
+            const stripe = getStripe();
+            await stripe.paymentIntents.cancel(s.stripe_payment_intent_id);
+          } catch (e) {
+            // Already-cancelled or already-succeeded PIs throw — log + move on.
+            console.warn(`[payments] cancel PI ${s.stripe_payment_intent_id} failed:`, e.message);
+          }
+        }
+      }
+    }
+
     // Apply credit (read FOR UPDATE so a concurrent payment can't double-spend).
     let creditApplied = 0;
     if (apply_credit) {
@@ -318,9 +353,15 @@ router.post('/:id/mpesa-confirmation', authMiddleware, async (req, res) => {
  * GET /api/payments — customer's payments, paginated + filterable.
  *
  * Query:
- *   status  optional CSV filter, e.g. ?status=paid,awaiting_review
- *   limit   default 20, max 100
- *   offset  default 0
+ *   status   optional CSV filter, e.g. ?status=paid,awaiting_review
+ *   limit    default 20, max 100
+ *   offset   default 0
+ *   group    'target' to collapse rows by (target_kind, target_id) — picks
+ *            the row with the highest status priority (paid > awaiting_review
+ *            > pending > failed > rejected > cancelled), tie-broken by most
+ *            recent. Each row gains `attempts_count` = total payments rows
+ *            for that target. Customer-facing surfaces use this; admin
+ *            views omit it for full history.
  *
  * Each row is enriched with `target_label` (tracking number / item name /
  * consolidation prefix) via a LATERAL lookup so the client doesn't have
@@ -334,6 +375,7 @@ router.get('/', authMiddleware, async (req, res) => {
     const statusList = statusCsv
       ? statusCsv.split(',').map(s => s.trim()).filter(Boolean)
       : null;
+    const groupMode = String(req.query.group || '').trim();
 
     const params = [req.user.id];
     let where = `WHERE p.user_id = $1`;
@@ -345,8 +387,19 @@ router.get('/', authMiddleware, async (req, res) => {
     const limitIdx  = params.length - 1;
     const offsetIdx = params.length;
 
-    const { rows } = await req.db.query(
-      `SELECT p.*,
+    // Status priority for the dedupe winner: paid first.
+    const priorityCase = `
+      CASE p.status
+        WHEN 'paid'             THEN 0
+        WHEN 'awaiting_review'  THEN 1
+        WHEN 'pending'          THEN 2
+        WHEN 'failed'           THEN 3
+        WHEN 'rejected'         THEN 4
+        WHEN 'cancelled'        THEN 5
+        ELSE 6
+      END`;
+
+    const baseSelect = `p.*,
               COALESCE(
                 CASE p.target_kind
                   WHEN 'order'         THEN (SELECT tracking_number FROM orders WHERE id = p.target_id)
@@ -354,17 +407,34 @@ router.get('/', authMiddleware, async (req, res) => {
                   WHEN 'buy_for_me'    THEN (SELECT item_name FROM buy_for_me_orders WHERE id = p.target_id)
                 END,
                 p.target_id
-              ) AS target_label
-         FROM payments p
-        ${where}
-        ORDER BY p.created_at DESC
-        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
-      params
-    );
+              ) AS target_label`;
+
+    const sql = groupMode === 'target'
+      ? `WITH winners AS (
+           SELECT DISTINCT ON (p.target_kind, p.target_id) ${baseSelect},
+                  COUNT(*) OVER (PARTITION BY p.target_kind, p.target_id) AS attempts_count
+             FROM payments p
+            ${where}
+            ORDER BY p.target_kind, p.target_id, ${priorityCase}, p.created_at DESC
+         )
+         SELECT * FROM winners
+          ORDER BY paid_at DESC NULLS LAST, created_at DESC
+          LIMIT $${limitIdx} OFFSET $${offsetIdx}`
+      : `SELECT ${baseSelect}
+           FROM payments p
+          ${where}
+          ORDER BY p.created_at DESC
+          LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+
+    const { rows } = await req.db.query(sql, params);
     res.json({
       success: true,
-      payments: rows.map(r => ({ ...serializePayment(r), target_label: r.target_label })),
-      limit, offset,
+      payments: rows.map(r => ({
+        ...serializePayment(r),
+        target_label: r.target_label,
+        ...(r.attempts_count != null ? { attempts_count: Number(r.attempts_count) } : {}),
+      })),
+      limit, offset, group: groupMode || null,
     });
   } catch (err) {
     logRouteError(req, res, err, 'GET /api/payments');
