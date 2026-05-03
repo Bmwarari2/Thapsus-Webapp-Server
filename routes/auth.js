@@ -115,14 +115,19 @@ router.post('/register', async (req, res) => {
     const client = await db.connect();
     try {
       await client.query('BEGIN');
+      // wallet_balance + wallet table dropped in migration 028 (PR A).
+      // Replacement: every new user gets a user_credits row at balance 0;
+      // referral rewards bump credit_ledger + user_credits.balance_kes.
       await client.query(
-        `INSERT INTO users (id,email,password,name,phone,role,warehouse_id,language_pref,referral_code,referred_by,wallet_balance,is_active,country_of_residence)
-         VALUES ($1,$2,$3,$4,$5,'customer',$6,'en',$7,$8,0,true,$9)`,
+        `INSERT INTO users (id,email,password,name,phone,role,warehouse_id,language_pref,referral_code,referred_by,is_active,country_of_residence)
+         VALUES ($1,$2,$3,$4,$5,'customer',$6,'en',$7,$8,true,$9)`,
         [userId, email, passwordHash, name, phone, warehouseId, newReferralCode, referredBy, normalisedCountry]
       );
       await client.query(
-        `INSERT INTO wallet (id,user_id,balance,currency) VALUES ($1,$2,0,'KES')`,
-        [uuidv4(), userId]
+        `INSERT INTO user_credits (user_id, balance_kes, updated_at)
+         VALUES ($1, 0, NOW())
+         ON CONFLICT (user_id) DO NOTHING`,
+        [userId]
       );
       if (referredBy) {
         // referral_code in the referrals table must be unique per row.
@@ -182,7 +187,7 @@ router.post('/login', async (req, res) => {
     const email = String(rawEmail).trim().toLowerCase();
 
     const { rows } = await db.query(
-      `SELECT id,email,password,name,role,warehouse_id,language_pref,wallet_balance,referral_code
+      `SELECT id,email,password,name,role,warehouse_id,language_pref,referral_code
        FROM users WHERE email=$1 AND is_active=true`,
       [email]
     );
@@ -210,7 +215,7 @@ router.post('/login', async (req, res) => {
       token,
       supabase_token: supabase?.token || null,
       supabase_token_expires_at: supabase?.expiresAt || null,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, warehouse_id: user.warehouse_id, referral_code: user.referral_code, language_pref: user.language_pref, wallet_balance: user.wallet_balance }
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, warehouse_id: user.warehouse_id, referral_code: user.referral_code, language_pref: user.language_pref }
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -224,7 +229,7 @@ router.get('/me', authMiddleware, async (req, res) => {
   try {
     const { rows } = await req.db.query(
       `SELECT id,email,name,phone,role,warehouse_id,language_pref,referral_code,
-              wallet_balance,delivery_address,country_of_residence,created_at,updated_at
+              delivery_address,country_of_residence,created_at,updated_at
          FROM users WHERE id=$1`,
       [req.user.id]
     );
@@ -284,7 +289,7 @@ router.put('/profile', authMiddleware, async (req, res) => {
     await req.db.query(`UPDATE users SET ${setClauses.join(',')} WHERE id=$${idx}`, params);
 
     const { rows } = await req.db.query(
-      `SELECT id,email,name,phone,role,warehouse_id,language_pref,wallet_balance,delivery_address,country_of_residence
+      `SELECT id,email,name,phone,role,warehouse_id,language_pref,delivery_address,country_of_residence
          FROM users WHERE id=$1`, [userId]
     );
     const fresh = rows[0];
