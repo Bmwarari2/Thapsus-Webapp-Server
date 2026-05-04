@@ -172,7 +172,10 @@ CREATE TABLE IF NOT EXISTS email_logs (
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
-CREATE INDEX IF NOT EXISTS idx_orders_tracking_number ON orders(tracking_number);
+-- tracking_number is already UNIQUE (orders_tracking_number_key); a
+-- secondary btree on the same column would only add write cost. Audit
+-- P5.3 dropped the live duplicate (migration 034); leaving this line
+-- removed so fresh installs match.
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_packages_user_id ON packages(user_id);
 CREATE INDEX IF NOT EXISTS idx_packages_order_id ON packages(order_id);

@@ -1,0 +1,29 @@
+-- 034_drop_redundant_idx_orders_tracking.sql
+--
+-- Audit P5.3 (cleanup): orders.tracking_number carries two btree
+-- indexes on live —
+--
+--   • orders_tracking_number_key  (UNIQUE, auto-generated when the
+--                                  column was declared UNIQUE in the
+--                                  original schema)
+--   • idx_orders_tracking         (non-unique, declared in
+--                                  database/schema.sql:175 as a
+--                                  belt-and-braces lookup index)
+--
+-- Every read the non-unique can satisfy, the unique can satisfy too —
+-- and the unique is what already enforces P2.4's collision-retry
+-- contract. Carrying both costs us ~one write penalty per order
+-- INSERT for zero read benefit (Postgres planner picks the cheapest
+-- BTree, which will tie-break on either; same cost class either way).
+--
+-- Idempotent: DROP INDEX IF EXISTS is a no-op once dropped, and
+-- subsequent re-runs of the migration won't fail.
+--
+-- Safe under concurrent writes: DROP INDEX takes an ACCESS EXCLUSIVE
+-- lock, but on a btree of this size the operation is sub-second on
+-- live (~3k orders rows). DROP INDEX CONCURRENTLY would let writes
+-- continue during the drop, but it can't run inside a transaction
+-- and the migration runner wraps each file in BEGIN/COMMIT — leaving
+-- the plain DROP is the simpler choice for a single-shot cleanup.
+
+DROP INDEX IF EXISTS idx_orders_tracking;
