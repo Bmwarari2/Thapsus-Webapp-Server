@@ -278,15 +278,36 @@ router.get('/:id/pod', authMiddleware, async (req, res) => {
     const userId      = req.user.id;
     const isAdminUser = req.user.role === 'admin';
 
-    // Ownership check identical to /orders/:id so customers can only
-    // see PODs for their own parcels. The pod_events row itself isn't
-    // tied to a user_id; we gate via the parent orders row instead.
-    const own = isAdminUser
+    // Resolve the supplied id to an authoritative orders.id. iOS clients
+    // sometimes pass a packages.id (the row they observe locally) instead
+    // of the orders.id that pod_events.parcel_id references — both id
+    // shapes are uuids so we can't tell them apart from the URL alone.
+    // Try orders first; if no match, look up the package and follow its
+    // order_id pointer. Ownership is gated against the parent orders row
+    // either way (customers only see PODs for their own parcels).
+    let own = isAdminUser
       ? await db.query('SELECT id, tracking_number FROM orders WHERE id = $1', [id])
       : await db.query('SELECT id, tracking_number FROM orders WHERE id = $1 AND user_id = $2', [id, userId]);
     if (own.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Order not found' });
+      const viaPkg = isAdminUser
+        ? await db.query(
+            `SELECT o.id, o.tracking_number
+               FROM packages p JOIN orders o ON o.id = p.order_id
+              WHERE p.id = $1`,
+            [id]
+          )
+        : await db.query(
+            `SELECT o.id, o.tracking_number
+               FROM packages p JOIN orders o ON o.id = p.order_id
+              WHERE p.id = $1 AND o.user_id = $2`,
+            [id, userId]
+          );
+      if (viaPkg.rows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Order not found' });
+      }
+      own = viaPkg;
     }
+    const orderId = own.rows[0].id;
 
     // Latest successful POD wins. Riders shouldn't be re-POD'ing a
     // delivered parcel, but if they did the most recent capture is the
@@ -299,7 +320,7 @@ router.get('/:id/pod', authMiddleware, async (req, res) => {
         WHERE parcel_id = $1 AND result = 'delivered'
         ORDER BY captured_at DESC
         LIMIT 1`,
-      [id]
+      [orderId]
     );
     if (podRes.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'No POD recorded for this parcel yet' });
