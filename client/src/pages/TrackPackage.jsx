@@ -7,7 +7,7 @@ import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
 import { ordersApi } from '../api'
 import { SEO } from '../components/SEO'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 
 // Human-readable labels for every order status
@@ -62,7 +62,12 @@ export const TrackPackage = () => {
   const { t } = useLanguage()
   const { user, isAuthenticated } = useAuth()
   const [searchParams] = useSearchParams()
-  const [trackingNumber, setTrackingNumber] = useState(searchParams.get('q') || '')
+  // /track/:tn (universal-link landing) takes priority over ?q= for the
+  // initial input value. Both fall through to the same auto-search effect
+  // below so a deep link from email or iOS lands on the result, not on a
+  // blank form.
+  const { tn } = useParams()
+  const [trackingNumber, setTrackingNumber] = useState(tn || searchParams.get('q') || '')
   const [loading, setLoading] = useState(false)
   const [package_, setPackage] = useState(null)
   const [error, setError] = useState(null)
@@ -82,13 +87,14 @@ export const TrackPackage = () => {
     { status: 'delivered',             label: 'Delivered',             icon: Check   },
   ]
 
-  // Auto-search if ?q= query param is present (e.g. from hero tracking input)
+  // Auto-search on either ?q= (hero tracking input) or /track/:tn (universal
+  // links from iOS / shared links from customer email). Path param wins.
   useEffect(() => {
-    const q = searchParams.get('q')
-    if (q && q.trim()) {
-      setTrackingNumber(q.trim())
+    const initial = (tn || searchParams.get('q') || '').trim()
+    if (initial) {
+      setTrackingNumber(initial)
       setLoading(true)
-      ordersApi.track(q.trim())
+      ordersApi.track(initial)
         .then(res => { setPackage(res.data.tracking); setLoading(false) })
         .catch(() => { setError(t('track.notFound')); setLoading(false) })
     }

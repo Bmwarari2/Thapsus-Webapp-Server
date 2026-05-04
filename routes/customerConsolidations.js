@@ -21,7 +21,7 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
-import { sendInvoiceReadyEmail, sendInvoicePaidEmail } from '../utils/email.js';
+import { sendInvoiceReadyEmail } from '../utils/email.js';
 import { pushToUser, pushToAdmins } from './events.js';
 import { calculateShippingCost } from '../utils/pricing.js';
 import { getGbpToKesRate, FxRateUnavailableError } from '../utils/fx.js';
@@ -94,15 +94,15 @@ async function notifyInvoice(client, customerConsolidation, kind) {
       customerConsolidation.invoice_amount,
       currency
     ).catch(sendErr('invoice_ready'));
-  } else if (kind === 'paid') {
-    sendInvoicePaidEmail(
-      owner.email,
-      owner.name,
-      customerConsolidation.id,
-      customerConsolidation.invoice_amount,
-      currency
-    ).catch(sendErr('invoice_paid'));
   }
+  // No 'paid' branch here on purpose. The structured receipt
+  // (sendUnifiedPaymentReceiptEmail in utils/markPaymentPaid.js) is the
+  // authoritative customer-facing receipt for ALL paid targets — order,
+  // consolidation, buy_for_me. The legacy `sendInvoicePaidEmail` helper
+  // was a single-line "thanks, KES X received" confirmation that
+  // duplicated and undersold the proper receipt. Removed per audit
+  // feedback "Email after invoice payment should be a receipt, not just
+  // confirmation."
 }
 
 /**

@@ -688,6 +688,92 @@ router.get('/stats', authMiddleware, isAdmin, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/admin/revenue-summary
+ *
+ * Money Thapsus has actually earned, per the new payments-table model
+ * (post-wallet rip in mig 028).
+ *
+ *   - 10% of every paid Buy-for-me order's `estimate_gbp`. Recognised
+ *     once the BFM lifecycle is past the customer-paid milestone, i.e.
+ *     status ∈ {paid, purchased, received, shipped}. Cancelled / rejected
+ *     are excluded.
+ *   - 100% of every customer-facing consolidation invoice that has been
+ *     marked paid (`customer_consolidations.invoice_status='paid'`). This
+ *     covers both standalone admin-issued invoices and invoices attached
+ *     to a real shipping consolidation.
+ *
+ * Excludes per-parcel pricing-tier line items and pass-through cost — those
+ * are not Thapsus margin. Currency is GBP throughout because both source
+ * tables store pounds.
+ */
+router.get('/revenue-summary', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+    const [bfmRow, invoiceRow, monthly] = await Promise.all([
+      db.query(`
+        SELECT COALESCE(SUM(estimate_gbp) * 0.10, 0)::float AS commission_gbp,
+               COUNT(*)::int AS paid_count
+          FROM buy_for_me_orders
+         WHERE status = ANY (ARRAY['paid','purchased','received','shipped'])
+           AND estimate_gbp IS NOT NULL
+      `),
+      db.query(`
+        SELECT COALESCE(SUM(invoice_amount), 0)::float AS revenue_gbp,
+               COUNT(*)::int AS paid_count
+          FROM customer_consolidations
+         WHERE invoice_status = 'paid'
+           AND COALESCE(invoice_currency, 'GBP') = 'GBP'
+      `),
+      db.query(`
+        WITH bfm AS (
+          SELECT to_char(date_trunc('month', COALESCE(decided_at, updated_at, created_at)), 'YYYY-MM') AS month,
+                 COALESCE(SUM(estimate_gbp), 0) * 0.10 AS bfm_gbp
+            FROM buy_for_me_orders
+           WHERE status = ANY (ARRAY['paid','purchased','received','shipped'])
+             AND estimate_gbp IS NOT NULL
+             AND COALESCE(decided_at, updated_at, created_at) >= NOW() - INTERVAL '12 months'
+           GROUP BY 1
+        ), inv AS (
+          SELECT to_char(date_trunc('month', COALESCE(invoice_paid_at, updated_at, created_at)), 'YYYY-MM') AS month,
+                 COALESCE(SUM(invoice_amount), 0) AS invoice_gbp
+            FROM customer_consolidations
+           WHERE invoice_status = 'paid'
+             AND COALESCE(invoice_currency, 'GBP') = 'GBP'
+             AND COALESCE(invoice_paid_at, updated_at, created_at) >= NOW() - INTERVAL '12 months'
+           GROUP BY 1
+        )
+        SELECT COALESCE(b.month, i.month) AS month,
+               COALESCE(b.bfm_gbp, 0)::float AS buy_for_me_gbp,
+               COALESCE(i.invoice_gbp, 0)::float AS invoice_gbp
+          FROM bfm b FULL OUTER JOIN inv i USING (month)
+         ORDER BY month ASC
+      `)
+    ]);
+    const bfm = Number(bfmRow.rows[0].commission_gbp || 0);
+    const inv = Number(invoiceRow.rows[0].revenue_gbp || 0);
+    res.json({
+      success: true,
+      summary: {
+        buy_for_me_commission_gbp: bfm,
+        buy_for_me_paid_count: bfmRow.rows[0].paid_count || 0,
+        invoice_revenue_gbp: inv,
+        invoice_paid_count: invoiceRow.rows[0].paid_count || 0,
+        total_revenue_gbp: bfm + inv,
+      },
+      by_month: monthly.rows.map(r => ({
+        month: r.month,
+        buy_for_me_gbp: Number(r.buy_for_me_gbp || 0),
+        invoice_gbp: Number(r.invoice_gbp || 0),
+        total_gbp: Number(r.buy_for_me_gbp || 0) + Number(r.invoice_gbp || 0),
+      })),
+    });
+  } catch (error) {
+    logRouteError(req, res, error, 'Get revenue summary error');
+    res.status(500).json({ success: false, message: 'Failed to fetch revenue summary' });
+  }
+});
+
 /** GET /api/admin/revenue */
 router.get('/revenue', authMiddleware, isAdmin, async (req, res) => {
   try {

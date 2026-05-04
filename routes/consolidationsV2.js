@@ -86,7 +86,29 @@ router.get('/customer/:id', authMiddleware, async (req, res) => {
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Consolidation not found' });
     }
-    res.json({ success: true, consolidation: rows[0] });
+    // Recompute the visible totals on read. The cached `consolidations.total_kg`
+    // gets stamped at consolidation-build time but never refreshes when the
+    // operator records weight at receive — so customers see "3 parcels · 0 kg"
+    // even after every parcel has been weighed (audit E2). Source of truth:
+    // packages.weight_kg, falling back to orders.weight_kg for legacy rows
+    // where the package was created before the weight column populated.
+    const totals = await req.db.query(
+      `SELECT COUNT(*)::int AS total_parcels,
+              COALESCE(SUM(COALESCE(p.weight_kg, o.weight_kg, 0))::numeric, 0)::float AS total_kg
+         FROM packages p
+         LEFT JOIN orders o ON o.id = p.order_id
+        WHERE p.consolidation_id = $1`,
+      [id]
+    );
+    const live = totals.rows[0] || { total_parcels: 0, total_kg: 0 };
+    res.json({
+      success: true,
+      consolidation: {
+        ...rows[0],
+        total_parcels: live.total_parcels,
+        total_kg: live.total_kg,
+      },
+    });
   } catch (err) {
     console.error('GET /consolidations/customer/:id error:', err);
     res.status(500).json({ success: false, message: 'Failed to fetch consolidation' });

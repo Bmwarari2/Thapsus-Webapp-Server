@@ -111,6 +111,11 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/track" element={<TrackPackage />} />
+            {/* Universal links (iOS) and customer-shared URLs land here when
+                the app isn't installed. Same component pre-fills the
+                tracking input from the path param. Without this route,
+                /track/<TN> returned 404 — audit A2. */}
+            <Route path="/track/:tn" element={<TrackPackage />} />
             <Route path="/pricing" element={<PricingCalculator />} />
             <Route path="/exchange" element={<ExchangeRate />} />
             <Route path="/prohibited" element={<ProhibitedItems />} />
