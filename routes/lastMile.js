@@ -1119,8 +1119,8 @@ router.post(
         const runUpd = await client.query(
           `UPDATE last_mile_runs
               SET completed_stops = completed_stops + $2,
-                  status = CASE WHEN completed_stops + $2 >= total_stops
-                                THEN 'completed' ELSE 'in_progress' END,
+                  status = (CASE WHEN completed_stops + $2 >= total_stops
+                                 THEN 'completed' ELSE 'in_progress' END)::run_status,
                   updated_at = NOW()
             WHERE id = $1
             RETURNING completed_stops, total_stops, status`,
@@ -1243,8 +1243,8 @@ router.post(
           const runUpd = await client.query(
             `UPDATE last_mile_runs
                 SET completed_stops = completed_stops + 1,
-                    status = CASE WHEN completed_stops + 1 >= total_stops
-                                  THEN 'completed' ELSE 'in_progress' END,
+                    status = (CASE WHEN completed_stops + 1 >= total_stops
+                                   THEN 'completed' ELSE 'in_progress' END)::run_status,
                     updated_at = NOW()
               WHERE id = $1
               RETURNING completed_stops, total_stops, status`,
