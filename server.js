@@ -235,7 +235,24 @@ app.get('/sw.js', (req, res) => {
 // ── Sitemap & Robots (dynamic, before static so they take precedence) ────────
 app.use(sitemapRoutes);
 
-app.use(express.static(path.join(__dirname, 'client', 'dist')));
+// `dotfiles: 'deny'` so a request for /.env (or any other dotfile that
+// happens to land in client/dist) returns 403 instead of being served
+// or falling through to the SPA index.html. Scanners hit /.env on
+// every public Express deploy — without this, the SPA fallback below
+// returned 200 + index.html, which (a) lit up scanner reports as a
+// "config exposed" hit and (b) wastes a real 404/403 signal.
+app.use(express.static(path.join(__dirname, 'client', 'dist'), { dotfiles: 'deny' }));
+
+// Belt-and-braces: the SPA fallback at the bottom of this file would
+// otherwise re-serve index.html for any unmatched path including
+// /.env, /.git, /.aws, /.docker, etc. Block them at the route layer
+// so a scanner gets a clean 404 even before the SPA fallback runs.
+app.use((req, res, next) => {
+  const segments = req.path.split('/');
+  const hasDotfile = segments.some(seg => seg.startsWith('.') && seg.length > 1);
+  if (hasDotfile) return res.status(404).end();
+  next();
+});
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
 const limiter = rateLimit({
