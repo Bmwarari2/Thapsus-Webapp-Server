@@ -995,6 +995,26 @@ router.post(
       // BEGIN/COMMIT. A partial failure (e.g. NPS insert errors after
       // orders.status flipped) would otherwise leave the run, the order, and
       // pod_events inconsistent with each other.
+      // Either the OTP or a signature is enough to prove the customer
+      // accepted the parcel. Pre-2026-05 the server hard-required the
+      // OTP, so a rider with a perfectly good signed POD got an
+      // `otp_not_issued` 400 whenever the operator hadn't activated
+      // the run (or the SMS hadn't reached the recipient yet) — that
+      // surfaced on iOS as "Couldn't deliver" *after* the photo had
+      // already landed in the bucket. Audit G2.
+      const hasSignature =
+        (typeof req.body?.signature_path === 'string' && req.body.signature_path.trim().length > 0) ||
+        (typeof req.body?.signature_url  === 'string' && req.body.signature_url.trim().length  > 0);
+      const hasOtpInput = typeof otp_used === 'string' && otp_used.trim().length > 0;
+
+      if (!hasSignature && !hasOtpInput) {
+        return res.status(422).json({
+          success: false,
+          error: 'acceptance_required',
+          message: 'Capture either the recipient OTP or their signature before submitting POD.',
+        });
+      }
+
       const client = await req.db.connect();
       let runState;
       const podIds = [];
@@ -1006,8 +1026,15 @@ router.post(
         // (activateRunDispatch). validatePodOtp marks the row consumed
         // on success, so we re-issue the same hash to the rest of the
         // group's parcels in the loop below to keep them consistent.
-        const otpOk = await validatePodOtp(client, parcels[0], otp_used);
-        if (!otpOk) {
+        // If the rider supplied a signature instead, the OTP becomes
+        // a soft auxiliary check — wrong codes still get logged but
+        // don't block the POD.
+        let otpOk = false;
+        if (hasOtpInput) {
+          otpOk = await validatePodOtp(client, parcels[0], otp_used);
+        }
+        if (!otpOk && !hasSignature) {
+          // OTP was the only acceptance signal and it didn't validate.
           // Distinguish "no OTP row at all" from "OTP mismatch / expired"
           // so the rider's outbox-failure banner can show a useful
           // diagnosis ("operator hasn't started the run yet") instead of
@@ -1022,10 +1049,10 @@ router.post(
             return res.status(400).json({
               success: false,
               error: 'otp_not_issued',
-              message: 'No delivery OTP has been issued for this parcel — ask the operator to start the run.',
+              message: 'No delivery OTP has been issued for this parcel — ask the operator to start the run, or capture a signature instead.',
             });
           }
-          return res.status(400).json({ success: false, error: 'otp_invalid', message: 'Invalid or expired OTP' });
+          return res.status(400).json({ success: false, error: 'otp_invalid', message: 'Invalid or expired OTP — capture a signature instead, or ask the recipient for the correct code.' });
         }
 
         // Persist both legacy *_url and new *_path columns (migration 023).
