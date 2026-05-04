@@ -7,6 +7,7 @@ import { ordersApi, paymentsApi, warehouseApi } from '../api'
 import toast from 'react-hot-toast'
 import { useOrderUpdates, useCreditUpdates } from '../hooks/useRealtimeUpdates'
 import { CutoffBanner } from '../components/CutoffBanner'
+import { NpsAutoPrompt } from '../components/NpsAutoPrompt'
 
 // --- CUSTOM STYLES & GLASS COMPONENTS ---
 const DashboardStyles = () => (
@@ -226,6 +227,13 @@ export const Dashboard = () => {
         <div className="mb-8">
           <CutoffBanner />
         </div>
+
+        {/* Surfaces an NPS survey card if the customer has any unresponded
+            invitations. iOS NpsAutoPromptModifier is the parity surface;
+            both poll /api/nps/pending and respect each other via the
+            server's `responded_at` flag (cross-device source of truth)
+            plus localStorage for "Not now" within this browser. */}
+        <NpsAutoPrompt />
 
         {/* Welcome Section */}
         <div className="mb-10 text-center md:text-left">
