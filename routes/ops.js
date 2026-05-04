@@ -12,6 +12,7 @@ import express from 'express';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
 import { checkItem as checkProhibited } from '../utils/prohibited.js';
 import { notifyParcelStatus } from '../utils/parcelStatusNotify.js';
+import { HS_TIERS } from '../utils/pricing.js';
 
 const router = express.Router();
 const ALLOWED = requireRole('operator');
@@ -87,7 +88,7 @@ router.get('/parcels', authMiddleware, ALLOWED, async (req, res) => {
 router.post('/parcels/:id/receive', authMiddleware, ALLOWED, async (req, res) => {
   try {
     const { id } = req.params;
-    const { weight_kg, dimensions, photo_url, barcode, customs_duty } = req.body;
+    const { weight_kg, dimensions, photo_url, barcode, customs_duty, hs_tier } = req.body;
 
     const volumetric = calcVolumetric(dimensions);
     const chargeable = Math.max(parseFloat(weight_kg) || 0, volumetric);
@@ -101,6 +102,24 @@ router.post('/parcels/:id/receive', authMiddleware, ALLOWED, async (req, res) =>
       : Number.parseFloat(customs_duty);
     const dutyValue = Number.isFinite(dutyParsed) ? dutyParsed : null;
 
+    // Audit P2.3: BFM-auto-created orders are stamped hs_tier='general' at
+    // accept time (markPaymentPaid.maybeCreatePreRegisteredParcelForBfm)
+    // because the BFM concierge thread doesn't carry an HS code. The
+    // receive step is the operator's first physical look at the box and
+    // the canonical place to correct the tier — feeds duty/VAT calc on
+    // the eventual invoice prefill. Validate against HS_TIERS so a typo
+    // can't write garbage; treat missing/blank as "leave unchanged".
+    let hsTierValue = null;
+    if (hs_tier !== undefined && hs_tier !== null && hs_tier !== '') {
+      if (!HS_TIERS[hs_tier]) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid hs_tier. Valid values: ${Object.keys(HS_TIERS).join(', ')}`
+        });
+      }
+      hsTierValue = hs_tier;
+    }
+
     const orderUpdate = await req.db.query(
       `UPDATE orders
           SET status = 'received_at_warehouse',
@@ -109,14 +128,16 @@ router.post('/parcels/:id/receive', authMiddleware, ALLOWED, async (req, res) =>
               volumetric_kg = $3,
               chargeable_kg = $4,
               customs_duty = COALESCE($5, customs_duty),
-              photographed_at = CASE WHEN $6::text IS NOT NULL THEN NOW() ELSE photographed_at END,
+              hs_tier = COALESCE($6, hs_tier),
+              photographed_at = CASE WHEN $7::text IS NOT NULL THEN NOW() ELSE photographed_at END,
               updated_at = NOW()
-        WHERE id = $7`,
+        WHERE id = $8`,
       [weight_kg || null,
        dimensions ? JSON.stringify(dimensions) : null,
        volumetric,
        chargeable,
        dutyValue,
+       hsTierValue,
        photo_url || null,
        id]
     );
@@ -158,6 +179,7 @@ router.post('/parcels/:id/receive', authMiddleware, ALLOWED, async (req, res) =>
       volumetric_kg: volumetric,
       chargeable_kg: chargeable,
       customs_duty: dutyValue,
+      hs_tier: hsTierValue,
     });
   } catch (err) {
     console.error('POST /ops/parcels/:id/receive error:', err);

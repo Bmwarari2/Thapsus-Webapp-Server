@@ -21,7 +21,7 @@ export const OpsConsole = () => {
   const [status,   setStatus]   = useState('')
   const [loading,  setLoading]  = useState(true)
   const [active,   setActive]   = useState(null) // parcel being worked on
-  const [receive,  setReceive]  = useState({ weight_kg: '', length: '', width: '', height: '', barcode: '', customs_duty: '' })
+  const [receive,  setReceive]  = useState({ weight_kg: '', length: '', width: '', height: '', barcode: '', customs_duty: '', hs_tier: '' })
 
   const fetchToday   = () => opsApi.today().then(r => setToday(r.data?.today || {})).catch(() => {})
   const fetchParcels = () => opsApi.parcels({ status: status || undefined, q: filter || undefined })
@@ -47,10 +47,15 @@ export const OpsConsole = () => {
         // Customs duty (KES) — operator-stamped here so the Phase 2
         // invoice prefill can sum it across the customer's bundle.
         customs_duty: receive.customs_duty ? +receive.customs_duty : null,
+        // Audit P2.3: BFM auto-create stubs every parcel as
+        // hs_tier='general'. Receive is the operator's first physical
+        // look at the box — they pick the real tier here so duty/VAT
+        // calc on the eventual invoice prefill matches the goods.
+        hs_tier: receive.hs_tier || null,
       })
       toast.success(`Received — chargeable ${res.data?.chargeable_kg || 0} kg`)
       setActive(null)
-      setReceive({ weight_kg: '', length: '', width: '', height: '', barcode: '', customs_duty: '' })
+      setReceive({ weight_kg: '', length: '', width: '', height: '', barcode: '', customs_duty: '', hs_tier: '' })
       fetchParcels(); fetchToday()
     } catch {
       toast.error('Failed to receive parcel')
@@ -217,6 +222,25 @@ export const OpsConsole = () => {
                 onChange={(v) => setReceive({ ...receive, customs_duty: v })} />
             </div>
 
+            <div className="mt-3">
+              <label className="block">
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 font-black mb-1">
+                  HS tier (customs category)
+                </span>
+                <select value={receive.hs_tier}
+                        onChange={(e) => setReceive({ ...receive, hs_tier: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-orange-400">
+                  <option value="">— Leave unchanged —</option>
+                  {HS_TIER_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </label>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Buy-for-me parcels default to <strong>general</strong> at accept time. Pick the right tier here so duty/VAT on the invoice matches the goods.
+              </p>
+            </div>
+
             <div className="mt-3 text-xs text-slate-500">
               Volumetric kg = (L × W × H) / 6 000.  Chargeable = max(actual, volumetric).
               Duty feeds the Phase 2 invoice prefill on the admin console.
@@ -254,6 +278,19 @@ const QuickLink = ({ to, label }) => (
     {label} <ArrowRight size={14}/>
   </Link>
 )
+
+// Audit P2.3: keep webapp HS tier list in sync with utils/pricing.js
+// (HS_TIERS) and shared/.../AdminOrdersView.swift::hsCategories. Changes
+// here must land in both places.
+const HS_TIER_OPTIONS = [
+  { value: 'general',           label: 'General goods (25% duty)' },
+  { value: 'electronics',       label: 'Consumer electronics (0% duty, 16% VAT)' },
+  { value: 'clothing_textiles', label: 'Clothing & textiles (25% duty)' },
+  { value: 'food_processed',    label: 'Processed food / supplements (35% duty)' },
+  { value: 'raw_materials',     label: 'Raw materials (0% duty)' },
+  { value: 'books_media',       label: 'Books / printed media (zero-rated)' },
+  { value: 'zero_rated',        label: 'Medical / gazetted exempt (zero-rated)' },
+]
 
 const Input = ({ label, value, onChange, type = 'text', step }) => (
   <label className="block">
