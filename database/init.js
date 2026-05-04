@@ -530,25 +530,68 @@ export async function initializeDatabase() {
   }
 
   // ── Step 9: Framework v2 SQL migrations from database/migrations/ ────────
-  // These are additive, idempotent .sql files.  Each file is executed as a
-  // single multi-statement query against the pool — failures are logged
-  // but do not block server start so a partial schema cannot crash boot.
+  // These are additive, idempotent .sql files. We consult `_migrations`
+  // (filename text PRIMARY KEY, applied_at timestamptz) to skip files
+  // already recorded — Railway redeploys used to re-apply all 25
+  // migrations on every boot, which was harmless (each file is wrapped
+  // in idempotent DO blocks) but wasteful. The ledger keeps the boot
+  // log honest about what actually ran.
+  //
+  // Each file is executed as a single multi-statement query against the
+  // pool — failures are logged but do not block server start so a partial
+  // schema cannot crash boot. On success we INSERT the filename into
+  // `_migrations` so the next boot skips it.
   if (!isReadOnly) {
     try {
+      // Defensive: create the ledger if a fresh install hasn't seen it
+      // yet (live carries it from the original 0001 migration; this is
+      // for new envs that bypass the bootstrap chain).
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS _migrations (
+          filename   text PRIMARY KEY,
+          applied_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+
+      const { rows: appliedRows } = await pool.query(
+        `SELECT filename FROM _migrations`
+      );
+      const applied = new Set(appliedRows.map(r => r.filename));
+
       const migrationsDir = path.join(__dirname, 'migrations');
       if (fs.existsSync(migrationsDir)) {
         const files = fs.readdirSync(migrationsDir)
           .filter(f => f.endsWith('.sql'))
           .sort();
 
+        let applyCount = 0;
+        let skipCount = 0;
         for (const file of files) {
+          if (applied.has(file)) {
+            skipCount++;
+            continue;
+          }
           const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
           try {
             await pool.query(sql);
+            // Ledger insert is best-effort: if a future migration has
+            // already INSERTed itself (older bootstrap conventions), the
+            // ON CONFLICT keeps boot moving instead of double-applying.
+            await pool.query(
+              `INSERT INTO _migrations (filename) VALUES ($1)
+               ON CONFLICT (filename) DO NOTHING`,
+              [file]
+            );
+            applyCount++;
             console.log(`✓ Framework migration applied: ${file}`);
           } catch (err) {
             console.error(`⚠ Framework migration failed (${file}): ${err.message}`);
           }
+        }
+        if (applyCount === 0) {
+          console.log(`✓ Framework migrations: ${skipCount} already applied, none new`);
+        } else {
+          console.log(`✓ Framework migrations: ${applyCount} new applied, ${skipCount} skipped`);
         }
       }
     } catch (err) {
