@@ -7,9 +7,9 @@
 // Caller must NOT have an open transaction — this function opens its own
 // so it can FOR UPDATE the target rows safely.
 
-import crypto from 'node:crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { sendUnifiedPaymentReceiptEmail } from './email.js';
+import { insertWithUniqueTrackingNumber } from './trackingNumber.js';
 
 /**
  * Marks the payment paid, deducts any consumed credit, and flips the
@@ -165,17 +165,23 @@ async function maybeCreatePreRegisteredParcelForBfm(client, bfmId) {
   if (!bfm) return;
   if (bfm.parcel_id) return; // already linked — idempotent
 
-  const orderId        = uuidv4();
-  const trackingNumber = generateBfmTrackingNumber();
-  const retailer       = parseRetailerLabel(bfm.retailer_url);
-  const market         = inferMarketFromUrl(bfm.retailer_url); // defaults 'UK'
+  const orderId  = uuidv4();
+  const retailer = parseRetailerLabel(bfm.retailer_url);
+  const market   = inferMarketFromUrl(bfm.retailer_url); // defaults 'UK'
 
-  await client.query(
-    `INSERT INTO orders (id, user_id, tracking_number, retailer, market,
-        status, description, weight_kg, dimensions_json, shipping_speed,
-        insurance, declared_value, estimated_cost, hs_tier, electronics_item)
-     VALUES ($1,$2,$3,$4,$5,'pending',$6,NULL,NULL,'economy',false,0,0,'general',NULL)`,
-    [orderId, bfm.user_id, trackingNumber, retailer, market, bfm.item_name]
+  // Audit P2.4: Stripe webhook redelivery + concurrent BFM accepts
+  // were both 23505-prone here — the whole `markPaymentPaid` would
+  // 500 to Stripe, the webhook would retry, the payment row stayed
+  // 'pending' and the customer's BFM order never showed paid.
+  // Shared helper retries on the unique-index violation.
+  await insertWithUniqueTrackingNumber(client, (tn) =>
+    client.query(
+      `INSERT INTO orders (id, user_id, tracking_number, retailer, market,
+          status, description, weight_kg, dimensions_json, shipping_speed,
+          insurance, declared_value, estimated_cost, hs_tier, electronics_item)
+       VALUES ($1,$2,$3,$4,$5,'pending',$6,NULL,NULL,'economy',false,0,0,'general',NULL)`,
+      [orderId, bfm.user_id, tn, retailer, market, bfm.item_name]
+    )
   );
   await client.query(
     `INSERT INTO packages (id, order_id, user_id, description, weight_kg, status)
@@ -186,12 +192,6 @@ async function maybeCreatePreRegisteredParcelForBfm(client, bfmId) {
     `UPDATE buy_for_me_orders SET parcel_id = $1, updated_at = NOW() WHERE id = $2`,
     [orderId, bfmId]
   );
-}
-
-function generateBfmTrackingNumber() {
-  const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
-  const rand = crypto.randomBytes(4).toString('hex').toUpperCase();
-  return `TC-${date}-${rand}`;
 }
 
 function parseRetailerLabel(url) {

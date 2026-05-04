@@ -8,6 +8,7 @@ import { calculateShippingCost, ELECTRONICS_HANDLING, HS_TIERS } from '../utils/
 import { sendInAppNotification } from '../utils/notifications.js';
 import { pushToUser, pushToAdmins } from './events.js';
 import { logRouteError } from '../utils/errorLogger.js';
+import { insertWithUniqueTrackingNumber } from '../utils/trackingNumber.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_change_this_in_production';
 
@@ -907,28 +908,36 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
     };
 
     const orderId = uuidv4();
-    const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
-    const trackingNumber = `TC-${date}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
 
     // Use a dedicated client for proper transaction isolation
     const client = await db.connect();
+    let trackingNumber;
     try {
       await client.query('BEGIN');
-      await client.query(
-        `INSERT INTO orders (
-           id, user_id, tracking_number, retailer, market, status,
-           description, weight_kg, dimensions_json, shipping_speed,
-           insurance, declared_value, estimated_cost, customs_duty,
-           electronics_item, hs_tier
-         )
-         VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
-        [
-          orderId, customer.id, trackingNumber, retailer, market, description,
-          weight_kg || null, dimensions ? JSON.stringify(dimensions) : null,
-          speed, insurance ? true : false, declared_value || 0, costBreakdown.total,
-          customsEstimate, electronics_item || null, tier,
-        ]
-      );
+      // Audit P2.4: previous generator was
+      // `Math.random().toString(36).substr(2, 4)` — only 4 base-36 chars
+      // (~1.7M codes/day, well within birthday-collision range across
+      // daily volume), and a collision threw a 500 to the admin because
+      // nothing retried on the unique-index violation. Shared helper
+      // mints with crypto.randomBytes(4) → 8 hex chars (~4B/day) and
+      // re-issues the INSERT on Postgres 23505.
+      ({ trackingNumber } = await insertWithUniqueTrackingNumber(client, (tn) =>
+        client.query(
+          `INSERT INTO orders (
+             id, user_id, tracking_number, retailer, market, status,
+             description, weight_kg, dimensions_json, shipping_speed,
+             insurance, declared_value, estimated_cost, customs_duty,
+             electronics_item, hs_tier
+           )
+           VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+          [
+            orderId, customer.id, tn, retailer, market, description,
+            weight_kg || null, dimensions ? JSON.stringify(dimensions) : null,
+            speed, insurance ? true : false, declared_value || 0, costBreakdown.total,
+            customsEstimate, electronics_item || null, tier,
+          ]
+        )
+      ));
       // Packages enum was rewritten by migration 002_packages_v2_alignment.sql;
       // 'pending' is no longer valid — the equivalent intake state is 'pre_registered'.
       await client.query(

@@ -1,23 +1,13 @@
 import express from 'express';
-import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
 import { calculateShippingCost, HS_TIERS } from '../utils/pricing.js';
 import { pushToUser, pushToAdmins } from './events.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { sendOrderCreatedEmail } from '../utils/email.js';
+import { insertWithUniqueTrackingNumber } from '../utils/trackingNumber.js';
 
 const router = express.Router();
-
-function generateTrackingNumber() {
-  const date   = new Date().toISOString().split('T')[0].replace(/-/g, '');
-  // 4 random bytes → 8 hex chars.  Math.random() was a CSPRNG bypass in
-  // V8 and gave roughly 1.7M codes/day; crypto.randomBytes pushes the
-  // keyspace to ~4B/day so brute-force enumeration of someone else's
-  // tracking number stops being feasible under the existing rate limit.
-  const random = crypto.randomBytes(4).toString('hex').toUpperCase();
-  return `TC-${date}-${random}`;
-}
 
 /** GET /api/orders */
 router.get('/', authMiddleware, async (req, res) => {
@@ -84,26 +74,33 @@ router.post('/', authMiddleware, async (req, res) => {
       electronics_item: electronics_item || null, hs_tier: tier,
     }) : { total: 0, breakdown: {} };
 
-    const orderId        = uuidv4();
-    const trackingNumber = generateTrackingNumber();
+    const orderId = uuidv4();
 
     // Use a dedicated client so all queries run on the SAME connection
     // (pool.query() can dispatch each query to a different connection,
     //  which breaks BEGIN/COMMIT and makes uncommitted rows invisible)
     const client = await db.connect();
+    let trackingNumber;
     try {
       await client.query('BEGIN');
 
-      await client.query(
-        `INSERT INTO orders (id, user_id, tracking_number, retailer, market, status, description,
-          weight_kg, dimensions_json, shipping_speed, insurance, declared_value, estimated_cost,
-          hs_tier, electronics_item)
-         VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-        [orderId, userId, trackingNumber, retailer, market, description,
-          weight_kg || null, dimensions ? JSON.stringify(dimensions) : null,
-          speed, insurance ? true : false, declared_value || 0, costBreakdown.total,
-          tier, electronics_item || null]
-      );
+      // Audit P2.4: live DB carries a unique index on
+      // orders.tracking_number (orders_tracking_number_key). The previous
+      // generator threw a 500 to the customer on the (rare) collision
+      // because nothing retried on Postgres 23505. The shared helper
+      // re-mints + reissues the INSERT until it lands.
+      ({ trackingNumber } = await insertWithUniqueTrackingNumber(client, (tn) =>
+        client.query(
+          `INSERT INTO orders (id, user_id, tracking_number, retailer, market, status, description,
+            weight_kg, dimensions_json, shipping_speed, insurance, declared_value, estimated_cost,
+            hs_tier, electronics_item)
+           VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+          [orderId, userId, tn, retailer, market, description,
+            weight_kg || null, dimensions ? JSON.stringify(dimensions) : null,
+            speed, insurance ? true : false, declared_value || 0, costBreakdown.total,
+            tier, electronics_item || null]
+        )
+      ));
       // Packages enum was rewritten by migration 002_packages_v2_alignment.sql;
       // 'pending' is no longer valid — the equivalent intake state is 'pre_registered'.
       await client.query(
