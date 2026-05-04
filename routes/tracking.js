@@ -1,6 +1,7 @@
 import express from 'express';
 import { authMiddleware, isAdmin, optionalAuth } from '../middleware/auth.js';
 import { sendInAppNotification } from '../utils/notifications.js';
+import { isValidPackageStatus } from '../utils/orderStatuses.js';
 
 const router = express.Router();
 
@@ -85,30 +86,11 @@ router.put('/:id/status', authMiddleware, isAdmin, async (req, res) => {
 
     if (!status) return res.status(400).json({ success: false, message: 'Status is required' });
     // packages.status v2 enum (matches database/migrations/002 + the
-    // CHECK on production).  The legacy admin route accepted the
-    // pre-v2 set, which left admins unable to flip a parcel into
-    // photographed/weighed/screened/manifested/jkia_arrived/
-    // awaiting_duty_payment/released/held/held_at_nairobi_hub/
-    // abandoned via this endpoint (audit T26).
-    const validStatuses = [
-      'pre_registered',
-      'received_at_warehouse',
-      'photographed',
-      'weighed',
-      'screened',
-      'manifested',
-      'in_transit',
-      'jkia_arrived',
-      'awaiting_duty_payment',
-      'released',
-      'out_for_delivery',
-      'delivered',
-      'held',
-      'held_at_nairobi_hub',
-      'abandoned',
-      'lost',
-    ];
-    if (!validStatuses.includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
+    // CHECK on production). Audit P5.1 hoisted the allowlist into
+    // utils/orderStatuses.js — the legacy admin route accepted the
+    // pre-v2 set (audit T26 fix) and the consolidated module keeps
+    // the four call sites in lock-step with the live DB CHECK.
+    if (!isValidPackageStatus(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
 
     const pkgRes = await db.query('SELECT * FROM packages WHERE id = $1', [id]);
     if (!pkgRes.rows[0]) return res.status(404).json({ success: false, message: 'Package not found' });

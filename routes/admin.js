@@ -9,6 +9,7 @@ import { sendInAppNotification } from '../utils/notifications.js';
 import { pushToUser, pushToAdmins } from './events.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { insertWithUniqueTrackingNumber } from '../utils/trackingNumber.js';
+import { isValidOrderStatus } from '../utils/orderStatuses.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_change_this_in_production';
 
@@ -447,8 +448,7 @@ router.put('/orders/bulk-update', authMiddleware, isAdmin, async (req, res) => {
     if (!order_ids || !Array.isArray(order_ids) || order_ids.length === 0)
       return res.status(400).json({ success: false, message: 'order_ids array is required' });
     if (!status) return res.status(400).json({ success: false, message: 'status is required' });
-    const validStatuses = ['pending','received_at_warehouse','consolidating','in_transit','customs','out_for_delivery','delivered','cancelled'];
-    if (!validStatuses.includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
+    if (!isValidOrderStatus(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
 
     const updatePlaceholders = order_ids.map((_, i) => `$${i + 2}`).join(',');
     await db.query(`UPDATE orders SET status = $1, updated_at = NOW() WHERE id IN (${updatePlaceholders})`, [status, ...order_ids]);
@@ -516,8 +516,7 @@ router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
     if (actual_cost !== undefined) { params.push(actual_cost); updates.push(`actual_cost = $${params.length}`); }
     if (customs_duty !== undefined) { params.push(customs_duty); updates.push(`customs_duty = $${params.length}`); }
     if (status !== undefined) {
-      const validStatuses = ['pending','received_at_warehouse','consolidating','in_transit','customs','out_for_delivery','delivered','cancelled'];
-      if (!validStatuses.includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
+      if (!isValidOrderStatus(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
       params.push(status); updates.push(`status = $${params.length}`);
     }
     if (description !== undefined) { params.push(description); updates.push(`description = $${params.length}`); }
