@@ -6,6 +6,7 @@ import { pushToUser, pushToAdmins } from './events.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { sendOrderCreatedEmail } from '../utils/email.js';
 import { insertWithUniqueTrackingNumber } from '../utils/trackingNumber.js';
+import { isValidOrderStatus } from '../utils/orderStatuses.js';
 
 const router = express.Router();
 
@@ -266,8 +267,7 @@ router.put('/:id/status', authMiddleware, isAdmin, async (req, res) => {
     const { status, actual_cost, customs_duty } = req.body;
 
     if (!status) return res.status(400).json({ success: false, message: 'Status is required' });
-    const validStatuses = ['pending','received_at_warehouse','consolidating','in_transit','customs','out_for_delivery','delivered','cancelled'];
-    if (!validStatuses.includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
+    if (!isValidOrderStatus(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
 
     const params = [status];
     let setClauses = ['status = $1', 'updated_at = NOW()'];
