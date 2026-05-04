@@ -423,6 +423,16 @@ export const lastMileApi = {
   pod:         (runId, data)       => api.post(`/last-mile/rider/runs/${runId}/pod`, data),
   failPod:     (runId, parcelId, reason) =>
     api.post(`/last-mile/rider/runs/${runId}/fail`, { parcel_id: parcelId, reason }),
+  // Audit P3.1: pods bucket is private (migration 015), so the rider
+  // PWA cannot just paste a URL. Server mints a 5-min signed-upload URL
+  // into pod/<parcel_id>/<ts>.jpg via /last-mile/pod/upload-url; the
+  // browser PUTs the JPEG bytes directly. POD submit then sends
+  // `photo_path` (not photo_url) — server keys reads on the path,
+  // not the throwaway signed URL.
+  podUploadUrl:   (parcelId, kind = 'photo') =>
+    api.post('/last-mile/pod/upload-url', { parcel_id: parcelId, kind }),
+  podDocumentUrl: (parcelId, kind = 'photo') =>
+    api.post('/last-mile/pod/document-url', { parcel_id: parcelId, kind }),
 }
 
 /** Founder KPI dashboard */
