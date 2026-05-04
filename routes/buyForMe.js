@@ -7,6 +7,7 @@
 import express from 'express';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
 import { sendBuyForMeQuoteEmail } from '../utils/email.js';
+import { notifyAdminsOfBuyForMe } from '../utils/buyForMeAdminNotify.js';
 
 const router = express.Router();
 
@@ -53,6 +54,20 @@ router.post('/', authMiddleware, async (req, res) => {
       [id, req.user.id, resolvedUrl, item_name, size || null,
        parseInt(qty, 10) || 1, notes || null]
     );
+    // Notify admins (in-app row + email + SSE) — best-effort, must not
+    // block the response. Audit D2.
+    try {
+      const { rows: ownerRows } = await req.db.query(
+        `SELECT id, email, name FROM users WHERE id = $1`, [req.user.id]
+      );
+      await notifyAdminsOfBuyForMe(
+        req.db, req,
+        { id, item_name, retailer_url: resolvedUrl, qty: parseInt(qty, 10) || 1, notes: notes || null },
+        ownerRows[0] || { id: req.user.id, email: null, name: null }
+      );
+    } catch (notifyErr) {
+      console.error('BFM admin notify failed (non-fatal):', notifyErr?.message);
+    }
     res.status(201).json({ success: true, order_id: id });
   } catch (err) {
     console.error('POST /buy-for-me error:', err);
@@ -261,6 +276,18 @@ router.post('/admin-create', authMiddleware, requireRole('admin', 'operator'), a
       } catch (mailErr) {
         console.error('Admin BFM quote email failed (non-fatal):', mailErr.message);
       }
+    }
+
+    // Notify the rest of the admin team — even though one admin just
+    // created the row themselves, the others may want to see it land.
+    try {
+      await notifyAdminsOfBuyForMe(
+        req.db, req,
+        { id, item_name, retailer_url: resolvedUrl, qty: parseInt(qty, 10) || 1, notes: notes || null },
+        owner
+      );
+    } catch (notifyErr) {
+      console.error('BFM admin notify (admin-create) failed (non-fatal):', notifyErr?.message);
     }
 
     res.status(201).json({

@@ -953,6 +953,48 @@ async function sendBuyForMeQuoteEmail(toEmail, toName, orderId, itemName, estima
 }
 
 /**
+ * Admin "new Buy-for-me request" email — fired from utils/buyForMeAdminNotify
+ * once per admin so the team is woken on a customer concierge request.
+ * Best-effort delivery, errors logged not thrown by the caller.
+ */
+async function sendBuyForMeAdminNewRequestEmail(toEmail, toName, bfmId, ownerLabel, ownerEmail, itemName, retailerUrl, qty, notes) {
+  const adminUrl = `${process.env.APP_URL || 'https://www.thapsus.uk'}/admin?tab=buy-for-me`;
+  const safeNotes = (notes || '').toString().slice(0, 280);
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">New Buy-for-me request</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'admin'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      ${ownerLabel}${ownerEmail ? ` (${ownerEmail})` : ''} just opened a concierge request.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="width:100%;margin:16px 0 24px;background:#f8fafc;border-radius:12px;padding:16px;">
+      <tr><td style="color:#1e3a5f;font-size:14px;line-height:1.6;">
+        <strong>Item:</strong> ${itemName || '—'}<br/>
+        <strong>Qty:</strong> ${qty || 1}<br/>
+        <strong>Retailer URL:</strong> ${retailerUrl ? `<a href="${retailerUrl}" target="_blank" style="color:#f97316;">${retailerUrl}</a>` : '—'}<br/>
+        ${safeNotes ? `<strong>Notes:</strong> ${safeNotes}<br/>` : ''}
+        <strong>BFM ID:</strong> ${bfmId}
+      </td></tr>
+    </table>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:14px;line-height:1.6;">
+      Open the admin queue to quote it.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
+      <tr><td style="background-color:#1e3a5f;border-radius:8px;">
+        <a href="${adminUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">Open admin queue</a>
+      </td></tr>
+    </table>`;
+  const subject = `New Buy-for-me · ${itemName || bfmId}`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'bfm_admin_new', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'bfm_admin_new', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
+/**
  * Unified payment receipt — fired from markPaymentPaid for both Stripe and
  * M-Pesa, every target_kind (order / consolidation / buy_for_me). Replaces
  * the old M-Pesa-only `sendPaymentReceiptEmail`.
@@ -1122,6 +1164,7 @@ export {
   sendInvoiceReadyEmail,
   sendInvoicePaidEmail,
   sendBuyForMeQuoteEmail,
+  sendBuyForMeAdminNewRequestEmail,
   sendUnifiedPaymentReceiptEmail,
   emailConfigStatus,
 };
@@ -1145,6 +1188,7 @@ export default {
   sendInvoiceReadyEmail,
   sendInvoicePaidEmail,
   sendBuyForMeQuoteEmail,
+  sendBuyForMeAdminNewRequestEmail,
   sendUnifiedPaymentReceiptEmail,
   emailConfigStatus,
 };
