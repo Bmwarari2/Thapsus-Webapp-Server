@@ -7,6 +7,7 @@ import { logRouteError } from '../utils/errorLogger.js';
 import { sendOrderCreatedEmail } from '../utils/email.js';
 import { insertWithUniqueTrackingNumber } from '../utils/trackingNumber.js';
 import { isValidOrderStatus } from '../utils/orderStatuses.js';
+import { createSignedDownloadUrl } from '../utils/supabaseAdmin.js';
 
 const router = express.Router();
 
@@ -256,6 +257,84 @@ router.get('/:id', authMiddleware, async (req, res) => {
     console.error('Get order error:', error);
     logRouteError(req, res, error, 'Get order error');
     res.status(500).json({ success: false, message: 'Failed to fetch order' });
+  }
+});
+
+/**
+ * GET /api/orders/:id/pod — proof-of-delivery summary for the customer.
+ *
+ * Returns the most recent successful pod_event for the parcel, with
+ * fresh signed download URLs for the photo + signature (5-min TTL,
+ * mirrors the rider PWA + admin POD-detail flows). Owner-scoped:
+ * admins can fetch any parcel's POD, customers only their own.
+ *
+ * Used by iOS Past Deliveries section so the customer can see the
+ * delivery photo + recipient name without going through admin.
+ */
+router.get('/:id/pod', authMiddleware, async (req, res) => {
+  try {
+    const db          = req.db;
+    const { id }      = req.params;
+    const userId      = req.user.id;
+    const isAdminUser = req.user.role === 'admin';
+
+    // Ownership check identical to /orders/:id so customers can only
+    // see PODs for their own parcels. The pod_events row itself isn't
+    // tied to a user_id; we gate via the parent orders row instead.
+    const own = isAdminUser
+      ? await db.query('SELECT id, tracking_number FROM orders WHERE id = $1', [id])
+      : await db.query('SELECT id, tracking_number FROM orders WHERE id = $1 AND user_id = $2', [id, userId]);
+    if (own.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    // Latest successful POD wins. Riders shouldn't be re-POD'ing a
+    // delivered parcel, but if they did the most recent capture is the
+    // authoritative one.
+    const podRes = await db.query(
+      `SELECT id, captured_at, photo_url, photo_path,
+              signature_url, signature_path,
+              recipient_name, recipient_phone, notes
+         FROM pod_events
+        WHERE parcel_id = $1 AND result = 'delivered'
+        ORDER BY captured_at DESC
+        LIMIT 1`,
+      [id]
+    );
+    if (podRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'No POD recorded for this parcel yet' });
+    }
+    const pod = podRes.rows[0];
+
+    // Mint short-lived signed download URLs. The pods bucket is private
+    // (mig 015), so we never return a raw object URL — every read goes
+    // through a fresh signed URL the iOS app must use immediately.
+    let photoUrl = null;
+    let signatureUrl = null;
+    if (pod.photo_path) {
+      photoUrl = await createSignedDownloadUrl('pods', pod.photo_path, 300).catch(() => null);
+    }
+    if (pod.signature_path) {
+      signatureUrl = await createSignedDownloadUrl('pods', pod.signature_path, 300).catch(() => null);
+    }
+
+    res.json({
+      success: true,
+      pod: {
+        id: pod.id,
+        captured_at: pod.captured_at,
+        recipient_name: pod.recipient_name,
+        recipient_phone: pod.recipient_phone,
+        notes: pod.notes,
+        photo_url: photoUrl,
+        signature_url: signatureUrl,
+        tracking_number: own.rows[0].tracking_number,
+      },
+    });
+  } catch (error) {
+    console.error('Get POD error:', error);
+    logRouteError(req, res, error, 'Get POD error');
+    res.status(500).json({ success: false, message: 'Failed to fetch POD' });
   }
 });
 
