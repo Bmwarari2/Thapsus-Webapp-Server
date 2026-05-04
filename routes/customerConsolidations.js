@@ -167,6 +167,12 @@ router.post('/standalone-invoice', authMiddleware, ALLOWED_ADMIN, async (req, re
     if (!description || typeof description !== 'string' || description.trim().length === 0) {
       return res.status(400).json({ success: false, message: 'description is required' });
     }
+    // Audit P5.2: live DB now CHECKs invoice_currency in (GBP, KES).
+    // Validate at the route so an admin gets a clean 400 instead of
+    // a Postgres 23514 → 500 from migration 033.
+    if (currency != null && !['GBP', 'KES'].includes(currency)) {
+      return res.status(400).json({ success: false, message: "currency must be 'GBP' or 'KES'" });
+    }
 
     // Confirm the customer exists before issuing — typo'd user_id would
     // otherwise create an orphan invoice no one can pay.
@@ -439,6 +445,10 @@ router.patch('/:id/invoice', authMiddleware, ALLOWED_ADMIN, async (req, res) => 
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       return res.status(400).json({ success: false, message: 'amount must be a positive number' });
+    }
+    // Audit P5.2: live DB CHECK now restricts invoice_currency to (GBP, KES).
+    if (currency != null && !['GBP', 'KES'].includes(currency)) {
+      return res.status(400).json({ success: false, message: "currency must be 'GBP' or 'KES'" });
     }
 
     const client = await req.db.connect();
