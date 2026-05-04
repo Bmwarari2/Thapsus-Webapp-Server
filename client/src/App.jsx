@@ -65,6 +65,7 @@ const BuyForMe            = lazy(() => import('./pages/BuyForMe').then(m => ({ d
 const AgentPortal         = lazy(() => import('./pages/partner/AgentPortal').then(m => ({ default: m.AgentPortal })))
 const AgentInvoices       = lazy(() => import('./pages/partner/AgentPortal').then(m => ({ default: m.AgentInvoices })))
 const RiderPwa            = lazy(() => import('./pages/partner/RiderPwa').then(m => ({ default: m.RiderPwa })))
+const NpsLanding          = lazy(() => import('./pages/NpsLanding').then(m => ({ default: m.NpsLanding })))
 
 // ── Minimal loading spinner (shown briefly while lazy chunks load) ──────────
 const PageLoader = () => (
@@ -117,6 +118,10 @@ function App() {
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/pay/:orderId" element={<PublicPayment />} />
+            {/* /nps lands customers from the post-delivery survey email
+                (utils/email.js::sendNpsInvitationEmail). The page bounces
+                unauth visitors to /login?next=… then renders the survey. */}
+            <Route path="/nps" element={<NpsLanding />} />
             <Route path="/faq" element={<FAQ />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms"   element={<TermsOfService />} />

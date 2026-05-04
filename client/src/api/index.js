@@ -500,6 +500,10 @@ export const npsApi = {
   submit:    (score, comment, parcelId) =>
     api.post('/nps', { score, comment, parcel_id: parcelId }),
   summary:   () => api.get('/nps/summary'),
+  // Returns the open invitations for the caller — server flips
+  // responded_at on submit so this list shrinks naturally. Used by
+  // <NpsAutoPrompt> on the customer dashboard.
+  pending:   () => api.get('/nps/pending'),
 }
 
 /**

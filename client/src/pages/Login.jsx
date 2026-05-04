@@ -43,6 +43,17 @@ const GlassCard = ({ children, className = "" }) => (
 export const Login = () => {
   const navigate = useNavigate()
   const { login } = useAuth()
+  // Honour ?next=… so deep-linked landings (NPS email survey,
+  // PublicPayment redirect after auth, etc.) come back to where the
+  // user was headed instead of dropping them on the dashboard.
+  const nextPath = (() => {
+    if (typeof window === 'undefined') return null
+    const next = new URLSearchParams(window.location.search).get('next')
+    if (!next) return null
+    // Same-origin guard — only allow paths beginning with `/` so a
+    // crafted ?next=https://evil.example.com link can't open-redirect.
+    return next.startsWith('/') ? next : null
+  })()
   const { t } = useLanguage()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -75,7 +86,13 @@ export const Login = () => {
       setLoading(true)
       const loggedInUser = await login(formData.email, formData.password)
       toast.success(t('auth.loginSuccess') || 'Login successful!')
-      navigate(loggedInUser.role === 'admin' ? '/admin' : '/dashboard', { replace: true })
+      // Customer ?next=… deep-links (NPS survey landing etc.) take
+      // priority over the role default. Admins always go to /admin
+      // regardless — they shouldn't be bounced into a customer survey.
+      const dest = (loggedInUser.role !== 'admin' && nextPath)
+        ? nextPath
+        : (loggedInUser.role === 'admin' ? '/admin' : '/dashboard')
+      navigate(dest, { replace: true })
     } catch (err) {
       const msg = err.message || 'Login failed. Please check your credentials.'
       setError(msg)
