@@ -289,7 +289,7 @@ router.post(
     } catch (err) {
       await client.query('ROLLBACK');
       console.error('POST /customs/entries/bulk error:', err);
-      res.status(500).json({ success: false, message: 'Failed to file bulk entries', detail: err?.message || null });
+      res.status(500).json({ success: false, message: 'Failed to file bulk entries' });
     } finally {
       client.release();
     }

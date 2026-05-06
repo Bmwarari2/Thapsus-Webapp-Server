@@ -179,17 +179,13 @@ router.post('/', authMiddleware, ALLOWED_OPERATOR, async (req, res) => {
     );
     res.status(201).json({ success: true, consolidation_id: id });
   } catch (err) {
+    // Real Postgres detail (constraint, code, RLS denial) is logged
+    // server-side for ops review — never returned to clients, since
+    // it leaks DB internals to anyone observing the response.
     console.error('POST /consolidations error:', err);
-    // Pre-launch dev: surface the real Postgres detail (constraint name,
-    // missing column, RLS denial) so iOS can show it in the create banner
-    // instead of the opaque "Failed to create consolidation". Tighten before
-    // we open the app to the public.
     res.status(500).json({
       success: false,
       message: 'Failed to create consolidation',
-      detail: err?.message || null,
-      code: err?.code || null,
-      constraint: err?.constraint || null,
     });
   }
 });
@@ -319,9 +315,6 @@ router.post('/:id/assign-parcels', authMiddleware, ALLOWED_OPERATOR, async (req,
     res.status(500).json({
       success: false,
       message: 'Failed to assign parcels',
-      detail: err?.message || null,
-      code: err?.code || null,
-      constraint: err?.constraint || null,
     });
   }
 });
@@ -368,9 +361,6 @@ router.post('/:id/assign-parcel', authMiddleware, ALLOWED_OPERATOR, async (req, 
     res.status(500).json({
       success: false,
       message: 'Failed to assign parcel',
-      detail: err?.message || null,
-      code: err?.code || null,
-      constraint: err?.constraint || null,
     });
   }
 });

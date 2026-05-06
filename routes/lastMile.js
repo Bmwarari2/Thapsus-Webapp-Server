@@ -1153,17 +1153,15 @@ router.post(
         run: runState,
       });
     } catch (err) {
-      // Pre-launch dev: surface the real Postgres detail so the rider's
-      // outbox banner shows WHY the POD failed (FK violation, enum cast,
-      // missing pod_otps row, …) instead of the opaque "Failed to record
-      // POD". Tighten before opening to the public.
+      // The real error (Postgres detail, code, constraint) is logged
+      // server-side for ops; clients only see a curated message.
+      // Returning detail/code/constraint leaks DB internals — column
+      // names, constraint identifiers, SQLSTATE codes — to anyone who
+      // can observe the response.
       console.error('POST /last-mile/rider/runs/:runId/pod error:', err);
       res.status(500).json({
         success: false,
         message: 'Failed to record POD',
-        detail: err?.message || null,
-        code: err?.code || null,
-        constraint: err?.constraint || null,
       });
     }
   }

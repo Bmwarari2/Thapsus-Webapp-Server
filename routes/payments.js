@@ -315,7 +315,10 @@ router.post('/', authMiddleware, async (req, res) => {
       });
     }
     logRouteError(req, res, err, 'POST /api/payments');
-    res.status(500).json({ success: false, message: err.message || 'Failed to create payment' });
+    // Don't echo `err.message` to clients — the catch arm runs on
+    // unexpected throws (Stripe SDK errors, transient DB failures,
+    // etc.) and those messages can include internal details.
+    res.status(500).json({ success: false, message: 'Failed to create payment' });
   } finally {
     client.release();
   }

@@ -403,7 +403,6 @@ router.get('/parcels/by-barcode/:barcode', authMiddleware, ALLOWED, async (req, 
     res.status(500).json({
       success: false,
       message: 'Failed to look up parcel',
-      detail: err?.message || null,
     });
   }
 });
