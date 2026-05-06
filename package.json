@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.2",
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "vite",
     "build": "cd client && npm install --include=dev && npm run build && cd ..",
