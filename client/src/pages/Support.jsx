@@ -27,13 +27,6 @@ export const Support = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }
 
-  /** Scroll the page so the create-ticket form is visible */
-  const scrollToCreateForm = () => {
-    setTimeout(() => {
-      createFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 80) // tiny delay lets React paint the form first
-  }
-
   const shapeTicketThread = (ticket, messages) => {
     if (!ticket) return null
     const baseMessages = [
@@ -66,10 +59,23 @@ export const Support = () => {
     fetchTickets()
   }, [])
 
-  // Scroll to latest message whenever the thread changes (new reply, SSE push, ticket load)
+  // Scroll to latest message whenever the thread changes (new reply, SSE push, ticket load).
+  // This `useEffect` fires after React commits the new messages to the DOM,
+  // which is the actual condition we want to wait on — replaces three earlier
+  // `setTimeout(scrollToLatest, 80–100)` band-aids that hoped React had finished
+  // painting by the time the timer fired.
   useEffect(() => {
     if (selectedTicket?.messages?.length) scrollToLatest()
   }, [selectedTicket?.messages?.length])
+
+  // Same idea for the create-ticket form: scroll it into view once the form
+  // has actually been rendered (showCreateForm transitioned to true), not on
+  // an arbitrary timer.
+  useEffect(() => {
+    if (showCreateForm) {
+      createFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [showCreateForm])
 
   useTicketUpdates((payload) => {
     if (!payload) return
@@ -84,8 +90,8 @@ export const Support = () => {
         .then((res) => {
           const { ticket, messages } = res.data
           setSelectedTicket(shapeTicketThread(ticket, messages))
-          // SSE-driven update → scroll after React re-renders
-          setTimeout(scrollToLatest, 100)
+          // The `useEffect` keyed on `selectedTicket?.messages?.length`
+          // handles the scroll after React commits the new messages.
         })
         .catch(() => {})
     }
@@ -151,7 +157,7 @@ export const Support = () => {
       setSelectedTicket(shapeTicketThread(ticket, messages))
       setReplyText('')
       toast.success('Reply sent!')
-      setTimeout(scrollToLatest, 80)
+      // Scroll handled by the `useEffect` on `selectedTicket?.messages?.length`.
     } catch (err) {
       toast.error('Failed to send reply')
     } finally {
@@ -184,7 +190,7 @@ export const Support = () => {
             <p className="text-slate-600 font-medium text-lg">Get help from our support team</p>
           </div>
           <button
-            onClick={() => { setShowCreateForm(!showCreateForm); if (!showCreateForm) scrollToCreateForm() }}
+            onClick={() => setShowCreateForm((prev) => !prev)}
             className="group relative overflow-hidden bg-orange-500 hover:bg-orange-400 text-white px-6 py-3.5 rounded-2xl font-black tracking-tight flex items-center gap-2 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 glass-sheen"
           >
             <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
