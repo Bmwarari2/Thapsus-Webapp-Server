@@ -13,7 +13,8 @@ import {
   createSignedUploadUrl,
   createSignedDownloadUrl,
   extractAgentInvoicePath,
-  getSupabaseAdmin
+  getSupabaseAdmin,
+  sanitizeUploadFilename
 } from '../utils/supabaseAdmin.js';
 
 const router = express.Router();
@@ -127,7 +128,7 @@ router.post('/upload-url', authMiddleware, requireRole('clearing_agent'), async 
       });
     }
     const ts = Date.now();
-    const safeName = String(req.body?.filename || `${ts}.pdf`).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const safeName = sanitizeUploadFilename(req.body?.filename, `${ts}.pdf`);
     const path = `${req.user.id}/${ts}-${safeName}`;
     const data = await createSignedUploadUrl(AGENT_INVOICE_BUCKET, path);
     return res.json({
