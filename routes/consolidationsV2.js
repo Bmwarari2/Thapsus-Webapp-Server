@@ -119,7 +119,16 @@ router.get('/customer/:id', authMiddleware, async (req, res) => {
  *  OPERATOR / ADMIN — list + create
  * ──────────────────────────────────────────────────────────────────────── */
 
-/** GET /api/consolidations  — list all (operator + admin) */
+/** GET /api/consolidations  — list all (operator + admin)
+ *
+ * Query params:
+ *   status — filter by enum value (open, locked, …) — optional.
+ *   limit  — page size, integer in [1, 100]. Defaults to 100. Out-of-range
+ *            values are clamped server-side so a hostile caller can't ask
+ *            for thousands of rows. iOS uses limit=5 to populate the
+ *            "recent shipping consolidations" picker on the customer-
+ *            consolidation Attach-to-shipping sheet.
+ */
 router.get('/', authMiddleware, ALLOWED_OPERATOR, async (req, res) => {
   try {
     const { status } = req.query;
@@ -127,10 +136,17 @@ router.get('/', authMiddleware, ALLOWED_OPERATOR, async (req, res) => {
     let where = '';
     if (status) { params.push(status); where = `WHERE status = $${params.length}`; }
 
+    const parsedLimit = parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(parsedLimit) && parsedLimit > 0
+      ? Math.min(parsedLimit, 100)
+      : 100;
+    params.push(limit);
+    const limitParam = `$${params.length}`;
+
     const { rows } = await req.db.query(
       `SELECT * FROM consolidations ${where}
        ORDER BY week_start DESC, created_at DESC
-       LIMIT 100`,
+       LIMIT ${limitParam}`,
       params
     );
     res.json({ success: true, consolidations: rows });
