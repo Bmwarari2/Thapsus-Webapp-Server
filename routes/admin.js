@@ -890,17 +890,29 @@ router.get('/exchange-rates', authMiddleware, isAdmin, async (req, res) => {
 
 /** PUT /api/admin/exchange-rates */
 router.put('/exchange-rates', authMiddleware, isAdmin, async (req, res) => {
+  const db = req.db;
+  const { rates } = req.body;
+  const adminId = req.user.id;
+  // Validate UP FRONT so the early-return 400s carry a useful message
+  // for the admin without going through the transaction's catch arm.
+  // This way, the only thing that lands in the unexpected-error path
+  // below is genuine infrastructure failure, which we redact.
+  if (!rates || typeof rates !== 'object') {
+    return res.status(400).json({ success: false, message: 'rates object is required' });
+  }
+  const validPairs = ['USD_KES','GBP_KES','EUR_KES','CNY_KES'];
+  for (const [pair, rate] of Object.entries(rates)) {
+    if (!validPairs.includes(pair)) {
+      return res.status(400).json({ success: false, message: `Invalid currency pair: ${pair}` });
+    }
+    if (typeof rate !== 'number' || rate <= 0) {
+      return res.status(400).json({ success: false, message: `Invalid rate for ${pair}` });
+    }
+  }
   try {
-    const db = req.db;
-    const { rates } = req.body;
-    const adminId = req.user.id;
-    if (!rates || typeof rates !== 'object') return res.status(400).json({ success: false, message: 'rates object is required' });
-    const validPairs = ['USD_KES','GBP_KES','EUR_KES','CNY_KES'];
     await db.query('BEGIN');
     try {
       for (const [pair, rate] of Object.entries(rates)) {
-        if (!validPairs.includes(pair)) throw new Error(`Invalid currency pair: ${pair}`);
-        if (typeof rate !== 'number' || rate <= 0) throw new Error(`Invalid rate for ${pair}`);
         await db.query(
           `INSERT INTO exchange_rates (currency_pair, rate, updated_by, updated_at) VALUES ($1,$2,$3,NOW())
            ON CONFLICT (currency_pair) DO UPDATE SET rate = EXCLUDED.rate, updated_by = EXCLUDED.updated_by, updated_at = NOW()`,
@@ -912,8 +924,10 @@ router.put('/exchange-rates', authMiddleware, isAdmin, async (req, res) => {
     await db.query('INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)', [uuidv4(), adminId, 'update_exchange_rates', JSON.stringify(rates)]);
     res.json({ success: true, message: 'Exchange rates updated successfully', rates });
   } catch (error) {
+    // Real PG error (constraint, connection drop, etc.) — log it
+    // server-side; never echo error.message back to the admin.
     console.error('Set exchange rates error:', error);
-    res.status(400).json({ success: false, message: error.message || 'Failed to update exchange rates' });
+    res.status(500).json({ success: false, message: 'Failed to update exchange rates' });
   }
 });
 
