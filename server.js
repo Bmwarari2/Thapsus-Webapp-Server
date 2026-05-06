@@ -255,6 +255,23 @@ app.use((req, res, next) => {
 });
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
+//
+// All limits are per IP (express-rate-limit's default keyGenerator). Trust
+// proxy is set to 1 above, so Railway's edge proxy IP doesn't get treated
+// as the source for every request.
+//
+// Anything mounted as a route handler ABOVE the rate-limit `app.use(...)`
+// blocks below (notably the Stripe webhook at app.post('/api/payments/stripe/webhook', …)
+// near line 180) bypasses these limiters entirely — Express matches the
+// route handler first and never falls through to the limiter middleware.
+// That's intentional for the Stripe webhook: signature verification + the
+// `stripe_events_seen` idempotency table are the right defence, and
+// dropping legitimate Stripe retries on a tight IP cap is worse than the
+// negligible DDoS risk of an unauthenticated webhook with raw-body
+// constraints.
+
+// Generic catch-all for any /api/ request that isn't handled by a more
+// specific limiter below.
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
@@ -263,12 +280,15 @@ const limiter = rateLimit({
   handler: (req, res) => res.status(429).json({ success: false, message: 'Too many requests, please try again later.' }),
 });
 
+// Tightened from 20 → 10. Even at 10/15min a real user mistyping their
+// password 5×/min still gets through; 20 was generous enough that a
+// credential-stuffing attacker could meaningfully iterate.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  handler: (req, res) => res.status(429).json({ success: false, message: 'Too many login attempts. Please wait 15 minutes and try again.' }),
+  handler: (req, res) => res.status(429).json({ success: false, message: 'Too many authentication attempts. Please wait 15 minutes and try again.' }),
 });
 
 const forgotPasswordLimiter = rateLimit({
@@ -283,6 +303,22 @@ const forgotPasswordLimiter = rateLimit({
     }),
 });
 
+// Strict cap on reset-token redemption to slow a token-brute-force.
+// Reset tokens are random uuids, so guessing is statistically infeasible
+// in a 1-hour window even at the network limit, but defence-in-depth
+// matters for tokens that gate password rotation.
+const resetPasswordLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) =>
+    res.status(429).json({
+      success: false,
+      message: 'Too many password reset attempts. Please request a new reset link and try again.',
+    }),
+});
+
 const paymentLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -292,6 +328,23 @@ const paymentLimiter = rateLimit({
     res.status(429).json({
       success: false,
       message: 'Too many payment submissions. Please try again later.',
+    }),
+});
+
+// Cap on signed-upload-URL minting. The upload itself goes direct to
+// Supabase storage (we never see the bytes), but unbounded mint requests
+// could burn Supabase quota and inflate storage costs. 30/15min is
+// well above any legitimate user — riders capture 1 POD per stop, ops
+// receive a handful of parcels per shift.
+const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) =>
+    res.status(429).json({
+      success: false,
+      message: 'Too many upload requests. Please wait a few minutes and try again.',
     }),
 });
 
@@ -311,17 +364,51 @@ const trackingLimiter = rateLimit({
     }),
 });
 
-// existing
-app.use('/api/', limiter);
-app.use('/api/auth/login',    authLimiter);
-app.use('/api/auth/register', authLimiter);
-
-// new
+// Both specific limiters AND the catch-all `limiter` below run on a
+// matching request — express-rate-limit doesn't short-circuit on a
+// previous limiter. So a hit to /api/auth/login increments BOTH the
+// authLimiter counter (the binding 10/15min constraint) and the global
+// 200/15min counter. Order of registration here is for readability only.
+//
+// Auth (unauthenticated, brute-force surface)
+app.use('/api/auth/login',           authLimiter);
+app.use('/api/auth/register',        authLimiter);
+app.use('/api/auth/password',        authLimiter);          // PUT — change-password (authenticated, but limited to slow session-hijack brute force)
+app.use('/api/auth/reset-password',  resetPasswordLimiter);
 app.use('/api/auth/forgot-password', forgotPasswordLimiter);
-app.use('/api/payment',                       paymentLimiter); // legacy /api/payment (read-only order lookup)
-app.use('/api/payments/:id/mpesa-confirmation', paymentLimiter); // new flow rate-limit
-app.use('/api/payments/stripe/webhook',       paymentLimiter);
-app.use('/api/tracking',             trackingLimiter);
+
+// Payments (cost + abuse surface). The bare POST /api/payments creates
+// a Stripe PaymentIntent (or M-Pesa pending row), which costs Stripe
+// API quota and is the typical card-testing vector. GETs to
+// /api/payments/:id are status reads (cheap) and don't need a tighter
+// cap; the M-Pesa confirmation submit has its own cap below; webhooks
+// bypass these entirely (see top-of-section note).
+app.use('/api/payments', (req, res, next) => {
+  if (req.method === 'POST' && req.path === '/') {
+    return paymentLimiter(req, res, next);
+  }
+  next();
+});
+app.use('/api/payment',                          paymentLimiter); // legacy /api/payment (read-only order lookup)
+app.use('/api/payments/:id/mpesa-confirmation',  paymentLimiter);
+
+// Signed-upload-URL mints (Supabase storage cost surface). Each of these
+// corresponds to a `POST .../upload-url` (or POD variant) handler that
+// returns a 5-minute signed URL the client uses to PUT bytes directly
+// into a Supabase storage bucket. We never see the bytes — but unbounded
+// mint requests can still inflate Supabase storage cost or be used as a
+// vehicle to enumerate parcel/ticket ids.
+app.use('/api/last-mile/pod/upload-url',           uploadLimiter); // rider POD photo + signature
+app.use('/api/tickets/attachments/upload-url',     uploadLimiter); // support ticket attachment
+app.use('/api/parcels/upload-url',                 uploadLimiter); // operator intake photo
+app.use('/api/agent-invoices/upload-url',          uploadLimiter); // clearing-agent invoice PDF
+
+// Tracking (public, unauthenticated)
+app.use('/api/tracking', trackingLimiter);
+
+// Catch-all — anything not matched above. Mount LAST so the specific
+// limiters above get first crack.
+app.use('/api/', limiter);
 
 // ── Disable caching on API routes ────────────────────────────────────────────
 app.set('etag', false);
