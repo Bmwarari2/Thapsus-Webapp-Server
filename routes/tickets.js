@@ -7,7 +7,8 @@ import { sendTicketCreatedEmail, sendTicketReplyEmail } from '../utils/email.js'
 import {
   createSignedUploadUrl,
   createSignedDownloadUrl,
-  getSupabaseAdmin
+  getSupabaseAdmin,
+  sanitizeUploadFilename
 } from '../utils/supabaseAdmin.js';
 
 const router = express.Router();
@@ -281,7 +282,7 @@ router.post('/attachments/upload-url', authMiddleware, async (req, res) => {
       });
     }
     const ts = Date.now();
-    const safeName = String(req.body?.filename || `${ts}.jpg`).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const safeName = sanitizeUploadFilename(req.body?.filename, `${ts}.jpg`);
     const path = `${req.user.id}/${ts}-${safeName}`;
     const data = await createSignedUploadUrl(TICKET_ATTACHMENT_BUCKET, path);
     return res.json({

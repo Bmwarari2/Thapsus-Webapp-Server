@@ -85,6 +85,26 @@ export async function createSignedDownloadUrl(bucket, path, expiresInSeconds = 3
 }
 
 /**
+ * Defence-in-depth filename sanitiser for the upload endpoints that
+ * accept a `filename` from the client (tickets, agent-invoices). The
+ * bucket-level `file_size_limit` + `allowed_mime_types` (migration
+ * 036) are the primary controls; this just keeps weird characters
+ * and pathological lengths out of storage paths.
+ *
+ *   - drops anything outside `[a-zA-Z0-9._-]`
+ *   - strips leading `.` so the result can't be a hidden file
+ *   - caps total length at 100 chars; long tails are truncated
+ *   - falls back to the supplied default if the input collapses to empty
+ */
+export function sanitizeUploadFilename(rawFilename, fallback) {
+  const cleaned = String(rawFilename || '')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .replace(/^\.+/, '')
+    .slice(0, 100);
+  return cleaned || fallback;
+}
+
+/**
  * Strips the bucket prefix off a stored doc_url, returning the in-bucket
  * path the Supabase signing API expects. Handles both:
  *   - public URLs:  https://{ref}.supabase.co/storage/v1/object/public/agent-invoices/<path>
