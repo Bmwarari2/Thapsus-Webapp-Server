@@ -330,14 +330,30 @@ router.get('/:id/pod', authMiddleware, async (req, res) => {
     // Mint short-lived signed download URLs. The pods bucket is private
     // (mig 015), so we never return a raw object URL — every read goes
     // through a fresh signed URL the iOS app must use immediately.
-    let photoUrl = null;
-    let signatureUrl = null;
-    if (pod.photo_path) {
-      photoUrl = await createSignedDownloadUrl('pods', pod.photo_path, 300).catch(() => null);
-    }
-    if (pod.signature_path) {
-      signatureUrl = await createSignedDownloadUrl('pods', pod.signature_path, 300).catch(() => null);
-    }
+    //
+    // `createSignedDownloadUrl` returns the supabase-js envelope
+    // `{ signedUrl, token, path }`, NOT a string. Earlier code assigned
+    // the whole object to `photoUrl`, so when signing succeeded the iOS
+    // DTO (`photo_url: String?`) failed to deserialize; when signing
+    // failed, the silent `.catch(() => null)` masked the real cause and
+    // the customer just saw an empty photo slot. Both modes fixed here:
+    //   • extract `.signedUrl` so the response field is a plain string
+    //   • log the swallowed error so we can see WHY signing failed
+    //     (missing service key, bucket misconfig, path drift, etc.)
+    //     without losing the customer-visible 404→null fallback.
+    const signOrNull = async (label, path) => {
+      if (!path) return null;
+      try {
+        const data = await createSignedDownloadUrl('pods', path, 300);
+        return data?.signedUrl ?? null;
+      } catch (err) {
+        console.error(`[orders/pod] ${label} signing failed for path "${path}":`, err);
+        logRouteError(req, res, err, `pod ${label} signing failed`);
+        return null;
+      }
+    };
+    const photoUrl = await signOrNull('photo', pod.photo_path);
+    const signatureUrl = await signOrNull('signature', pod.signature_path);
 
     res.json({
       success: true,
