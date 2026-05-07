@@ -915,7 +915,11 @@ export async function lipanaWebhookHandler(req, res) {
   );
   const payment = rows[0];
   if (!payment) {
-    console.warn(`[lipana-webhook] no payment for TXN ${transactionId}`);
+    // Stray webhook — STK was initiated outside our app (Lipana
+    // dashboard test, manual curl, another integration). Logged at
+    // info level: it's expected noise on a live webhook URL, not a
+    // real failure mode for our customers.
+    console.info(`[lipana-webhook] orphan ${event} for TXN ${transactionId} — no matching payment row`);
     return res.json({ received: true, no_payment: true });
   }
 
@@ -931,7 +935,14 @@ export async function lipanaWebhookHandler(req, res) {
     case 'payment.failed':
     case 'transaction.failed':
     case 'payment.cancelled':
-    case 'transaction.cancelled': {
+    case 'transaction.cancelled':
+    // Daraja STK Push expires after ~60 s if the customer doesn't enter
+    // their PIN — Lipana surfaces that as `transaction.timeout`. Treat
+    // it the same as failed/cancelled: flip non-terminal rows so the
+    // iOS poller stops at the next tick instead of waiting out its
+    // 90 s budget, and the Transactions list shows the correct state.
+    case 'payment.timeout':
+    case 'transaction.timeout': {
       // Only flip non-terminal rows — we don't want a stray "failed"
       // event re-opening a payment that already settled.
       await req.db.query(
