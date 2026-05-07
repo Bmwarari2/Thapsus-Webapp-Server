@@ -1,25 +1,37 @@
 import express from 'express';
 import { calculateShippingCost, DEFAULT_RATES_GBP, ELECTRONICS_HANDLING, HS_TIERS } from '../utils/pricing.js';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
+import { getOrCompute, cacheInvalidate } from '../utils/cache.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
 
+const SHIPPING_RATES_CACHE_KEY = 'pricing:shipping_rates_gbp';
+const SHIPPING_RATES_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 async function getActiveRates(db) {
-  try {
-    const res = await db.query(
-      'SELECT market, rate_gbp FROM shipping_rates ORDER BY updated_at DESC'
-    );
-    if (!res.rows.length) return { ...DEFAULT_RATES_GBP };
-    const rates = { ...DEFAULT_RATES_GBP };
-    res.rows.forEach((r) => { rates[r.market] = parseFloat(r.rate_gbp); });
-    return rates;
-  } catch {
-    // Table may not exist yet; fall back to defaults
-    return { ...DEFAULT_RATES_GBP };
-  }
+  // The iOS quote calculator hits POST /pricing/calculate on every
+  // weight/dim keystroke, and each call goes through here. Without
+  // a cache that's one DB round-trip per keystroke. 60-second TTL
+  // is a balance: short enough that admin rate updates land within
+  // a minute (with cacheInvalidate from PUT /rates as the immediate
+  // path); long enough to absorb a rapidly-typing user's burst.
+  return getOrCompute(SHIPPING_RATES_CACHE_KEY, SHIPPING_RATES_CACHE_TTL_MS, async () => {
+    try {
+      const res = await db.query(
+        'SELECT market, rate_gbp FROM shipping_rates ORDER BY updated_at DESC'
+      );
+      if (!res.rows.length) return { ...DEFAULT_RATES_GBP };
+      const rates = { ...DEFAULT_RATES_GBP };
+      res.rows.forEach((r) => { rates[r.market] = parseFloat(r.rate_gbp); });
+      return rates;
+    } catch {
+      // Table may not exist yet; fall back to defaults
+      return { ...DEFAULT_RATES_GBP };
+    }
+  });
 }
 
 // ─── POST /api/pricing/calculate ────────────────────────────────────────────
@@ -165,6 +177,10 @@ router.put('/rates', authMiddleware, isAdmin, async (req, res) => {
       'INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)',
       [uuidv4(), adminId, 'update_shipping_rates', JSON.stringify(rates)]
     );
+
+    // Bust the cache so the new rates land immediately on the next
+    // /calculate or /rates call rather than waiting out the TTL.
+    cacheInvalidate(SHIPPING_RATES_CACHE_KEY);
 
     const updatedRates = await getActiveRates(db);
     res.json({ success: true, message: 'Shipping rates updated', rates: updatedRates });

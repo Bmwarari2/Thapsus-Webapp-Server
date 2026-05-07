@@ -1,36 +1,50 @@
 import express from 'express';
 import { getGbpToKesRate, FxRateUnavailableError } from '../utils/fx.js';
+import { getOrCompute } from '../utils/cache.js';
 
 const router = express.Router();
 
 const DEFAULT_RATES = { USD_KES: 130.5, GBP_KES: 164.2, EUR_KES: 142.8, CNY_KES: 18.2 };
 
-async function getExchangeRates(db) {
-  let baseRates = { ...DEFAULT_RATES };
-  let source = 'Thapsus Cargo Default Rates';
-  let lastUpdated = null;
-  try {
-    const rows = await db.query('SELECT currency_pair, rate, updated_at FROM exchange_rates');
-    if (rows.rows.length > 0) {
-      rows.rows.forEach(r => {
-        baseRates[r.currency_pair] = parseFloat(r.rate);
-        if (!lastUpdated || r.updated_at > lastUpdated) lastUpdated = r.updated_at;
-      });
-      source = 'Thapsus Cargo Admin Rates';
-    }
-  } catch { /* table might not exist yet */ }
+const EXCHANGE_RATES_CACHE_KEY = 'exchange:display_rates';
+const EXCHANGE_RATES_CACHE_TTL_MS = 60 * 1000; // 60 seconds
 
-  return {
-    rates: {
-      USD_KES: baseRates.USD_KES, GBP_KES: baseRates.GBP_KES,
-      EUR_KES: baseRates.EUR_KES, CNY_KES: baseRates.CNY_KES,
-      KES_USD: 1 / baseRates.USD_KES, KES_GBP: 1 / baseRates.GBP_KES,
-      KES_EUR: 1 / baseRates.EUR_KES, KES_CNY: 1 / baseRates.CNY_KES,
-    },
-    source,
-    lastUpdated
-  };
+async function getExchangeRates(db) {
+  // Display rates are read on every /rates and /convert call. The
+  // underlying `exchange_rates` table is updated by admin
+  // (PUT /api/admin/exchange-rates), which calls cacheInvalidate
+  // on the same key — so the TTL is just the safety net for cases
+  // where the cache miss happens between writes.
+  return getOrCompute(EXCHANGE_RATES_CACHE_KEY, EXCHANGE_RATES_CACHE_TTL_MS, async () => {
+    let baseRates = { ...DEFAULT_RATES };
+    let source = 'Thapsus Cargo Default Rates';
+    let lastUpdated = null;
+    try {
+      const rows = await db.query('SELECT currency_pair, rate, updated_at FROM exchange_rates');
+      if (rows.rows.length > 0) {
+        rows.rows.forEach(r => {
+          baseRates[r.currency_pair] = parseFloat(r.rate);
+          if (!lastUpdated || r.updated_at > lastUpdated) lastUpdated = r.updated_at;
+        });
+        source = 'Thapsus Cargo Admin Rates';
+      }
+    } catch { /* table might not exist yet */ }
+
+    return {
+      rates: {
+        USD_KES: baseRates.USD_KES, GBP_KES: baseRates.GBP_KES,
+        EUR_KES: baseRates.EUR_KES, CNY_KES: baseRates.CNY_KES,
+        KES_USD: 1 / baseRates.USD_KES, KES_GBP: 1 / baseRates.GBP_KES,
+        KES_EUR: 1 / baseRates.EUR_KES, KES_CNY: 1 / baseRates.CNY_KES,
+      },
+      source,
+      lastUpdated
+    };
+  });
 }
+
+// Exported so admin write paths can bust the cache on update.
+export const EXCHANGE_RATES_CACHE_KEY_EXPORT = EXCHANGE_RATES_CACHE_KEY;
 
 /** GET /api/exchange/rates */
 router.get('/rates', async (req, res) => {

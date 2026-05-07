@@ -10,6 +10,8 @@ import { pushToUser, pushToAdmins } from './events.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { insertWithUniqueTrackingNumber } from '../utils/trackingNumber.js';
 import { isValidOrderStatus } from '../utils/orderStatuses.js';
+import { cacheInvalidate } from '../utils/cache.js';
+import { EXCHANGE_RATES_CACHE_KEY_EXPORT } from './exchange.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_change_this_in_production';
 
@@ -922,6 +924,12 @@ router.put('/exchange-rates', authMiddleware, isAdmin, async (req, res) => {
       await db.query('COMMIT');
     } catch (e) { await db.query('ROLLBACK'); throw e; }
     await db.query('INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)', [uuidv4(), adminId, 'update_exchange_rates', JSON.stringify(rates)]);
+
+    // Bust the in-process cache so /exchange/rates and /exchange/convert
+    // see the new rates immediately on the next call rather than waiting
+    // out the 60-second TTL.
+    cacheInvalidate(EXCHANGE_RATES_CACHE_KEY_EXPORT);
+
     res.json({ success: true, message: 'Exchange rates updated successfully', rates });
   } catch (error) {
     // Real PG error (constraint, connection drop, etc.) — log it
