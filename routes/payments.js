@@ -7,9 +7,14 @@
 //            returns the client_secret for PaymentSheet. Stripe webhook
 //            (POST /webhook) flips status when payment_intent.succeeded.
 //
-//   mpesa  → server returns Till instructions; customer pastes the M-Pesa
-//            confirmation SMS into POST /:id/mpesa-confirmation. Status
-//            flips to 'awaiting_review' until an admin approves.
+//   mpesa  → two providers, picked per-environment via MPESA_PROVIDER:
+//             • 'lipana' (default once configured) — server fires an
+//               STK Push via Lipana (lipana.dev). Customer enters their
+//               PIN on their phone. Lipana webhook → markPaymentPaid().
+//             • 'manual' (legacy) — server returns Till + reference,
+//               customer pays manually then pastes the confirmation
+//               SMS into POST /:id/mpesa-confirmation. Status flips
+//               to 'awaiting_review' until an admin approves.
 //
 // Credit (referrals etc.) is auto-applied at create time: amount_due_kes =
 // amount_gross_kes - min(credit_balance, amount_gross_kes). Locked into
@@ -22,10 +27,22 @@ import { getStripe, stripePublishableKey, stripeWebhookSecret } from '../utils/s
 import { parseMpesaMessage } from '../utils/mpesaParser.js';
 import { markPaymentPaid } from '../utils/markPaymentPaid.js';
 import { getGbpToKesRate, FxRateUnavailableError } from '../utils/fx.js';
+import {
+  initiateStkPush as lipanaInitiateStkPush,
+  verifyWebhookSignature as lipanaVerifyWebhookSignature,
+  normalizeKenyanPhone,
+  LipanaError,
+} from '../utils/lipanaClient.js';
 
 const router = express.Router();
 
 const MPESA_TILL = process.env.MPESA_TILL_NUMBER || '5530500';
+
+/** Which M-Pesa flow this environment is wired to. */
+function mpesaProvider() {
+  const raw = String(process.env.MPESA_PROVIDER || 'manual').toLowerCase().trim();
+  return raw === 'lipana' ? 'lipana' : 'manual';
+}
 
 /**
  * Resolve which payment methods are available in this environment.
@@ -53,7 +70,7 @@ function resolvePaymentMethods() {
 
   return {
     stripe: { enabled: stripeEnabled, publishable_key: stripeEnabled ? pk : null, apple_pay: applePay },
-    mpesa:  { enabled: mpesaEnabled,  till_number: MPESA_TILL },
+    mpesa:  { enabled: mpesaEnabled,  till_number: MPESA_TILL, provider: mpesaProvider() },
   };
 }
 
@@ -109,7 +126,23 @@ router.get('/me/credit', authMiddleware, async (req, res) => {
  *   mpesa  → { payment_id, paybill, account, amount_due_kes }
  */
 router.post('/', authMiddleware, async (req, res) => {
-  const { target_kind, target_id, method, apply_credit = true } = req.body || {};
+  const { target_kind, target_id, method, apply_credit = true, phone: rawPhone } = req.body || {};
+
+  // For mpesa+lipana the customer's phone is required up-front so we can
+  // fire the STK push. Validate now (before opening the transaction) so a
+  // bad input returns a clean 400 without holding a connection.
+  const provider = method === 'mpesa' ? mpesaProvider() : null;
+  let normalizedPhone = null;
+  if (method === 'mpesa' && provider === 'lipana') {
+    normalizedPhone = normalizeKenyanPhone(rawPhone);
+    if (!normalizedPhone) {
+      return res.status(400).json({
+        success: false,
+        error: 'invalid_phone',
+        message: 'Enter a valid Kenyan M-Pesa number (e.g. 0712 345 678).',
+      });
+    }
+  }
   // 'order' was retired 2026-05-04 (audit P1.1) — see loadTarget for the
   // rationale. The kind stays valid in the DB CHECK for backwards
   // compatibility with existing rows but new payments may only target
@@ -268,22 +301,26 @@ router.post('/', authMiddleware, async (req, res) => {
       stripeClientSecret = intent.client_secret;
     }
 
+    const mpesaProviderTag = method === 'mpesa' ? provider : null;
     const { rows: insertedRows } = await client.query(
       `INSERT INTO payments
         (id, user_id, target_kind, target_id,
          amount_gross_kes, amount_credit_kes, amount_due_kes,
          currency, method, status,
-         stripe_payment_intent_id, stripe_amount_pence_gbp, stripe_fx_rate_kes_gbp)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'KES',$8,'pending',$9,$10,$11)
+         stripe_payment_intent_id, stripe_amount_pence_gbp, stripe_fx_rate_kes_gbp,
+         mpesa_provider, mpesa_phone_used)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'KES',$8,'pending',$9,$10,$11,$12,$13)
        RETURNING *`,
       [paymentId, req.user.id, target_kind, target_id,
        target.amount_kes, creditApplied, amountDueKes,
-       method, stripePi, stripePence, fxRate]
+       method, stripePi, stripePence, fxRate,
+       mpesaProviderTag, normalizedPhone]
     );
-    const payment = insertedRows[0];
+    let payment = insertedRows[0];
 
     // For Stripe with amount_due == 0 (credit fully covers it), short-circuit
-    // to paid immediately — no need to invoke Stripe at all.
+    // to paid immediately — no need to invoke Stripe at all. (M-Pesa with
+    // amount_due == 0 also short-circuits — no STK push, no SMS paste.)
     if (amountDueKes === 0) {
       await client.query('COMMIT');
       const result = await markPaymentPaid(req.db, paymentId);
@@ -296,11 +333,47 @@ router.post('/', authMiddleware, async (req, res) => {
       });
     }
 
+    // M-Pesa + Lipana: fire the STK push BEFORE commit so a Lipana
+    // failure rolls back the payment row. Lipana's response carries the
+    // ws_CO_… checkoutRequestID + the Lipana TXN id — both stamped onto
+    // the payment row so the iOS poller can match by id and the
+    // webhook can match by lipana_transaction_id.
+    let lipanaInit = null;
+    if (method === 'mpesa' && provider === 'lipana') {
+      try {
+        lipanaInit = await lipanaInitiateStkPush({
+          phone: normalizedPhone,
+          amountKes: amountDueKes,
+          idempotencyKey: paymentId,
+        });
+      } catch (e) {
+        await client.query('ROLLBACK').catch(() => {});
+        if (e instanceof LipanaError) {
+          return res.status(e.status >= 400 && e.status < 600 ? e.status : 502).json({
+            success: false,
+            error:   e.code,
+            message: e.message,
+          });
+        }
+        throw e;
+      }
+      const { rows: stamped } = await client.query(
+        `UPDATE payments
+            SET lipana_transaction_id      = $2,
+                lipana_checkout_request_id = $3,
+                updated_at                 = NOW()
+          WHERE id = $1
+          RETURNING *`,
+        [paymentId, lipanaInit.transactionId, lipanaInit.checkoutRequestID]
+      );
+      payment = stamped[0] || payment;
+    }
+
     await client.query('COMMIT');
     return res.json({
       success: true,
       payment: serializePayment(payment),
-      ...nextStep(payment, stripeClientSecret),
+      ...nextStep(payment, stripeClientSecret, lipanaInit),
     });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
@@ -309,6 +382,13 @@ router.post('/', authMiddleware, async (req, res) => {
     // banner instead of a generic 500.
     if (err instanceof FxRateUnavailableError) {
       return res.status(503).json({
+        success: false,
+        error: err.code,
+        message: err.message,
+      });
+    }
+    if (err instanceof LipanaError) {
+      return res.status(err.status >= 400 && err.status < 600 ? err.status : 502).json({
         success: false,
         error: err.code,
         message: err.message,
@@ -621,7 +701,7 @@ async function loadTarget(client, kind, id) {
  *     PaymentIntent via `stripe.paymentIntents.retrieve(id)` and
  *     pass that returned `client_secret`.
  */
-function nextStep(payment, stripeClientSecret = null) {
+function nextStep(payment, stripeClientSecret = null, lipanaInit = null) {
   if (payment.method === 'stripe') {
     return {
       next: {
@@ -629,6 +709,22 @@ function nextStep(payment, stripeClientSecret = null) {
         client_secret: stripeClientSecret,
         amount_pence_gbp: payment.stripe_amount_pence_gbp,
         fx_rate_kes_gbp: payment.stripe_fx_rate_kes_gbp,
+      },
+    };
+  }
+  // M-Pesa: branch on provider. Lipana = STK push already kicked off.
+  // Manual = legacy paste-the-SMS instructions.
+  if (payment.mpesa_provider === 'lipana' || lipanaInit) {
+    return {
+      next: {
+        kind: 'mpesa_stk',
+        amount_due_kes:             Number(payment.amount_due_kes),
+        lipana_transaction_id:      lipanaInit?.transactionId
+                                      ?? payment.lipana_transaction_id ?? null,
+        lipana_checkout_request_id: lipanaInit?.checkoutRequestID
+                                      ?? payment.lipana_checkout_request_id ?? null,
+        message: lipanaInit?.message
+          ?? 'STK push sent. Check your phone and enter your M-Pesa PIN.',
       },
     };
   }
@@ -660,6 +756,10 @@ function serializePayment(p) {
     stripe_fx_rate_kes_gbp: p.stripe_fx_rate_kes_gbp ? Number(p.stripe_fx_rate_kes_gbp) : null,
     mpesa_reference: p.mpesa_reference,
     mpesa_phone: p.mpesa_phone,
+    mpesa_provider: p.mpesa_provider || null,
+    mpesa_phone_used: p.mpesa_phone_used || null,
+    lipana_transaction_id: p.lipana_transaction_id || null,
+    lipana_checkout_request_id: p.lipana_checkout_request_id || null,
     rejection_reason: p.rejection_reason,
     created_at: p.created_at,
     paid_at: p.paid_at,
@@ -732,6 +832,121 @@ export async function stripeWebhookHandler(req, res) {
     default:
       // ignore other event types
       return res.json({ received: true, ignored: event.type });
+  }
+}
+
+// ─── Lipana webhook ───────────────────────────────────────────────────────
+// MOUNTED SEPARATELY in server.js with express.raw({type:'application/json'})
+// — HMAC-SHA256 verification needs the unparsed bytes, same recipe as
+// the Stripe webhook. The handler attaches req.db itself in server.js.
+//
+// Lipana fires `event: payment.success | payment.failed | payment.initiated`
+// with a `data` block keyed by `transactionId`. We match payments by
+// `lipana_transaction_id` and call markPaymentPaid() on success — same
+// code path as Stripe + admin-approve, so post-paid hooks (target flip,
+// credit-ledger debit, receipt email) are identical regardless of method.
+//
+// Idempotency: lipana_events_seen short-circuits replays. The unique
+// partial index on lipana_transaction_id (migration 038) is the
+// belt-and-braces guard against a missing event_id.
+export async function lipanaWebhookHandler(req, res) {
+  const signature = req.headers['x-lipana-signature'];
+  if (!signature) return res.status(401).send('Missing X-Lipana-Signature');
+
+  let verified = false;
+  try {
+    verified = lipanaVerifyWebhookSignature(req.body, signature);
+  } catch (e) {
+    if (e instanceof LipanaError) {
+      console.error('[lipana-webhook] verify failed:', e.message);
+      return res.status(e.status).json({ success: false, error: e.code, message: e.message });
+    }
+    throw e;
+  }
+  if (!verified) {
+    console.warn('[lipana-webhook] signature mismatch');
+    return res.status(401).send('Invalid signature');
+  }
+
+  let payload;
+  try {
+    const text = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : String(req.body || '');
+    payload = JSON.parse(text);
+  } catch (e) {
+    return res.status(400).send('Invalid JSON');
+  }
+
+  const event = payload?.event;
+  const data  = payload?.data || {};
+  const transactionId = data.transactionId || data.transaction_id || null;
+  // Lipana docs don't currently advertise an event id, so we fall back
+  // to the transaction id + event type. That still de-dupes the
+  // common case (two `payment.success` redeliveries for the same TXN).
+  const eventId = payload?.id || payload?.event_id
+    || (transactionId ? `${event}:${transactionId}` : null);
+
+  if (!event || !eventId) {
+    return res.status(400).send('Malformed payload');
+  }
+
+  // Idempotency.
+  try {
+    const { rowCount } = await req.db.query(
+      `INSERT INTO lipana_events_seen (event_id, event_type)
+       VALUES ($1, $2) ON CONFLICT (event_id) DO NOTHING`,
+      [eventId, event]
+    );
+    if (rowCount === 0) {
+      return res.json({ received: true, duplicate: true });
+    }
+  } catch (e) {
+    console.warn('[lipana-webhook] idempotency check failed:', e.message);
+    // Don't 500 on the idempotency table — fall through and let the
+    // payment lookup short-circuit if we've already paid this one.
+  }
+
+  if (!transactionId) {
+    return res.json({ received: true, no_transaction_id: true });
+  }
+
+  const { rows } = await req.db.query(
+    `SELECT id, status FROM payments WHERE lipana_transaction_id = $1`,
+    [transactionId]
+  );
+  const payment = rows[0];
+  if (!payment) {
+    console.warn(`[lipana-webhook] no payment for TXN ${transactionId}`);
+    return res.json({ received: true, no_payment: true });
+  }
+
+  switch (event) {
+    case 'payment.success':
+    case 'transaction.success': {
+      const result = await markPaymentPaid(req.db, payment.id);
+      if (!result.ok && !result.alreadyPaid) {
+        console.warn('[lipana-webhook] markPaid failed:', result.reason);
+      }
+      return res.json({ received: true, ok: result.ok || result.alreadyPaid === true });
+    }
+    case 'payment.failed':
+    case 'transaction.failed':
+    case 'payment.cancelled':
+    case 'transaction.cancelled': {
+      // Only flip non-terminal rows — we don't want a stray "failed"
+      // event re-opening a payment that already settled.
+      await req.db.query(
+        `UPDATE payments SET status = 'failed', updated_at = NOW()
+          WHERE id = $1 AND status IN ('pending','awaiting_review')`,
+        [payment.id]
+      );
+      return res.json({ received: true, failed: true });
+    }
+    case 'payment.initiated':
+    case 'transaction.initiated':
+      // No-op — we already inserted as 'pending'.
+      return res.json({ received: true, ignored: event });
+    default:
+      return res.json({ received: true, ignored: event });
   }
 }
 
