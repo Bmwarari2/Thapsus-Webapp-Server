@@ -243,30 +243,38 @@ router.post(
       const idfSplit  = splitPositive(idf_kes);
       const rdlSplit  = splitPositive(rdl_kes);
 
-      const entryIds = [];
-      for (let i = 0; i < parcels.rows.length; i++) {
-        const p = parcels.rows[i];
-        const id = uuidv4();
+      // Batched into a single multi-row INSERT — for a 50-parcel
+      // entry that's 1 round-trip instead of 50. The per-parcel split
+      // values come from arrays computed above (cifSplit, dutySplit,
+      // …). The status field is shared across rows; everything else
+      // varies per parcel.
+      const entryIds = parcels.rows.map((p, i) => ({
+        entry_id: uuidv4(),
+        parcel_id: p.id,
+        tracking_number: p.tracking_number,
+        duty_kes: dutySplit[i],
+        vat_kes: vatSplit[i],
+      }));
+      if (entryIds.length > 0) {
+        const placeholders = entryIds
+          .map((_, i) => {
+            const b = i * 13;
+            return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5},$${b+6},$${b+7},$${b+8},$${b+9},$${b+10},COALESCE($${b+11},'idf_submitted')::customs_status,$${b+12},$${b+13})`;
+          })
+          .join(', ');
+        const params = entryIds.flatMap((e, i) => [
+          e.entry_id, e.parcel_id, req.user.id, idf_no || null, entry_no || null,
+          cifSplit[i],
+          dutySplit[i], vatSplit[i], idfSplit[i], rdlSplit[i],
+          status || null, notes || null, doc_url || null,
+        ]);
         await client.query(
           `INSERT INTO customs_entries
              (id, parcel_id, agent_id, idf_no, entry_no, cif_kes,
               duty_kes, vat_kes, idf_kes, rdl_kes, status, notes, doc_url)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-                   COALESCE($11,'idf_submitted')::customs_status,$12,$13)`,
-          [
-            id, p.id, req.user.id, idf_no || null, entry_no || null,
-            cifSplit[i],
-            dutySplit[i], vatSplit[i], idfSplit[i], rdlSplit[i],
-            status || null, notes || null, doc_url || null,
-          ]
+           VALUES ${placeholders}`,
+          params
         );
-        entryIds.push({
-          entry_id: id,
-          parcel_id: p.id,
-          tracking_number: p.tracking_number,
-          duty_kes: dutySplit[i],
-          vat_kes: vatSplit[i],
-        });
       }
 
       // Move every freshly-entered parcel into 'customs' state in one shot.

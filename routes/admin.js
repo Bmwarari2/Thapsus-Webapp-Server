@@ -473,13 +473,27 @@ router.put('/orders/bulk-update', authMiddleware, isAdmin, async (req, res) => {
     // the canonical "we offered a survey for parcel X" record so iOS doesn't
     // have to rely on UserDefaults across devices and admins can compute
     // response rate (responded_at / created_at).
+    //
+    // Batched into a single multi-row INSERT — for a 100-order bulk
+    // status change that's 1 round-trip instead of 100. ON CONFLICT
+    // DO NOTHING handles re-applying the same status (e.g. admin
+    // re-marks a delivered order as delivered).
     if (status === 'delivered') {
-      for (const order of updated.rows) {
-        if (!order.user_id) continue;
+      const inviteRows = updated.rows.filter((o) => !!o.user_id);
+      if (inviteRows.length > 0) {
+        const placeholders = inviteRows
+          .map((_, i) => `($${i * 3 + 1}, $${i * 3 + 2}, $${i * 3 + 3})`)
+          .join(', ');
+        const params = inviteRows.flatMap((o) => [
+          `NPSI-${Date.now()}-${Math.random().toString(36).slice(2, 6)}-${o.id.slice(0, 4)}`,
+          o.user_id,
+          o.id,
+        ]);
         await db.query(
           `INSERT INTO nps_invitations (id, user_id, order_id)
-           VALUES ($1, $2, $3) ON CONFLICT (order_id) DO NOTHING`,
-          [`NPSI-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, order.user_id, order.id]
+           VALUES ${placeholders}
+           ON CONFLICT (order_id) DO NOTHING`,
+          params
         );
       }
     }
