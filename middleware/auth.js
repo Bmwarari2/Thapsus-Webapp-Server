@@ -18,6 +18,76 @@ export function tokenSha256(token) {
   return crypto.createHash('sha256').update(token).digest();
 }
 
+/**
+ * One round-trip for three checks (avoids two separate queries):
+ *
+ *   1. The bearer token has been explicitly revoked (logout, password
+ *      change). The lookup is by SHA-256 of the raw token, so the
+ *      revoked_tokens table never stores plaintext.
+ *
+ *   2. The JWT was issued before the user's last password change.
+ *      This is what makes /reset-password actually invalidate every
+ *      outstanding token for the affected user — the reset flow can't
+ *      revoke directly because it isn't authenticated, but it bumps
+ *      `users.password_changed_at` and we reject any JWT whose `iat`
+ *      predates that timestamp.
+ *
+ *   3. The user has been deactivated by an admin (is_active = false).
+ *      The JWT payload's role is fixed at sign-in, so we have to ask
+ *      the DB. Without this an admin could "disable" a user but their
+ *      sessions would keep working until the JWT exp.
+ *
+ * Returns one of:
+ *   { ok: true }                                — caller should continue
+ *   { ok: false, status, message }              — caller should res.status().json() and stop
+ *
+ * Fails closed: if the query itself errors (other than the boot-window
+ * "table doesn't exist yet" case) we return a 503 rather than silently
+ * letting the request through.
+ *
+ * 42P01 = undefined_table, 42703 = undefined_column — both surface
+ * only on the boot window between code landing and migrations 004/037
+ * running, so we treat them as "checks not configured yet".
+ */
+async function checkAuthStatus(db, token, decoded) {
+  try {
+    const { rows } = await db.query(
+      `SELECT
+         u.is_active,
+         EXTRACT(EPOCH FROM u.password_changed_at)::int AS pwd_changed_epoch,
+         EXISTS(SELECT 1 FROM revoked_tokens WHERE token_sha256 = $1) AS revoked
+       FROM users u
+       WHERE u.id = $2`,
+      [tokenSha256(token), decoded.id]
+    );
+    if (rows.length === 0) {
+      return { ok: false, status: 401, message: 'User no longer exists' };
+    }
+    const { is_active, pwd_changed_epoch, revoked } = rows[0];
+    if (revoked) {
+      return { ok: false, status: 401, message: 'Token has been revoked' };
+    }
+    if (!is_active) {
+      return { ok: false, status: 401, message: 'Account is disabled' };
+    }
+    // 5-second grace for clock skew between JWT iat and the password
+    // update's NOW() write to the DB.
+    if (decoded.iat && pwd_changed_epoch && decoded.iat + 5 < pwd_changed_epoch) {
+      return { ok: false, status: 401, message: 'Token has been revoked' };
+    }
+    return { ok: true };
+  } catch (err) {
+    if (err.code === '42P01' || err.code === '42703') {
+      // Boot-window race — migration not yet applied. Soft-fail to keep
+      // the deploy moving; subsequent requests after migration completes
+      // will get the full check.
+      return { ok: true };
+    }
+    console.error('[auth] auth-status check failed:', err.message);
+    return { ok: false, status: 503, message: 'Auth check temporarily unavailable' };
+  }
+}
+
 export async function authMiddleware(req, res, next) {
   // Support token via Authorization header OR ?token= query param (for EventSource)
   let token = null;
@@ -46,26 +116,9 @@ export async function authMiddleware(req, res, next) {
     return res.status(401).json({ success: false, message: 'Invalid or expired token' });
   }
 
-  // Reject tokens that have been explicitly logged out, even though their `exp`
-  // hasn't elapsed. Fail closed if the DB query itself fails — better to bounce
-  // the user than to silently honour a token we can't verify the revocation
-  // status of. The revoked_tokens table is created by migration 004.
-  try {
-    const { rowCount } = await req.db.query(
-      `SELECT 1 FROM revoked_tokens WHERE token_sha256 = $1 LIMIT 1`,
-      [tokenSha256(token)]
-    );
-    if (rowCount > 0) {
-      return res.status(401).json({ success: false, message: 'Token has been revoked' });
-    }
-  } catch (err) {
-    // 42P01 = undefined_table — surfaces only on the boot window between code
-    // landing and migration 004 running. Treat missing-table as "no revocations
-    // configured yet" so we don't lock everyone out during deploy.
-    if (err.code !== '42P01') {
-      console.error('[auth] revocation check failed:', err.message);
-      return res.status(503).json({ success: false, message: 'Auth check temporarily unavailable' });
-    }
+  const status = await checkAuthStatus(req.db, token, decoded);
+  if (!status.ok) {
+    return res.status(status.status).json({ success: false, message: status.message });
   }
 
   req.user = decoded;
@@ -121,23 +174,13 @@ export async function optionalAuth(req, res, next) {
     return res.status(401).json({ success: false, message: 'Invalid or expired token' });
   }
 
-  // Same revocation check as authMiddleware. optionalAuth callers expect
-  // either a populated req.user or no auth at all — refuse the request if a
-  // bearer token is present but revoked (rather than silently degrading to
-  // anonymous access, which would surface stale data with no auth context).
-  try {
-    const { rowCount } = await req.db.query(
-      `SELECT 1 FROM revoked_tokens WHERE token_sha256 = $1 LIMIT 1`,
-      [tokenSha256(token)]
-    );
-    if (rowCount > 0) {
-      return res.status(401).json({ success: false, message: 'Token has been revoked' });
-    }
-  } catch (err) {
-    if (err.code !== '42P01') {
-      console.error('[optionalAuth] revocation check failed:', err.message);
-      return res.status(503).json({ success: false, message: 'Auth check temporarily unavailable' });
-    }
+  // optionalAuth callers expect either a populated req.user or no auth
+  // at all — refuse the request if a bearer token is present but invalid
+  // (revoked, predates a password change, or user disabled) rather than
+  // silently degrading to anonymous access.
+  const status = await checkAuthStatus(req.db, token, decoded);
+  if (!status.ok) {
+    return res.status(status.status).json({ success: false, message: status.message });
   }
 
   req.user = decoded;
