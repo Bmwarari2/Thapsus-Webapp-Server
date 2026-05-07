@@ -614,14 +614,20 @@ router.patch(
             [id]
           );
           let nextPos = maxRows[0].max_pos + 1;
-          for (const pid of add) {
+          // Batched insert — each parcel gets the next sequential
+          // position. Pre-compute the full list so the SQL can be a
+          // single round-trip.
+          if (add.length > 0) {
+            const placeholders = add
+              .map((_, i) => `($${i * 3 + 1}, $${i * 3 + 2}, $${i * 3 + 3})`)
+              .join(', ');
+            const params = add.flatMap((pid) => [id, pid, nextPos++]);
             await client.query(
               `INSERT INTO last_mile_run_parcels (run_id, parcel_id, position)
-               VALUES ($1, $2, $3)
+               VALUES ${placeholders}
                ON CONFLICT (run_id, parcel_id) DO NOTHING`,
-              [id, pid, nextPos]
+              params
             );
-            nextPos++;
           }
         }
 
@@ -1067,21 +1073,37 @@ router.post(
         // bytes and OTP. The rider only captured once but every parcel in
         // the bundle needs its own audit row so per-parcel queries (admin
         // history, customer tracking) keep working.
-        for (const pid of parcels) {
+        //
+        // Batched into a single multi-row INSERT — every column except
+        // parcel_id is identical across rows, so the per-row $N
+        // placeholders only vary in slot 1. Returns ids in insert order
+        // (matches `parcels` order).
+        if (parcels.length > 0) {
+          const sharedCols = [
+            runId, req.user.id,
+            photo_url || null, photoPath || null,
+            signature_url || null, signaturePath || null,
+            otp_used || null, recipient_name || null,
+            recipient_phone || null, notes || null,
+          ];
+          // 11 placeholders per row: 1 for parcel_id + 10 shared.
+          const placeholders = parcels
+            .map((_, i) => {
+              const base = i * 11;
+              return `($${base + 1},$${base + 2},$${base + 3},'delivered',$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11})`;
+            })
+            .join(', ');
+          const params = parcels.flatMap((pid) => [pid, ...sharedCols]);
           const podRes = await client.query(
             `INSERT INTO pod_events
                (parcel_id, run_id, rider_id, result, photo_url, photo_path,
                 signature_url, signature_path, otp_used, recipient_name,
                 recipient_phone, notes)
-             VALUES ($1,$2,$3,'delivered',$4,$5,$6,$7,$8,$9,$10,$11)
+             VALUES ${placeholders}
              RETURNING id`,
-            [pid, runId, req.user.id,
-             photo_url || null, photoPath || null,
-             signature_url || null, signaturePath || null,
-             otp_used || null, recipient_name || null,
-             recipient_phone || null, notes || null]
+            params
           );
-          podIds.push(podRes.rows[0].id);
+          for (const r of podRes.rows) podIds.push(r.id);
         }
 
         // Bulk flip status across the user-group in two queries.
