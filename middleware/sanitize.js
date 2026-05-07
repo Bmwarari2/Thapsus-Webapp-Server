@@ -68,7 +68,24 @@ export function sanitizeQuery(req, res, next) {
     if (!result.ok) {
       return res.status(413).json({ success: false, message: result.message });
     }
-    req.query = result.value;
+    // Express 5 made `req.query` a LAZY GETTER — it re-parses the URL
+    // on each access, so in-place mutation (Object.assign / delete) of
+    // the returned object is silently discarded on the next read.
+    // Plain assignment (`req.query = result.value`) also throws
+    // `TypeError: Cannot set property query of #<IncomingMessage>`
+    // because there's no setter.
+    //
+    // Override the property descriptor entirely with a frozen value
+    // so the getter is replaced and downstream handlers see the
+    // sanitised version on every access. `configurable: true` keeps
+    // it overridable in the unlikely case some other middleware
+    // wants to do the same.
+    Object.defineProperty(req, 'query', {
+      value: result.value,
+      writable: true,
+      configurable: true,
+      enumerable: true,
+    });
   }
   next();
 }
