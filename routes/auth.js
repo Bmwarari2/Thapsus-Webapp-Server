@@ -126,7 +126,10 @@ router.post('/register', async (req, res) => {
       return res.status(409).json({ success: false, message: 'Email already registered' });
     }
 
-    const passwordHash = bcrypt.hashSync(password, BCRYPT_COST);
+    // Async bcrypt — `hashSync` blocks the event loop for ~80ms which
+    // hurts concurrency under load. Async runs in libuv's threadpool
+    // so other requests keep flowing while the hash is computed.
+    const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
     const userId = uuidv4();
     const warehouseId = generateWarehouseId();
 
@@ -227,10 +230,9 @@ router.post('/login', async (req, res) => {
     // wrong-password path returns in ~80ms — a side channel for email
     // enumeration. The dummy hash is computed once at module load.
     const user = rows[0];
-    const passwordOk = user
-      ? bcrypt.compareSync(password, user.password)
-      : (bcrypt.compareSync(password, DUMMY_PASSWORD_HASH), false);
-    if (!user || !passwordOk) {
+    const hashToCompare = user ? user.password : DUMMY_PASSWORD_HASH;
+    const passwordMatched = await bcrypt.compare(password, hashToCompare);
+    if (!user || !passwordMatched) {
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
 
@@ -372,13 +374,13 @@ router.put('/password', authMiddleware, async (req, res) => {
     const { rows } = await req.db.query('SELECT password FROM users WHERE id=$1', [userId]);
     if (rows.length === 0) return res.status(404).json({ success: false, message: 'User not found' });
 
-    if (!bcrypt.compareSync(current_password, rows[0].password)) {
+    if (!(await bcrypt.compare(current_password, rows[0].password))) {
       return res.status(401).json({ success: false, message: 'Current password is incorrect' });
     }
 
     await req.db.query(
       'UPDATE users SET password=$1, password_changed_at=NOW(), updated_at=NOW() WHERE id=$2',
-      [bcrypt.hashSync(new_password, BCRYPT_COST), userId]
+      [await bcrypt.hash(new_password, BCRYPT_COST), userId]
     );
 
     // Bumping password_changed_at above already invalidates every
@@ -445,7 +447,7 @@ router.post('/reset-password', async (req, res) => {
     }
 
     const { id: tokenId, user_id: userId } = tokenRes.rows[0];
-    const passwordHash = bcrypt.hashSync(new_password, BCRYPT_COST);
+    const passwordHash = await bcrypt.hash(new_password, BCRYPT_COST);
 
     await db.query('BEGIN');
     try {

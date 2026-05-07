@@ -1357,7 +1357,7 @@ router.post('/users/create', authMiddleware, isAdmin, async (req, res) => {
       referralCode = generateReferralCode();
     }
     const tempPassword  = crypto.randomBytes(24).toString('hex');
-    const passwordHash  = bcrypt.hashSync(tempPassword, 10);
+    const passwordHash  = await bcrypt.hash(tempPassword, 10);
     const setupToken    = crypto.randomBytes(32).toString('hex');
     const setupTokenId  = uuidv4();
     const expiresAt     = new Date(Date.now() + 24 * 3600000).toISOString();
