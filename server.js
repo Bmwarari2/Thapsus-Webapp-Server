@@ -175,7 +175,11 @@ if (CORS_ORIGIN === '*') {
   }));
 }
 
-app.options('*', cors());
+// Express 5 / path-to-regexp v6 requires named splat parameters
+// instead of bare `*`. `*splat` matches any subpath and stores the
+// matched segments in req.params.splat (we don't read it here —
+// just need the route to match every preflight).
+app.options('/*splat', cors());
 
 app.use(compression());
 app.use(morgan(NODE_ENV === 'development' ? 'dev' : 'combined'));
@@ -457,7 +461,12 @@ app.use('/api/admin',         adminRoutes);
 // /api/wallet REMOVED — wallet table dropped in migration 028. Stub responds
 // with 410 Gone so any stale iOS/web client gets a clear "switch to /api/payments"
 // signal instead of a confusing 404.
-app.all('/api/wallet*', (_req, res) => res.status(410).json({
+//
+// Express 5 / path-to-regexp v6: bare `*` glob isn't valid; use a
+// named splat. `/*splat` is optional (matches the bare path too) and
+// `*splat` captures any subpath under /api/wallet — we don't read
+// the captured value, the match is the whole point.
+app.all('/api/wallet{/*splat}', (_req, res) => res.status(410).json({
   success: false,
   message: 'Wallet has been removed. Use POST /api/payments instead.',
 }));
