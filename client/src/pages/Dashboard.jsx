@@ -7,7 +7,6 @@ import { ordersApi, paymentsApi, warehouseApi } from '../api'
 import toast from 'react-hot-toast'
 import { useOrderUpdates, useCreditUpdates } from '../hooks/useRealtimeUpdates'
 import { CutoffBanner } from '../components/CutoffBanner'
-import { NpsAutoPrompt } from '../components/NpsAutoPrompt'
 
 // --- CUSTOM STYLES & GLASS COMPONENTS ---
 const DashboardStyles = () => (
@@ -228,12 +227,15 @@ export const Dashboard = () => {
           <CutoffBanner />
         </div>
 
-        {/* Surfaces an NPS survey card if the customer has any unresponded
-            invitations. iOS NpsAutoPromptModifier is the parity surface;
-            both poll /api/nps/pending and respect each other via the
-            server's `responded_at` flag (cross-device source of truth)
-            plus localStorage for "Not now" within this browser. */}
-        <NpsAutoPrompt />
+        {/* NPS post-delivery survey auto-prompt deliberately disabled
+            — customer feedback (2026-05-07): the popup firing right
+            after every delivered parcel was intrusive on both iOS and
+            web. The <NpsAutoPrompt /> component itself stays in the
+            codebase so this can be re-enabled with a one-line add
+            here if/when we want a less aggressive trigger (e.g. once
+            per N deliveries, only via the email link, or behind a
+            settings toggle). The matching iOS change ships in
+            thapsus-v1.1 PR #15. */}
 
         {/* Welcome Section */}
         <div className="mb-10 text-center md:text-left">
