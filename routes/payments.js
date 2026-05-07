@@ -877,13 +877,34 @@ export async function lipanaWebhookHandler(req, res) {
   }
 
   const event = payload?.event;
-  const data  = payload?.data || {};
-  const transactionId = data.transactionId || data.transaction_id || null;
+  const data  = payload?.data ?? payload?.result ?? {};
+  // Lipana's response shape has drifted from their docs — accept the
+  // same field-name variants we tolerate in lipanaClient.js so the
+  // webhook can still match a row even when only one id was stamped.
+  const transactionId =
+       data.transactionId
+    ?? data.transaction_id
+    ?? data.txnId
+    ?? data.txn_id
+    ?? data.id
+    ?? payload?.transactionId
+    ?? payload?.transaction_id
+    ?? null;
+  const checkoutRequestID =
+       data.checkoutRequestID
+    ?? data.checkoutRequestId
+    ?? data.checkout_request_id
+    ?? data.checkoutRequest
+    ?? payload?.checkoutRequestID
+    ?? payload?.checkoutRequestId
+    ?? payload?.checkout_request_id
+    ?? null;
   // Lipana docs don't currently advertise an event id, so we fall back
-  // to the transaction id + event type. That still de-dupes the
+  // to whichever id is present + event type. That still de-dupes the
   // common case (two `payment.success` redeliveries for the same TXN).
+  const dedupeKey = transactionId || checkoutRequestID;
   const eventId = payload?.id || payload?.event_id
-    || (transactionId ? `${event}:${transactionId}` : null);
+    || (dedupeKey ? `${event}:${dedupeKey}` : null);
 
   if (!event || !eventId) {
     return res.status(400).send('Malformed payload');
@@ -905,13 +926,19 @@ export async function lipanaWebhookHandler(req, res) {
     // payment lookup short-circuit if we've already paid this one.
   }
 
-  if (!transactionId) {
+  if (!transactionId && !checkoutRequestID) {
     return res.json({ received: true, no_transaction_id: true });
   }
 
+  // Match on either id — older rows might have had only one stamped
+  // before the lipanaClient extraction was made lenient. Matching by
+  // either keeps webhooks settling correctly.
   const { rows } = await req.db.query(
-    `SELECT id, status FROM payments WHERE lipana_transaction_id = $1`,
-    [transactionId]
+    `SELECT id, status FROM payments
+      WHERE ($1::text IS NOT NULL AND lipana_transaction_id      = $1)
+         OR ($2::text IS NOT NULL AND lipana_checkout_request_id = $2)
+      LIMIT 1`,
+    [transactionId, checkoutRequestID]
   );
   const payment = rows[0];
   if (!payment) {
@@ -919,7 +946,7 @@ export async function lipanaWebhookHandler(req, res) {
     // dashboard test, manual curl, another integration). Logged at
     // info level: it's expected noise on a live webhook URL, not a
     // real failure mode for our customers.
-    console.info(`[lipana-webhook] orphan ${event} for TXN ${transactionId} — no matching payment row`);
+    console.info(`[lipana-webhook] orphan ${event} for TXN ${transactionId || '∅'} / CR ${checkoutRequestID || '∅'} — no matching payment row`);
     return res.json({ received: true, no_payment: true });
   }
 

@@ -154,14 +154,51 @@ export async function initiateStkPush({ phone, amountKes, idempotencyKey }) {
     });
   }
 
-  const data = body.data || {};
-  const transactionId     = data.transactionId     || data.transaction_id;
-  const checkoutRequestID = data.checkoutRequestID || data.checkout_request_id;
-  if (!transactionId || !checkoutRequestID) {
+  // Lipana's response shape has drifted from their published docs (the
+  // first prod customer attempt 2026-05-07 14:05 returned a body whose
+  // top-level `data` block lacked both transactionId and
+  // checkoutRequestID under the documented names). Look in every
+  // plausible location, treat anything that round-trips as good
+  // enough — the webhook lookup tolerates either id, and the unique
+  // partial index on lipana_transaction_id is the belt-and-braces guard.
+  const data = body.data ?? body.result ?? {};
+  const transactionId =
+       data.transactionId
+    ?? data.transaction_id
+    ?? data.txnId
+    ?? data.txn_id
+    ?? data.id
+    ?? body.transactionId
+    ?? body.transaction_id
+    ?? body.id
+    ?? null;
+  const checkoutRequestID =
+       data.checkoutRequestID
+    ?? data.checkoutRequestId
+    ?? data.checkout_request_id
+    ?? data.checkoutRequest
+    ?? body.checkoutRequestID
+    ?? body.checkoutRequestId
+    ?? body.checkout_request_id
+    ?? null;
+  if (!transactionId && !checkoutRequestID) {
+    // Dump the full response so the next failure surfaces the real
+    // shape in Railway logs without needing another deploy. Safe to
+    // log: no PII / secrets in the STK init response.
+    console.error('[lipana] STK init response missing both ids:',
+                  JSON.stringify(body));
     throw new LipanaError(
       'Lipana response missing transactionId / checkoutRequestID',
       { status: 502, code: 'lipana_bad_response', body }
     );
+  }
+  if (!transactionId || !checkoutRequestID) {
+    // We have one id but not both. Log so we know which one and can
+    // tighten the matcher; let it through — webhook lookup OR-matches.
+    console.warn('[lipana] STK init returned only one of (txn, checkout):',
+                 { transactionId, checkoutRequestID,
+                   bodyKeys: Object.keys(body || {}),
+                   dataKeys: Object.keys(data || {}) });
   }
 
   return {
