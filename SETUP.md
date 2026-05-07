@@ -275,7 +275,7 @@ try {
 
 Before going to production, implement actual integrations:
 
-- [ ] M-Pesa API (remove placeholders)
+- [x] M-Pesa API (Lipana STK Push live — `utils/lipanaClient.js`, `routes/payments.js`, iOS sheet on `feat/lipana-ios`)
 - [ ] Stripe API (remove placeholders)
 - [ ] PayPal API (remove placeholders)
 - [ ] SendGrid API (remove placeholders)
