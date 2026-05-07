@@ -181,6 +181,14 @@ export async function initiateStkPush({ phone, amountKes, idempotencyKey }) {
     ?? body.checkoutRequestId
     ?? body.checkout_request_id
     ?? null;
+  // Confirmed against a real prod response 2026-05-07 14:18: Lipana's
+  // STK init only returns `data.transactionId` — `checkoutRequestID`
+  // is documented but never sent. The webhook also only carries the
+  // transaction id (top-level `transaction_id` per docs), so matching
+  // by lipana_transaction_id alone is sufficient. We still accept
+  // either id here — if Lipana ever changes the shape and starts
+  // sending checkoutRequestID, the row stamp + webhook matcher
+  // already handle it without further code changes.
   if (!transactionId && !checkoutRequestID) {
     // Dump the full response so the next failure surfaces the real
     // shape in Railway logs without needing another deploy. Safe to
@@ -191,14 +199,6 @@ export async function initiateStkPush({ phone, amountKes, idempotencyKey }) {
       'Lipana response missing transactionId / checkoutRequestID',
       { status: 502, code: 'lipana_bad_response', body }
     );
-  }
-  if (!transactionId || !checkoutRequestID) {
-    // We have one id but not both. Log so we know which one and can
-    // tighten the matcher; let it through — webhook lookup OR-matches.
-    console.warn('[lipana] STK init returned only one of (txn, checkout):',
-                 { transactionId, checkoutRequestID,
-                   bodyKeys: Object.keys(body || {}),
-                   dataKeys: Object.keys(data || {}) });
   }
 
   return {
