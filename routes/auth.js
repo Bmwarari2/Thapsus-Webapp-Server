@@ -11,6 +11,33 @@ function resetTokenSha256(rawToken) {
   return crypto.createHash('sha256').update(rawToken).digest();
 }
 
+/**
+ * bcrypt cost factor used for every password hash. OWASP currently
+ * recommends 10 minimum (2025 guidance); bumping this only affects
+ * NEW hashes — existing hashes carry their own cost in the stored
+ * string, so login compareSync still validates them correctly. If
+ * we ever raise this above 10, schedule a background re-hash on
+ * next-successful-login per user to migrate gradually.
+ */
+const BCRYPT_COST = 10;
+
+/**
+ * Pre-computed bcrypt hash of a random throwaway value. Used by the
+ * login handler to spend a real bcrypt-compare cycle even when the
+ * email lookup returns no rows — without this, the absence of an
+ * account is observable as a ~80ms latency difference, which lets
+ * an attacker enumerate registered emails. Generated once at module
+ * load so we don't pay the cost on every request.
+ */
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync('login-timing-equalizer', BCRYPT_COST);
+
+/**
+ * Minimum length policy applied uniformly across register, change,
+ * and reset. Was previously inconsistent (8 / 6 / 6) which let a user
+ * register with 8 chars and then weaken to 6 via change-password.
+ */
+const PASSWORD_MIN_LENGTH = 8;
+
 function safeMintSupabaseToken(user, where) {
   try {
     return mintSupabaseToken(user);
@@ -79,8 +106,11 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid phone number format' });
     }
 
-    if (password.length < 8) {
-      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      return res.status(400).json({
+        success: false,
+        message: `Password must be at least ${PASSWORD_MIN_LENGTH} characters`
+      });
     }
 
     let normalisedCountry = null;
@@ -96,7 +126,7 @@ router.post('/register', async (req, res) => {
       return res.status(409).json({ success: false, message: 'Email already registered' });
     }
 
-    const passwordHash = bcrypt.hashSync(password, 10);
+    const passwordHash = bcrypt.hashSync(password, BCRYPT_COST);
     const userId = uuidv4();
     const warehouseId = generateWarehouseId();
 
@@ -191,10 +221,16 @@ router.post('/login', async (req, res) => {
        FROM users WHERE email=$1 AND is_active=true`,
       [email]
     );
-    if (rows.length === 0) return res.status(401).json({ success: false, message: 'Invalid email or password' });
-
+    // Always run a bcrypt-compare regardless of whether the user
+    // exists, so the response time doesn't betray account existence.
+    // Without this, a "no such email" path returns in ~1ms while a
+    // wrong-password path returns in ~80ms — a side channel for email
+    // enumeration. The dummy hash is computed once at module load.
     const user = rows[0];
-    if (!bcrypt.compareSync(password, user.password)) {
+    const passwordOk = user
+      ? bcrypt.compareSync(password, user.password)
+      : (bcrypt.compareSync(password, DUMMY_PASSWORD_HASH), false);
+    if (!user || !passwordOk) {
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
 
@@ -326,8 +362,11 @@ router.put('/password', authMiddleware, async (req, res) => {
     if (!current_password || !new_password) {
       return res.status(400).json({ success: false, message: 'Current and new password required' });
     }
-    if (new_password.length < 6) {
-      return res.status(400).json({ success: false, message: 'New password must be at least 6 characters' });
+    if (new_password.length < PASSWORD_MIN_LENGTH) {
+      return res.status(400).json({
+        success: false,
+        message: `New password must be at least ${PASSWORD_MIN_LENGTH} characters`
+      });
     }
 
     const { rows } = await req.db.query('SELECT password FROM users WHERE id=$1', [userId]);
@@ -339,8 +378,28 @@ router.put('/password', authMiddleware, async (req, res) => {
 
     await req.db.query(
       'UPDATE users SET password=$1, updated_at=NOW() WHERE id=$2',
-      [bcrypt.hashSync(new_password, 10), userId]
+      [bcrypt.hashSync(new_password, BCRYPT_COST), userId]
     );
+
+    // Revoke the bearer token used for THIS request so the user must
+    // re-authenticate with the new password. Without this, a leaked
+    // token still works for up to 30d after the user "fixed" it —
+    // defeating the typical reason for changing the password. The
+    // password update above is the source of truth, so a failure here
+    // logs but doesn't roll back.
+    if (req.authToken && req.user.exp) {
+      try {
+        await req.db.query(
+          `INSERT INTO revoked_tokens (token_sha256, user_id, expires_at)
+           VALUES ($1, $2, to_timestamp($3))
+           ON CONFLICT (token_sha256) DO NOTHING`,
+          [tokenSha256(req.authToken), userId, req.user.exp]
+        );
+      } catch (revokeErr) {
+        console.error('[auth/password] revoke-on-change failed:', revokeErr.message);
+      }
+    }
+
     res.json({ success: true, message: 'Password changed successfully' });
   } catch (error) {
     console.error('Password change error:', error);
@@ -358,8 +417,11 @@ router.post('/reset-password', async (req, res) => {
     if (!token || !new_password) {
       return res.status(400).json({ success: false, message: 'Token and new password are required' });
     }
-    if (new_password.length < 6) {
-      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    if (new_password.length < PASSWORD_MIN_LENGTH) {
+      return res.status(400).json({
+        success: false,
+        message: `Password must be at least ${PASSWORD_MIN_LENGTH} characters`
+      });
     }
 
     // Find valid, unused token that hasn't expired.  Lookup is by
@@ -381,7 +443,7 @@ router.post('/reset-password', async (req, res) => {
     }
 
     const { id: tokenId, user_id: userId } = tokenRes.rows[0];
-    const passwordHash = bcrypt.hashSync(new_password, 10);
+    const passwordHash = bcrypt.hashSync(new_password, BCRYPT_COST);
 
     await db.query('BEGIN');
     try {
