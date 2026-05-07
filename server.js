@@ -1,3 +1,8 @@
+// MUST be the first import — populates `globalThis.crypto` before any
+// downstream module (uuid v4, supabase-js, our errorLogger) runs its
+// own top-level lookup. See polyfills/webcrypto.js for context.
+import './polyfills/webcrypto.js';
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
