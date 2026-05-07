@@ -379,16 +379,18 @@ router.put('/password', authMiddleware, async (req, res) => {
     }
 
     await req.db.query(
-      'UPDATE users SET password=$1, updated_at=NOW() WHERE id=$2',
+      'UPDATE users SET password=$1, password_changed_at=NOW(), updated_at=NOW() WHERE id=$2',
       [await bcrypt.hash(new_password, BCRYPT_COST), userId]
     );
 
-    // Revoke the bearer token used for THIS request so the user must
-    // re-authenticate with the new password. Without this, a leaked
-    // token still works for up to 30d after the user "fixed" it —
-    // defeating the typical reason for changing the password. The
-    // password update above is the source of truth, so a failure here
-    // logs but doesn't roll back.
+    // Bumping password_changed_at above already invalidates every
+    // previously-issued JWT for this user (authMiddleware rejects any
+    // JWT whose iat predates it). We still also revoke the CURRENT
+    // bearer as a belt-and-braces measure: the iat-vs-password check
+    // has a 5-second clock-skew grace, so without an explicit
+    // revocation a token issued in the same second as the password
+    // update could squeak through. The password update above is the
+    // source of truth, so a failure here logs but doesn't roll back.
     if (req.authToken && req.user.exp) {
       try {
         await req.db.query(
@@ -449,9 +451,13 @@ router.post('/reset-password', async (req, res) => {
 
     await db.query('BEGIN');
     try {
-      // Update user's password
+      // Update user's password and bump password_changed_at so every
+      // outstanding JWT for this user gets rejected by authMiddleware
+      // on its next request — the typical reason for resetting a
+      // password is suspected compromise, so the previously-issued
+      // tokens MUST stop working.
       await db.query(
-        'UPDATE users SET password = $1, updated_at = NOW() WHERE id = $2',
+        'UPDATE users SET password = $1, password_changed_at = NOW(), updated_at = NOW() WHERE id = $2',
         [passwordHash, userId]
       );
       // Mark token as used
