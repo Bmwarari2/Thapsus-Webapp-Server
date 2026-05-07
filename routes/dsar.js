@@ -8,6 +8,7 @@
  *   POST  /api/dsar/:id/export    — admin packages user data into JSON blob
  */
 import express from 'express';
+import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -33,7 +34,7 @@ router.post('/', authMiddleware, async (req, res) => {
         message: 'DSAR table not provisioned on this environment. Run database/migrations/001_framework_v2_additions.sql in Supabase and try again.'
       });
     }
-    const id = `DSAR-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
+    const id = uuidv4();
     const due = dueDate();
     await req.db.query(
       `INSERT INTO dsar_requests (id, user_id, type, status, due_at, notes)
