@@ -67,6 +67,73 @@ function buildRawEmail({ from, to, subject, html, text }) {
     .replace(/=+$/, '');
 }
 
+/**
+ * Build a raw RFC 2822 email with optional file attachments.
+ *
+ * Outer boundary wraps a `multipart/mixed`: the first part is the
+ * `multipart/alternative` text+html body produced by buildRawEmail's logic,
+ * each remaining part is one base64-encoded attachment.
+ *
+ * `attachments` is `[{ filename, contentType, content }]` — `content` is
+ * either a Buffer or a UTF-8 string.
+ */
+function buildRawEmailWithAttachments({ from, to, subject, html, text, attachments }) {
+  const altBoundary   = `alt_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const mixedBoundary = `mixed_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+  const altParts = [
+    `--${altBoundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    Buffer.from(text || '').toString('base64'),
+    '',
+    `--${altBoundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    Buffer.from(html || '').toString('base64'),
+    '',
+    `--${altBoundary}--`,
+  ].join('\r\n');
+
+  const attachmentParts = (attachments || []).map((a) => {
+    const buf = Buffer.isBuffer(a.content) ? a.content : Buffer.from(a.content || '', 'utf8');
+    const encoded = buf.toString('base64').replace(/(.{76})/g, '$1\r\n');
+    return [
+      `--${mixedBoundary}`,
+      `Content-Type: ${a.contentType || 'application/octet-stream'}; name="${a.filename}"`,
+      `Content-Disposition: attachment; filename="${a.filename}"`,
+      'Content-Transfer-Encoding: base64',
+      '',
+      encoded,
+      '',
+    ].join('\r\n');
+  });
+
+  const messageParts = [
+    `From: ${from}`,
+    `To: ${Array.isArray(to) ? to.join(', ') : to}`,
+    `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
+    '',
+    `--${mixedBoundary}`,
+    `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+    '',
+    altParts,
+    '',
+    ...attachmentParts,
+    `--${mixedBoundary}--`,
+  ];
+
+  return Buffer.from(messageParts.join('\r\n'))
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
 async function sendWithGmail(mailOptions, retries = 2) {
   const auth = getOAuth2Client();
   if (!auth) {
@@ -81,13 +148,22 @@ async function sendWithGmail(mailOptions, retries = 2) {
   const senderEmail = getSenderAddress();
   const from = mailOptions.from || `Thapsus Cargo <${senderEmail}>`;
 
-  const raw = buildRawEmail({
-    from,
-    to:      mailOptions.to,
-    subject: mailOptions.subject,
-    html:    mailOptions.html,
-    text:    mailOptions.text,
-  });
+  const raw = (mailOptions.attachments && mailOptions.attachments.length > 0)
+    ? buildRawEmailWithAttachments({
+        from,
+        to:          mailOptions.to,
+        subject:     mailOptions.subject,
+        html:        mailOptions.html,
+        text:        mailOptions.text,
+        attachments: mailOptions.attachments,
+      })
+    : buildRawEmail({
+        from,
+        to:      mailOptions.to,
+        subject: mailOptions.subject,
+        html:    mailOptions.html,
+        text:    mailOptions.text,
+      });
 
   let lastError;
 
@@ -1109,6 +1185,53 @@ async function sendUnifiedPaymentReceiptEmail(toEmail, toName, opts) {
 }
 
 /**
+ * Send the GDPR data export to the customer as a JSON attachment.
+ * The export blob is generated upstream in `routes/dsar.js` so this helper
+ * stays mailer-only.
+ */
+async function sendDsarExportEmail({ toEmail, userName, userId, dsarId, exportJson }) {
+  const subject = 'Your Thapsus Cargo data export';
+  const greeting = userName ? `Hi ${userName.split(' ')[0]},` : 'Hi,';
+  const filename = `thapsus-data-export-${dsarId}.json`;
+  const text = [
+    greeting,
+    '',
+    'Attached is the JSON export of the personal data we hold on your Thapsus Cargo account, as requested under your GDPR / DPA 2018 right of access.',
+    '',
+    'The file contains your profile, orders, transactions and support tickets. We have intentionally excluded payment-proof data (M-Pesa SMS contents, payer details, Stripe identifiers).',
+    '',
+    'If you did not request this, please reply to this email immediately.',
+    '',
+    'Thapsus Cargo Compliance',
+  ].join('\n');
+  const html = emailLayout(`
+    <p style="margin:0 0 12px;">${greeting}</p>
+    <p>Attached is the JSON export of the personal data we hold on your Thapsus Cargo account, as requested under your GDPR / DPA 2018 right of access.</p>
+    <p>The file contains your profile, orders, transactions and support tickets. We have intentionally excluded payment-proof data (M-Pesa SMS contents, payer details, Stripe identifiers).</p>
+    <p style="font-size:12px; color:#6b7280;">Request reference: <code>${dsarId}</code></p>
+    <p style="font-size:12px; color:#6b7280;">If you did not request this, please reply to this email immediately.</p>
+  `);
+  try {
+    const result = await sendWithGmail({
+      to: toEmail,
+      subject,
+      html,
+      text,
+      attachments: [{
+        filename,
+        contentType: 'application/json',
+        content: exportJson,
+      }],
+    });
+    await logEmailSent({ toEmail, emailType: 'dsar_export', subject, userId: userId || null });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'dsar_export', subject, userId: userId || null, errorMessage: error.message });
+    throw error;
+  }
+}
+
+/**
  * Email config diagnostics — backs the admin /api/admin/email-config endpoint
  * so the app can tell whether Gmail OAuth credentials are present without
  * exposing the secrets themselves.
@@ -1166,6 +1289,7 @@ export {
   sendBuyForMeQuoteEmail,
   sendBuyForMeAdminNewRequestEmail,
   sendUnifiedPaymentReceiptEmail,
+  sendDsarExportEmail,
   emailConfigStatus,
 };
 
@@ -1190,5 +1314,6 @@ export default {
   sendBuyForMeQuoteEmail,
   sendBuyForMeAdminNewRequestEmail,
   sendUnifiedPaymentReceiptEmail,
+  sendDsarExportEmail,
   emailConfigStatus,
 };
