@@ -83,7 +83,7 @@ import ordersRoutes        from './routes/orders.js';
 import trackingRoutes      from './routes/tracking.js';
 import adminRoutes         from './routes/admin.js';
 // import walletRoutes from './routes/wallet.js'; // REMOVED in PR A — wallet replaced by payments + credits (migration 028).
-import paymentsRoutes, { stripeWebhookHandler } from './routes/payments.js';
+import paymentsRoutes, { stripeWebhookHandler, lipanaWebhookHandler } from './routes/payments.js';
 import adminPaymentsRoutes from './routes/adminPayments.js';
 import exchangeRoutes      from './routes/exchange.js';
 import referralRoutes      from './routes/referral.js';
@@ -190,6 +190,13 @@ app.post('/api/payments/stripe/webhook',
   express.raw({ type: 'application/json', limit: '1mb' }),
   (req, _res, next) => { req.db = getPool(); next(); },
   stripeWebhookHandler
+);
+// Lipana M-Pesa STK webhook — same raw-body recipe; HMAC-SHA256 signature
+// verification reads the unparsed bytes via X-Lipana-Signature.
+app.post('/api/payments/lipana/webhook',
+  express.raw({ type: 'application/json', limit: '1mb' }),
+  (req, _res, next) => { req.db = getPool(); next(); },
+  lipanaWebhookHandler
 );
 
 app.use(express.json({ limit: '10mb' }));
