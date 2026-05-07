@@ -35,7 +35,13 @@ export async function authMiddleware(req, res, next) {
 
   let decoded;
   try {
-    decoded = jwt.verify(token, JWT_SECRET);
+    // Pin the algorithm to HS256 (jsonwebtoken's default with a string
+    // secret). Without an explicit allowlist, the verifier accepts any
+    // algorithm the token's header specifies — including `none`, which
+    // some older versions of `jsonwebtoken` could honour, and asymmetric
+    // algorithms whose public keys could be passed as the symmetric
+    // secret in algorithm-confusion attacks.
+    decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
   } catch (err) {
     return res.status(401).json({ success: false, message: 'Invalid or expired token' });
   }
@@ -110,7 +116,7 @@ export async function optionalAuth(req, res, next) {
   const token = authHeader.slice(7);
   let decoded;
   try {
-    decoded = jwt.verify(token, JWT_SECRET);
+    decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
   } catch (err) {
     return res.status(401).json({ success: false, message: 'Invalid or expired token' });
   }
