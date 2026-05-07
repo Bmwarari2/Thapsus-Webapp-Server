@@ -10,6 +10,7 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
+import { sendDsarExportEmail } from '../utils/email.js';
 
 const router = express.Router();
 
@@ -110,15 +111,28 @@ router.patch('/:id', authMiddleware, requireRole('admin'), async (req, res) => {
   }
 });
 
-/** POST /api/dsar/:id/export — admin builds the export blob */
+/**
+ * POST /api/dsar/:id/export — admin builds the export blob and emails it
+ * to the customer as a JSON attachment, then marks the DSAR fulfilled.
+ *
+ * Proof-of-payment fields are deliberately excluded:
+ *   - transactions.payment_reference (M-Pesa code / Stripe charge id)
+ *   - transactions.metadata (mpesa_message text, payer_name, payer_phone)
+ *
+ * The customer still receives every record we hold on them, but not the
+ * confirmation artefacts that prove a third party transferred money.
+ */
 router.post('/:id/export', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
     const dsar = await req.db.query(
-      `SELECT * FROM dsar_requests WHERE id = $1`, [id]
+      `SELECT id, user_id, type, status FROM dsar_requests WHERE id = $1`, [id]
     );
     if (dsar.rows.length === 0)
       return res.status(404).json({ success: false, message: 'DSAR not found' });
+    if (dsar.rows[0].type !== 'export')
+      return res.status(400).json({ success: false, message: 'DSAR is not an export request' });
+
     const userId = dsar.rows[0].user_id;
 
     const [user, orders, txns, tickets] = await Promise.all([
@@ -127,23 +141,58 @@ router.post('/:id/export', authMiddleware, requireRole('admin'), async (req, res
                            utm_source, utm_medium, utm_campaign, created_at
                       FROM users WHERE id = $1`, [userId]),
       req.db.query(`SELECT * FROM orders WHERE user_id = $1`, [userId]),
-      req.db.query(`SELECT * FROM transactions WHERE user_id = $1`, [userId]),
+      req.db.query(`SELECT id, user_id, type, amount, currency, payment_method,
+                           status, created_at
+                      FROM transactions WHERE user_id = $1`, [userId]),
       req.db.query(`SELECT * FROM tickets WHERE user_id = $1`, [userId]),
     ]);
 
+    if (user.rows.length === 0)
+      return res.status(404).json({ success: false, message: 'User no longer exists' });
+
+    const profile = user.rows[0];
+    const toEmail = profile.email;
+    if (!toEmail)
+      return res.status(422).json({ success: false, message: 'User has no email on file — cannot deliver export' });
+
+    const exportBlob = {
+      generated_at: new Date().toISOString(),
+      dsar_request_id: id,
+      proof_of_payment_excluded: true,
+      user: profile,
+      orders: orders.rows,
+      transactions: txns.rows,
+      tickets: tickets.rows,
+    };
+
+    const exportJson = JSON.stringify(exportBlob, null, 2);
+
+    await sendDsarExportEmail({
+      toEmail,
+      userName: profile.name,
+      userId,
+      dsarId: id,
+      exportJson,
+    });
+
+    await req.db.query(
+      `UPDATE dsar_requests
+          SET status = 'fulfilled',
+              fulfilled_at = NOW(),
+              notes = COALESCE(notes, '') ||
+                      CASE WHEN COALESCE(notes,'') = '' THEN '' ELSE E'\n' END ||
+                      'Export emailed to ' || $2 || ' on ' || NOW()::date
+        WHERE id = $1`,
+      [id, toEmail]
+    );
+
     res.json({
       success: true,
-      export: {
-        generated_at: new Date().toISOString(),
-        user: user.rows[0],
-        orders: orders.rows,
-        transactions: txns.rows,
-        tickets: tickets.rows,
-      },
+      message: `Export emailed to ${toEmail}.`,
     });
   } catch (err) {
     console.error('POST /dsar/:id/export error:', err);
-    res.status(500).json({ success: false, message: 'Failed to export user data' });
+    res.status(500).json({ success: false, message: `Failed to export user data: ${err.message}` });
   }
 });
 
