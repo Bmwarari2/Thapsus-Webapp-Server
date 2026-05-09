@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, Link, useParams } from 'react-router-dom'
 import {
-  Plane, FileText, Plus, ArrowRight, Truck, Boxes, AlertCircle, Save
+  Plane, FileText, Plus, ArrowRight, Truck, Boxes, AlertCircle, Save, Printer
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { consolidationsApi, opsApi } from '../api'
 import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '../components/GlassUI'
+import { PrintableManifest } from '../components/PrintableManifest'
 
 export const OpsConsolidations = () => {
   const [list,    setList]    = useState([])
@@ -115,6 +116,24 @@ export const OpsConsolidationDetail = () => {
   const [parcels,  setParcels]  = useState([])
   const [loading,  setLoading]  = useState(true)
   const [available, setAvailable] = useState([])
+  // Drives the print container. When non-null, the hidden manifest
+  // <div class="print:block"> renders the consolidation + parcels and
+  // an effect fires window.print(). afterprint clears the state, so
+  // the next print call re-mounts and refreshes the printedAt stamp.
+  const [printingManifest, setPrintingManifest] = useState(null)
+
+  useEffect(() => {
+    if (!printingManifest) return
+    const onAfter = () => setPrintingManifest(null)
+    window.addEventListener('afterprint', onAfter)
+    const raf = requestAnimationFrame(() => {
+      try { window.print() } catch (_) { /* surfaced by toast in caller */ }
+    })
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('afterprint', onAfter)
+    }
+  }, [printingManifest])
 
   const refetch = () => consolidationsApi.get(id).then(r => {
     setData(r.data)
@@ -212,7 +231,11 @@ export const OpsConsolidationDetail = () => {
           <div className="flex flex-wrap gap-3 mt-5">
             <button onClick={onManifest}
               className="inline-flex items-center gap-2 bg-[#1e3a5f] text-white px-4 py-2 rounded-xl text-sm font-bold">
-              <FileText size={14}/> Generate manifest
+              <FileText size={14}/> Download JSON
+            </button>
+            <button onClick={() => setPrintingManifest({ consolidation: c, parcels })}
+              className="inline-flex items-center gap-2 bg-white text-[#1e3a5f] ring-1 ring-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl text-sm font-bold">
+              <Printer size={14}/> Print manifest
             </button>
             <button onClick={() => onUpdate({ status: 'in_transit' })}
               className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-sm font-bold">
@@ -280,6 +303,29 @@ export const OpsConsolidationDetail = () => {
           )}
         </GlassCard>
       </div>
+
+      {/* Print container. Only visible inside @media print so the
+          manifest sheet is the only thing that lands on paper. The
+          @page rule sets standard A4 portrait; if the operator has a
+          printer set to thermal-label paper, the table just spans
+          multiple pages and the thead repeats per
+          `display: table-header-group` inside PrintableManifest. */}
+      <div className="hidden print:block fixed inset-0 bg-white">
+        {printingManifest && (
+          <PrintableManifest
+            consolidation={printingManifest.consolidation}
+            parcels={printingManifest.parcels}
+          />
+        )}
+      </div>
+      <style>{`
+        @media print {
+          @page { size: A4 portrait; margin: 0; }
+          body { background: #ffffff !important; }
+          body > *:not(#root) { display: none !important; }
+          #root > *:not(.print\\:block) { display: none !important; }
+        }
+      `}</style>
     </div>
   )
 }
