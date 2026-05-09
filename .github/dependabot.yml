@@ -1,0 +1,79 @@
+version: 2
+updates:
+  # Backend Express + Supabase deps
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/London
+    open-pull-requests-limit: 5
+    target-branch: JS1
+    labels:
+      - dependencies
+      - backend
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+    # Group all non-major patch + minor bumps so the queue isn't overwhelming.
+    # Major bumps still come as individual PRs — see reference_dep_major_gotchas.md
+    # in the iOS repo for known traps (Express 5, Vite 8, Lucide v1, etc.).
+    groups:
+      backend-patch-and-minor:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+          - minor
+
+  # React webapp deps
+  - package-ecosystem: npm
+    directory: /client
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/London
+    open-pull-requests-limit: 5
+    target-branch: JS1
+    labels:
+      - dependencies
+      - frontend
+    commit-message:
+      prefix: "chore(deps/client)"
+      include: scope
+    groups:
+      client-patch-and-minor:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+          - minor
+    # Vite 8 dropped esbuild bundling — pin to 7.x until we have a migration plan
+    # (per reference_dep_major_gotchas.md). Lucide v1 has a separate bump branch
+    # already open; let it land manually before letting Dependabot manage it.
+    ignore:
+      - dependency-name: vite
+        update-types:
+          - version-update:semver-major
+      - dependency-name: lucide-react
+        update-types:
+          - version-update:semver-major
+
+  # GitHub Actions used by .github/workflows/test.yml + future CodeQL job
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/London
+    open-pull-requests-limit: 3
+    target-branch: JS1
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: "chore(deps/actions)"
+      include: scope
