@@ -2,8 +2,17 @@ name: CodeQL
 
 # CodeQL static analysis (audit F-12). Catches injection, XSS, prototype
 # pollution, regex DoS, hard-coded secrets, etc. that get past the existing
-# unit + integration suite. Pairs with Dependabot (audit F-11) so the
-# Security tab gives a real picture rather than zero coverage.
+# unit + integration suite. Pairs with Dependabot (audit F-11).
+#
+# Upload mode: SARIF is uploaded as a workflow artifact, NOT to the GitHub
+# Security tab. The Security tab requires GitHub Advanced Security (GHAS),
+# which is a paid feature on private repos. This repo is private + free
+# tier, so GHAS isn't available. The earlier upload-to-Security-tab path
+# was failing every run with "Code scanning is not enabled for this
+# repository". Workflow artifacts give us the same SARIF data, downloadable
+# from the Actions run page; if the repo ever goes public (or GHAS is
+# turned on later), flip `upload: never` back to `upload: always` and
+# delete the artifact step.
 
 on:
   pull_request:
@@ -32,7 +41,9 @@ concurrency:
 permissions:
   actions: read
   contents: read
-  security-events: write
+  # No security-events:write — we don't upload to the Security tab on this
+  # private repo (no GHAS). Switch back if the repo goes public or GHAS
+  # is enabled.
 
 jobs:
   analyze:
@@ -63,6 +74,18 @@ jobs:
         uses: github/codeql-action/autobuild@v4
 
       - name: Analyze
+        id: analyze
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
+          upload: never
+          output: sarif-results
+
+      - name: Upload SARIF as workflow artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-sarif-${{ matrix.language }}-${{ github.sha }}
+          path: sarif-results
+          retention-days: 30
+          if-no-files-found: warn
