@@ -166,7 +166,7 @@ router.post('/register', async (req, res) => {
       // Replacement: every new user gets a user_credits row at balance 0;
       // referral rewards bump credit_ledger + user_credits.balance_kes.
       await client.query(
-        `INSERT INTO users (id,email,password,name,phone,role,warehouse_id,language_pref,referral_code,referred_by,is_active,country_of_residence)
+        `INSERT INTO users (id,email,password_hash,name,phone,role,warehouse_id,language_pref,referral_code,referred_by,is_active,country_of_residence)
          VALUES ($1,$2,$3,$4,$5,'customer',$6,'en',$7,$8,true,$9)`,
         [userId, email, passwordHash, name, phone, warehouseId, newReferralCode, referredBy, normalisedCountry]
       );
@@ -234,7 +234,7 @@ router.post('/login', async (req, res) => {
     const email = String(rawEmail).trim().toLowerCase();
 
     const { rows } = await db.query(
-      `SELECT id,email,password,name,role,warehouse_id,language_pref,referral_code
+      `SELECT id,email,password_hash,name,role,warehouse_id,language_pref,referral_code
        FROM users WHERE email=$1 AND is_active=true`,
       [email]
     );
@@ -244,7 +244,7 @@ router.post('/login', async (req, res) => {
     // wrong-password path returns in ~80ms — a side channel for email
     // enumeration. The dummy hash is computed once at module load.
     const user = rows[0];
-    const hashToCompare = user ? user.password : DUMMY_PASSWORD_HASH;
+    const hashToCompare = user ? user.password_hash : DUMMY_PASSWORD_HASH;
     const passwordMatched = await bcrypt.compare(password, hashToCompare);
     if (!user || !passwordMatched) {
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
@@ -420,15 +420,15 @@ router.put('/password', authMiddleware, async (req, res) => {
       });
     }
 
-    const { rows } = await req.db.query('SELECT password FROM users WHERE id=$1', [userId]);
+    const { rows } = await req.db.query('SELECT password_hash FROM users WHERE id=$1', [userId]);
     if (rows.length === 0) return res.status(404).json({ success: false, message: 'User not found' });
 
-    if (!(await bcrypt.compare(current_password, rows[0].password))) {
+    if (!(await bcrypt.compare(current_password, rows[0].password_hash))) {
       return res.status(401).json({ success: false, message: 'Current password is incorrect' });
     }
 
     await req.db.query(
-      'UPDATE users SET password=$1, password_changed_at=NOW(), updated_at=NOW() WHERE id=$2',
+      'UPDATE users SET password_hash=$1, password_changed_at=NOW(), updated_at=NOW() WHERE id=$2',
       [await bcrypt.hash(new_password, BCRYPT_COST), userId]
     );
 
@@ -506,7 +506,7 @@ router.post('/reset-password', async (req, res) => {
       // password is suspected compromise, so the previously-issued
       // tokens MUST stop working.
       await db.query(
-        'UPDATE users SET password = $1, password_changed_at = NOW(), updated_at = NOW() WHERE id = $2',
+        'UPDATE users SET password_hash = $1, password_changed_at = NOW(), updated_at = NOW() WHERE id = $2',
         [passwordHash, userId]
       );
       // Mark token as used

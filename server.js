@@ -59,7 +59,7 @@ async function ensureAdminUser(pool) {
   try {
     await client.query('BEGIN');
     await client.query(
-      `INSERT INTO users (id, email, password, name, phone, role, warehouse_id, language_pref, referral_code, is_active)
+      `INSERT INTO users (id, email, password_hash, name, phone, role, warehouse_id, language_pref, referral_code, is_active)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [adminId, adminEmail, adminHash, 'Thapsus Cargo Admin', '+254700000000', 'admin', warehouseId, 'en', adminRefCode, true]
     );
