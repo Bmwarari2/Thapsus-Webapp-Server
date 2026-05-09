@@ -43,3 +43,14 @@ for (const [key, value] of Object.entries(TEST_DEFAULTS)) {
     process.env[key] = value;
   }
 }
+
+// Integration tests that need a real Postgres connection are gated on
+// TEST_DATABASE_URL (intentionally distinct from DATABASE_URL so a
+// developer can never accidentally aim a destructive test suite at prod).
+// When provided, override the placeholder above so initializeDatabase()
+// connects to the throwaway database instead of the fake host. Tests
+// still skip themselves explicitly when TEST_DATABASE_URL is missing —
+// no behaviour change for unit-only runs.
+if (process.env.TEST_DATABASE_URL) {
+  process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
+}

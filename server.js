@@ -632,5 +632,16 @@ Ready ✨
   }
 }
 
-start();
+// Only auto-boot when this file is the actual entry point (`node server.js`,
+// `npm start`, Railway). When imported by the test suite (vitest /
+// supertest) we want the assembled `app` to be returned as-is, with no
+// listen() call, no DB pool open, and no admin bootstrap. The `start`
+// function is still exported so a test harness can opt in if it ever
+// needs the full boot path.
+const isEntryPoint = process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url);
+if (isEntryPoint) {
+  start();
+}
+
+export { start };
 export default app;
