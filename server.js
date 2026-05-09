@@ -199,8 +199,15 @@ app.post('/api/payments/lipana/webhook',
   lipanaWebhookHandler
 );
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+// Audit M-5: keep the global JSON / urlencoded body limit small (200kb) so
+// a misbehaving client cannot force ~10mb of parser work on auth, admin,
+// or any other non-upload endpoint. Real binary uploads (PODs, agent
+// invoices, ticket attachments) bypass Express entirely — clients PUT
+// to Supabase Storage via signed URLs minted by /api/*/upload-url, which
+// only carry small JSON metadata. Stripe + Lipana webhooks are mounted
+// above with their own raw-body parsers (1mb each) and are untouched.
+app.use(express.json({ limit: '200kb' }));
+app.use(express.urlencoded({ limit: '200kb', extended: true }));
 app.use(sanitizeBody);
 app.use(sanitizeQuery);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
