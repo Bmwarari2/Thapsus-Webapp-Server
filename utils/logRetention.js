@@ -23,7 +23,12 @@
 const RETENTION = {
   error_logs:  { envKey: 'LOG_RETENTION_ERROR_DAYS', defaultDays: 30,  column: 'created_at' },
   admin_logs:  { envKey: 'LOG_RETENTION_ADMIN_DAYS', defaultDays: 365, column: 'created_at' },
-  email_logs:  { envKey: 'LOG_RETENTION_EMAIL_DAYS', defaultDays: 180, column: 'sent_at' },
+  // email_logs: this prune used to reference `sent_at` but that column
+  // doesn't exist on this table — `whatsapp_messages` has a `sent_at`
+  // column (mig 000_repair) but `email_logs` has only `created_at` (per
+  // 0000_baseline_schema). Every prune attempt for the last several
+  // weeks errored with `column "sent_at" does not exist` (audit F-17).
+  email_logs:  { envKey: 'LOG_RETENTION_EMAIL_DAYS', defaultDays: 180, column: 'created_at' },
 };
 
 const DAY_MS  = 24 * 60 * 60 * 1000;
