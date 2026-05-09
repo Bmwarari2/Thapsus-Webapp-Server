@@ -1,0 +1,52 @@
+name: tests
+
+on:
+  pull_request:
+    branches: [JS1, main]
+  push:
+    branches: [JS1, main]
+
+# Cancel in-flight runs on the same ref when a newer commit lands. Saves
+# CI minutes when a developer pushes a fixup commit a second after the
+# previous one started.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: unit + smoke (no DB)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        # `npm ci` is the CI-safe install: refuses to silently mutate
+        # package-lock.json, which is exactly what we want here.
+        run: npm ci
+
+      # The unit + smoke suites do not need a live database — they
+      # mock at the route-handler boundary or hit only routes that
+      # don't query the pool. The integration suites (auth + role
+      # matrix) self-skip when TEST_DATABASE_URL is unset, which is
+      # the case here. A future job can enable them by supplying a
+      # Supabase branch URL via secrets.
+      - name: Run vitest
+        run: npm test
+
+      # Build the React client too — catches lockfile drift, missing
+      # imports, broken JSX. Cheap signal to keep on every PR.
+      - name: Build client
+        run: cd client && npm ci && npm run build
