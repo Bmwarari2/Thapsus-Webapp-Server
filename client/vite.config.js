@@ -1,6 +1,65 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { ViteImageOptimizer } from 'vite-plugin-image-optimizer'
+import Beasties from 'beasties'
+import { readFile, writeFile } from 'node:fs/promises'
+import path from 'node:path'
+
+/**
+ * Critical CSS extraction (audit F-23 / PageSpeed "Render blocking requests").
+ *
+ * The 20 KiB index-*.css file blocks first paint for ~470ms on Slow-4G.
+ * Beasties (the maintained successor to Critters / Google Web SDK) inlines
+ * the above-the-fold subset of that CSS into <head> at build time and
+ * marks the rest as `media="print"` + `onload="this.media='all'"` so the
+ * remaining styles fetch off the critical path.
+ *
+ * Runs in `writeBundle` (post-write) rather than `transformIndexHtml`
+ * because Beasties needs to read the built CSS file from disk to extract
+ * the critical subset — `transformIndexHtml` fires before assets are
+ * flushed to dist/.
+ */
+function beastiesPlugin() {
+  let outDir = 'dist'
+  return {
+    name: 'beasties-critical-css',
+    apply: 'build',
+    configResolved(config) {
+      outDir = config.build.outDir || 'dist'
+    },
+    async writeBundle() {
+      const indexPath = path.resolve(outDir, 'index.html')
+      let html
+      try {
+        html = await readFile(indexPath, 'utf-8')
+      } catch (err) {
+        console.warn('[beasties] dist/index.html not found, skipping:', err.message)
+        return
+      }
+      const beasties = new Beasties({
+        path: path.resolve(outDir),
+        publicPath: '/',
+        // `media` mode: non-critical CSS stays as a
+        // <link rel="stylesheet" media="print" onload="this.media='all'">
+        // so JS-disabled clients still get full styles via the
+        // <noscript> fallback Beasties auto-emits.
+        preload: 'media',
+        pruneSource: false,
+        inlineFonts: false,
+        compress: true,
+        logLevel: 'silent',
+      })
+      try {
+        const transformed = await beasties.process(html)
+        await writeFile(indexPath, transformed, 'utf-8')
+      } catch (err) {
+        // Don't fail the build if extraction trips on something — leaving
+        // the original HTML in place is graceful degradation.
+        console.warn('[beasties] critical-css extraction failed, leaving HTML unchanged:', err.message)
+      }
+    },
+  }
+}
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -45,6 +104,10 @@ export default defineConfig(({ mode }) => {
           ],
         },
       }),
+
+      // Run Beasties LAST so it sees Vite's injected <link> tags for the
+      // built CSS bundle — see top of this file for the full explanation.
+      beastiesPlugin(),
     ],
     server: {
       port: 3000,
