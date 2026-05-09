@@ -14,6 +14,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
+    <!-- Preload the home-page LCP image (audit F-27). PageSpeed flagged the
+         logo as part of the LCP candidate; high-priority preload shaves
+         ~200-500ms typical off LCP on a Slow-4G first paint. /iOS-ipad.png
+         is served directly from /public so the URL stays stable across
+         builds (no Vite content hash). -->
+    <link rel="preload" as="image" href="/iOS-ipad.png" fetchpriority="high" />
+
     <!-- Non-render-blocking font loading. Preconnect + preload + plain
          stylesheet keeps the font request out of the critical render path
          without needing the inline `onload="this.media='all'"` toggle —

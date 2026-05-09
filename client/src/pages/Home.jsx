@@ -272,11 +272,11 @@ export const Home = () => {
                     </div>
                     <div className="flex justify-between">
                       <div className="space-y-0.5 md:space-y-1">
-                        <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">In Transit From</p>
+                        <p className="text-[8px] md:text-[10px] font-black text-slate-600 uppercase tracking-widest">In Transit From</p>
                         <p className="text-sm md:text-xl font-black text-[#0f172a]">London Heathrow</p>
                       </div>
                       <div className="text-right space-y-0.5 md:space-y-1">
-                        <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Estimated To</p>
+                        <p className="text-[8px] md:text-[10px] font-black text-slate-600 uppercase tracking-widest">Estimated To</p>
                         <p className="text-sm md:text-xl font-black text-[#0f172a]">JKIA Nairobi</p>
                       </div>
                     </div>
@@ -315,7 +315,7 @@ export const Home = () => {
                <div className="relative z-10 flex items-start justify-between">
                   <div className="space-y-4 md:space-y-6 max-w-[70%]">
                     <h3 className="text-2xl md:text-3xl font-black leading-none uppercase tracking-tighter">02. {t('home.step2')}</h3>
-                    <p className="text-slate-400 text-xs md:text-sm font-bold">We handle the heavy lifting. Your package is safely received and cataloged.</p>
+                    <p className="text-slate-600 text-xs md:text-sm font-bold">We handle the heavy lifting. Your package is safely received and cataloged.</p>
                   </div>
                   <div className="w-16 h-16 md:w-20 md:h-20 bg-white/5 backdrop-blur-2xl border border-white/10 rounded-2xl md:rounded-3xl flex items-center justify-center shadow-2xl"><Bell className="text-orange-400 md:w-9 md:h-9" size={30} /></div>
                </div>
@@ -435,7 +435,7 @@ export const Home = () => {
                         Promoting to h3 fixes the sequence; visual sizing
                         is preserved via the same Tailwind classes. */}
                     <h3 className="font-black text-slate-900 text-sm md:text-base">{test.name}</h3>
-                    <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{test.location} · Verified Client</p>
+                    <p className="text-[8px] md:text-[10px] font-black text-slate-600 uppercase tracking-widest">{test.location} · Verified Client</p>
                   </div>
                 </div>
               </GlassCard>
@@ -472,7 +472,7 @@ export const Home = () => {
              </Link>
            </div>
 
-           <div className="pt-20 md:pt-32 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-10 border-t border-slate-200 text-slate-400 font-black text-[8px] md:text-[10px] uppercase tracking-[0.4em]">
+           <div className="pt-20 md:pt-32 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-10 border-t border-slate-200 text-slate-600 font-black text-[8px] md:text-[10px] uppercase tracking-[0.4em]">
              <p>© {new Date().getFullYear()} Thapsus Cargo Global</p>
              <div className="flex gap-6 md:gap-10">
                <Link to="/privacy" className="hover:text-slate-900 transition-colors">Privacy Policy</Link>

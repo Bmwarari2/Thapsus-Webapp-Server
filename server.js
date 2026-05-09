@@ -293,6 +293,30 @@ app.get('/sw.js', (req, res) => {
 // ── Sitemap & Robots (dynamic, before static so they take precedence) ────────
 app.use(sitemapRoutes);
 
+// ── Long-cache hashed assets (audit F-22) ───────────────────────────────────
+// Vite hashes filenames in /assets/* — e.g., index-DYOGuuA_.css,
+// vendor-react-dom-BxKxlONR.js. The content for any given URL is
+// content-addressed and can never change, so cache it forever. PageSpeed
+// flagged 132 KiB of repeat-visit savings here (4h TTL → 1y immutable).
+//
+// `immutable: true` adds the `immutable` token to Cache-Control so even
+// a hard reload doesn't trigger a revalidation request. Browsers that
+// don't understand it (older Safari) just see max-age and behave the
+// same as before.
+//
+// Mounted BEFORE the SPA shell static below so the per-asset directory
+// matches first; the catch-all serves index.html and other unhashed
+// public/ files (logo.png, iOS-ipad.png, robots.txt) on the default
+// ETag-only no-cache so deploys roll out immediately.
+app.use(
+  '/assets',
+  express.static(path.join(__dirname, 'client', 'dist', 'assets'), {
+    maxAge: '1y',
+    immutable: true,
+    dotfiles: 'deny',
+  })
+);
+
 // `dotfiles: 'deny'` so a request for /.env (or any other dotfile that
 // happens to land in client/dist) returns 403 instead of being served
 // or falling through to the SPA index.html. Scanners hit /.env on
