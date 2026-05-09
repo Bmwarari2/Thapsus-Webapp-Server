@@ -120,13 +120,25 @@ const PORT     = process.env.PORT     || 5000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
-// In production we require an explicit allowlist of origins and will fail fast
-// if a wildcard is configured to avoid accidentally exposing the API.
+// Audit M-3: fail closed. Never silently default to wildcard.
+//
+// If CORS_ORIGIN is unset:
+//   - NODE_ENV === 'development'  → localhost allowlist (dev convenience)
+//   - anything else (incl. unset) → the production allowlist
+//
+// To use '*' you must opt in explicitly with CORS_ORIGIN='*', and that is
+// only honoured when NODE_ENV === 'development'. The previous code defaulted
+// to '*' whenever NODE_ENV was anything other than 'production' — and since
+// `NODE_ENV = process.env.NODE_ENV || 'development'` upstream of this block
+// silently turns an unset env var into 'development', a deploy that forgets
+// to set NODE_ENV would have left the API CORS-open. This change rejects
+// wildcard outside of an explicit local-dev session.
 const DEFAULT_PROD_CORS = 'https://www.thapsus.uk,https://thapsus.uk,https://swiftcargo-production.up.railway.app';
-const CORS_ORIGIN = process.env.CORS_ORIGIN || (NODE_ENV === 'production' ? DEFAULT_PROD_CORS : '*');
+const DEFAULT_DEV_CORS  = 'http://localhost:5173,http://localhost:5000,http://127.0.0.1:5173,http://127.0.0.1:5000';
+const CORS_ORIGIN = process.env.CORS_ORIGIN || (NODE_ENV === 'development' ? DEFAULT_DEV_CORS : DEFAULT_PROD_CORS);
 
-if (NODE_ENV === 'production' && CORS_ORIGIN === '*') {
-  throw new Error('FATAL: In production, CORS_ORIGIN must be an explicit allowlist, not "*".');
+if (CORS_ORIGIN === '*' && NODE_ENV !== 'development') {
+  throw new Error('FATAL: CORS_ORIGIN="*" is only permitted when NODE_ENV="development". Set CORS_ORIGIN to an explicit comma-separated allowlist.');
 }
 
 app.set('trust proxy', 1);
