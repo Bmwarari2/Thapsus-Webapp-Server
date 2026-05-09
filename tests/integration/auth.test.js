@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { randomUUID } from 'node:crypto';
+import jwt from 'jsonwebtoken';
 import app from '../../server.js';
 import { initializeDatabase, getPool } from '../../database/init.js';
 
@@ -165,5 +166,91 @@ describe.skipIf(SKIP)('GET /api/auth/me + token revocation', () => {
       .get('/api/auth/me')
       .set('Authorization', `Bearer ${token}`);
     expect(after.status).toBe(401);
+  });
+});
+
+// Audit W6.1 — silent refresh: /me returns a freshly-signed token in
+// `refreshed_token` when the presented JWT's iat is older than
+// JWT_REFRESH_AFTER_SECONDS (24h default). Tested with a forged-iat
+// token signed using the same JWT_SECRET (provided by tests/setup.js).
+describe.skipIf(SKIP)('GET /api/auth/me — silent refresh (W6.1)', () => {
+  async function registerAndUser() {
+    const email = mintEmail();
+    const reg = await request(app).post('/api/auth/register').send({
+      email, password: 'PassPhrase!23', name: 'Refresh', phone: '+254700000030',
+    });
+    return { email, userId: reg.body.user.id };
+  }
+
+  it('does NOT return refreshed_token when the token is fresh', async () => {
+    const email = mintEmail();
+    const reg = await request(app).post('/api/auth/register').send({
+      email, password: 'PassPhrase!23', name: 'Fresh', phone: '+254700000031',
+    });
+    const r = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${reg.body.token}`);
+    expect(r.status).toBe(200);
+    expect(r.body).not.toHaveProperty('refreshed_token');
+  });
+
+  it('returns refreshed_token when iat is older than the refresh threshold', async () => {
+    const { email, userId } = await registerAndUser();
+
+    // Make sure the password_changed_at gate doesn't reject our forged
+    // old-iat token. Setting it to NULL (or far in the past) means the
+    // middleware/auth.js check `iat + 5 < pwd_changed_epoch` is false
+    // for any iat we pick.
+    await getPool().query(
+      `UPDATE users SET password_changed_at = NULL WHERE id = $1`,
+      [userId]
+    );
+
+    // Forge a token with iat 25 hours ago. Same JWT_SECRET as the
+    // server (set by tests/setup.js).
+    const oldIat = Math.floor(Date.now() / 1000) - 25 * 3600;
+    const oldToken = jwt.sign(
+      { id: userId, email, role: 'customer', iat: oldIat },
+      process.env.JWT_SECRET,
+      { algorithm: 'HS256', expiresIn: '7d', noTimestamp: true }
+    );
+
+    const r = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${oldToken}`);
+
+    expect(r.status).toBe(200);
+    expect(r.body.refreshed_token).toBeTruthy();
+
+    // The new token must verify against the same secret.
+    const decoded = jwt.verify(r.body.refreshed_token, process.env.JWT_SECRET);
+    expect(decoded.id).toBe(userId);
+    expect(decoded.email).toBe(email.toLowerCase());
+    expect(decoded.role).toBe('customer');
+    // And its iat must be fresher than the forged one.
+    expect(decoded.iat).toBeGreaterThan(oldIat);
+  });
+
+  it('the refreshed token is itself accepted on a follow-up /me call', async () => {
+    const { email, userId } = await registerAndUser();
+    await getPool().query(
+      `UPDATE users SET password_changed_at = NULL WHERE id = $1`,
+      [userId]
+    );
+    const oldIat = Math.floor(Date.now() / 1000) - 25 * 3600;
+    const oldToken = jwt.sign(
+      { id: userId, email, role: 'customer', iat: oldIat },
+      process.env.JWT_SECRET,
+      { algorithm: 'HS256', expiresIn: '7d', noTimestamp: true }
+    );
+
+    const first = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${oldToken}`);
+    const refreshed = first.body.refreshed_token;
+    expect(refreshed).toBeTruthy();
+
+    const second = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${refreshed}`);
+    expect(second.status).toBe(200);
+    // The freshly-issued token shouldn't itself trigger another refresh.
+    expect(second.body).not.toHaveProperty('refreshed_token');
   });
 });
