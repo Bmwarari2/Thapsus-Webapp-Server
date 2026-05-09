@@ -5,6 +5,10 @@ on:
     branches: [JS1, main]
   push:
     branches: [JS1, main]
+  # Allow manual runs so a developer can re-trigger the integration suite
+  # against a specific TEST_DATABASE_URL when debugging — without pushing
+  # a fixup commit just to re-run CI.
+  workflow_dispatch:
 
 # Cancel in-flight runs on the same ref when a newer commit lands. Saves
 # CI minutes when a developer pushes a fixup commit a second after the
@@ -41,8 +45,8 @@ jobs:
       # mock at the route-handler boundary or hit only routes that
       # don't query the pool. The integration suites (auth + role
       # matrix) self-skip when TEST_DATABASE_URL is unset, which is
-      # the case here. A future job can enable them by supplying a
-      # Supabase branch URL via secrets.
+      # the case here; the dedicated `integration` job below picks
+      # them up when the secret is configured.
       - name: Run vitest
         run: npm test
 
@@ -50,6 +54,86 @@ jobs:
       # imports, broken JSX. Cheap signal to keep on every PR.
       - name: Build client
         run: cd client && npm ci && npm run build
+
+  # Audit F-13 — integration tests against a real Postgres + RLS surface.
+  # Activates the auth + role-matrix suites that self-skip in `unit` because
+  # TEST_DATABASE_URL is unset there. We deliberately use a long-lived test
+  # Supabase project (env: TEST_DATABASE_URL secret) instead of per-PR
+  # ephemeral branches:
+  #   - Branches require Supabase Pro ($25/mo) and add ~5 min provisioning
+  #     per PR — overkill for a sole-dev project.
+  #   - A long-lived test project costs the same as our prod project and
+  #     stays warm; tests truncate tables in beforeAll if they need an
+  #     empty starting point.
+  # If TEST_DATABASE_URL is unset, this job logs a clear skip message and
+  # exits 0 — no false negatives on PRs from contributors who don't have
+  # the secret. Force-run via workflow_dispatch when debugging.
+  integration:
+    name: integration (auth + role matrix)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Skip on Dependabot PRs — they don't have access to the secret anyway,
+    # and most dep bumps don't change auth/role behaviour.
+    if: github.actor != 'dependabot[bot]'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # Bail out fast if the secret isn't configured. Sets a job output so
+      # the user sees a clear "skipped" reason in the run summary instead
+      # of the more confusing vitest "describe.skipIf" output buried in
+      # the logs.
+      - name: Check TEST_DATABASE_URL secret
+        id: gate
+        env:
+          HAS_SECRET: ${{ secrets.TEST_DATABASE_URL != '' }}
+        run: |
+          if [ "$HAS_SECRET" = "true" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "✓ TEST_DATABASE_URL is configured — running integration suites"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::TEST_DATABASE_URL secret is not set — integration tests will not run."
+            echo "To enable: Settings → Secrets and variables → Actions → New repository secret."
+            echo "Use a dedicated test Supabase project's direct-connection URL (port 5432)."
+          fi
+
+      - name: Setup Node 22
+        if: steps.gate.outputs.configured == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.gate.outputs.configured == 'true'
+        run: npm ci
+
+      # Bootstrap runs the migrations chain on first connection
+      # (initializeDatabase enumerates database/migrations/*.sql against
+      # the _migrations ledger). On a fresh test project the baseline
+      # migration `0000_baseline_schema.sql` plus 000-045+ all apply on
+      # the first vitest setUpAll; subsequent runs no-op against the
+      # ledger. This keeps the schema in lockstep with prod without a
+      # separate "apply migrations" step here.
+      - name: Run integration suites
+        if: steps.gate.outputs.configured == 'true'
+        env:
+          TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          # Inherits the rest of the env defaults from tests/setup.js
+          # (JWT_SECRET, ADMIN_PASSWORD, NODE_ENV, etc. — all dev-safe
+          # placeholders). Real prod secrets are NOT used by the test
+          # process under any circumstance.
+          NODE_ENV: development
+        run: npm test
+
+      - name: Skip notice (no secret)
+        if: steps.gate.outputs.configured != 'true'
+        run: |
+          echo "Integration tests skipped: TEST_DATABASE_URL secret is not configured."
+          echo "This is the default for forks / dependabot PRs. The auth + role-matrix"
+          echo "suites self-skip via describe.skipIf in vitest, so no false negatives."
 
   # Audit W6.3 — accessibility regression guard.
   # Runs lighthouse-ci against the built static bundle and fails if the
