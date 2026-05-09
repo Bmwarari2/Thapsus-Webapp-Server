@@ -1,0 +1,68 @@
+name: CodeQL
+
+# CodeQL static analysis (audit F-12). Catches injection, XSS, prototype
+# pollution, regex DoS, hard-coded secrets, etc. that get past the existing
+# unit + integration suite. Pairs with Dependabot (audit F-11) so the
+# Security tab gives a real picture rather than zero coverage.
+
+on:
+  pull_request:
+    branches: [JS1, main]
+    # Skip CodeQL for changes that can't introduce new vulns — saves ~5 min
+    # of analysis time on doc-only PRs while still covering every code change.
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".github/dependabot.yml"
+  push:
+    branches: [JS1, main]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".github/dependabot.yml"
+  schedule:
+    # Weekly Monday 06:00 UTC scan to catch newly-disclosed CVEs that match
+    # patterns in code we haven't touched.
+    - cron: "0 6 * * 1"
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # `javascript-typescript` is the modern combined extractor — covers
+        # both backend (.js, ESM) and the React webapp (.jsx, .tsx if any).
+        language: [javascript-typescript]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Init CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # security-extended adds extra vuln queries above the default set
+          # without crossing into the noisier security-and-quality bucket.
+          queries: security-extended
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
