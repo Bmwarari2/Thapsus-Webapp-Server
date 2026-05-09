@@ -19,6 +19,7 @@ import { initializeDatabase, getPool } from './database/init.js';
 import { logError, errorLoggingMiddleware, logRouteError } from './utils/errorLogger.js';
 import { startLogRetention } from './utils/logRetention.js';
 import { sanitizeBody, sanitizeQuery } from './middleware/sanitize.js';
+import { deprecate } from './middleware/deprecation.js';
 
 dotenv.config();
 
@@ -524,6 +525,18 @@ app.use('/api/exchange',      exchangeRoutes);
 app.use('/api/referral',      referralRoutes);
 app.use('/api/tickets',       ticketsRoutes);
 app.use('/api/pricing',       pricingRoutes);
+// Audit W6.6 — `/api/consolidation/*` is the v1 namespace; it has been
+// superseded by `/api/consolidations` (Framework v2, mounted below).
+// We tag responses with Deprecation + Sunset headers per RFC 8594 and
+// emit a one-time stderr warning per (caller, path) so the dashboards
+// surface exactly which clients still need to migrate. The mount
+// itself stays live until the sunset date; nothing breaks for legacy
+// builds in the field.
+const LEGACY_CONSOLIDATION_SUNSET = new Date('2026-05-23T00:00:00Z');
+app.use('/api/consolidation', deprecate({
+  replacement: '/api/consolidations',
+  sunset: LEGACY_CONSOLIDATION_SUNSET,
+}));
 app.use('/api/consolidation', consolidationRoutes);
 app.use('/api/prohibited',    prohibitedRoutes);
 app.use('/api/admin/backups', backupRoutes);
