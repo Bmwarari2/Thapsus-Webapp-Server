@@ -17,6 +17,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { fileURLToPath } from 'url';
 import { initializeDatabase, getPool } from './database/init.js';
 import { logError, errorLoggingMiddleware, logRouteError } from './utils/errorLogger.js';
+import { startLogRetention } from './utils/logRetention.js';
 import { sanitizeBody, sanitizeQuery } from './middleware/sanitize.js';
 
 dotenv.config();
@@ -607,14 +608,19 @@ Ready ✨
     server.keepAliveTimeout = 65_000;
     server.headersTimeout   = 70_000;
 
-    process.on('SIGTERM', () => {
-      console.log('SIGTERM — shutting down gracefully');
+    // Audit W6.5 — daily prune of error_logs / admin_logs / email_logs
+    // by configurable age. Returns a cancel handle wired into the
+    // SIGTERM/SIGINT path so the timer doesn't keep the event loop
+    // alive during graceful shutdown.
+    const stopLogRetention = startLogRetention(pool);
+
+    const shutdown = (signal) => {
+      console.log(`${signal} — shutting down gracefully`);
+      try { stopLogRetention?.() } catch { /* ignore */ }
       server.close(() => { pool.end(); process.exit(0); });
-    });
-    process.on('SIGINT', () => {
-      console.log('SIGINT — shutting down gracefully');
-      server.close(() => { pool.end(); process.exit(0); });
-    });
+    };
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT',  () => shutdown('SIGINT'));
     process.on('uncaughtException', (err) => {
       console.error('Uncaught Exception:', err);
       logError({ level: 'fatal', source: 'unhandled', message: err.message, stack: err.stack });
