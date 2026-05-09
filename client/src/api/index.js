@@ -485,6 +485,20 @@ export const pricingTiersApi = {
   validatePromotion:(code)            => api.post('/pricing-tiers/promotions/validate', { code }),
 }
 
+/**
+ * Notifications inbox — backed by routes/notifications.js. Same surface
+ * the iOS app's inbox view consumes; the webapp page lives at
+ * /notifications.
+ */
+export const notificationsApi = {
+  /** GET /api/notifications?limit=&offset= → { notifications[], unread } */
+  list:       (params = {}) => api.get('/notifications', { params }),
+  /** PUT /api/notifications/:id/read */
+  markRead:   (id)          => api.put(`/notifications/${id}/read`),
+  /** PUT /api/notifications/read-all */
+  markAllRead: ()           => api.put('/notifications/read-all'),
+}
+
 /** NPS responses */
 export const npsApi = {
   submit:    (score, comment, parcelId) =>
