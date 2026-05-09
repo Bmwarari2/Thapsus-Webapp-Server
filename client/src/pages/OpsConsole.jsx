@@ -2,12 +2,13 @@ import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Package, Truck, Plane, ShieldAlert, Clock, RefreshCw,
-  Search, ArrowRight, CheckCircle, XCircle, Scale, Camera, Scan
+  Search, ArrowRight, CheckCircle, XCircle, Scale, Camera, Scan, Printer
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { opsApi, consolidationsApi } from '../api'
 import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '../components/GlassUI'
 import { BarcodeScanner } from '../components/BarcodeScanner'
+import { PrintableParcelLabel } from '../components/PrintableParcelLabel'
 
 /**
  * /ops — Operator console (Spec §3.3, §4.3).
@@ -24,6 +25,27 @@ export const OpsConsole = () => {
   const [active,   setActive]   = useState(null) // parcel being worked on
   const [receive,  setReceive]  = useState({ weight_kg: '', length: '', width: '', height: '', barcode: '', customs_duty: '', hs_tier: '' })
   const [scanOpen, setScanOpen] = useState(false)
+  const [printingParcel, setPrintingParcel] = useState(null)
+
+  // Trigger window.print() once React has rendered the printable label
+  // into its hidden container. Listen for `afterprint` to clear the
+  // state so subsequent prints re-mount the component (and refresh the
+  // printedAt timestamp). All-modern-browsers support both.
+  useEffect(() => {
+    if (!printingParcel) return
+    const onAfter = () => setPrintingParcel(null)
+    window.addEventListener('afterprint', onAfter)
+    // requestAnimationFrame defers until after React has committed the
+    // DOM — calling window.print() synchronously here would race the
+    // render and print the previous content.
+    const raf = requestAnimationFrame(() => {
+      try { window.print() } catch (e) { /* ignore — handled by error toast in caller */ }
+    })
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('afterprint', onAfter)
+    }
+  }, [printingParcel])
 
   const fetchToday   = () => opsApi.today().then(r => setToday(r.data?.today || {})).catch(() => {})
   const fetchParcels = () => opsApi.parcels({ status: status || undefined, q: filter || undefined })
@@ -186,6 +208,11 @@ export const OpsConsole = () => {
                         <button onClick={() => setActive(p)} className="text-xs px-2 py-1 rounded bg-orange-500 hover:bg-orange-600 text-white inline-flex items-center gap-1">
                           <Scale size={12}/> Receive
                         </button>
+                        <button onClick={() => setPrintingParcel(p)}
+                          title="Print parcel label"
+                          className="text-xs px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-800 inline-flex items-center gap-1">
+                          <Printer size={12}/> Label
+                        </button>
                         <button onClick={() => onScreen(p)} className="text-xs px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-800">Screen</button>
                         {p.hold_reason ? (
                           <button onClick={() => onRelease(p)} className="text-xs px-2 py-1 rounded bg-emerald-100 text-emerald-700">Release</button>
@@ -201,6 +228,26 @@ export const OpsConsole = () => {
           )}
         </GlassCard>
       </div>
+
+      {/* Print container. Hidden in normal flow; @media print isolates it
+          as the only visible content so window.print() emits a clean
+          label and nothing else. The @page rule sets standard 100mm ×
+          150mm thermal-label paper; printers configured for A4 will
+          render the label in the top-left of the page, still scannable. */}
+      <div className="hidden print:block fixed inset-0 bg-white">
+        {printingParcel && <PrintableParcelLabel parcel={printingParcel} />}
+      </div>
+      <style>{`
+        @media print {
+          @page { size: 100mm 150mm; margin: 0; }
+          body { background: #ffffff !important; }
+          /* Everything that is not the print container disappears.
+             The container itself is hidden in normal flow and only
+             revealed inside this @media block. */
+          body > *:not(#root) { display: none !important; }
+          #root > *:not(.print\\:block) { display: none !important; }
+        }
+      `}</style>
 
       {/* Camera-driven barcode scanner. Mounted at the page root so the
           overlay sits above the receive modal when both are open. */}
