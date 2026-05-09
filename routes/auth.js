@@ -53,7 +53,21 @@ const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   throw new Error('FATAL: JWT_SECRET env var is not set');
 }
-const JWT_EXPIRY = process.env.JWT_EXPIRY || '30d';
+// Audit W6.1 — default token lifetime cut from 30d to 7d. The shorter
+// window shrinks the blast radius of a stolen token; the silent-refresh
+// flow on GET /auth/me (see below) preserves a sliding session for
+// active users so they don't notice.
+const JWT_EXPIRY = process.env.JWT_EXPIRY || '7d';
+
+// If the JWT presented to /auth/me has an `iat` older than this many
+// seconds, the response includes a freshly-signed `refreshed_token`
+// alongside the user payload. Clients that recognise the field swap
+// it into storage; clients that don't are unaffected (and will simply
+// re-login when the original token expires).
+const REFRESH_AFTER_SECONDS = Number.parseInt(
+  process.env.JWT_REFRESH_AFTER_SECONDS || String(24 * 60 * 60),
+  10
+);
 
 function generateWarehouseId() {
   const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -263,6 +277,17 @@ router.post('/login', async (req, res) => {
 });
 
 // GET /api/auth/me
+//
+// Audit W6.1 — silent refresh: if the bearer token's `iat` is older than
+// REFRESH_AFTER_SECONDS, mint a fresh JWT with the same claims and a
+// new iat, then return it as `refreshed_token` alongside the user.
+// Clients that recognise the field swap it into local storage; clients
+// that don't are unaffected. This gives active users a sliding 7-day
+// session without keeping the token lifetime at 30d for everyone.
+//
+// The old token is NOT revoked — it stays valid until its natural
+// `exp` so requests already in flight from a different tab don't 401.
+// Standard sliding-session pattern.
 router.get('/me', authMiddleware, async (req, res) => {
   try {
     const { rows } = await req.db.query(
@@ -272,7 +297,31 @@ router.get('/me', authMiddleware, async (req, res) => {
       [req.user.id]
     );
     if (rows.length === 0) return res.status(404).json({ success: false, message: 'User not found' });
-    res.json({ success: true, user: rows[0] });
+    const user = rows[0];
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    const iat    = req.user?.iat || 0;
+    const aged   = iat > 0 && (nowSec - iat) >= REFRESH_AFTER_SECONDS;
+
+    let refreshedToken = null;
+    if (aged) {
+      refreshedToken = jwt.sign(
+        {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          warehouse_id: user.warehouse_id,
+        },
+        JWT_SECRET,
+        { algorithm: 'HS256', expiresIn: JWT_EXPIRY }
+      );
+    }
+
+    res.json({
+      success: true,
+      user,
+      ...(refreshedToken ? { refreshed_token: refreshedToken } : {}),
+    });
   } catch (error) {
     console.error('Get profile error:', error);
     logRouteError(req, res, error, 'Get profile error');
