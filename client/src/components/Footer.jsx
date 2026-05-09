@@ -1,6 +1,9 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { Mail, Phone, MapPin, Facebook, Instagram } from 'lucide-react'
+import { Mail, Phone, MapPin } from 'lucide-react'
+// Facebook + Instagram come from a local stub because Lucide v1 dropped
+// brand icons. See client/src/components/icons/BrandIcons.jsx (audit F-19).
+import { Facebook, Instagram } from './icons/BrandIcons'
 import { useLanguage } from '../context/LanguageContext'
 
 const TikTokIcon = ({ size = 20, className = '' }) => (
