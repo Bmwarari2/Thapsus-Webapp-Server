@@ -102,6 +102,27 @@ api.interceptors.response.use(
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('outbox:enqueued'))
         }
+        // Audit F-21 — register a Background Sync so the queued mutation
+        // gets retried by the Service Worker even if this tab closes
+        // before the device comes back online. Window-side `online`
+        // listener still handles the foreground case; this covers the
+        // closed-tab gap. SyncManager isn't supported on Firefox or
+        // iOS Safari yet — feature-check + silent fallback.
+        if (
+          typeof navigator !== 'undefined' &&
+          'serviceWorker' in navigator &&
+          typeof window !== 'undefined' &&
+          'SyncManager' in window
+        ) {
+          try {
+            const reg = await navigator.serviceWorker.ready
+            if (reg && reg.sync && typeof reg.sync.register === 'function') {
+              await reg.sync.register('outbox-flush')
+            }
+          } catch (_) {
+            // Permission denied / not supported — fall through.
+          }
+        }
       } catch (e) {
         // IndexedDB might be unavailable in private windows / iframes.
         // Best-effort — fall through to the normal rejection path.
@@ -151,6 +172,20 @@ if (typeof window !== 'undefined') {
       console.warn('[outbox] auto-flush failed:', e?.message)
     })
   })
+
+  // Audit F-21 — bridge SW Background Sync flushes back into the existing
+  // window-side outbox:flushed event channel so OutboxIndicator clears
+  // its count when the SW empties the queue from a closed-tab context.
+  // The SW posts {type: 'outbox-flushed'} after a successful sync run.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event?.data?.type === 'outbox-flushed') {
+        window.dispatchEvent(new CustomEvent('outbox:flushed', {
+          detail: { replayed: 0, failed: 0, remaining: 0, source: 'sw-sync' },
+        }))
+      }
+    })
+  }
 }
 
 // Public helper so UI components can flush manually (rider home button).
