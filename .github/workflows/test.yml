@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node 22
         uses: actions/setup-node@v4
@@ -50,3 +50,38 @@ jobs:
       # imports, broken JSX. Cheap signal to keep on every PR.
       - name: Build client
         run: cd client && npm ci && npm run build
+
+  # Audit W6.3 — accessibility regression guard.
+  # Runs lighthouse-ci against the built static bundle and fails if the
+  # accessibility category score drops below 0.9 (90%). Performance,
+  # best-practices, and SEO categories are intentionally OFF — they're
+  # noisier and we only commit to a11y here. Tighten later if needed.
+  lighthouse:
+    name: lighthouse a11y
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Build client
+        run: cd client && npm ci && npm run build
+
+      # The treosh action installs lhci, runs `collect` against the
+      # static dir defined in .lighthouserc.json, then `assert`s the
+      # thresholds. configPath is relative to the repo root.
+      - name: Lighthouse CI (a11y assertion)
+        uses: treosh/lighthouse-ci-action@v12
+        with:
+          configPath: ./.lighthouserc.json
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
