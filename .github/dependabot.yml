@@ -35,11 +35,23 @@ updates:
     #                      siblings together in one coordinated PR.
     #   - @vitest/*     — same lockstep rule (covers @vitest/coverage-v8,
     #                      @vitest/expect, @vitest/spy, @vitest/utils, etc.)
+    #   - vite          — v8 dropped esbuild bundling (per reference_dep_major_gotchas.md);
+    #                      PR #175 opened as a clean rebase but was rejected.
+    #                      Same major as the /client section's vite pin.
+    #   - @vitejs/*     — sibling-peer with vite. PR #173 hit ERESOLVE because
+    #                      @vitejs/plugin-react@6 requires vite ^8 but root has
+    #                      vite ^7.3.2. Move them in lockstep with vite itself.
     ignore:
       - dependency-name: vitest
         update-types:
           - version-update:semver-major
       - dependency-name: "@vitest/*"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: vite
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@vitejs/*"
         update-types:
           - version-update:semver-major
 
@@ -68,6 +80,8 @@ updates:
           - minor
     # Pin majors that need a deliberate migration plan, not an auto-bump:
     #   - vite          — v8 dropped esbuild bundling (per reference_dep_major_gotchas.md)
+    #   - @vitejs/*     — sibling-peer with vite (PR #174 hit ERESOLVE because
+    #                      @vitejs/plugin-react@6 needs vite ^8). Lockstep.
     #   - lucide-react  — v1 has a separate bump branch open; land manually
     #   - tailwindcss   — v4 is a complete engine rewrite (Lightning CSS, no PostCSS;
     #                      new @config-in-CSS format; @tailwindcss/forms needs the
@@ -76,6 +90,9 @@ updates:
     #                      rejected for these reasons — see that PR's close comment.
     ignore:
       - dependency-name: vite
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@vitejs/*"
         update-types:
           - version-update:semver-major
       - dependency-name: lucide-react
