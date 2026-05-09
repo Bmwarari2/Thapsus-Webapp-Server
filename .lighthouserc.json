@@ -2,13 +2,14 @@
   "ci": {
     "collect": {
       "staticDistDir": "./client/dist",
-      "url": ["http://localhost/index.html"],
+      "url": ["http://localhost/"],
       "numberOfRuns": 1,
       "settings": {
         "preset": "desktop",
         "skipAudits": [
           "uses-http2"
-        ]
+        ],
+        "chromeFlags": "--force-prefers-color-scheme=light"
       }
     },
     "assert": {

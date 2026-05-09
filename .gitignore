@@ -45,3 +45,4 @@ build/
 
 # OS
 Thumbs.db
+.lighthouseci/

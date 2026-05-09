@@ -459,7 +459,11 @@ export const Home = () => {
            <div className="flex flex-col sm:flex-row justify-center gap-4 md:gap-6 pt-4">
              <Link
                to={isAuthenticated ? '/ship-instructions' : '/register'}
-               className="glass-sheen px-10 py-5 md:px-12 md:py-6 bg-orange-500 text-white rounded-[1.5rem] md:rounded-[2rem] font-black text-lg shadow-[0_20px_50px_rgba(249,115,22,0.3)] hover:bg-orange-600 hover:scale-105 transition-all"
+               /* Audit a11y fix: bg-orange-500 + text-white = 2.8:1
+                  contrast (under WCAG AA 4.5:1). Bumped to orange-700
+                  for ~5.2:1; hover stays on orange-600 so the hue still
+                  brightens on interaction. */
+               className="glass-sheen px-10 py-5 md:px-12 md:py-6 bg-orange-700 text-white rounded-[1.5rem] md:rounded-[2rem] font-black text-lg shadow-[0_20px_50px_rgba(249,115,22,0.3)] hover:bg-orange-600 hover:scale-105 transition-all"
              >
                {t('home.hero.cta')}
              </Link>
