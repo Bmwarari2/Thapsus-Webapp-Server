@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import {
   Users, Package, DollarSign, BarChart3, MessageSquare, Activity,
   Lock, RefreshCw, Trash2, XCircle, Plus, CreditCard, Search,
@@ -10,9 +10,25 @@ import {
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
 import { adminApi, authApi, supportApi } from '../api'
-import {
-  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid
-} from 'recharts'
+// Recharts moved into a lazy chunk (audit F-20) — see
+// client/src/components/admin/AdminCharts.jsx. Keeps ~225 KB of chart
+// vendor code out of the main admin entry bundle; it loads on first
+// paint of a chart-bearing tab.
+const RevenueAreaChart = lazy(() =>
+  import('../components/admin/AdminCharts').then((m) => ({ default: m.RevenueAreaChart }))
+)
+const MarketPieChart = lazy(() =>
+  import('../components/admin/AdminCharts').then((m) => ({ default: m.MarketPieChart }))
+)
+const OrdersTrendAreaChart = lazy(() =>
+  import('../components/admin/AdminCharts').then((m) => ({ default: m.OrdersTrendAreaChart }))
+)
+// Sized placeholder so layout doesn't reflow when the chunk lands.
+const ChartFallback = () => (
+  <div className="h-full w-full flex items-center justify-center">
+    <div className="h-2 w-24 rounded-full bg-slate-200/60 animate-pulse" />
+  </div>
+)
 import toast from 'react-hot-toast'
 import { ShippingRatesPanel } from '../components/ShippingRatesPanel'
 import { useAdminStats } from '../hooks/useRealtimeUpdates'
@@ -569,19 +585,9 @@ export const AdminDashboard = () => {
                   <p className="text-xs mt-3 font-bold text-orange-400 uppercase tracking-widest">{stats?.revenue?.total_transactions || 0} secure transactions</p>
                 </div>
                 <div className="h-40 w-full mt-4 relative z-10">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={stats?.daily_orders || []}>
-                      <defs>
-                        <linearGradient id="colorDailyRev" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f97316" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }} formatter={(val) => [`KES ${Number(val).toLocaleString()}`, 'Revenue']} labelFormatter={(label) => new Date(label).toLocaleDateString()} />
-                      <Area type="monotone" dataKey="revenue" stroke="#f97316" strokeWidth={3} fillOpacity={1} fill="url(#colorDailyRev)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                  <Suspense fallback={<ChartFallback />}>
+                    <RevenueAreaChart data={stats?.daily_orders} />
+                  </Suspense>
                 </div>
               </div>
 
@@ -665,16 +671,9 @@ export const AdminDashboard = () => {
               <GlassCard className="flex flex-col p-8">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2"><Globe size={14} className="text-blue-500" /> Volume by Market</h4>
                 <div className="flex-1 min-h-[200px] flex items-center justify-center">
-                  {marketChartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={marketChartData} innerRadius={55} outerRadius={80} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
-                          {marketChartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                        </Pie>
-                        <Tooltip contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  ) : <p className="text-slate-400 font-bold text-sm uppercase tracking-widest">No Market Data</p>}
+                  <Suspense fallback={<ChartFallback />}>
+                    <MarketPieChart data={marketChartData} colors={COLORS} />
+                  </Suspense>
                 </div>
               </GlassCard>
             </div>
@@ -685,19 +684,9 @@ export const AdminDashboard = () => {
               <GlassCard className="md:col-span-2 p-8">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2"><TrendingUp size={14} className="text-green-500" /> Orders Trend (14 Days)</h4>
                 <div className="h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={stats?.daily_orders || []}>
-                      <defs>
-                        <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#1e3a5f" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="#1e3a5f" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
-                      <Tooltip contentStyle={{ borderRadius: '1rem', border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }} formatter={(val) => [val, 'Orders']} labelFormatter={(label) => new Date(label).toLocaleDateString()} />
-                      <Area type="monotone" dataKey="count" stroke="#1e3a5f" strokeWidth={3} fillOpacity={1} fill="url(#colorOrders)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                  <Suspense fallback={<ChartFallback />}>
+                    <OrdersTrendAreaChart data={stats?.daily_orders} />
+                  </Suspense>
                 </div>
               </GlassCard>
 
