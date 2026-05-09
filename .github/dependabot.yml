@@ -50,14 +50,22 @@ updates:
         update-types:
           - patch
           - minor
-    # Vite 8 dropped esbuild bundling — pin to 7.x until we have a migration plan
-    # (per reference_dep_major_gotchas.md). Lucide v1 has a separate bump branch
-    # already open; let it land manually before letting Dependabot manage it.
+    # Pin majors that need a deliberate migration plan, not an auto-bump:
+    #   - vite          — v8 dropped esbuild bundling (per reference_dep_major_gotchas.md)
+    #   - lucide-react  — v1 has a separate bump branch open; land manually
+    #   - tailwindcss   — v4 is a complete engine rewrite (Lightning CSS, no PostCSS;
+    #                      new @config-in-CSS format; @tailwindcss/forms needs the
+    #                      v4-compat release; removed legacy classes; different
+    #                      defaults). PR #171 opened as a clean rebase but was
+    #                      rejected for these reasons — see that PR's close comment.
     ignore:
       - dependency-name: vite
         update-types:
           - version-update:semver-major
       - dependency-name: lucide-react
+        update-types:
+          - version-update:semver-major
+      - dependency-name: tailwindcss
         update-types:
           - version-update:semver-major
 
