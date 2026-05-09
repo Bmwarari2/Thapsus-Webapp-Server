@@ -81,21 +81,32 @@ CREATE POLICY "credit_ledger self-or-staff read"
 --    multiple_permissive_policies trip. Split admin write into
 --    INSERT/UPDATE/DELETE so a single SELECT policy serves both anon
 --    and authenticated, and admin still has full write access.
+--
+-- Idempotency note: every CREATE POLICY below is preceded by a
+-- DROP POLICY IF EXISTS for the same name. Without that, a Railway
+-- redeploy that re-runs this migration on an environment where mig
+-- 029 (or an earlier partial apply of this migration) created any of
+-- the policies trips `42710 policy "<name>" already exists` and
+-- aborts the rest of the script. Boot logs from 2026-05-09 showed
+-- exactly that pattern after PR #163 (F-baseline) merged.
 DROP POLICY IF EXISTS "retailers admin write" ON public.retailers;
 DROP POLICY IF EXISTS "retailers public read" ON public.retailers;
 
+DROP POLICY IF EXISTS "retailers select all" ON public.retailers;
 CREATE POLICY "retailers select all"
     ON public.retailers
     FOR SELECT
     TO anon, authenticated
     USING (is_active = true OR (SELECT public.is_thapsus_admin()));
 
+DROP POLICY IF EXISTS "retailers admin insert" ON public.retailers;
 CREATE POLICY "retailers admin insert"
     ON public.retailers
     FOR INSERT
     TO authenticated
     WITH CHECK ((SELECT public.is_thapsus_admin()));
 
+DROP POLICY IF EXISTS "retailers admin update" ON public.retailers;
 CREATE POLICY "retailers admin update"
     ON public.retailers
     FOR UPDATE
@@ -103,6 +114,7 @@ CREATE POLICY "retailers admin update"
     USING ((SELECT public.is_thapsus_admin()))
     WITH CHECK ((SELECT public.is_thapsus_admin()));
 
+DROP POLICY IF EXISTS "retailers admin delete" ON public.retailers;
 CREATE POLICY "retailers admin delete"
     ON public.retailers
     FOR DELETE

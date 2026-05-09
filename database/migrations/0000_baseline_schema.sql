@@ -89,16 +89,14 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- public.wallet — created here so live-DB-shape matches the migration chain.
--- Mig 043 drops it for real, after mig 039 already tried (the bootstrap was
--- re-creating it on every boot). Live envs no-op; fresh envs create-then-drop.
-CREATE TABLE IF NOT EXISTS wallet (
-  id TEXT PRIMARY KEY,
-  user_id TEXT UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  balance REAL DEFAULT 0,
-  currency TEXT DEFAULT 'KES',
-  last_updated TIMESTAMPTZ DEFAULT NOW()
-);
+-- NOTE: public.wallet was lifted from the original schema.sql but is
+-- intentionally NOT created here. It was retired by mig 028 (replaced by
+-- user_credits + credit_ledger) and dropped by mig 039 + 043. Re-creating
+-- it in the baseline broke live envs after PR #163 merged: the table came
+-- back without RLS enabled (Supabase advisor ERROR `rls_disabled_in_public`)
+-- because mig 039 / 043 were already in `_migrations` and didn't re-fire.
+-- Mig 046 cleans up that regression for envs that hit it; do NOT add the
+-- table back here without first dropping mig 046 + adding RLS enable.
 
 CREATE TABLE IF NOT EXISTS referrals (
   id TEXT PRIMARY KEY,
