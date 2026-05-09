@@ -3,6 +3,7 @@ import { MapPin, Camera, CheckCircle, XCircle, RefreshCw, Phone, Loader2 } from 
 import toast from 'react-hot-toast'
 import { lastMileApi } from '../../api'
 import { GlassStyles, GlassCard, PageHeading } from '../../components/GlassUI'
+import { OutboxIndicator } from '../../components/OutboxIndicator'
 
 /**
  * /partner/rider — Nairobi rider PWA (Spec §3.4, §4.6).
@@ -164,6 +165,14 @@ export const RiderPwa = () => {
           <PageHeading title="Today's runs" subtitle="Tap a stop to deliver" />
           <button onClick={refresh}
             className="p-2 rounded-full bg-white shadow text-[#1e3a5f]"><RefreshCw size={16}/></button>
+        </div>
+
+        {/* Audit W4A.4 — Web Outbox indicator. Hidden when nothing is
+            queued. Auto-flushes on the `online` event; tappable here so a
+            rider on patchy cell can manually retry without waiting for
+            the browser to surface a connectivity transition. */}
+        <div className="mb-4">
+          <OutboxIndicator />
         </div>
 
         {runs.length === 0 ? (
