@@ -30,8 +30,15 @@ export function AuthProvider({ children }) {
         .then((res) => {
           if (cancelled) return
           const freshUser = res.data.user
+          // Audit W6.1 — silent refresh. The server includes
+          // `refreshed_token` on /me when the current token's iat is
+          // older than the configured threshold (default 24h). Swap it
+          // into storage so the sliding 7-day session stays alive
+          // without a re-login. Older server builds simply omit the
+          // field; we fall back to the existing token.
+          const nextToken = res.data.refreshed_token || token
           setUser(freshUser)
-          saveSession(token, freshUser)
+          saveSession(nextToken, freshUser)
         })
         .catch(() => {
           if (cancelled) return
