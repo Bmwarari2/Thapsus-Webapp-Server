@@ -103,10 +103,14 @@ export const Footer = () => {
         {/* Divider & Copyright */}
         <div className="border-t border-white/10 pt-8 mt-4 relative z-10">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-slate-500 text-sm font-semibold tracking-tight">
+            {/* Audit a11y fix: text-slate-500 (#64748b) on the dark
+                footer #202d48 was 2.88:1. Bumped to slate-300 (#cbd5e1)
+                for 6.34:1 — clears AA easily. Same for the privacy /
+                terms links (slate-400 → slate-300). */}
+            <p className="text-slate-300 text-sm font-semibold tracking-tight">
               {t('common.copyright')}
             </p>
-            <div className="flex gap-6 text-sm font-bold text-slate-400">
+            <div className="flex gap-6 text-sm font-bold text-slate-300">
               <Link to="/privacy" className="hover:text-orange-400 transition-colors">
                 {t('common.privacy')}
               </Link>
