@@ -26,6 +26,22 @@ updates:
         update-types:
           - patch
           - minor
+    # Pin majors that need a deliberate migration plan, not an auto-bump:
+    #   - vitest        — must move in lockstep with @vitest/coverage-v8 + the
+    #                      @vitest/* family. Dependabot opens single-package PRs
+    #                      for majors, so a vitest 4 bump on its own breaks the
+    #                      coverage peer (PR #172 hit ERESOLVE in CI for exactly
+    #                      this). Migrate vitest + coverage-v8 + any @vitest/*
+    #                      siblings together in one coordinated PR.
+    #   - @vitest/*     — same lockstep rule (covers @vitest/coverage-v8,
+    #                      @vitest/expect, @vitest/spy, @vitest/utils, etc.)
+    ignore:
+      - dependency-name: vitest
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@vitest/*"
+        update-types:
+          - version-update:semver-major
 
   # React webapp deps
   - package-ecosystem: npm
