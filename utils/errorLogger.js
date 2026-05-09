@@ -68,6 +68,7 @@ export function errorLoggingMiddleware(err, req, res, next) {
     statusCode,
     userId: req.user?.id || null,
     meta: {
+      request_id: req.requestId || null,
       body: req.body && Object.keys(req.body).length ? '[present]' : null,
       query: req.query && Object.keys(req.query).length ? req.query : null,
       ip: req.ip,
@@ -93,5 +94,6 @@ export function logRouteError(req, res, error, context = '') {
     path: req.originalUrl || req.path,
     statusCode: 500,
     userId: req.user?.id || null,
+    meta: { request_id: req.requestId || null },
   });
 }

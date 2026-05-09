@@ -131,6 +131,20 @@ if (NODE_ENV === 'production' && CORS_ORIGIN === '*') {
 
 app.set('trust proxy', 1);
 
+// ── Request ID ────────────────────────────────────────────────────────────────
+// Honour an incoming X-Request-Id (from a fronting proxy / load balancer);
+// otherwise mint a fresh UUIDv4. Echo the value back in the response header
+// so callers can correlate logs with whatever they captured client-side.
+// morgan picks the id up via the :request-id token defined below, and
+// errorLoggingMiddleware persists it into error_logs.meta.request_id.
+app.use((req, res, next) => {
+  const incoming = req.get('X-Request-Id');
+  const id = (incoming && /^[A-Za-z0-9._-]{1,128}$/.test(incoming)) ? incoming : uuidv4();
+  req.requestId = id;
+  res.setHeader('X-Request-Id', id);
+  next();
+});
+
 // ── Helmet / CSP ──────────────────────────────────────────────────────────────
 app.use(helmet({
   contentSecurityPolicy: {
@@ -182,7 +196,14 @@ if (CORS_ORIGIN === '*') {
 app.options('/*splat', cors());
 
 app.use(compression());
-app.use(morgan(NODE_ENV === 'development' ? 'dev' : 'combined'));
+
+// morgan: emit the request id alongside the standard fields so log scraping
+// can pivot on it. Custom token reads from req.requestId set above.
+morgan.token('request-id', (req) => req.requestId || '-');
+const MORGAN_FORMAT = NODE_ENV === 'development'
+  ? ':method :url :status :response-time ms - :res[content-length] req=:request-id'
+  : ':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent" req=:request-id';
+app.use(morgan(MORGAN_FORMAT));
 // Stripe webhook MUST receive the raw body for signature verification.
 // Mount it BEFORE express.json() so the JSON parser doesn't consume the
 // stream first. The handler attaches req.db itself via getPool().
