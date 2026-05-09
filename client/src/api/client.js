@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { shouldQueue, outboxEnqueueFromError, outboxFlush } from '../lib/outbox'
 
 // In production (Railway) the frontend is served by the same Express process
 // that also handles /api — so we use a relative base URL ('/api') which avoids
@@ -77,7 +78,7 @@ api.interceptors.request.use((config) => {
 // ── Response interceptor: handle 401 + unwrap errors ─────────────────────────
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const isAuthRoute = error.config?.url?.includes('/auth/')
     if (error.response?.status === 401 && !isAuthRoute) {
       clearSession()
@@ -87,6 +88,24 @@ api.interceptors.response.use(
       // state and never let the user see a "session expired" toast.
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('auth:expired'))
+      }
+    }
+
+    // Audit W4A.4 — Web Outbox. Network-only failures (no response from
+    // server, no auth route, write method) get queued for replay when the
+    // device comes back online. The caller still sees a rejected
+    // Promise, but the queue retains the mutation so the rider's
+    // POD/receive/screen action survives a flaky cellular blip.
+    if (shouldQueue(error)) {
+      try {
+        await outboxEnqueueFromError(error)
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('outbox:enqueued'))
+        }
+      } catch (e) {
+        // IndexedDB might be unavailable in private windows / iframes.
+        // Best-effort — fall through to the normal rejection path.
+        console.warn('[outbox] enqueue failed:', e?.message)
       }
     }
 
@@ -101,7 +120,7 @@ api.interceptors.response.use(
     } else if (error.code === 'ECONNABORTED') {
       message = 'Request timed out. Please check your connection.'
     } else if (!error.response) {
-      message = 'Cannot reach the server. Please check your connection.'
+      message = 'Saved locally — will retry when you are back online.'
     } else if (error.message) {
       message = error.message
     }
@@ -115,5 +134,28 @@ api.interceptors.response.use(
     return Promise.reject(error)
   }
 )
+
+// ── Auto-flush on online events ──────────────────────────────────────────────
+// When the navigator transitions back from offline → online, kick the
+// outbox so any queued POD captures / parcel receives replay without
+// waiting for the user to navigate. The callback throws on failure
+// (network still flaky); outboxFlush stops on the first failure and
+// preserves the queue for the next event or manual flush.
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    outboxFlush(api).then((res) => {
+      if (res.replayed > 0) {
+        window.dispatchEvent(new CustomEvent('outbox:flushed', { detail: res }))
+      }
+    }).catch((e) => {
+      console.warn('[outbox] auto-flush failed:', e?.message)
+    })
+  })
+}
+
+// Public helper so UI components can flush manually (rider home button).
+export async function flushOutbox() {
+  return outboxFlush(api)
+}
 
 export default api
