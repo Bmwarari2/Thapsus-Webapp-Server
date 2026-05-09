@@ -94,262 +94,26 @@ pool.on('error', (err) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SCHEMA DEFINITIONS
-// Each entry: { name, sql, indexes[] }
-// Tables are created in dependency order (parents before children).
-// ═══════════════════════════════════════════════════════════════════════════════
-const TABLES = [
-  {
-    name: 'users',
-    sql: `CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      name TEXT NOT NULL,
-      phone TEXT NOT NULL,
-      role TEXT CHECK(role IN ('customer','admin')) DEFAULT 'customer',
-      warehouse_id TEXT UNIQUE NOT NULL,
-      language_pref TEXT DEFAULT 'en',
-      referral_code TEXT UNIQUE NOT NULL,
-      referred_by TEXT REFERENCES users(id),
-      wallet_balance REAL DEFAULT 0,
-      is_active BOOLEAN DEFAULT TRUE,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )`,
-    indexes: [],
-  },
-  {
-    name: 'orders',
-    sql: `CREATE TABLE IF NOT EXISTS orders (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      tracking_number TEXT UNIQUE NOT NULL,
-      retailer TEXT NOT NULL,
-      market TEXT CHECK(market IN ('UK','USA','China')) NOT NULL,
-      status TEXT CHECK(status IN ('pending','received_at_warehouse','consolidating','in_transit','customs','out_for_delivery','delivered','cancelled')) DEFAULT 'pending',
-      description TEXT NOT NULL,
-      weight_kg REAL,
-      dimensions_json TEXT,
-      shipping_speed TEXT CHECK(shipping_speed IN ('economy','express')) DEFAULT 'economy',
-      insurance BOOLEAN DEFAULT FALSE,
-      declared_value REAL DEFAULT 0,
-      estimated_cost REAL,
-      actual_cost REAL,
-      customs_duty REAL DEFAULT 0,
-      electronics_item TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )`,
-    indexes: [
-      'CREATE INDEX IF NOT EXISTS idx_orders_user_id  ON orders(user_id)',
-      'CREATE INDEX IF NOT EXISTS idx_orders_tracking ON orders(tracking_number)',
-      'CREATE INDEX IF NOT EXISTS idx_orders_status   ON orders(status)',
-    ],
-  },
-  {
-    name: 'packages',
-    sql: `CREATE TABLE IF NOT EXISTS packages (
-      id TEXT PRIMARY KEY,
-      order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      description TEXT NOT NULL,
-      weight_kg REAL,
-      status TEXT CHECK(status IN ('pending','received','consolidating','in_transit','customs','out_for_delivery','delivered','lost')) DEFAULT 'pending',
-      warehouse_location TEXT,
-      is_consolidated BOOLEAN DEFAULT FALSE,
-      consolidated_with TEXT,
-      received_at TIMESTAMPTZ,
-      photo_url TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )`,
-    indexes: [
-      'CREATE INDEX IF NOT EXISTS idx_packages_user_id  ON packages(user_id)',
-      'CREATE INDEX IF NOT EXISTS idx_packages_order_id ON packages(order_id)',
-    ],
-  },
-  {
-    name: 'transactions',
-    sql: `CREATE TABLE IF NOT EXISTS transactions (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      type TEXT CHECK(type IN ('deposit','payment','refund','referral_credit','referral_reward')) NOT NULL,
-      amount REAL NOT NULL,
-      currency TEXT DEFAULT 'KES',
-      payment_method TEXT CHECK(payment_method IN ('mpesa','stripe','paypal','wallet','system')),
-      payment_reference TEXT,
-      status TEXT CHECK(status IN ('pending','completed','failed')) DEFAULT 'pending',
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`,
-    indexes: [
-      'CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)',
-    ],
-  },
-  {
-    name: 'wallet',
-    sql: `CREATE TABLE IF NOT EXISTS wallet (
-      id TEXT PRIMARY KEY,
-      user_id TEXT UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      balance REAL DEFAULT 0,
-      currency TEXT DEFAULT 'KES',
-      last_updated TIMESTAMPTZ DEFAULT NOW()
-    )`,
-    indexes: [],
-  },
-  {
-    name: 'referrals',
-    sql: `CREATE TABLE IF NOT EXISTS referrals (
-      id TEXT PRIMARY KEY,
-      referrer_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      referee_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-      referral_code TEXT UNIQUE NOT NULL,
-      status TEXT CHECK(status IN ('pending','completed')) DEFAULT 'pending',
-      reward_amount REAL DEFAULT 50,
-      completed_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`,
-    indexes: [
-      'CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_id)',
-      'CREATE INDEX IF NOT EXISTS idx_referrals_referee  ON referrals(referee_id)',
-      'CREATE INDEX IF NOT EXISTS idx_referrals_status   ON referrals(status)',
-    ],
-  },
-  {
-    name: 'tickets',
-    sql: `CREATE TABLE IF NOT EXISTS tickets (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      subject TEXT NOT NULL,
-      description TEXT NOT NULL,
-      status TEXT CHECK(status IN ('open','in_progress','resolved','closed')) DEFAULT 'open',
-      priority TEXT CHECK(priority IN ('low','medium','high')) DEFAULT 'medium',
-      photo_url TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )`,
-    indexes: [
-      'CREATE INDEX IF NOT EXISTS idx_tickets_user_id ON tickets(user_id)',
-    ],
-  },
-  {
-    name: 'ticket_messages',
-    sql: `CREATE TABLE IF NOT EXISTS ticket_messages (
-      id TEXT PRIMARY KEY,
-      ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
-      sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      message TEXT NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`,
-    indexes: [],
-  },
-  {
-    name: 'notifications',
-    sql: `CREATE TABLE IF NOT EXISTS notifications (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      type TEXT CHECK(type IN ('sms','email','whatsapp','in_app')) NOT NULL,
-      message TEXT NOT NULL,
-      is_read BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`,
-    indexes: [
-      'CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)',
-    ],
-  },
-  {
-    name: 'admin_logs',
-    sql: `CREATE TABLE IF NOT EXISTS admin_logs (
-      id TEXT PRIMARY KEY,
-      admin_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-      action TEXT NOT NULL,
-      details TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`,
-    indexes: [],
-  },
-  {
-    name: 'exchange_rates',
-    sql: `CREATE TABLE IF NOT EXISTS exchange_rates (
-      id SERIAL PRIMARY KEY,
-      currency_pair TEXT UNIQUE NOT NULL,
-      rate REAL NOT NULL,
-      updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )`,
-    indexes: [],
-  },
-  {
-    name: 'password_reset_tokens',
-    sql: `CREATE TABLE IF NOT EXISTS password_reset_tokens (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      token TEXT UNIQUE NOT NULL,
-      expires_at TIMESTAMPTZ NOT NULL,
-      used BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`,
-    indexes: [
-      'CREATE INDEX IF NOT EXISTS idx_reset_token ON password_reset_tokens(token)',
-    ],
-  },
-  {
-    name: 'backups',
-    sql: `CREATE TABLE IF NOT EXISTS backups (
-      id TEXT PRIMARY KEY,
-      filename TEXT NOT NULL,
-      filepath TEXT NOT NULL,
-      size_bytes INTEGER NOT NULL,
-      checksum TEXT NOT NULL,
-      status TEXT CHECK(status IN ('completed','failed','in_progress')) DEFAULT 'in_progress',
-      created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`,
-    indexes: [
-      'CREATE INDEX IF NOT EXISTS idx_backups_created_at ON backups(created_at)',
-    ],
-  },
-  {
-    name: 'email_logs',
-    sql: `CREATE TABLE IF NOT EXISTS email_logs (
-      id TEXT PRIMARY KEY,
-      user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-      email_to TEXT NOT NULL,
-      email_type TEXT NOT NULL,
-      subject TEXT NOT NULL,
-      status TEXT CHECK(status IN ('sent','failed')) DEFAULT 'sent',
-      error_message TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`,
-    indexes: [
-      'CREATE INDEX IF NOT EXISTS idx_email_logs_user_id ON email_logs(user_id)',
-    ],
-  },
-  {
-    name: 'error_logs',
-    sql: `CREATE TABLE IF NOT EXISTS error_logs (
-      id TEXT PRIMARY KEY,
-      level TEXT CHECK(level IN ('error','warn','fatal')) DEFAULT 'error',
-      source TEXT NOT NULL,
-      message TEXT NOT NULL,
-      stack TEXT,
-      method TEXT,
-      path TEXT,
-      status_code INTEGER,
-      user_id TEXT,
-      meta TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`,
-    indexes: [
-      'CREATE INDEX IF NOT EXISTS idx_error_logs_created ON error_logs(created_at)',
-      'CREATE INDEX IF NOT EXISTS idx_error_logs_level   ON error_logs(level)',
-      'CREATE INDEX IF NOT EXISTS idx_error_logs_source  ON error_logs(source)',
-    ],
-  },
-];
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// initializeDatabase — creates every table individually with error reporting
+// initializeDatabase — connect, run forward migrations, run smoke checks.
+//
+// Audit C-1 (2026-05-09): the previous implementation also held a hard-coded
+// TABLES schema that re-ran CREATE TABLE / CREATE INDEX / ALTER TABLE on every
+// boot. That was fighting forward migrations — e.g. migration 039 dropped
+// `wallet`, which the bootstrap then re-created on the next deploy with RLS
+// disabled. Forward migrations under database/migrations/ are now the single
+// source of truth for schema. The bootstrap only:
+//   1. opens the pool and validates the connection,
+//   2. enumerates database/migrations/*.sql against the _migrations ledger
+//      and applies anything new,
+//   3. runs a couple of cheap diagnostics (role check, users SELECT smoke).
+// Provisioning a *fresh* Supabase project: the base tables (users, orders,
+// packages, transactions, referrals, tickets, ticket_messages, notifications,
+// admin_logs, exchange_rates, password_reset_tokens, backups, email_logs,
+// error_logs) currently only exist in database/schema.sql, not in any
+// migration file. Apply schema.sql via the Supabase SQL Editor first, THEN
+// boot the server so this function picks up the v2 / audit migrations.
+// Consolidating schema.sql into a `000_baseline_schema.sql` migration is
+// tracked as audit follow-up F-baseline.
 // ═══════════════════════════════════════════════════════════════════════════════
 export async function initializeDatabase() {
   // ── Step 1: connect ──────────────────────────────────────────────────────
@@ -415,7 +179,7 @@ export async function initializeDatabase() {
 ║  Make sure it uses port 5432 and starts with:                    ║
 ║  postgresql://postgres.[REF]:[PASS]@aws-0-...:5432/postgres      ║
 ║                                                                  ║
-║  Skipping schema creation — using existing tables only.          ║
+║  Skipping forward migrations — using existing schema only.       ║
 ╚══════════════════════════════════════════════════════════════════╝
       `);
     }
@@ -423,43 +187,10 @@ export async function initializeDatabase() {
     console.error('⚠ Could not check transaction_read_only:', err.message);
   }
 
-  // ── Step 3: create tables (skip if read-only) ───────────────────────────
-  if (!isReadOnly) {
-    const results = { ok: [], failed: [] };
-
-    for (const table of TABLES) {
-      try {
-        await client.query(table.sql);
-        results.ok.push(table.name);
-
-        for (const idx of table.indexes) {
-          try {
-            await client.query(idx);
-          } catch (idxErr) {
-            console.error(`  ⚠ Index failed for ${table.name}: ${idxErr.message}`);
-          }
-        }
-      } catch (err) {
-        results.failed.push({ name: table.name, error: err.message });
-        console.error(`  ✗ Table "${table.name}" failed: ${err.message}`);
-      }
-    }
-
-    if (results.failed.length === 0) {
-      console.log(`✓ Database schema initialised — ${results.ok.length}/${TABLES.length} tables ready`);
-    } else {
-      console.error(`\n⚠ Database schema partially initialised:`);
-      console.error(`  ✓ ${results.ok.length} tables OK: ${results.ok.join(', ')}`);
-      console.error(`  ✗ ${results.failed.length} tables FAILED:`);
-      for (const f of results.failed) {
-        console.error(`    - ${f.name}: ${f.error}`);
-      }
-    }
-  }
-
   client.release();
 
-  // ── Step 4: verify tables exist in database ─────────────────────────────
+  // ── Step 3: list tables in database (diagnostic only) ───────────────────
+  // Schema creation is owned entirely by database/migrations/ — see Step 5.
   try {
     const checkRes = await pool.query(`
       SELECT table_name
@@ -468,22 +199,12 @@ export async function initializeDatabase() {
       ORDER BY table_name
     `);
     const existing = checkRes.rows.map(r => r.table_name);
-    const expected = TABLES.map(t => t.name);
-    const missing = expected.filter(t => !existing.includes(t));
-
-    if (missing.length > 0) {
-      console.error(`⚠ Missing tables in database: ${missing.join(', ')}`);
-      console.error('  Create these manually in the Supabase SQL Editor.');
-    } else {
-      console.log(`✓ All ${expected.length} tables verified in database`);
-    }
-
-    console.log(`  Tables found: ${existing.join(', ')}`);
+    console.log(`✓ ${existing.length} tables present: ${existing.join(', ')}`);
   } catch (err) {
-    console.error('⚠ Could not verify tables:', err.message);
+    console.error('⚠ Could not list tables:', err.message);
   }
 
-  // ── Step 5: quick data test — can we actually read from users? ──────────
+  // ── Step 4: quick data test — can we actually read from users? ──────────
   // RLS is intentionally ENABLED + FORCED on every public table (see
   // server-patches/database/migrations/018_rls_relockdown.sql + 019_rls_policy_fill.sql).
   // The mobile clients read directly via PostgREST under the user's JWT, so the
@@ -499,37 +220,7 @@ export async function initializeDatabase() {
     console.error('  This confirms RLS or permissions are blocking reads.');
   }
 
-  // ── Step 8: column migrations (add new columns to existing tables) ───────
-  if (!isReadOnly) {
-    const columnMigrations = [
-      {
-        description: 'orders.electronics_item',
-        sql: `ALTER TABLE orders ADD COLUMN IF NOT EXISTS electronics_item TEXT`,
-      },
-      {
-        description: 'users.delivery_address',
-        sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS delivery_address TEXT`,
-      },
-      {
-        description: 'users.admin_notes',
-        sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_notes TEXT`,
-      },
-      {
-        description: 'orders.order_notes',
-        sql: `ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_notes TEXT`,
-      },
-    ];
-    for (const m of columnMigrations) {
-      try {
-        await pool.query(m.sql);
-        console.log(`✓ Migration applied: ${m.description}`);
-      } catch (err) {
-        console.error(`⚠ Migration failed (${m.description}): ${err.message}`);
-      }
-    }
-  }
-
-  // ── Step 9: Framework v2 SQL migrations from database/migrations/ ────────
+  // ── Step 5: SQL migrations from database/migrations/ ─────────────────────
   // These are additive, idempotent .sql files. We consult `_migrations`
   // (filename text PRIMARY KEY, applied_at timestamptz) to skip files
   // already recorded — Railway redeploys used to re-apply all 25
