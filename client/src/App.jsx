@@ -59,7 +59,6 @@ const OpsDispatch         = lazy(() => import('./pages/OpsDispatch').then(m => (
 const OpsBuyForMe         = lazy(() => import('./pages/OpsBuyForMe').then(m => ({ default: m.OpsBuyForMe })))
 const OpsSettings         = lazy(() => import('./pages/OpsSettings').then(m => ({ default: m.OpsSettings })))
 const KpiDashboard        = lazy(() => import('./pages/KpiDashboard').then(m => ({ default: m.KpiDashboard })))
-const Insurance           = lazy(() => import('./pages/Insurance').then(m => ({ default: m.Insurance })))
 const DsarRequest         = lazy(() => import('./pages/DsarRequest').then(m => ({ default: m.DsarRequest })))
 const BuyForMe            = lazy(() => import('./pages/BuyForMe').then(m => ({ default: m.BuyForMe })))
 const AgentPortal         = lazy(() => import('./pages/partner/AgentPortal').then(m => ({ default: m.AgentPortal })))
@@ -147,7 +146,6 @@ function App() {
             <Route path="/warehouse" element={<ProtectedRoute><WarehouseAddresses /></ProtectedRoute>} />
 
             {/* Customer-facing Framework v2 routes */}
-            <Route path="/insurance"  element={<ProtectedRoute><Insurance /></ProtectedRoute>} />
             <Route path="/buy-for-me" element={<ProtectedRoute><BuyForMe /></ProtectedRoute>} />
             <Route path="/dsar"       element={<ProtectedRoute><DsarRequest /></ProtectedRoute>} />
 

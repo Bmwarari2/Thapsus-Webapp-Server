@@ -403,16 +403,6 @@ export const customsApi = {
   approveInvoice:      (id, st) => api.patch(`/customs/agent-invoices/${id}`, { status: st }),
 }
 
-/** Insurance — declared-value cover */
-export const insuranceApi = {
-  quote:    (tier, declared_value_gbp)   => api.post('/insurance/quote', { tier, declared_value_gbp }),
-  buy:      (parcel_id, tier, value)     => api.post('/insurance/policies', {
-                                              parcel_id, tier, declared_value_gbp: value }),
-  list:     ()                           => api.get('/insurance/policies'),
-  claim:    (id, amount, notes)          => api.post(`/insurance/policies/${id}/claim`, {
-                                              claim_amount_gbp: amount, notes }),
-}
-
 /** Last-mile dispatch + rider PWA */
 export const lastMileApi = {
   dispatch:    ()                  => api.get('/last-mile/dispatch'),

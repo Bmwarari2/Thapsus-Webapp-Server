@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   Menu, X, LogOut, Settings, BarChart3, Truck, Plane, Bike,
-  Shield, ShoppingBag, Activity, ChevronDown, ChevronRight,
+  ShoppingBag, Activity, ChevronDown, ChevronRight,
   Home as HomeIcon, Search, Calculator, LayoutDashboard, LogIn,
   Wallet as WalletIcon, FileText, ShieldAlert, Database, Receipt,
   Warehouse as WarehouseIcon, LifeBuoy, Globe, BookOpen, ScrollText, History,
@@ -244,7 +244,6 @@ function buildLinkSets({ isAuthenticated, isAdmin, role, t }) {
     { to: '/orders',     label: 'My orders',                       icon: Receipt },
     { to: '/credit',     label: 'My credit',                       icon: WalletIcon },
     { to: '/transactions', label: 'Transactions',                  icon: History },
-    { to: '/insurance',  label: 'Insurance',                       icon: Shield },
     { to: '/buy-for-me', label: 'Buy for me',                      icon: ShoppingBag },
     { to: '/consolidation', label: 'Consolidation',                icon: Plane },
     { to: '/support',    label: 'Support',                         icon: LifeBuoy },
