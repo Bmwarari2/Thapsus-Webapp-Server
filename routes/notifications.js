@@ -1,9 +1,10 @@
 /**
  * routes/notifications.js — Customer notification inbox.
  *
- * Reads/writes the existing `notifications` table (database/schema.sql §
- * notifications). Used by the iOS app's inbox screen and the webapp's
- * NotificationBanner. Mark-as-read is per-row plus a mark-all helper.
+ * Reads/writes the `notifications` table (defined in baseline migration
+ * `database/migrations/0000_baseline_schema.sql`). Used by the iOS app's
+ * inbox screen and the webapp's NotificationBanner. Mark-as-read is per-row
+ * plus a mark-all helper.
  */
 import express from 'express';
 import { authMiddleware } from '../middleware/auth.js';
