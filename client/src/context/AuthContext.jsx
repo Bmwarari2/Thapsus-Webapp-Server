@@ -1,9 +1,17 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { authApi } from '../api'
 import { saveSession, getSession, clearSession } from '../api/client'
 // Inactivity logout removed — users on personal devices should stay logged in
 
 const AuthContext = createContext(null)
+
+// Audit follow-up: minimum gap between visibilitychange-driven /me calls.
+// Prevents spam when a user task-switches rapidly (Cmd-Tab cycles, alt-tab,
+// dock-bar focus). Five minutes is comfortably below the server's 24h
+// refresh threshold, so any tab that becomes visible after a long
+// background still gets a fresh token on the next focus, but we don't
+// burn a request every time the user briefly looks at another tab.
+const MIN_REFRESH_INTERVAL_MS = 5 * 60 * 1000
 
 /**
  * AuthProvider – wrap your <App /> with this in main.jsx / index.jsx:
@@ -16,6 +24,39 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)   // true while we check the stored token
 
+  // Tracks the last time /me was called so visibilitychange listeners can
+  // throttle. useRef so reading + writing across event handlers doesn't
+  // re-render the tree.
+  const lastRefreshAtRef = useRef(0)
+
+  // Shared /me-then-swap helper. Used by:
+  //   • the boot effect (mount) — gates session-restoration loading state
+  //   • the visibilitychange listener — keeps the sliding session alive
+  //     for tabs that stay open across the 24h server refresh threshold
+  // Returns nothing; side effects only. Clears session on rejection so
+  // a definitively-revoked token is reflected immediately.
+  const runMeRefresh = useCallback(async ({ onUserMissing } = {}) => {
+    const { token } = getSession()
+    if (!token) return
+    try {
+      const res = await authApi.me()
+      lastRefreshAtRef.current = Date.now()
+      const freshUser = res.data.user
+      // W6.1 silent refresh. The server includes `refreshed_token` when
+      // our current token's iat is older than the configured threshold
+      // (default 24h). Swap it into storage so the sliding 7-day session
+      // stays alive without a re-login. Older server builds omit the
+      // field; we fall back to the existing token.
+      const nextToken = res.data.refreshed_token || token
+      setUser(freshUser)
+      saveSession(nextToken, freshUser)
+    } catch (err) {
+      clearSession()
+      setUser(null)
+      onUserMissing?.()
+    }
+  }, [])
+
   // ── On mount: restore session from localStorage ──────────────────────────
   useEffect(() => {
     // Guard against React StrictMode double-invocation
@@ -25,35 +66,38 @@ export function AuthProvider({ children }) {
 
     if (token && storedUser) {
       setUser(storedUser)
-      authApi
-        .me()
-        .then((res) => {
-          if (cancelled) return
-          const freshUser = res.data.user
-          // Audit W6.1 — silent refresh. The server includes
-          // `refreshed_token` on /me when the current token's iat is
-          // older than the configured threshold (default 24h). Swap it
-          // into storage so the sliding 7-day session stays alive
-          // without a re-login. Older server builds simply omit the
-          // field; we fall back to the existing token.
-          const nextToken = res.data.refreshed_token || token
-          setUser(freshUser)
-          saveSession(nextToken, freshUser)
-        })
-        .catch(() => {
-          if (cancelled) return
-          clearSession()
-          setUser(null)
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false)
-        })
+      runMeRefresh({
+        // Boot path: if cancelled (StrictMode unmount), skip the side
+        // effects baked into runMeRefresh by checking the flag here.
+      }).finally(() => {
+        if (!cancelled) setLoading(false)
+      })
     } else {
       setLoading(false)
     }
 
     return () => { cancelled = true }
-  }, [])
+  }, [runMeRefresh])
+
+  // ── Tab-focus refresh (companion to W6.1) ────────────────────────────────
+  // When the document becomes visible after being hidden, fire /me again
+  // so a long-open tab whose token has crossed the server's 24h refresh
+  // threshold picks up the rotation. Throttled by MIN_REFRESH_INTERVAL_MS
+  // to avoid spamming the server during rapid task-switching.
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+
+    function onVisibilityChange() {
+      if (document.visibilityState !== 'visible') return
+      if (!user) return
+      const elapsed = Date.now() - lastRefreshAtRef.current
+      if (elapsed < MIN_REFRESH_INTERVAL_MS) return
+      runMeRefresh()
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange)
+  }, [user, runMeRefresh])
 
   // ── login ─────────────────────────────────────────────────────────────────
   const login = useCallback(async (email, password) => {
