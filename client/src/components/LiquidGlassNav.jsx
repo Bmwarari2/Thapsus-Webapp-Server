@@ -6,6 +6,7 @@ import {
   Home as HomeIcon, Search, Calculator, LayoutDashboard, LogIn,
   Wallet as WalletIcon, FileText, ShieldAlert, Database, Receipt,
   Warehouse as WarehouseIcon, LifeBuoy, Globe, BookOpen, ScrollText, History,
+  Bell,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
@@ -244,6 +245,7 @@ function buildLinkSets({ isAuthenticated, isAdmin, role, t }) {
     { to: '/orders',     label: 'My orders',                       icon: Receipt },
     { to: '/credit',     label: 'My credit',                       icon: WalletIcon },
     { to: '/transactions', label: 'Transactions',                  icon: History },
+    { to: '/notifications', label: 'Notifications',                 icon: Bell },
     { to: '/buy-for-me', label: 'Buy for me',                      icon: ShoppingBag },
     { to: '/consolidation', label: 'Consolidation',                icon: Plane },
     { to: '/support',    label: 'Support',                         icon: LifeBuoy },

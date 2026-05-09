@@ -35,6 +35,7 @@ const Transactions      = lazy(() => import('./pages/Transactions').then(m => ({
 const Consolidation     = lazy(() => import('./pages/Consolidation').then(m => ({ default: m.Consolidation })))
 const ProhibitedItems   = lazy(() => import('./pages/ProhibitedItems').then(m => ({ default: m.ProhibitedItems })))
 const Support           = lazy(() => import('./pages/Support').then(m => ({ default: m.Support })))
+const Notifications     = lazy(() => import('./pages/Notifications').then(m => ({ default: m.Notifications })))
 const WarehouseAddresses = lazy(() => import('./pages/WarehouseAddresses').then(m => ({ default: m.WarehouseAddresses })))
 const AdminDashboard    = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })))
 const AdminCustomerConsolidations = lazy(() => import('./pages/AdminCustomerConsolidations').then(m => ({ default: m.AdminCustomerConsolidations })))
@@ -144,6 +145,7 @@ function App() {
             <Route path="/consolidation" element={<ProtectedRoute><Consolidation /></ProtectedRoute>} />
             <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
             <Route path="/warehouse" element={<ProtectedRoute><WarehouseAddresses /></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
 
             {/* Customer-facing Framework v2 routes */}
             <Route path="/buy-for-me" element={<ProtectedRoute><BuyForMe /></ProtectedRoute>} />
