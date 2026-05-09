@@ -106,14 +106,13 @@ pool.on('error', (err) => {
 //   2. enumerates database/migrations/*.sql against the _migrations ledger
 //      and applies anything new,
 //   3. runs a couple of cheap diagnostics (role check, users SELECT smoke).
-// Provisioning a *fresh* Supabase project: the base tables (users, orders,
-// packages, transactions, referrals, tickets, ticket_messages, notifications,
-// admin_logs, exchange_rates, password_reset_tokens, backups, email_logs,
-// error_logs) currently only exist in database/schema.sql, not in any
-// migration file. Apply schema.sql via the Supabase SQL Editor first, THEN
-// boot the server so this function picks up the v2 / audit migrations.
-// Consolidating schema.sql into a `000_baseline_schema.sql` migration is
-// tracked as audit follow-up F-baseline.
+// Provisioning a *fresh* Supabase project: just point DATABASE_URL at the new
+// direct-connection string and boot. The baseline migration
+// `0000_baseline_schema.sql` creates the 15 base tables; the rest of
+// `database/migrations/*.sql` layers every additive change on top in
+// alphabetical order. (For history: this used to require pasting
+// database/schema.sql into the SQL Editor first; the baseline migration
+// replaces that step.)
 // ═══════════════════════════════════════════════════════════════════════════════
 export async function initializeDatabase() {
   // ── Step 1: connect ──────────────────────────────────────────────────────

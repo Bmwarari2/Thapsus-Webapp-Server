@@ -21,40 +21,31 @@ cd client && npm install && npm run dev   # SPA on :5173
 
 ## Database migrations
 
-All schema lives under `database/`:
+All schema lives under `database/migrations/` and is applied automatically at server boot via `initializeDatabase()` (see `database/init.js`). There is no longer a separate `schema.sql` step — the canonical baseline is migration `0000_baseline_schema.sql`, and every additive change is its own numbered migration alongside it.
 
 ```
 database/
-├── schema.sql                                    # initial v1 tables
 └── migrations/
-    ├── 000_repair_phase4_tables.sql              # idempotency repair (run only if 001 fails)
-    └── 001_framework_v2_additions.sql            # spec §5 — consolidations, customs, last-mile, etc.
+    ├── 0000_baseline_schema.sql                   # baseline: 15 base tables + indexes
+    ├── 000_repair_phase4_tables.sql               # idempotency repair for half-built v2 tables (mig 001)
+    ├── 001_framework_v2_additions.sql             # consolidations, customs, last-mile, etc.
+    └── …                                          # 002+, 040s — additive only, idempotent, in numeric order
 ```
 
-The iOS repo carries follow-on migrations that should be applied after 001 in this order:
+Every migration is idempotent (`IF NOT EXISTS` / `IF EXISTS` everywhere). The bootstrap consults the `_migrations` ledger and only applies files that haven't already run.
 
-```
-thapsus-mobile/server-patches/database/migrations/
-├── 002_packages_v2_alignment.sql                 # status taxonomy + v2 parcel columns
-└── 003_realtime_publication.sql                  # publishes packages + consolidations to supabase_realtime
-```
+### Provisioning a fresh Supabase project
 
-### Migration order
+1. Set `DATABASE_URL` to the new project's **direct connection** string (port 5432 — the transaction pooler on 6543 is read-only and blocks DDL).
+2. Boot the server (`npm start` locally or a Railway redeploy). `initializeDatabase()` opens the pool, runs every `database/migrations/*.sql` against the empty DB in alphabetical order, then `ensureAdminUser()` seeds the bootstrap admin.
 
-Run, in order, in Supabase Dashboard → SQL Editor → New query → Run:
-
-1. `database/schema.sql` (skip if a Supabase project already has it).
-2. `database/migrations/001_framework_v2_additions.sql`.
-3. `thapsus-mobile/server-patches/database/migrations/002_packages_v2_alignment.sql`.
-4. `thapsus-mobile/server-patches/database/migrations/003_realtime_publication.sql`.
-
-Every migration is idempotent — re-running is safe.
+For audit history of why this consolidation happened, see PR `chore/baseline-schema-migration` — the previous bootstrap held a hard-coded `TABLES` array that fought the migration chain.
 
 ### If migration 001 throws `ERROR: 42703: column "<X>" does not exist`
 
 This happens when an earlier attempt left one of the v2 tables (e.g. `last_mile_runs`, `consolidations`, `dsar_requests`) half-built. `CREATE TABLE IF NOT EXISTS` is a no-op once the table exists, so the follow-on `CREATE INDEX … ON <table>(<column>)` references a column that was never created.
 
-The fix: run **`database/migrations/000_repair_phase4_tables.sql`** first, then re-run 001. The repair script issues `ALTER TABLE … ADD COLUMN IF NOT EXISTS` for every column on every table 001 creates, bringing the schema up to spec without dropping data. Foreign-key constraints are intentionally omitted from the repair so existing rows that don't satisfy them don't block the upgrade — 001's `CREATE TABLE` still installs FKs on a fresh instance.
+The fix: re-run with **`database/migrations/000_repair_phase4_tables.sql`** present. It runs before 001 and issues `ALTER TABLE … ADD COLUMN IF NOT EXISTS` for every column on every table 001 creates. Foreign-key constraints are intentionally omitted from the repair so existing rows that don't satisfy them don't block the upgrade.
 
 ## Required env vars on Railway
 
