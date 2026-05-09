@@ -110,7 +110,7 @@ async function testUserCRUD() {
   // Create admin user first (needed as reference for some FK constraints)
   const adminHash = bcrypt.hashSync('admin_test_pass', 10);
   await pool.query(
-    `INSERT INTO users (id, email, password, name, phone, role, warehouse_id, referral_code, is_active)
+    `INSERT INTO users (id, email, password_hash, name, phone, role, warehouse_id, referral_code, is_active)
      VALUES ($1, $2, $3, $4, $5, 'admin', $6, $7, true)`,
     [testIds.adminId, `${TEST_PREFIX}_admin@test.com`, adminHash, 'Test Admin', '+254700000000',
      `WH-${TEST_PREFIX}-A`, `REF${TEST_PREFIX}A`]
@@ -120,7 +120,7 @@ async function testUserCRUD() {
   const passwordHash = bcrypt.hashSync('test_password_123', 10);
   try {
     await pool.query(
-      `INSERT INTO users (id, email, password, name, phone, role, warehouse_id, referral_code, is_active)
+      `INSERT INTO users (id, email, password_hash, name, phone, role, warehouse_id, referral_code, is_active)
        VALUES ($1, $2, $3, $4, $5, 'customer', $6, $7, true)`,
       [testIds.userId, `${TEST_PREFIX}@test.com`, passwordHash, 'Test User', '+254712345678',
        `WH-${TEST_PREFIX}`, `REF${TEST_PREFIX}`]
@@ -139,7 +139,7 @@ async function testUserCRUD() {
   assert(user.rows[0].is_active === true, 'User is active by default');
 
   // Verify password hash
-  const passwordValid = bcrypt.compareSync('test_password_123', user.rows[0].password);
+  const passwordValid = bcrypt.compareSync('test_password_123', user.rows[0].password_hash);
   assert(passwordValid, 'Password hash verification works');
 
   // Update user
@@ -160,7 +160,7 @@ async function testUserCRUD() {
   // Test duplicate email rejection
   try {
     await pool.query(
-      `INSERT INTO users (id, email, password, name, phone, role, warehouse_id, referral_code)
+      `INSERT INTO users (id, email, password_hash, name, phone, role, warehouse_id, referral_code)
        VALUES ($1, $2, $3, $4, $5, 'customer', $6, $7)`,
       [uuidv4(), `${TEST_PREFIX}@test.com`, passwordHash, 'Duplicate', '+254700000001',
        `WH-DUP-${TEST_PREFIX}`, `REFDUP${TEST_PREFIX}`]
