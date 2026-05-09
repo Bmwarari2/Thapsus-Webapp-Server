@@ -308,16 +308,6 @@ const translations = {
     'cutoff.min':   'MIN',
     'cutoff.sec':   'SEC',
 
-    // Framework v2 — Insurance
-    'insurance.title': 'Declared-value insurance',
-    'insurance.subtitle': 'Cover for theft, loss and damage in transit.',
-    'insurance.tier.standard': 'Standard',
-    'insurance.tier.plus':     'Plus',
-    'insurance.tier.premier':  'Premier',
-    'insurance.buy':           'Buy cover',
-    'insurance.policies':      'Your policies',
-    'insurance.claim':         'File claim',
-
     // Framework v2 — Buy for me
     'bfm.title': 'Buy for me',
     'bfm.subtitle': "Don't have a UK card? Paste the link and we will buy and ship for you.",
@@ -679,16 +669,6 @@ const translations = {
     'cutoff.hrs':      'SAA',
     'cutoff.min':      'DAK',
     'cutoff.sec':      'SEK',
-
-    // Framework v2 — Insurance
-    'insurance.title':         'Bima ya thamani iliyotangazwa',
-    'insurance.subtitle':      'Kufunika wizi, hasara na uharibifu njiani.',
-    'insurance.tier.standard': 'Kawaida',
-    'insurance.tier.plus':     'Plus',
-    'insurance.tier.premier':  'Premier',
-    'insurance.buy':           'Nunua bima',
-    'insurance.policies':      'Bima zako',
-    'insurance.claim':         'Wasilisha madai',
 
     // Framework v2 — Buy for me
     'bfm.title':    'Ninunulie',
