@@ -81,7 +81,13 @@ api.interceptors.response.use(
     const isAuthRoute = error.config?.url?.includes('/auth/')
     if (error.response?.status === 401 && !isAuthRoute) {
       clearSession()
-      window.location.href = '/login'
+      // Soft signal — AuthContext listens for this and decides how to
+      // route the user (toast + react-router navigate with ?next=…).
+      // Avoids the hard window.location reload that ate any unsaved
+      // state and never let the user see a "session expired" toast.
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth:expired'))
+      }
     }
 
     let message = 'Something went wrong. Please try again.'

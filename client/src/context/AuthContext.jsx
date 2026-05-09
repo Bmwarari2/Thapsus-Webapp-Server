@@ -1,7 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { authApi } from '../api'
 import { saveSession, getSession, clearSession } from '../api/client'
 // Inactivity logout removed — users on personal devices should stay logged in
+
+// Routes that should NOT trigger the "session expired" toast / redirect
+// when the api/client.js interceptor fires `auth:expired`. Hitting one
+// of these means the user is already where they need to be (or is in
+// the middle of an auth dance), so the toast would be confusing.
+const AUTH_FREE_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password']
 
 const AuthContext = createContext(null)
 
@@ -23,6 +31,7 @@ const MIN_REFRESH_INTERVAL_MS = 5 * 60 * 1000
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)   // true while we check the stored token
+  const navigate = useNavigate()
 
   // Tracks the last time /me was called so visibilitychange listeners can
   // throttle. useRef so reading + writing across event handlers doesn't
@@ -99,6 +108,35 @@ export function AuthProvider({ children }) {
     return () => document.removeEventListener('visibilitychange', onVisibilityChange)
   }, [user, runMeRefresh])
 
+  // ── Graceful 401 expiry (replaces the old hard window.location reload) ────
+  // The api/client.js interceptor dispatches `auth:expired` whenever a
+  // protected request comes back 401. We:
+  //   1. Show a toast so the user knows what happened (a hard reload
+  //      would have eaten the toast).
+  //   2. Soft-navigate via react-router so unrelated React state isn't
+  //      blown away — and so the URL is appended with ?next=<original>
+  //      that Login.jsx already honours to bounce back after auth.
+  //   3. Skip the toast/redirect when already on an auth-free page so a
+  //      user who navigated to /login on their own doesn't get
+  //      "session expired" yelled at them.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    function onExpired() {
+      setUser(null)
+      const path = window.location.pathname + window.location.search
+      const onAuthPage = AUTH_FREE_ROUTES.some((p) => window.location.pathname.startsWith(p))
+      if (onAuthPage) return
+
+      toast.error('Your session expired. Please log in again.', { duration: 4500, id: 'auth-expired' })
+      const next = encodeURIComponent(path || '/dashboard')
+      navigate(`/login?next=${next}`, { replace: true })
+    }
+
+    window.addEventListener('auth:expired', onExpired)
+    return () => window.removeEventListener('auth:expired', onExpired)
+  }, [navigate])
+
   // ── login ─────────────────────────────────────────────────────────────────
   const login = useCallback(async (email, password) => {
     const res = await authApi.login(email, password)
@@ -128,11 +166,13 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     clearSession()
     setUser(null)
-    // Redirect to login if not already there
-    if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
-      window.location.href = '/login'
+    // Soft-navigate; the user is choosing to log out so we don't show a
+    // toast (different intent from session-expired). No `?next=` either —
+    // they're not coming back to the same place after re-login.
+    if (!AUTH_FREE_ROUTES.includes(window.location.pathname)) {
+      navigate('/login', { replace: true })
     }
-  }, [])
+  }, [navigate])
 
   // Inactivity auto-logout removed to keep users signed in on personal devices
 
