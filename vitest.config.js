@@ -6,6 +6,10 @@ import { defineConfig } from 'vitest/config';
 // (eventually) integration smoke tests against a throwaway test database.
 export default defineConfig({
   test: {
+    // setupFiles runs once per worker before any test file is imported.
+    // We install safe env-var defaults there (JWT_SECRET, etc.) so route
+    // modules that validate at import-time don't throw under vitest.
+    setupFiles: ['./tests/setup.js'],
     // Limit discovery to the tests/ tree at repo root; the legacy
     // tests/db-test.js script is not a vitest file and is opted out by
     // the `*.test.js` suffix requirement.
