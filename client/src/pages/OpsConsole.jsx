@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Package, Truck, Plane, ShieldAlert, Clock, RefreshCw,
-  Search, ArrowRight, CheckCircle, XCircle, Scale, Camera
+  Search, ArrowRight, CheckCircle, XCircle, Scale, Camera, Scan
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { opsApi, consolidationsApi } from '../api'
 import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '../components/GlassUI'
+import { BarcodeScanner } from '../components/BarcodeScanner'
 
 /**
  * /ops — Operator console (Spec §3.3, §4.3).
@@ -22,6 +23,7 @@ export const OpsConsole = () => {
   const [loading,  setLoading]  = useState(true)
   const [active,   setActive]   = useState(null) // parcel being worked on
   const [receive,  setReceive]  = useState({ weight_kg: '', length: '', width: '', height: '', barcode: '', customs_duty: '', hs_tier: '' })
+  const [scanOpen, setScanOpen] = useState(false)
 
   const fetchToday   = () => opsApi.today().then(r => setToday(r.data?.today || {})).catch(() => {})
   const fetchParcels = () => opsApi.parcels({ status: status || undefined, q: filter || undefined })
@@ -200,6 +202,18 @@ export const OpsConsole = () => {
         </GlassCard>
       </div>
 
+      {/* Camera-driven barcode scanner. Mounted at the page root so the
+          overlay sits above the receive modal when both are open. */}
+      <BarcodeScanner
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onScan={(text) => {
+          setReceive((prev) => ({ ...prev, barcode: text }))
+          setScanOpen(false)
+          toast.success(`Scanned ${text}`)
+        }}
+      />
+
       {/* Receive modal */}
       {active && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
@@ -210,8 +224,11 @@ export const OpsConsole = () => {
             <div className="grid grid-cols-2 gap-3">
               <Input label="Actual weight (kg)" type="number" step="0.01" value={receive.weight_kg}
                 onChange={(v) => setReceive({ ...receive, weight_kg: v })} />
-              <Input label="Barcode"            value={receive.barcode}
-                onChange={(v) => setReceive({ ...receive, barcode: v })} />
+              <BarcodeField
+                value={receive.barcode}
+                onChange={(v) => setReceive({ ...receive, barcode: v })}
+                onScanClick={() => setScanOpen(true)}
+              />
               <Input label="Length (cm)"        type="number" value={receive.length}
                 onChange={(v) => setReceive({ ...receive, length: v })} />
               <Input label="Width (cm)"         type="number" value={receive.width}
@@ -297,5 +314,31 @@ const Input = ({ label, value, onChange, type = 'text', step }) => (
     <span className="block text-[10px] uppercase tracking-widest text-slate-500 font-black mb-1">{label}</span>
     <input type={type} step={step} value={value} onChange={(e) => onChange(e.target.value)}
            className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+  </label>
+)
+
+// Specialised barcode input — text field on the left, "Scan" button on
+// the right that opens the camera overlay. Clearing the value on scan
+// happens in the parent component (the scanner replaces it on success).
+const BarcodeField = ({ value, onChange, onScanClick }) => (
+  <label className="block">
+    <span className="block text-[10px] uppercase tracking-widest text-slate-500 font-black mb-1">Barcode</span>
+    <div className="flex items-stretch gap-2">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Scan or type"
+        className="flex-1 min-w-0 px-3 py-2 rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-orange-400"
+      />
+      <button
+        type="button"
+        onClick={onScanClick}
+        className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#1e3a5f] text-white text-sm font-bold hover:bg-[#2a4a7f]"
+        aria-label="Scan barcode with camera"
+      >
+        <Scan size={14} /> Scan
+      </button>
+    </div>
   </label>
 )
