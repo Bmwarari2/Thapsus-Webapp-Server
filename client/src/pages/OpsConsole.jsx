@@ -68,8 +68,10 @@ export const OpsConsole = () => {
         weight_kg: receive.weight_kg ? +receive.weight_kg : null,
         dimensions: dims,
         barcode: receive.barcode || null,
-        // Customs duty (KES) — operator-stamped here so the Phase 2
-        // invoice prefill can sum it across the customer's bundle.
+        // Customs duty (£ GBP, post-051 convention) — operator-stamped here so
+        // the Phase 2 invoice prefill can sum it across the customer's bundle.
+        // Previously KES; flipped to GBP on 2026-05-11 so it aligns with the
+        // engine's customs_estimate output and the rest of the operator UI.
         customs_duty: receive.customs_duty ? +receive.customs_duty : null,
         // Audit P2.3: BFM auto-create stubs every parcel as
         // hs_tier='general'. Receive is the operator's first physical
@@ -282,7 +284,7 @@ export const OpsConsole = () => {
                 onChange={(v) => setReceive({ ...receive, width: v })} />
               <Input label="Height (cm)"        type="number" value={receive.height}
                 onChange={(v) => setReceive({ ...receive, height: v })} />
-              <Input label="Customs duty (KES)" type="number" step="1" value={receive.customs_duty}
+              <Input label="Customs duty (£)" type="number" step="0.01" value={receive.customs_duty}
                 onChange={(v) => setReceive({ ...receive, customs_duty: v })} />
             </div>
 

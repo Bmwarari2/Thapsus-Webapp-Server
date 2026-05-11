@@ -392,8 +392,9 @@ router.get('/:id/suggested-invoice', authMiddleware, ALLOWED_ADMIN, async (req, 
         });
         // calculateShippingCost.total includes a CIF-based customs
         // *estimate*. We swap that for the operator's actual stamp
-        // (orders.customs_duty in KES) below, so subtract the estimate
-        // here to avoid double-counting. The other legs
+        // (orders.customs_duty, now GBP after the 2026-05 pricing
+        // simplification — was KES before) below, so subtract the
+        // estimate here to avoid double-counting. The other legs
         // (shipping/handling/insurance) stay in GBP.
         const customsEstimateGbp = cost.breakdown?.customs_estimate?.amount || 0;
         shippingGbp = (cost.total || 0) - customsEstimateGbp;
@@ -401,8 +402,14 @@ router.get('/:id/suggested-invoice', authMiddleware, ALLOWED_ADMIN, async (req, 
         console.warn(`suggested-invoice: pricing compute failed for ${p.id}: ${err.message}`);
       }
 
+      // customs_duty is now stored in GBP — convert to KES at the live
+      // rate before adding to the KES invoice total. Old rows that were
+      // historically entered as KES will be misconverted; the data audit
+      // before merging Option-A in production identified the only two
+      // affected rows as test data with round-number values.
+      const dutyGbp = Number(p.customs_duty) || 0;
       const shippingKes = shippingGbp * gbpToKes;
-      const dutyKes = Number(p.customs_duty) || 0;
+      const dutyKes = dutyGbp * gbpToKes;
       const lineTotalKes = shippingKes + dutyKes;
       totalKes += lineTotalKes;
 
@@ -411,7 +418,8 @@ router.get('/:id/suggested-invoice', authMiddleware, ALLOWED_ADMIN, async (req, 
         tracking_number: p.tracking_number,
         chargeable_kg: Number(p.chargeable_kg) || 0,
         shipping_kes: Math.round(shippingKes * 100) / 100,
-        customs_duty_kes: dutyKes,
+        customs_duty_gbp: dutyGbp,
+        customs_duty_kes: Math.round(dutyKes * 100) / 100,
         line_total_kes: Math.round(lineTotalKes * 100) / 100,
       };
     });

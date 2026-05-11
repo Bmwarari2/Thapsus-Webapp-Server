@@ -1291,26 +1291,26 @@ export const AdminDashboard = () => {
                         <div>
                           <p className="font-black text-[#0f172a] text-sm">{o.tracking_number}</p>
                           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
-                            {o.market} • KES {total.toLocaleString()}
+                            {o.market} • £{total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </p>
                         </div>
                         {statusBadge(o.status)}
                       </div>
                       <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-slate-600 font-mono">
                         {baseShipping > 0 && (
-                          <div>Shipping: KES {baseShipping.toLocaleString()}</div>
+                          <div>Shipping: £{baseShipping.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                         )}
                         {handlingFee > 0 && (
-                          <div>Handling: KES {handlingFee.toLocaleString()}</div>
+                          <div>Handling: £{handlingFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                         )}
                         {insuranceFee > 0 && (
-                          <div>Insurance: KES {insuranceFee.toLocaleString()}</div>
+                          <div>Insurance: £{insuranceFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                         )}
                         {customsDuty > 0 && (
-                          <div>Customs: KES {customsDuty.toLocaleString()}</div>
+                          <div>Customs: £{customsDuty.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                         )}
                         <div className="col-span-2 font-bold text-slate-800">
-                          Total: KES {total.toLocaleString()}
+                          Total: £{total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                       </div>
                       {o.order_notes && (
@@ -1539,11 +1539,11 @@ export const AdminDashboard = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Actual Cost (KES)</label>
+                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Actual Cost (£)</label>
                       <input type="number" step="0.01" min="0" className={inputClass} placeholder="0.00" value={editOrderForm.actual_cost} onChange={e => setEditOrderForm({...editOrderForm, actual_cost: e.target.value})} />
                     </div>
                     <div>
-                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Customs Duty (KES)</label>
+                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Customs Duty (£)</label>
                       <input type="number" step="0.01" min="0" className={inputClass} placeholder="0.00" value={editOrderForm.customs_duty} onChange={e => setEditOrderForm({...editOrderForm, customs_duty: e.target.value})} />
                     </div>
                   </div>
@@ -1562,7 +1562,7 @@ export const AdminDashboard = () => {
 
                   {/* Current Info Display */}
                   <div className="flex flex-wrap gap-3 text-[10px] font-black uppercase tracking-widest">
-                    <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-slate-500">Est. Cost: KES {(editOrderModal.estimated_cost || 0).toLocaleString()}</span>
+                    <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-slate-500">Est. Cost: £{(editOrderModal.estimated_cost || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-slate-500">Market: {editOrderModal.market}</span>
                     <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-slate-500">Speed: {editOrderModal.shipping_speed}</span>
                     {editOrderModal.electronics_item && (
