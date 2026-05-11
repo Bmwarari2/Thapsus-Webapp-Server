@@ -212,11 +212,16 @@ async function logEmailSent({ toEmail, emailType, subject, userId = null, errorM
 // ── Helpers & Layouts ──────────────────────────────────────────────────────
 
 function costBreakdownTable(order) {
-  const shipping_cost  = order.shipping_cost?.toLocaleString() ?? order.estimated_cost?.toLocaleString();
-  const handling_fee   = order.handling_fee  > 0 ? order.handling_fee.toLocaleString()  : null;
-  const insurance_fee  = order.insurance_fee > 0 ? order.insurance_fee.toLocaleString() : null;
-  const customs_duty   = order.customs_duty  > 0 ? order.customs_duty.toLocaleString()  : null;
-  const total_cost     = ((order.actual_cost ?? order.estimated_cost ?? 0) + (order.customs_duty ?? 0)).toLocaleString();
+  // All amounts are GBP — post-2026-05 customs_duty is GBP everywhere
+  // (was KES; flipped alongside the six-knob pricing model). Format with two
+  // decimals so the engine's per-item customs (e.g. £10.07) doesn't get
+  // int-rounded to "10" in the email.
+  const fmt = (n) => Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const shipping_cost  = order.shipping_cost != null ? fmt(order.shipping_cost) : (order.estimated_cost != null ? fmt(order.estimated_cost) : null);
+  const handling_fee   = order.handling_fee  > 0 ? fmt(order.handling_fee)  : null;
+  const insurance_fee  = order.insurance_fee > 0 ? fmt(order.insurance_fee) : null;
+  const customs_duty   = order.customs_duty  > 0 ? fmt(order.customs_duty)  : null;
+  const total_cost     = fmt((order.actual_cost ?? order.estimated_cost ?? 0) + (order.customs_duty ?? 0));
   const is_actual_cost = !!order.actual_cost;
 
   return `
@@ -224,7 +229,7 @@ function costBreakdownTable(order) {
       <thead>
         <tr style="background:#f3f4f6;">
           <th style="padding:8px 12px; text-align:left; color:#6b7280; font-weight:600;">Item</th>
-          <th style="padding:8px 12px; text-align:right; color:#6b7280; font-weight:600;">Amount (KES)</th>
+          <th style="padding:8px 12px; text-align:right; color:#6b7280; font-weight:600;">Amount (£)</th>
         </tr>
       </thead>
       <tbody>
@@ -234,7 +239,7 @@ function costBreakdownTable(order) {
         ${customs_duty  ? `<tr><td style="padding:8px 12px; border-bottom:1px solid #e5e7eb;">Customs Duty</td><td style="padding:8px 12px; text-align:right; border-bottom:1px solid #e5e7eb;">${customs_duty}</td></tr>`  : ''}
         <tr style="background:#eff6ff;">
           <td style="padding:10px 12px; font-weight:700; color:#1e3a5f;">Total</td>
-          <td style="padding:10px 12px; text-align:right; font-weight:700; color:#1e3a5f;">KES ${total_cost}</td>
+          <td style="padding:10px 12px; text-align:right; font-weight:700; color:#1e3a5f;">£${total_cost}</td>
         </tr>
       </tbody>
     </table>
