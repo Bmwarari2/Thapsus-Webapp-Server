@@ -323,7 +323,7 @@ export default function Pricing() {
                 {result.breakdown?.dimensional_weight && (
                   <div className="flex justify-between items-center bg-white/5 rounded-xl p-4 border border-white/10 backdrop-blur-sm mt-2">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Chargeable weight</span>
-                    <span className="text-sm font-bold text-white tracking-tight">{result.breakdown.dimensional_weight.chargeable_weight_kg} kg</span>
+                    <span className="text-sm font-bold text-white tracking-tight">{Number(result.breakdown.dimensional_weight.chargeable_kg ?? 0).toFixed(2)} kg</span>
                   </div>
                 )}
               </div>
