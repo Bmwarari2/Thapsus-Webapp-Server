@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import { sendAdminPasswordResetEmail, sendPaymentRequestEmail, sendOrderCreatedEmail, sendWelcomeAccountEmail, sendPaymentReminderEmail, sendPaymentReceiptEmail, sendOrderUpdatedEmail, emailConfigStatus } from '../utils/email.js';
 import { calculateShippingCost, ELECTRONICS_HANDLING, HS_TIERS } from '../utils/pricing.js';
 import { getGbpToKesRate } from '../utils/fx.js';
+import { refreshFxRatesFromFrankfurter } from '../utils/fxRefresh.js';
 
 /**
  * Fetch the live GBP→KES rate without throwing — used to render the
@@ -968,6 +969,36 @@ router.put('/exchange-rates', authMiddleware, isAdmin, async (req, res) => {
     // server-side; never echo error.message back to the admin.
     console.error('Set exchange rates error:', error);
     res.status(500).json({ success: false, message: 'Failed to update exchange rates' });
+  }
+});
+
+/**
+ * POST /api/admin/exchange-rates/refresh
+ *
+ * Manual trigger for the same Frankfurter pull the daily setInterval
+ * runs in server.js. Useful when an admin wants fresh rates without
+ * waiting out the 24h cadence — or when troubleshooting after a
+ * failed scheduled run.
+ *
+ * On success the response includes the new rates and the rate date
+ * Frankfurter quoted (last business day, so weekends/holidays return
+ * Friday's number — that's intended).
+ */
+router.post('/exchange-rates/refresh', authMiddleware, isAdmin, async (req, res) => {
+  const adminId = req.user.id;
+  try {
+    const result = await refreshFxRatesFromFrankfurter(req.db);
+    if (!result.ok) {
+      return res.status(502).json({ success: false, message: result.error || 'Refresh failed' });
+    }
+    await req.db.query(
+      'INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)',
+      [uuidv4(), adminId, 'refresh_exchange_rates', JSON.stringify({ rates: result.rates, rate_date: result.rateDate })]
+    );
+    res.json({ success: true, rates: result.rates, rate_date: result.rateDate, source: 'frankfurter.dev' });
+  } catch (error) {
+    console.error('Refresh exchange rates error:', error);
+    res.status(500).json({ success: false, message: 'Failed to refresh exchange rates' });
   }
 });
 

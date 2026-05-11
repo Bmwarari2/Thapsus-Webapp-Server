@@ -18,6 +18,7 @@ import { fileURLToPath } from 'url';
 import { initializeDatabase, getPool } from './database/init.js';
 import { logError, errorLoggingMiddleware, logRouteError } from './utils/errorLogger.js';
 import { startLogRetention } from './utils/logRetention.js';
+import { startFxRefresh } from './utils/fxRefresh.js';
 import { sanitizeBody, sanitizeQuery } from './middleware/sanitize.js';
 import { deprecate } from './middleware/deprecation.js';
 
@@ -651,9 +652,16 @@ Ready ✨
     // alive during graceful shutdown.
     const stopLogRetention = startLogRetention(pool);
 
+    // Daily pull of GBP→USD/EUR/CNY/KES from frankfurter.dev. Same
+    // unref-d setInterval pattern as log retention; failures are
+    // logged to error_logs and existing exchange_rates rows stay
+    // untouched (utils/fxRefresh.js for the why).
+    const stopFxRefresh = startFxRefresh(pool);
+
     const shutdown = (signal) => {
       console.log(`${signal} — shutting down gracefully`);
       try { stopLogRetention?.() } catch { /* ignore */ }
+      try { stopFxRefresh?.() } catch { /* ignore */ }
       server.close(() => { pool.end(); process.exit(0); });
     };
     process.on('SIGTERM', () => shutdown('SIGTERM'));
