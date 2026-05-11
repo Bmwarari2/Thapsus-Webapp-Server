@@ -365,15 +365,15 @@ export const PricingCalculator = () => {
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between items-center">
                           <span className="text-slate-400 font-medium">Actual weight:</span>
-                          <span className="font-bold text-white bg-slate-700/50 px-2 py-1 rounded-md">{dimWeight.actual_weight_kg} kg</span>
+                          <span className="font-bold text-white bg-slate-700/50 px-2 py-1 rounded-md">{Number(dimWeight.actual_kg ?? 0).toFixed(2)} kg</span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-slate-400 font-medium">Volumetric weight:</span>
-                          <span className="font-bold text-white bg-slate-700/50 px-2 py-1 rounded-md">{dimWeight.dimensional_weight_kg} kg</span>
+                          <span className="font-bold text-white bg-slate-700/50 px-2 py-1 rounded-md">{Number(dimWeight.vol_kg ?? 0).toFixed(2)} kg</span>
                         </div>
                         <div className="flex justify-between items-center border-t border-slate-700 pt-3 mt-2">
                           <span className="text-orange-200 font-black tracking-tight">Chargeable weight:</span>
-                          <span className="font-black text-orange-400 text-base">{dimWeight.chargeable_weight_kg} kg</span>
+                          <span className="font-black text-orange-400 text-base">{Number(dimWeight.chargeable_kg ?? 0).toFixed(2)} kg</span>
                         </div>
                       </div>
                     </div>
