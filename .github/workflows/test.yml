@@ -78,7 +78,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       # Bail out fast if the secret isn't configured. Sets a job output so
       # the user sees a clear "skipped" reason in the run summary instead
