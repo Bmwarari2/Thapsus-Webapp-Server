@@ -187,7 +187,7 @@ export default function Pricing() {
           
           {form.insurance && (
             <div className="flex flex-col gap-2 relative z-10 animate-fade-in">
-              <label htmlFor="declared_value" className="block text-xs font-bold uppercase tracking-widest text-slate-500">Declared Value (KES)</label>
+              <label htmlFor="declared_value" className="block text-xs font-bold uppercase tracking-widest text-slate-500">Declared Value (£)</label>
               <input
                 id="declared_value"
                 name="declared_value"
@@ -258,31 +258,31 @@ export default function Pricing() {
                 {result.breakdown?.base_shipping?.amount != null && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Base shipping cost</span>
-                    <span className="text-lg font-bold text-slate-300 tracking-tight">KES {Number(result.breakdown.base_shipping.amount).toLocaleString()}</span>
+                    <span className="text-lg font-bold text-slate-300 tracking-tight">£{Number(result.breakdown.base_shipping.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 )}
                 {result.breakdown?.handling_fee?.amount > 0 && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Handling &amp; processing</span>
-                    <span className="text-lg font-bold text-slate-300 tracking-tight">KES {Number(result.breakdown.handling_fee.amount).toLocaleString()}</span>
+                    <span className="text-lg font-bold text-slate-300 tracking-tight">£{Number(result.breakdown.handling_fee.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 )}
                 {result.breakdown?.electronics_handling?.included && result.breakdown?.electronics_handling?.amount > 0 && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">Electronics handling fee</span>
-                    <span className="text-lg font-bold text-amber-400 tracking-tight">KES {Number(result.breakdown.electronics_handling.amount).toLocaleString()}</span>
+                    <span className="text-lg font-bold text-amber-400 tracking-tight">£{Number(result.breakdown.electronics_handling.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 )}
                 {result.breakdown?.insurance?.included && result.breakdown?.insurance?.amount > 0 && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs font-bold text-blue-400 uppercase tracking-widest">Insurance (3%)</span>
-                    <span className="text-lg font-bold text-blue-300 tracking-tight">KES {Number(result.breakdown.insurance.amount).toLocaleString()}</span>
+                    <span className="text-lg font-bold text-blue-300 tracking-tight">£{Number(result.breakdown.insurance.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 )}
                 {result.breakdown?.customs_estimate?.amount > 0 && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs font-bold text-purple-400 uppercase tracking-widest">Customs estimate (VAT+Duty)</span>
-                    <span className="text-lg font-bold text-purple-300 tracking-tight">KES {Number(result.breakdown.customs_estimate.amount).toLocaleString()}</span>
+                    <span className="text-lg font-bold text-purple-300 tracking-tight">£{Number(result.breakdown.customs_estimate.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 )}
 
@@ -293,7 +293,7 @@ export default function Pricing() {
                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{result.notes?.delivery_time}</span>
                     </div>
                     <span className="text-3xl font-black text-orange-400 tracking-tighter">
-                      KES {Number(result.total).toLocaleString()}
+                      £{Number(result.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                 )}

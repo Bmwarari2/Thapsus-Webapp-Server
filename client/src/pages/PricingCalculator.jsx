@@ -303,7 +303,7 @@ export const PricingCalculator = () => {
               {formData.insurance && (
                 <div className="animate-in fade-in slide-in-from-top-2 duration-300">
                   <label className="block text-sm font-bold text-gray-800 mb-2 tracking-tight">
-                    {t('pricing.declaredValue')} <span className="text-gray-400 font-medium">(KES)</span>
+                    {t('pricing.declaredValue')} <span className="text-gray-400 font-medium">(£)</span>
                   </label>
                   <input
                     type="number"
@@ -371,7 +371,7 @@ export const PricingCalculator = () => {
                       <p className="text-xs text-slate-400 mt-1 font-medium">{bd?.base_shipping?.description}</p>
                     </div>
                     <span className="font-black text-white text-lg tracking-tight">
-                      KES {(bd?.base_shipping?.amount || 0).toLocaleString()}
+                      £{(bd?.base_shipping?.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
 
@@ -383,7 +383,7 @@ export const PricingCalculator = () => {
                         <p className="text-xs text-slate-400 mt-1 font-medium">{elec.description}</p>
                       </div>
                       <span className="font-black text-orange-400 text-lg tracking-tight">
-                        KES {(elec.amount || 0).toLocaleString()}
+                        £{(elec.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                   )}
@@ -396,7 +396,7 @@ export const PricingCalculator = () => {
                         <p className="text-xs text-slate-400 mt-1 font-medium">{bd?.handling_fee?.description}</p>
                       </div>
                       <span className="font-black text-white text-lg tracking-tight">
-                        KES {(bd?.handling_fee?.amount || 0).toLocaleString()}
+                        £{(bd?.handling_fee?.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                   )}
@@ -406,7 +406,7 @@ export const PricingCalculator = () => {
                     <div className="flex justify-between items-center py-4 border-b border-slate-700/50 group/row hover:bg-slate-800/20 px-2 rounded-lg transition-colors -mx-2">
                       <span className="text-slate-200 font-bold tracking-tight">Insurance (3%)</span>
                       <span className="font-black text-white text-lg tracking-tight">
-                        KES {(bd?.insurance?.amount || 0).toLocaleString()}
+                        £{(bd?.insurance?.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                   )}
@@ -419,7 +419,7 @@ export const PricingCalculator = () => {
                         <p className="text-xs text-slate-400 mt-1 font-medium">VAT 16% + Duty 10% — estimate only</p>
                       </div>
                       <span className="font-black text-white text-lg tracking-tight">
-                        KES {(bd?.customs_estimate?.amount || 0).toLocaleString()}
+                        £{(bd?.customs_estimate?.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                   )}
@@ -431,7 +431,7 @@ export const PricingCalculator = () => {
                     
                     <p className="text-sm text-orange-100 font-bold mb-1 tracking-tight">{t('pricing.total')}</p>
                     <p className="text-4xl md:text-5xl font-black tracking-tighter leading-none mb-2 drop-shadow-sm">
-                      KES {((sm?.total || result?.total) || 0).toLocaleString()}
+                      £{((sm?.total || result?.total) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                     <p className="text-xs text-orange-100/90 font-medium bg-black/10 inline-block px-3 py-1.5 rounded-lg backdrop-blur-sm mt-2">
                       {(sm?.shipping_speed || result?.shipping_speed) === 'express' ? 'Express' : 'Economy'} shipping · {sm?.market || result?.market}
