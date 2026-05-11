@@ -1033,15 +1033,6 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
     if (!['economy','express'].includes(speed))
       return res.status(400).json({ success: false, message: 'Invalid shipping speed' });
 
-    let rates_gbp = null;
-    try {
-      const ratesRes = await db.query('SELECT market, rate_gbp FROM shipping_rates');
-      if (ratesRes.rows.length) {
-        rates_gbp = {};
-        ratesRes.rows.forEach(r => { rates_gbp[r.market] = parseFloat(r.rate_gbp); });
-      }
-    } catch (_) { /* table may not exist yet — retired in PR 4 */ }
-
     const costBreakdown = calculateShippingCost({
       weight_kg: weight_kg || 0,
       dimensions,
@@ -1050,7 +1041,6 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
       declared_value: declared_value || 0,
       electronics_item,
       hs_tier: tier,
-      rates_gbp,
     });
 
     const customsEstimate = costBreakdown.breakdown?.customs_estimate?.amount ?? 0;
@@ -1773,87 +1763,6 @@ router.delete('/error-logs', authMiddleware, isAdmin, async (req, res) => {
   } catch (error) {
     console.error('Clear error logs error:', error);
     res.status(500).json({ success: false, message: 'Failed to clear error logs' });
-  }
-});
-
-// ─── Shipping Rates (Admin) ───────────────────────────────────────────────────
-// These mirror /api/pricing/rates but are accessible under /api/admin/shipping-rates
-// so the admin dashboard can manage them without a separate permission boundary.
-
-/** GET /api/admin/shipping-rates */
-router.get('/shipping-rates', authMiddleware, isAdmin, async (req, res) => {
-  try {
-    const db = req.db;
-    const { DEFAULT_RATES_GBP } = await import('../utils/pricing.js');
-    let ratesRes;
-    try {
-      ratesRes = await db.query('SELECT market, rate_gbp FROM shipping_rates ORDER BY updated_at DESC');
-    } catch (_) {
-      return res.json({ success: true, rates: { ...DEFAULT_RATES_GBP } });
-    }
-    const rates = { ...DEFAULT_RATES_GBP };
-    ratesRes.rows.forEach(r => { rates[r.market] = parseFloat(r.rate_gbp); });
-    res.json({ success: true, rates });
-  } catch (error) {
-    console.error('Admin get shipping rates error:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch shipping rates' });
-  }
-});
-
-/** PUT /api/admin/shipping-rates */
-router.put('/shipping-rates', authMiddleware, isAdmin, async (req, res) => {
-  try {
-    const db = req.db;
-    const { rates } = req.body;
-    const adminId = req.user.id;
-
-    if (!rates || typeof rates !== 'object') {
-      return res.status(400).json({ success: false, message: 'rates object is required' });
-    }
-
-    const validMarkets = ['UK'];
-
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS shipping_rates (
-        id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        market     VARCHAR(10) NOT NULL UNIQUE,
-        rate_gbp   NUMERIC(10,4) NOT NULL,
-        updated_by UUID,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    for (const [market, rate] of Object.entries(rates)) {
-      if (!validMarkets.includes(market)) {
-        return res.status(400).json({ success: false, message: `Invalid market: ${market}` });
-      }
-      const r = parseFloat(rate);
-      if (isNaN(r) || r <= 0) {
-        return res.status(400).json({ success: false, message: `Invalid rate for ${market}` });
-      }
-      const { v4: uuidv4Fn } = await import('uuid');
-      await db.query(
-        `INSERT INTO shipping_rates (id, market, rate_gbp, updated_by, updated_at)
-         VALUES ($1,$2,$3,$4,NOW())
-         ON CONFLICT (market) DO UPDATE SET rate_gbp=$3, updated_by=$4, updated_at=NOW()`,
-        [uuidv4Fn(), market, r, adminId]
-      );
-    }
-
-    await db.query(
-      'INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)',
-      [uuidv4(), adminId, 'update_shipping_rates', JSON.stringify(rates)]
-    );
-
-    const { DEFAULT_RATES_GBP } = await import('../utils/pricing.js');
-    const updatedRaw = await db.query('SELECT market, rate_gbp FROM shipping_rates ORDER BY updated_at DESC');
-    const updatedRates = { ...DEFAULT_RATES_GBP };
-    updatedRaw.rows.forEach(r => { updatedRates[r.market] = parseFloat(r.rate_gbp); });
-
-    res.json({ success: true, message: 'Shipping rates updated', rates: updatedRates });
-  } catch (error) {
-    console.error('Admin update shipping rates error:', error);
-    res.status(500).json({ success: false, message: 'Failed to update shipping rates' });
   }
 });
 

@@ -55,11 +55,14 @@ export const PricingCalculator = () => {
     { value: 'express', label: t('pricing.express') },
   ]
 
-  // Fetch current per-kg rates for the info panel
+  // Fetch the headline £/kg + live FX for the info panel.
   useEffect(() => {
     pricingApi
-      .getRates()
-      .then((res) => { if (res.data?.success) setCurrentRates(res.data.rates) })
+      .getSettings()
+      .then((res) => {
+        const v = res.data?.settings?.base_shipping_per_kg
+        if (typeof v === 'number') setCurrentRates({ UK: v })
+      })
       .catch(() => {})
     pricingApi
       .getExchangeRates()

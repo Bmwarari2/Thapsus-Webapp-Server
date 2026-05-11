@@ -5,44 +5,18 @@ import {
   getPricingSettings,
   getCustomsTiers,
   getHsCodeTiers,
-  DEFAULT_RATES_GBP,
   DEFAULT_SETTINGS,
   ELECTRONICS_HANDLING,
   HS_TIERS,
   PRICING_CACHE_KEYS,
 } from '../utils/pricing.js';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
-import { getOrCompute, cacheInvalidate } from '../utils/cache.js';
+import { cacheInvalidate } from '../utils/cache.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
 
-const SHIPPING_RATES_CACHE_KEY = PRICING_CACHE_KEYS.rates;
-const SHIPPING_RATES_CACHE_TTL_MS = 60 * 1000; // 60 seconds
-
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-/**
- * Legacy per-market rates lookup. Kept for back-compat with the old
- * /pricing/rates endpoint and clients that still ask for per-market £/kg.
- * The new pricing model uses a single `base_shipping_per_kg` from
- * pricing_settings — see `getPricingSettings`.
- */
-async function getActiveRates(db) {
-  return getOrCompute(SHIPPING_RATES_CACHE_KEY, SHIPPING_RATES_CACHE_TTL_MS, async () => {
-    try {
-      const res = await db.query(
-        'SELECT market, rate_gbp FROM shipping_rates ORDER BY updated_at DESC'
-      );
-      if (!res.rows.length) return { ...DEFAULT_RATES_GBP };
-      const rates = { ...DEFAULT_RATES_GBP };
-      res.rows.forEach((r) => { rates[r.market] = parseFloat(r.rate_gbp); });
-      return rates;
-    } catch {
-      return { ...DEFAULT_RATES_GBP };
-    }
-  });
-}
 
 async function logAdminAction(db, adminId, action, details) {
   try {
@@ -83,7 +57,6 @@ router.post('/calculate', async (req, res) => {
 
     const db = req.db;
     const ctx = await loadPricingContext(db);
-    const rates_gbp = await getActiveRates(db);
 
     const pricing = calculateShippingCost({
       weight_kg,
@@ -94,7 +67,6 @@ router.post('/calculate', async (req, res) => {
       electronics_item,
       hs_tier,
       items,
-      rates_gbp,
       settings:        ctx.settings,
       customsTiers:    ctx.customsTiers,
       hsMap:           ctx.hsMap,
@@ -198,74 +170,6 @@ router.get('/hs-tiers', async (req, res) => {
   } catch (error) {
     console.error('Get customs tiers error:', error);
     res.status(500).json({ success: false, message: 'Failed to load customs tiers' });
-  }
-});
-
-// ─── GET /api/pricing/rates ─────────────────────────────────────────────────
-// Legacy: per-market £/kg. The new model is a single base_shipping_per_kg —
-// see /pricing/settings. This endpoint stays for older clients.
-
-router.get('/rates', async (req, res) => {
-  try {
-    const db = req.db;
-    const rates = await getActiveRates(db);
-    res.json({ success: true, rates });
-  } catch (error) {
-    console.error('Get rates error:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch shipping rates' });
-  }
-});
-
-// ─── PUT /api/pricing/rates ─────────────────────────────────────────────────
-// Legacy: admin-only update of per-market £/kg. Kept so older OpsConsole
-// installs keep working until the UI moves to /settings.
-
-router.put('/rates', authMiddleware, isAdmin, async (req, res) => {
-  try {
-    const db = req.db;
-    const { rates } = req.body;
-    const adminId = req.user.id;
-
-    if (!rates || typeof rates !== 'object') {
-      return res.status(400).json({ success: false, message: 'rates object is required' });
-    }
-
-    const validMarkets = ['UK'];
-
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS shipping_rates (
-        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        market      VARCHAR(10) NOT NULL UNIQUE,
-        rate_gbp    NUMERIC(10,4) NOT NULL,
-        updated_by  UUID,
-        updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    for (const [market, rate] of Object.entries(rates)) {
-      if (!validMarkets.includes(market)) {
-        return res.status(400).json({ success: false, message: `Invalid market: ${market}` });
-      }
-      const r = parseFloat(rate);
-      if (isNaN(r) || r <= 0) {
-        return res.status(400).json({ success: false, message: `Invalid rate for ${market}` });
-      }
-      await db.query(
-        `INSERT INTO shipping_rates (id, market, rate_gbp, updated_by, updated_at)
-         VALUES ($1,$2,$3,$4,NOW())
-         ON CONFLICT (market) DO UPDATE SET rate_gbp=$3, updated_by=$4, updated_at=NOW()`,
-        [uuidv4(), market, r, adminId]
-      );
-    }
-
-    await logAdminAction(db, adminId, 'update_shipping_rates', rates);
-    cacheInvalidate(SHIPPING_RATES_CACHE_KEY);
-
-    const updatedRates = await getActiveRates(db);
-    res.json({ success: true, message: 'Shipping rates updated', rates: updatedRates });
-  } catch (error) {
-    console.error('Update shipping rates error:', error);
-    res.status(500).json({ success: false, message: 'Failed to update shipping rates' });
   }
 });
 
