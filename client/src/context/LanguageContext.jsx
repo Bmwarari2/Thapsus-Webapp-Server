@@ -20,7 +20,7 @@ const translations = {
     'nav.admin': 'Admin',
 
     // Home Page
-    'home.hero.title': 'Ship from UK & China to Kenya',
+    'home.hero.title': 'Ship from the UK to Kenya',
     'home.hero.subtitle': 'Fast, affordable, and reliable shipping services',
     'home.hero.cta': 'Get Started',
     'home.hero.track': 'Track Package',
@@ -95,7 +95,7 @@ const translations = {
 
     // Pricing
     'pricing.title': 'Shipping Calculator',
-    'pricing.description': 'Get an instant quote for shipping from UK or China to Kenya — including insurance, customs, and electronics handling fees.',
+    'pricing.description': 'Get an instant quote for shipping from the UK to Kenya — including insurance, customs, and electronics handling fees.',
     'pricing.market': 'Market of Origin',
     'pricing.weight': 'Weight (kg)',
     'pricing.dimensions': 'Dimensions',
@@ -181,10 +181,8 @@ const translations = {
     'track.timeline': 'Tracking Timeline',
 
     // Warehouse Addresses
-    'warehouse.title': 'Your Warehouse Addresses',
+    'warehouse.title': 'Your Warehouse Address',
     'warehouse.uk': 'United Kingdom',
-    'warehouse.usa': 'United States',
-    'warehouse.china': 'China',
     'warehouse.copy': 'Copy Address',
     'warehouse.copied': 'Copied to clipboard',
     'warehouse.instructions': 'Instructions',
@@ -382,7 +380,7 @@ const translations = {
     'nav.admin': 'Msimamizi',
 
     // Home Page
-    'home.hero.title': 'Tuma kutoka UK na China hadi Kenya',
+    'home.hero.title': 'Tuma kutoka UK hadi Kenya',
     'home.hero.subtitle': 'Huduma ya utoaji ya haraka, nafuu, na kutegemewa',
     'home.hero.cta': 'Anza',
     'home.hero.track': 'Fuatilia Pakiti',
@@ -457,7 +455,7 @@ const translations = {
 
     // Pricing
     'pricing.title': 'Kikokotoo cha Utoaji',
-    'pricing.description': 'Pata bei ya haraka ya kusafirisha kutoka UK au China hadi Kenya — ikiwemo bima, forodha, na ada za kushughulikia vifaa vya elektroniki.',
+    'pricing.description': 'Pata bei ya haraka ya kusafirisha kutoka UK hadi Kenya — ikiwemo bima, forodha, na ada za kushughulikia vifaa vya elektroniki.',
     'pricing.market': 'Soko la Asili',
     'pricing.weight': 'Uzani (kg)',
     'pricing.dimensions': 'Vipimo',
@@ -543,10 +541,8 @@ const translations = {
     'track.timeline': 'Msingi wa Kufuatilia',
 
     // Warehouse Addresses
-    'warehouse.title': 'Anwani Zako za Ghala',
+    'warehouse.title': 'Anwani Yako ya Ghala',
     'warehouse.uk': 'Uingereza',
-    'warehouse.usa': 'Maarikani',
-    'warehouse.china': 'China',
     'warehouse.copy': 'Kunakili Anwani',
     'warehouse.copied': 'Kunakili kwenye clipboard',
     'warehouse.instructions': 'Maelezo',

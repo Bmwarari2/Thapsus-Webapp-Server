@@ -51,7 +51,6 @@ export const PricingCalculator = () => {
   // when the rate is unavailable so the calculator never breaks.
   const [gbpToKes, setGbpToKes] = useState(null)
 
-  const markets = ['UK', 'China']
   const shippingSpeeds = [
     { value: 'economy', label: t('pricing.economy') },
     { value: 'express', label: t('pricing.express') },
@@ -127,7 +126,7 @@ export const PricingCalculator = () => {
     <div className="relative min-h-screen bg-[#f8f9fa] py-12 px-4 overflow-hidden z-0">
       <SEO
         title="Shipping Calculator — Get Instant Quotes"
-        description="Calculate shipping costs from the UK and China to Kenya instantly. Get transparent pricing with weight, dimensions, insurance, and customs estimates."
+        description="Calculate shipping costs from the UK to Kenya instantly. Get transparent pricing with weight, dimensions, insurance, and customs estimates."
       />
       {/* ── Liquid Backgrounds (Blobs) ── */}
       <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-blue-400/20 rounded-full mix-blend-multiply filter blur-[100px] opacity-70 animate-morph pointer-events-none -z-10" />
@@ -186,27 +185,11 @@ export const PricingCalculator = () => {
             <h2 className="text-3xl font-black text-[#1e3a5f] mb-8 tracking-tighter leading-none">{t('pricing.title')}</h2>
             
             <form onSubmit={handleCalculate} className="space-y-5 relative z-10">
-              {/* Market */}
-              <div>
-                <label className="block text-sm font-bold text-gray-800 mb-2 tracking-tight">{t('pricing.market')}</label>
-                <select
-                  name="market"
-                  value={formData.market}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 bg-white/50 backdrop-blur-md border border-white/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/50 focus:bg-white transition-all shadow-sm"
-                >
-                  {markets.map((m) => (
-                    <option key={m} value={m}>
-                      {m === 'UK' ? 'United Kingdom' : m === 'USA' ? 'United States' : 'China'}
-                    </option>
-                  ))}
-                </select>
-                {currentRates && (
-                  <p className="text-xs text-gray-500 font-medium mt-2">
-                    Current rate for {formData.market}: £{currentRates[formData.market]?.toFixed(2) ?? '—'}/kg
-                  </p>
-                )}
-              </div>
+              {currentRates && (
+                <p className="text-xs text-gray-500 font-medium">
+                  Current UK rate: £{currentRates.UK?.toFixed(2) ?? '—'}/kg
+                </p>
+              )}
 
               {/* Electronics Item */}
               <div>
@@ -449,7 +432,7 @@ export const PricingCalculator = () => {
                       {formatKes(sm?.total || result?.total)}
                     </p>
                     <p className="text-xs text-orange-100/90 font-medium bg-black/10 inline-block px-3 py-1.5 rounded-lg backdrop-blur-sm mt-2">
-                      {(sm?.shipping_speed || result?.shipping_speed) === 'express' ? 'Express' : 'Economy'} shipping · {sm?.market || result?.market}
+                      {(sm?.shipping_speed || result?.shipping_speed) === 'express' ? 'Express' : 'Economy'} shipping · UK
                     </p>
                   </div>
 

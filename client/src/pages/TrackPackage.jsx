@@ -163,7 +163,7 @@ export const TrackPackage = () => {
     <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 overflow-x-hidden relative">
       <SEO
         title="Track Your Package"
-        description="Track your shipment in real time with Thapsus Cargo. Enter your tracking number to see the latest status of your package from the UK or China to Kenya."
+        description="Track your shipment in real time with Thapsus Cargo. Enter your tracking number to see the latest status of your package from the UK to Kenya."
       />
       <style>{`
         @keyframes morph {

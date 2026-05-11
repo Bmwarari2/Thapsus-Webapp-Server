@@ -58,11 +58,6 @@ export const WarehouseAddresses = () => {
       label: 'United Kingdom',
       flag: '🇬🇧',
     },
-    China: {
-      lines: ['Thapsus Cargo Warehouse', 'Shanghai, China'],
-      label: 'China',
-      flag: '🇨🇳',
-    },
   }
 
   const resolvedAddresses = Object.fromEntries(
@@ -179,22 +174,6 @@ export const WarehouseAddresses = () => {
                       <li className="flex gap-3 items-start">
                         <span className="text-orange-700 text-lg leading-none mt-0.5">•</span>
                         <span>Our warehouse will receive and consolidate your packages</span>
-                      </li>
-                    </>
-                  )}
-                  {market === 'China' && (
-                    <>
-                      <li className="flex gap-3 items-start">
-                        <span className="text-orange-700 text-lg leading-none mt-0.5">•</span>
-                        <span>Shop from AliExpress, Taobao, Wish, and Chinese marketplaces</span>
-                      </li>
-                      <li className="flex gap-3 items-start">
-                        <span className="text-orange-700 text-lg leading-none mt-0.5">•</span>
-                        <span>Provide this address as your shipping destination</span>
-                      </li>
-                      <li className="flex gap-3 items-start">
-                        <span className="text-orange-700 text-lg leading-none mt-0.5">•</span>
-                        <span>Packages may take longer to arrive from China</span>
                       </li>
                     </>
                   )}

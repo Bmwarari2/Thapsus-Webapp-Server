@@ -17,9 +17,6 @@ import { adminApi, authApi, supportApi } from '../api'
 const RevenueAreaChart = lazy(() =>
   import('../components/admin/AdminCharts').then((m) => ({ default: m.RevenueAreaChart }))
 )
-const MarketPieChart = lazy(() =>
-  import('../components/admin/AdminCharts').then((m) => ({ default: m.MarketPieChart }))
-)
 const OrdersTrendAreaChart = lazy(() =>
   import('../components/admin/AdminCharts').then((m) => ({ default: m.OrdersTrendAreaChart }))
 )
@@ -536,8 +533,6 @@ export const AdminDashboard = () => {
 
   if (loading && !stats) return <div className="flex items-center justify-center h-screen bg-[#f8fafc]"><div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div></div>
 
-  const marketChartData = (stats?.markets || []).map(m => ({ name: m.market, value: parseInt(m.count) || 0, revenue: parseFloat(m.value) || 0 }))
-
   return (
     <div className="min-h-screen bg-[#f8fafc] relative font-sans text-slate-900 pb-20 overflow-x-hidden">
       <DashboardStyles />
@@ -667,15 +662,6 @@ export const AdminDashboard = () => {
                 </div>
               </GlassCard>
 
-              {/* Market Volume Pie Chart */}
-              <GlassCard className="flex flex-col p-8">
-                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2"><Globe size={14} className="text-blue-500" /> Volume by Market</h4>
-                <div className="flex-1 min-h-[200px] flex items-center justify-center">
-                  <Suspense fallback={<ChartFallback />}>
-                    <MarketPieChart data={marketChartData} colors={COLORS} />
-                  </Suspense>
-                </div>
-              </GlassCard>
             </div>
 
             {/* Bottom Row: Daily Orders Chart + Quick Stats */}
@@ -815,7 +801,7 @@ export const AdminDashboard = () => {
                     return (
                     <tr key={o.id} className="hover:bg-white/40 transition-colors group">
                       <td className={tdClass}><input type="checkbox" checked={selectedOrders.includes(o.id)} onChange={() => handleToggleOrderSelection(o.id)} className="w-4 h-4 rounded accent-[#0f172a]" /></td>
-                      <td className={tdClass}><p className="font-black text-[#0f172a]">{o.tracking_number}</p><p className="text-[10px] text-slate-400 font-black uppercase mt-1 tracking-widest">{o.market}</p></td>
+                      <td className={tdClass}><p className="font-black text-[#0f172a]">{o.tracking_number}</p></td>
                       <td className={tdClass}><p className="font-bold text-slate-800">{o.name || o.email}</p><p className="text-xs text-slate-500 font-medium max-w-[200px] truncate mt-1">{o.retailer}: {o.description}</p></td>
                       <td className={tdClass}>
                         {o.weight_kg ? (
@@ -1159,15 +1145,9 @@ export const AdminDashboard = () => {
                      </div>
                    )}
                  </div>
-                 <div className="grid grid-cols-2 gap-4">
-                   <div>
-                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Retailer</label>
-                     <input placeholder="e.g. Amazon" className={inputClass} value={createOrderForm.retailer} onChange={e=>setCreateOrderForm(p=>({...p,retailer:e.target.value}))} required />
-                   </div>
-                   <div>
-                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Market</label>
-                     <select className={inputClass} value={createOrderForm.market} onChange={e=>setCreateOrderForm(p=>({...p,market:e.target.value}))}><option value="UK">UK</option><option value="China">China</option></select>
-                   </div>
+                 <div>
+                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Retailer</label>
+                   <input placeholder="e.g. Amazon" className={inputClass} value={createOrderForm.retailer} onChange={e=>setCreateOrderForm(p=>({...p,retailer:e.target.value}))} required />
                  </div>
                  <div>
                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Manifest Description</label>
@@ -1291,7 +1271,7 @@ export const AdminDashboard = () => {
                         <div>
                           <p className="font-black text-[#0f172a] text-sm">{o.tracking_number}</p>
                           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
-                            {o.market} • £{total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            £{total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </p>
                         </div>
                         {statusBadge(o.status)}
@@ -1563,7 +1543,6 @@ export const AdminDashboard = () => {
                   {/* Current Info Display */}
                   <div className="flex flex-wrap gap-3 text-[10px] font-black uppercase tracking-widest">
                     <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-slate-500">Est. Cost: £{(editOrderModal.estimated_cost || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-slate-500">Market: {editOrderModal.market}</span>
                     <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-slate-500">Speed: {editOrderModal.shipping_speed}</span>
                     {editOrderModal.electronics_item && (
                       <span className="px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-full text-orange-600">

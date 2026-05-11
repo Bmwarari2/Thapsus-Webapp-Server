@@ -33,7 +33,7 @@ export const Footer = () => {
               </h2>
             </div>
             <p className="text-slate-400 font-medium text-sm leading-relaxed max-w-xs">
-              Your trusted premium shipping and forwarding partner for goods from UK and China to Kenya.
+              Your trusted premium shipping and forwarding partner for goods from the UK to Kenya.
             </p>
           </div>
 

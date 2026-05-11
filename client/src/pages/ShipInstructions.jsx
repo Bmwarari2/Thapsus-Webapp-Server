@@ -17,9 +17,7 @@ const RETAILERS = [
   { name: 'Marks & Spencer', url: 'https://www.marksandspencer.com', icon: <Store      size={28} className="text-green-700"  />, flag: '🇬🇧', color: 'from-green-50 to-emerald-50', border: 'border-green-200/60'  },
   { name: 'eBay',         url: 'https://www.ebay.co.uk',            icon: <Package     size={28} className="text-blue-600"   />, flag: '🇬🇧', color: 'from-blue-50 to-sky-50',      border: 'border-blue-200/60'   },
   { name: 'Shein',        url: 'https://www.shein.com',             icon: <ShoppingBag size={28} className="text-pink-500"   />, flag: '🌐', color: 'from-pink-50 to-rose-50',     border: 'border-pink-200/60'   },
-  { name: 'AliExpress',   url: 'https://www.aliexpress.com',        icon: <Zap         size={28} className="text-red-500"    />, flag: '🇨🇳', color: 'from-red-50 to-orange-50',    border: 'border-red-200/60'    },
-  { name: 'Alibaba',      url: 'https://www.alibaba.com',           icon: <Globe       size={28} className="text-orange-600" />, flag: '🇨🇳', color: 'from-orange-50 to-yellow-50', border: 'border-orange-200/60' },
-  { name: 'Temu',         url: 'https://www.temu.com',              icon: <Zap         size={28} className="text-orange-400" />, flag: '🇨🇳', color: 'from-amber-50 to-orange-50',  border: 'border-amber-200/60'  },
+  { name: 'Temu',         url: 'https://www.temu.com',              icon: <Zap         size={28} className="text-orange-400" />, flag: '🌐', color: 'from-amber-50 to-orange-50',  border: 'border-amber-200/60'  },
 ]
 
 /* ─── Warehouse Address ─────────────────────────────────────────────────── */
@@ -101,7 +99,7 @@ const AddressCard = ({ user }) => {
 export const ShipInstructions = () => {
   const { user } = useAuth()
   const steps = [
-    { number: '01', title: 'Choose your retailer', description: 'Browse and shop from any of our supported UK or China retailers.', icon: <ShoppingBag size={24} className="text-orange-700" /> },
+    { number: '01', title: 'Choose your retailer', description: 'Browse and shop from any of our supported UK retailers.', icon: <ShoppingBag size={24} className="text-orange-700" /> },
     { number: '02', title: 'Ship to warehouse', description: 'At checkout, use our Stockport warehouse address with your unique ID.', icon: <MapPin size={24} className="text-blue-400" /> },
     { number: '03', title: 'Tell us about it', description: 'Log your order in the dashboard or via WhatsApp.', icon: <MessageCircle size={24} className="text-emerald-400" /> },
     { number: '04', title: 'We handle the rest', description: 'We consolidate and ship your parcels directly to Kenya.', icon: <Truck size={24} className="text-purple-400" /> },
@@ -154,7 +152,7 @@ export const ShipInstructions = () => {
             Faster.<br/>Simpler.<br/><span className="text-slate-400">Reliable.</span>
           </h1>
           <p className="text-slate-500 font-bold text-xl max-w-lg leading-tight tracking-tight">
-            The next evolution of package forwarding from the UK & China to Kenya.
+            The next evolution of package forwarding from the UK to Kenya.
           </p>
         </header>
 
@@ -215,8 +213,8 @@ export const ShipInstructions = () => {
         <div className="mb-20">
           <div className="bg-white/40 backdrop-blur-3xl border border-white/40 rounded-[2.5rem] p-10 relative overflow-hidden">
              <div className="mb-8">
-                <h2 className="text-3xl font-black text-[#1e3a5f] tracking-tighter leading-none">Global Catalog</h2>
-                <p className="text-slate-500 font-bold mt-2">Shop any UK or China store. We handle the rest.</p>
+                <h2 className="text-3xl font-black text-[#1e3a5f] tracking-tighter leading-none">UK Catalog</h2>
+                <p className="text-slate-500 font-bold mt-2">Shop any UK store. We handle the rest.</p>
              </div>
              <RetailerCarousel />
           </div>

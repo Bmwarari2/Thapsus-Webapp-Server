@@ -4,7 +4,6 @@ import { adminApi } from '../api'
 export function ShippingRatesPanel() {
   const [rates, setRates] = useState({
     UK: '',
-    China: '',
   })
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState(null)
@@ -31,7 +30,6 @@ export function ShippingRatesPanel() {
     try {
       await adminApi.setShippingRates({
         UK: parseFloat(rates.UK) || 0,
-        China: parseFloat(rates.China) || 0,
       })
       setMessage({ type: 'success', text: 'Shipping rates updated successfully.' })
     } catch (err) {
@@ -46,7 +44,6 @@ export function ShippingRatesPanel() {
 
   const fields = [
     { name: 'UK', label: 'UK Rate (£/kg)' },
-    { name: 'China', label: 'China Rate (£/kg)' },
   ]
 
   return (

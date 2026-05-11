@@ -58,7 +58,6 @@ export const Orders = () => {
   const [expandedCost, setExpandedCost] = useState(null)
   const [filters, setFilters] = useState({
     status: '',
-    market: '',
   })
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
@@ -85,9 +84,6 @@ export const Orders = () => {
     setOrders((prev) => {
       // If a status filter is active and this order no longer matches, remove it
       if (filters.status && order.status !== filters.status) {
-        return prev.filter((o) => o.id !== order.id)
-      }
-      if (filters.market && order.market !== filters.market) {
         return prev.filter((o) => o.id !== order.id)
       }
       const exists = prev.some((o) => o.id === order.id)
@@ -180,30 +176,11 @@ export const Orders = () => {
               </select>
             </div>
 
-            {/* Market Filter */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
-                {t('orders.filterByMarket')}
-              </label>
-              <select
-                value={filters.market}
-                onChange={(e) => {
-                  setFilters({ ...filters, market: e.target.value })
-                  setCurrentPage(1)
-                }}
-                className="w-full px-4 py-3 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-slate-800 font-bold transition-all hover:bg-white/60 shadow-sm appearance-none cursor-pointer"
-              >
-                <option value="">All Markets</option>
-                <option value="UK">United Kingdom</option>
-                <option value="China">China</option>
-              </select>
-            </div>
-
             {/* Clear Filters */}
             <div className="flex items-end">
               <button
                 onClick={() => {
-                  setFilters({ status: '', market: '' })
+                  setFilters({ status: '' })
                   setCurrentPage(1)
                 }}
                 className="w-full px-4 py-3 bg-white/40 backdrop-blur-md border border-white/60 text-slate-700 rounded-xl hover:bg-white/60 transition-all font-black tracking-tight shadow-sm active:scale-[0.98]"
@@ -223,9 +200,6 @@ export const Orders = () => {
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-widest">
                       {t('orders.orderNumber')}
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-widest">
-                      {t('orders.market')}
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-widest">
                       {t('orders.status')}
@@ -250,9 +224,6 @@ export const Orders = () => {
                     >
                       <td className="px-6 py-5 font-mono text-sm font-bold text-slate-800">
                         {order.tracking_number || `#${order.id.slice(0, 8).toUpperCase()}`}
-                      </td>
-                      <td className="px-6 py-5 text-sm font-semibold text-slate-600">
-                        {order.market === 'UK' ? 'United Kingdom' : order.market === 'China' ? 'China' : order.market}
                       </td>
                       <td className="px-6 py-5">
                         <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase border shadow-sm ${getStatusColor(order.status)}`}>

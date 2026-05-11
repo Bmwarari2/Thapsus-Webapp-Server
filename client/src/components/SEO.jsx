@@ -9,7 +9,7 @@ import { useEffect } from 'react'
 export function SEO({ title, description }) {
   useEffect(() => {
     const suffix = 'Thapsus Cargo'
-    document.title = title ? `${title} | ${suffix}` : `${suffix} — Affordable Shipping from UK & China to Kenya`
+    document.title = title ? `${title} | ${suffix}` : `${suffix} — Affordable Shipping from the UK to Kenya`
 
     if (description) {
       let meta = document.querySelector('meta[name="description"]')
