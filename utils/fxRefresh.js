@@ -91,35 +91,46 @@ export async function refreshFxRatesFromFrankfurter(db) {
     return { ok: false, error: msg };
   }
 
-  // Frankfurter v2 response shape:
-  //   { base: "GBP", date: "YYYY-MM-DD", rates: { USD: 1.36, KES: 175.69, ... } }
-  // The /v2/rates root response wraps it as either the above object
-  // directly or `{ data: { ... } }` depending on filters; both shapes
-  // are tolerated here so an upstream format tweak doesn't silently
-  // break us.
-  const body = payload?.data ?? payload;
-  const ratesIn = body?.rates;
-  const rateDate = body?.date || null;
-
-  if (!ratesIn || typeof ratesIn !== 'object') {
-    const err = 'Frankfurter response missing rates object';
-    await logError({ level: 'warn', source: 'fx-refresh', message: err, meta: { payload } });
+  // Frankfurter v2 /rates response is a flat array of rows:
+  //   [{ date: "YYYY-MM-DD", base: "GBP", quote: "USD", rate: 1.36 }, ...]
+  // Some endpoints (or future tweaks) might envelope it as
+  // `{ data: [...] }` — tolerate both. Per-quote date can differ
+  // (Frankfurter publishes whatever each central bank last quoted),
+  // so we pick the most recent date across the four pairs we care
+  // about as the reported rateDate.
+  const rows = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : null);
+  if (!rows) {
+    const err = 'Frankfurter response was not an array of rate rows';
+    await logError({ level: 'warn', source: 'fx-refresh', message: err, meta: { keys: Object.keys(payload || {}).slice(0, 10) } });
     return { ok: false, error: err };
+  }
+
+  const byQuote = new Map();
+  for (const row of rows) {
+    if (row && typeof row === 'object' && typeof row.quote === 'string') {
+      byQuote.set(row.quote, row);
+    }
   }
 
   // Validate every required source code is present + numeric BEFORE
   // computing cross-rates. A NaN here would otherwise propagate
   // silently into the persisted rows.
   const src = {};
+  const dates = [];
   for (const code of REQUIRED_CODES) {
-    const v = Number(ratesIn[code]);
+    const row = byQuote.get(code);
+    const v = Number(row?.rate);
     if (!Number.isFinite(v) || v <= 0) {
       const err = `Frankfurter response missing/invalid rate for ${code}`;
-      await logError({ level: 'warn', source: 'fx-refresh', message: err, meta: { code, raw: ratesIn[code] } });
+      await logError({ level: 'warn', source: 'fx-refresh', message: err, meta: { code, raw: row?.rate } });
       return { ok: false, error: err };
     }
     src[code] = v;
+    if (row?.date) dates.push(row.date);
   }
+  // ISO YYYY-MM-DD strings sort lexicographically the same as
+  // chronologically, so plain max() over the four works.
+  const rateDate = dates.length ? dates.sort().at(-1) : null;
 
   // Derive <from>_KES form. GBP_KES is the direct Frankfurter value;
   // every other pair divides KES-against-GBP by source-against-GBP

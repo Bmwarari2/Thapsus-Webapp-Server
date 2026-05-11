@@ -23,11 +23,17 @@ function makePool() {
   };
 }
 
-const OK_PAYLOAD = {
-  base: 'GBP',
-  date: '2026-05-11',
-  rates: { USD: 1.3605, EUR: 1.1565, CNY: 9.2506, KES: 175.69 },
-};
+// Frankfurter /v2/rates response — flat array, one row per quote.
+// Real responses include ~180 currencies; here we include only the four
+// we read plus a few decoys to mimic the noise.
+const OK_PAYLOAD = [
+  { date: '2026-05-08', base: 'GBP', quote: 'AED', rate: 4.9964 },
+  { date: '2026-05-11', base: 'GBP', quote: 'USD', rate: 1.3605 },
+  { date: '2026-05-11', base: 'GBP', quote: 'EUR', rate: 1.1565 },
+  { date: '2026-05-11', base: 'GBP', quote: 'CNY', rate: 9.2506 },
+  { date: '2026-05-11', base: 'GBP', quote: 'KES', rate: 175.69 },
+  { date: '2026-05-11', base: 'GBP', quote: 'CAD', rate: 1.8599 },
+];
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn());
@@ -68,7 +74,7 @@ describe('refreshFxRatesFromFrankfurter', () => {
     expect(cacheInvalidate).toHaveBeenCalledOnce();
   });
 
-  it('tolerates the {data:{...}} envelope shape', async () => {
+  it('tolerates the {data:[...]} envelope shape', async () => {
     fetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({ data: OK_PAYLOAD }) });
     const pool = makePool();
     const result = await refreshFxRatesFromFrankfurter(pool);
@@ -101,7 +107,11 @@ describe('refreshFxRatesFromFrankfurter', () => {
   it('returns ok:false when a required pair is missing from the response', async () => {
     fetch.mockResolvedValue({
       ok: true, status: 200,
-      json: async () => ({ base: 'GBP', date: '2026-05-11', rates: { USD: 1.3605, EUR: 1.1565 } }),
+      json: async () => ([
+        { date: '2026-05-11', base: 'GBP', quote: 'USD', rate: 1.3605 },
+        { date: '2026-05-11', base: 'GBP', quote: 'EUR', rate: 1.1565 },
+        // CNY + KES deliberately absent.
+      ]),
     });
     const pool = makePool();
     const result = await refreshFxRatesFromFrankfurter(pool);
@@ -114,12 +124,28 @@ describe('refreshFxRatesFromFrankfurter', () => {
   it('returns ok:false when a rate is non-numeric or non-positive', async () => {
     fetch.mockResolvedValue({
       ok: true, status: 200,
-      json: async () => ({ base: 'GBP', date: '2026-05-11', rates: { USD: 1.36, EUR: 1.15, CNY: 0, KES: 175.69 } }),
+      json: async () => ([
+        { date: '2026-05-11', base: 'GBP', quote: 'USD', rate: 1.36 },
+        { date: '2026-05-11', base: 'GBP', quote: 'EUR', rate: 1.15 },
+        { date: '2026-05-11', base: 'GBP', quote: 'CNY', rate: 0 },
+        { date: '2026-05-11', base: 'GBP', quote: 'KES', rate: 175.69 },
+      ]),
     });
     const pool = makePool();
     const result = await refreshFxRatesFromFrankfurter(pool);
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/CNY/);
+  });
+
+  it('returns ok:false when payload is not an array', async () => {
+    fetch.mockResolvedValue({
+      ok: true, status: 200,
+      json: async () => ({ base: 'GBP', date: '2026-05-11', rates: { USD: 1.36, KES: 175 } }),
+    });
+    const pool = makePool();
+    const result = await refreshFxRatesFromFrankfurter(pool);
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/not an array/);
   });
 
   it('rolls back the transaction when an upsert fails', async () => {
