@@ -423,6 +423,21 @@ export const PricingCalculator = () => {
                     </div>
                   )}
 
+                  {/* Card Processing */}
+                  {(bd?.card_fee?.amount || 0) > 0 && (
+                    <div className="flex justify-between items-center py-4 border-b border-slate-700/50 group/row hover:bg-slate-800/20 px-2 rounded-lg transition-colors -mx-2">
+                      <div>
+                        <span className="text-slate-200 font-bold tracking-tight">Card Processing</span>
+                        <p className="text-xs text-slate-400 mt-1 font-medium">
+                          {((result?.settings?.card_processing_pct ?? bd?.card_fee?.rate ?? 0) * 100).toFixed(2)}% of subtotal incl. customs
+                        </p>
+                      </div>
+                      <span className="font-black text-white text-lg tracking-tight">
+                        {formatKes(bd?.card_fee?.amount)}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Total */}
                   <div className="bg-gradient-to-br from-orange-500 to-orange-600 border border-orange-400/50 text-white rounded-2xl p-6 mt-6 shadow-[0_10px_30px_-10px_rgba(249,115,22,0.4)] relative overflow-hidden group/total">
                     {/* Sheen on Total */}
