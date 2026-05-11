@@ -113,7 +113,7 @@ export const NewOrder = () => {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 overflow-x-hidden relative pb-24">
-      <SEO title="Create New Order" description="Place a new shipping order from the UK or China to Kenya with Thapsus Cargo. Get instant cost estimates and track your shipment." />
+      <SEO title="Create New Order" description="Place a new shipping order from the UK to Kenya with Thapsus Cargo. Get instant cost estimates and track your shipment." />
       <NewOrderStyles />
       
       {/* --- LIQUID BACKGROUNDS --- */}
@@ -153,15 +153,6 @@ export const NewOrder = () => {
               <form onSubmit={handleSubmit} className="space-y-6">
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Market */}
-                  <div>
-                    <label className={labelClass}>{t('neworder.market')} *</label>
-                    <select name="market" value={formData.market} onChange={handleChange} required className={inputClass}>
-                      <option value="UK">United Kingdom</option>
-                      <option value="China">China</option>
-                    </select>
-                  </div>
-
                   {/* Retailer */}
                   <div>
                     <label className={labelClass}>{t('neworder.retailer')} *</label>

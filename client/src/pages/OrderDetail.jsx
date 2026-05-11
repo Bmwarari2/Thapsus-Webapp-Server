@@ -249,13 +249,6 @@ export const OrderDetail = () => {
                     <span className="font-black text-lg text-[#0f172a]">{order.retailer}</span>
                   </div>
                   <div className="h-px w-full bg-slate-200/50" />
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Market Origin</span>
-                    <span className="font-black text-lg text-[#0f172a]">
-                      {order.market === 'UK' ? 'United Kingdom' : order.market === 'China' ? 'China' : order.market}
-                    </span>
-                  </div>
-                  <div className="h-px w-full bg-slate-200/50" />
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col">
                       <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Speed</span>

@@ -122,7 +122,7 @@ export const paymentsApi = {
 export const pricingApi = {
   /**
    * Calculate shipping cost estimate.
-   * @param {string} market          - 'UK' | 'China'
+   * @param {string} market          - 'UK'
    * @param {number} weight_kg
    * @param {object} dimensions      - { length, width, height } in cm
    * @param {string} shipping_speed  - 'economy' | 'express'

@@ -19,7 +19,6 @@ const ELECTRONICS_FEES = {
   tv_monitor: { label: 'TV / Screen / Monitor (+£65 handling fee)', fee: 65 },
 }
 
-const MARKETS = ['UK', 'China']
 
 export default function Pricing() {
   const [form, setForm] = useState({
@@ -124,20 +123,6 @@ export default function Pricing() {
           onSubmit={handleSubmit}
           className="bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl p-6 md:p-8 space-y-6 relative overflow-hidden glass-sheen"
         >
-          {/* Market */}
-          <div className="flex flex-col gap-2 relative z-10">
-            <label htmlFor="market" className="block text-xs font-bold uppercase tracking-widest text-slate-500">Shipping Market</label>
-            <select
-              id="market"
-              name="market"
-              value={form.market}
-              onChange={handleChange}
-              className="w-full px-4 py-3 bg-white/50 backdrop-blur-md border border-white/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-slate-800 font-bold transition-all shadow-sm appearance-none cursor-pointer hover:bg-white/60"
-            >
-              {MARKETS.map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </div>
-
           {/* Weight */}
           <div className="flex flex-col gap-2 relative z-10">
             <label htmlFor="weight_kg" className="block text-xs font-bold uppercase tracking-widest text-slate-500">Weight (kg)</label>

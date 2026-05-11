@@ -8,11 +8,11 @@ const faqs = [
     items: [
       {
         q: 'How does Thapsus Cargo work?',
-        a: 'Thapsus Cargo gives you a personal UK and China warehouse address. You shop from any UK or Chinese online retailer and ship to our warehouse. Once we receive your packages, we consolidate them and ship everything together to Kenya — saving you on international shipping costs.',
+        a: 'Thapsus Cargo gives you a personal UK warehouse address. You shop from any UK online retailer and ship to our warehouse. Once we receive your packages, we consolidate them and ship everything together to Kenya — saving you on international shipping costs.',
       },
       {
         q: 'How do I get my warehouse address (TC Code)?',
-        a: 'Once you create a free account and log in, go to "Warehouse Addresses" in your dashboard. You will find your unique TC Code and full warehouse addresses for both the UK and China warehouses. Use these details as the delivery address when shopping online.',
+        a: 'Once you create a free account and log in, go to "Warehouse Address" in your dashboard. You will find your unique TC Code and full UK warehouse address. Use these details as the delivery address when shopping online.',
       },
       {
         q: 'Is there a registration fee?',
@@ -25,7 +25,7 @@ const faqs = [
     items: [
       {
         q: 'How much does shipping cost?',
-        a: 'Shipping rates depend on the origin (UK or China), total weight, and the speed you choose. UK shipments start from £9/kg for air freight. Use our Shipping Calculator for an instant quote including insurance and customs fees before you commit.',
+        a: 'Shipping rates depend on total weight and the speed you choose. UK shipments start from £9/kg for air freight. Use our Shipping Calculator for an instant quote including insurance and customs fees before you commit.',
       },
       {
         q: 'What is package consolidation and how does it save me money?',
@@ -33,7 +33,7 @@ const faqs = [
       },
       {
         q: 'How long does shipping take?',
-        a: 'UK to Kenya air shipments typically take 7–14 business days after consolidation. China to Kenya may take a little longer depending on the route. You will receive tracking updates at every stage of the journey.',
+        a: 'UK to Kenya air shipments typically take 7–14 business days after consolidation. You will receive tracking updates at every stage of the journey.',
       },
     ],
   },

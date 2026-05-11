@@ -80,7 +80,6 @@ const TiersTab = () => {
             className="px-3 py-2 rounded-xl border border-slate-200">
             <option value="UK_air">UK air</option>
             <option value="UK_sea">UK sea</option>
-            <option value="China_air">China air</option>
           </select>
           <input type="number" step="0.1" placeholder="Min kg" value={draft.min_kg}
             onChange={e => setDraft({ ...draft, min_kg: e.target.value })}
