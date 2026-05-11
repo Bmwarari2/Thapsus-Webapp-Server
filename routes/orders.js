@@ -1,7 +1,7 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
-import { calculateShippingCost, HS_TIERS } from '../utils/pricing.js';
+import { calculateShippingCost, loadPricingContext, HS_TIERS } from '../utils/pricing.js';
 import { pushToUser, pushToAdmins } from './events.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { sendOrderCreatedEmail } from '../utils/email.js';
@@ -54,7 +54,7 @@ router.post('/', authMiddleware, async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
-    const { retailer, market, description, weight_kg, dimensions, shipping_speed, insurance, declared_value, hs_tier, electronics_item } = req.body;
+    const { retailer, market, description, weight_kg, dimensions, shipping_speed, insurance, declared_value, hs_tier, electronics_item, items } = req.body;
 
     if (!retailer || !market || !description)
       return res.status(400).json({ success: false, message: 'Missing required fields: retailer, market, description' });
@@ -69,11 +69,34 @@ router.post('/', authMiddleware, async (req, res) => {
       return res.status(400).json({ success: false, message: `Invalid hs_tier. Valid values: ${Object.keys(HS_TIERS).join(', ')}` });
     }
 
+    // Normalise the optional items[] array. Each item gets a default hs_code
+    // of 'general' (matches the customer's stated default at the order form)
+    // so the per-item customs path always has something to resolve.
+    const normalisedItems = Array.isArray(items) && items.length > 0
+      ? items.map((it) => ({
+          description:    typeof it.description    === 'string' ? it.description : null,
+          qty:            Math.max(1, parseInt(it.qty, 10) || 1),
+          unit_value_gbp: Math.max(0, parseFloat(it.unit_value_gbp ?? it.declared_value) || 0),
+          hs_code:        (typeof it.hs_code === 'string' && it.hs_code.trim()) ? it.hs_code.trim() : 'general',
+        }))
+      : null;
+
     // Weight and dimensions are now optional at order creation (added by admin later)
+    const pricingCtx = await loadPricingContext(db);
     const costBreakdown = weight_kg ? calculateShippingCost({
       weight_kg: weight_kg || 0, dimensions, market, shipping_speed: speed,
       insurance: insurance || false, declared_value: declared_value || 0,
       electronics_item: electronics_item || null, hs_tier: tier,
+      // Pass items[] when supplied → per-item HS-code lookup → summed customs.
+      items: normalisedItems ? normalisedItems.map((it) => ({
+        hs_code:        it.hs_code,
+        qty:            it.qty,
+        declared_value: it.unit_value_gbp,
+      })) : null,
+      settings:        pricingCtx.settings,
+      customsTiers:    pricingCtx.customsTiers,
+      hsMap:           pricingCtx.hsMap,
+      electronicsFees: pricingCtx.electronicsFees,
     }) : { total: 0, breakdown: {} };
 
     const orderId = uuidv4();
@@ -109,6 +132,20 @@ router.post('/', authMiddleware, async (req, res) => {
         `INSERT INTO packages (id, order_id, user_id, description, weight_kg, status) VALUES ($1,$2,$3,$4,$5,'pre_registered')`,
         [uuidv4(), orderId, userId, description, weight_kg || null]
       );
+
+      // Persist per-item HS codes when the customer supplied items[]. The
+      // parcel_items table is the source of truth the customs estimate
+      // re-derives from on subsequent quote recomputes. parcel_id refs
+      // orders.id (per 001_framework_v2_additions.sql).
+      if (normalisedItems) {
+        for (const it of normalisedItems) {
+          await client.query(
+            `INSERT INTO parcel_items (id, parcel_id, description, qty, unit_value_gbp, hs_code)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [uuidv4(), orderId, it.description || description, it.qty, it.unit_value_gbp, it.hs_code]
+          );
+        }
+      }
 
       // Referral reward check — both referrer AND referee get KES 50 of credit.
       // Migration 028 replaced the wallet model with user_credits + credit_ledger;
@@ -230,9 +267,24 @@ router.get('/:id', authMiddleware, async (req, res) => {
 
     const dims = order.dimensions_json ? JSON.parse(order.dimensions_json) : null;
 
-    // Compute a live cost breakdown so the detail page can show itemised costs
+    // Compute a live cost breakdown so the detail page can show itemised costs.
+    // If parcel_items rows exist we use the per-item HS-code path; otherwise
+    // fall back to the legacy single hs_tier on the order row.
     let cost_breakdown = null;
     try {
+      const itemRows = await db.query(
+        'SELECT description, qty, unit_value_gbp, hs_code FROM parcel_items WHERE parcel_id = $1 ORDER BY created_at',
+        [id]
+      );
+      const items = itemRows.rows.length > 0
+        ? itemRows.rows.map((it) => ({
+            hs_code:        (it.hs_code || 'general'),
+            qty:            it.qty || 1,
+            declared_value: parseFloat(it.unit_value_gbp) || 0,
+          }))
+        : null;
+
+      const pricingCtx = await loadPricingContext(db);
       cost_breakdown = calculateShippingCost({
         weight_kg:       order.weight_kg       || 0,
         dimensions:      dims,
@@ -241,6 +293,12 @@ router.get('/:id', authMiddleware, async (req, res) => {
         insurance:       order.insurance       || false,
         declared_value:  order.declared_value  || 0,
         electronics_item: order.electronics_item || null,
+        hs_tier:         order.hs_tier || null,
+        items,
+        settings:        pricingCtx.settings,
+        customsTiers:    pricingCtx.customsTiers,
+        hsMap:           pricingCtx.hsMap,
+        electronicsFees: pricingCtx.electronicsFees,
       });
     } catch (_) { /* non-fatal — client falls back to estimated_cost */ }
 
