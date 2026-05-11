@@ -65,9 +65,13 @@ export const BuyForMe = () => {
   }
 
   // Group retailers by country for the picker, in catalog sort order.
+  // UK-only system: filter out any non-UK rows so legacy seed data
+  // (USA/China retailers from the pre-strip migration) never lands in
+  // the customer picker even if the DB clean-up hasn't run yet.
   const retailerGroups = useMemo(() => {
     const groups = {}
     for (const r of retailers) {
+      if ((r.country || '').toUpperCase() !== 'UK') continue
       groups[r.country] = groups[r.country] || []
       groups[r.country].push(r)
     }
