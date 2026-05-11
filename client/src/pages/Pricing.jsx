@@ -290,6 +290,12 @@ export default function Pricing() {
                     <span className="text-lg font-bold text-purple-300 tracking-tight">{formatKes(result.breakdown.customs_estimate.amount, gbpToKes)}</span>
                   </div>
                 )}
+                {result.breakdown?.card_fee?.amount > 0 && (
+                  <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Card processing</span>
+                    <span className="text-lg font-bold text-slate-300 tracking-tight">{formatKes(result.breakdown.card_fee.amount, gbpToKes)}</span>
+                  </div>
+                )}
 
                 {result.total != null && (
                   <div className="bg-gradient-to-br from-orange-500/20 to-red-600/10 rounded-xl p-5 border border-orange-500/30 backdrop-blur-md mt-6 flex justify-between items-center">
