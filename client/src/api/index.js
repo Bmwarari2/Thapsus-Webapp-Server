@@ -156,9 +156,6 @@ export const pricingApi = {
     })
   },
 
-  /** Get current per-kg shipping rates (legacy per-market) */
-  getRates: () => api.get('/pricing/rates'),
-
   /** Get current USD/GBP/CNY → KES exchange rates */
   getExchangeRates: () => api.get('/exchange/rates'),
 
@@ -270,15 +267,6 @@ export const adminApi = {
 
   /** Clear old error logs */
   clearErrorLogs: (keepDays = 30) => api.delete('/admin/error-logs', { params: { keepDays } }),
-
-  /** Get current shipping rates (per-kg rates for standard/express/economy) */
-  getShippingRates: () => api.get('/admin/shipping-rates'),
-
-  /** Update shipping rates */
-  setShippingRates: (rates) => api.put('/admin/shipping-rates', { rates }),
-
-  /** Update shipping rates (alias) */
-  updateShippingRates: (rates) => api.put('/admin/shipping-rates', { rates }),
 
   /** Request payment for an order — sends a payment request email to the customer */
   requestPayment: (orderId, amount, notes) =>

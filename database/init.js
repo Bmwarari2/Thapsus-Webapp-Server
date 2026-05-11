@@ -220,18 +220,25 @@ export async function initializeDatabase() {
   }
 
   // ── Step 5: SQL migrations from database/migrations/ ─────────────────────
-  // These are additive, idempotent .sql files. We consult `_migrations`
-  // (filename text PRIMARY KEY, applied_at timestamptz) to skip files
-  // already recorded — Railway redeploys used to re-apply all 25
-  // migrations on every boot, which was harmless (each file is wrapped
-  // in idempotent DO blocks) but wasteful. The ledger keeps the boot
-  // log honest about what actually ran.
   //
-  // Each file is executed as a single multi-statement query against the
-  // pool — failures are logged but do not block server start so a partial
-  // schema cannot crash boot. On success we INSERT the filename into
-  // `_migrations` so the next boot skips it.
-  if (!isReadOnly) {
+  // **Disabled by default as of 2026-05-11.** The auto-runner is now gated
+  // behind `RUN_MIGRATIONS_ON_BOOT=true`; without that flag, server boot
+  // never touches `database/migrations/*.sql`. Apply migrations manually
+  // via the Supabase SQL Editor.
+  //
+  // Why this is off by default: an unreviewed .sql file landing on `main`
+  // would auto-apply on the next Railway deploy, potentially breaking
+  // schema before anyone caught it. Manual apply forces a human checkpoint.
+  // The PRs that introduced this disable also retired the legacy
+  // `shipping_rates` table; future schema work goes in
+  // `database/manual-migrations/` (see that directory's README).
+  //
+  // When the runner *is* enabled, behaviour is unchanged: it consults the
+  // `_migrations` ledger (filename text PRIMARY KEY, applied_at timestamptz)
+  // to skip files already recorded. Failures are logged but never block
+  // boot. On success the filename is INSERTed into `_migrations`.
+  const runMigrationsOnBoot = process.env.RUN_MIGRATIONS_ON_BOOT === 'true';
+  if (!isReadOnly && runMigrationsOnBoot) {
     try {
       // Defensive: create the ledger if a fresh install hasn't seen it
       // yet (live carries it from the original 0001 migration; this is
@@ -287,9 +294,11 @@ export async function initializeDatabase() {
     } catch (err) {
       console.error(`⚠ Could not enumerate migrations directory: ${err.message}`);
     }
-  } else {
+  } else if (isReadOnly) {
     console.warn('⚠ Skipping Framework v2 migrations — connection is read-only.');
     console.warn('  Apply database/migrations/*.sql manually in Supabase SQL Editor.');
+  } else {
+    console.log('✓ Migration auto-runner disabled (default). Set RUN_MIGRATIONS_ON_BOOT=true to enable.');
   }
 
   return pool;

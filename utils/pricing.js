@@ -49,16 +49,6 @@ export const ELECTRONICS_HANDLING = {
 };
 
 /**
- * Legacy single-market default rate. Kept so the legacy `/pricing/rates`
- * endpoint continues to serve a sensible response until PR 4 retires
- * it. The new model uses `base_shipping_per_kg` from pricing_settings;
- * this constant is only a fallback when the DB lookup fails.
- */
-export const DEFAULT_RATES_GBP = {
-  UK: 8,
-};
-
-/**
  * HS-tier defaults. After migration 051 these live in `customs_tiers`;
  * this object is only consulted when the DB lookup fails. Numbers match
  * the seed in 051_pricing_settings.sql so behaviour is identical.
@@ -84,16 +74,12 @@ const SETTINGS_CACHE_KEY   = 'pricing:settings';
 const ELECTRONICS_CACHE_KEY= 'pricing:electronics_fees';
 const TIERS_CACHE_KEY      = 'pricing:customs_tiers';
 const HSMAP_CACHE_KEY      = 'pricing:hs_code_tiers';
-// Legacy key — still served from the same module so callers that depend on it
-// (older /rates handler) keep working.
-const SHIPPING_RATES_CACHE_KEY = 'pricing:shipping_rates_gbp';
 
 export const PRICING_CACHE_KEYS = {
   settings:    SETTINGS_CACHE_KEY,
   electronics: ELECTRONICS_CACHE_KEY,
   tiers:       TIERS_CACHE_KEY,
   hsMap:       HSMAP_CACHE_KEY,
-  rates:       SHIPPING_RATES_CACHE_KEY,
 };
 
 /* ─── DB-backed lookup helpers ───────────────────────────────────────────── */
@@ -417,7 +403,6 @@ export function calculateShippingCost(options) {
     electronics_item = null,
     hs_tier          = null,
     items            = null,
-    rates_gbp        = null,       // soft-deprecated: legacy UK-keyed override
     settings         = null,       // when null, DEFAULT_SETTINGS used
     customsTiers     = null,       // when null, HS_TIERS constant used
     hsMap            = null,       // when null, no prefix matching
@@ -443,16 +428,8 @@ export function calculateShippingCost(options) {
     : 0;
   const chargeableKg = Math.max(effectiveActualKg, volKg);
 
-  // ── 2. Shipping
-  //
-  // The new model has a single base_shipping_per_kg from pricing_settings.
-  // The legacy `rates_gbp.UK` override is honoured so older clients (that
-  // still look up the legacy shipping_rates table) keep working until PR 4
-  // retires the table entirely.
-  let baseRateGbp = cfg.base_shipping_per_kg;
-  if (rates_gbp && typeof rates_gbp === 'object' && rates_gbp.UK != null) {
-    baseRateGbp = Number(rates_gbp.UK) || baseRateGbp;
-  }
+  // ── 2. Shipping — single rate from pricing_settings.base_shipping_per_kg.
+  const baseRateGbp = cfg.base_shipping_per_kg;
   // Express multiplier and insurance % remain hardcoded — explicitly out of
   // scope for this pricing-model round (flagged in the implementation plan).
   const speedMultiplier = shipping_speed === 'express' ? 1.5 : 1.0;
