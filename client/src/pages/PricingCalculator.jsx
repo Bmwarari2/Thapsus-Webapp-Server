@@ -34,7 +34,6 @@ export const PricingCalculator = () => {
   const { t } = useLanguage()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
-    market: 'UK',
     weight: '1',
     length: '10',
     width: '10',
@@ -92,7 +91,6 @@ export const PricingCalculator = () => {
     try {
       setLoading(true)
       const response = await pricingApi.calculate(
-        formData.market,
         parseFloat(formData.weight),
         {
           length: parseFloat(formData.length) || 0,

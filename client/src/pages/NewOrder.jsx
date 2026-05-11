@@ -47,7 +47,6 @@ export const NewOrder = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [formData, setFormData] = useState({
-    market: 'UK',
     retailer: '',
     retailerOther: '',
     description: '',
@@ -75,7 +74,6 @@ export const NewOrder = () => {
     e.preventDefault()
     setError(null)
 
-    if (!formData.market) { setError(t('common.required')); return }
     if (!formData.retailer && !formData.retailerOther) { setError(t('common.required')); return }
     if (!formData.description) { setError(t('common.required')); return }
 
@@ -83,7 +81,6 @@ export const NewOrder = () => {
       setLoading(true)
       const retailerName = formData.retailer === 'other' ? formData.retailerOther : formData.retailer
       const response = await ordersApi.create({
-        market: formData.market,
         retailer: retailerName,
         description: formData.description,
         shipping_speed: 'economy',

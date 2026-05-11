@@ -25,7 +25,7 @@ router.get('/user/packages', authMiddleware, async (req, res) => {
     params.push(limit, offset);
 
     const packages = await db.query(
-      `SELECT p.*, o.tracking_number, o.retailer, o.market
+      `SELECT p.*, o.tracking_number, o.retailer
        FROM packages p JOIN orders o ON p.order_id = o.id
        ${conditions} ORDER BY p.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params
@@ -49,7 +49,7 @@ router.get('/:trackingNumber', optionalAuth, async (req, res) => {
     // values (declared_value / actual_cost / customs_duty / estimated_cost),
     // or insurance toggles.  Audit T11.
     const result = await db.query(
-      `SELECT id, tracking_number, retailer, market, status, description,
+      `SELECT id, tracking_number, retailer, status, description,
               weight_kg, dimensions_json, shipping_speed,
               hold_reason, hold_resolved_at,
               created_at, updated_at

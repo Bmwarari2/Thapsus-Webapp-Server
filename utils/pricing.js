@@ -49,14 +49,13 @@ export const ELECTRONICS_HANDLING = {
 };
 
 /**
- * Legacy per-market rates, kept so the old `/pricing/rates` endpoint
- * continues to serve a sensible response after migration 051. The new
- * model uses a single `base_shipping_per_kg` from pricing_settings; the
- * per-market rates are a soft-deprecated shape.
+ * Legacy single-market default rate. Kept so the legacy `/pricing/rates`
+ * endpoint continues to serve a sensible response until PR 4 retires
+ * it. The new model uses `base_shipping_per_kg` from pricing_settings;
+ * this constant is only a fallback when the DB lookup fails.
  */
 export const DEFAULT_RATES_GBP = {
-  UK:    8,
-  China: 6,
+  UK: 8,
 };
 
 /**
@@ -396,7 +395,7 @@ export function calculateCustomsEstimate(cif_gbp, hs_tier = 'general', tiers = n
  * Calculate shipping cost with full breakdown.
  *
  * Inputs are split into:
- *   • Parcel: weight_kg, dimensions (L/W/H in cm), market, shipping_speed
+ *   • Parcel: weight_kg, dimensions (L/W/H in cm), shipping_speed
  *   • Items:  optional items[] — when supplied, customs is per-item
  *   • Money:  declared_value, insurance flag, electronics_item (legacy)
  *   • Settings (injected by caller after a DB lookup):
@@ -412,14 +411,13 @@ export function calculateShippingCost(options) {
   const {
     weight_kg        = 0,
     dimensions       = {},
-    market           = 'UK',
     shipping_speed   = 'economy',
     insurance        = false,
     declared_value   = 0,
     electronics_item = null,
     hs_tier          = null,
     items            = null,
-    rates_gbp        = null,       // soft-deprecated: per-market override
+    rates_gbp        = null,       // soft-deprecated: legacy UK-keyed override
     settings         = null,       // when null, DEFAULT_SETTINGS used
     customsTiers     = null,       // when null, HS_TIERS constant used
     hsMap            = null,       // when null, no prefix matching
@@ -448,12 +446,12 @@ export function calculateShippingCost(options) {
   // ── 2. Shipping
   //
   // The new model has a single base_shipping_per_kg from pricing_settings.
-  // The legacy `rates_gbp` per-market override is honoured so older clients
-  // (older /calculate calls) keep working; if it's supplied we use it,
-  // otherwise we use the global setting.
+  // The legacy `rates_gbp.UK` override is honoured so older clients (that
+  // still look up the legacy shipping_rates table) keep working until PR 4
+  // retires the table entirely.
   let baseRateGbp = cfg.base_shipping_per_kg;
-  if (rates_gbp && typeof rates_gbp === 'object' && rates_gbp[market] != null) {
-    baseRateGbp = Number(rates_gbp[market]) || baseRateGbp;
+  if (rates_gbp && typeof rates_gbp === 'object' && rates_gbp.UK != null) {
+    baseRateGbp = Number(rates_gbp.UK) || baseRateGbp;
   }
   // Express multiplier and insurance % remain hardcoded — explicitly out of
   // scope for this pricing-model round (flagged in the implementation plan).
@@ -509,7 +507,6 @@ export function calculateShippingCost(options) {
     total: parseFloat(total.toFixed(2)),
     currency: 'GBP',
     shipping_speed,
-    market,
     hs_tier: customs.tier_key,
     settings: {
       base_shipping_per_kg: cfg.base_shipping_per_kg,

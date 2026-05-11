@@ -12,7 +12,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
     const packages = await db.query(
       `SELECT p.id, p.description, p.weight_kg, p.received_at, p.warehouse_location,
-              o.tracking_number, o.retailer, o.market, o.created_at AS order_created_at
+              o.tracking_number, o.retailer, o.created_at AS order_created_at
        FROM packages p JOIN orders o ON p.order_id = o.id
        WHERE p.user_id = $1 AND p.status IN ('received','consolidating') AND p.is_consolidated = false
        ORDER BY p.received_at DESC`,
@@ -126,7 +126,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 
     const packages = await db.query(
       `SELECT p.id, p.description, p.weight_kg, p.status, p.received_at, p.warehouse_location,
-              o.tracking_number, o.retailer, o.market
+              o.tracking_number, o.retailer
        FROM packages p JOIN orders o ON p.order_id = o.id
        WHERE p.user_id = $1 AND p.consolidated_with = $2
        ORDER BY p.created_at ASC`,

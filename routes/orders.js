@@ -19,12 +19,10 @@ router.get('/', authMiddleware, async (req, res) => {
     const page   = parseInt(req.query.page)  || 1;
     const limit  = parseInt(req.query.limit) || 10;
     const status = req.query.status;
-    const market = req.query.market;
 
     const params = [userId];
     let conditions = 'WHERE user_id = $1';
     if (status) { params.push(status); conditions += ` AND status = $${params.length}`; }
-    if (market) { params.push(market); conditions += ` AND market = $${params.length}`; }
 
     const countResult = await db.query(`SELECT COUNT(*) AS count FROM orders ${conditions}`, params);
     const total      = parseInt(countResult.rows[0].count);
@@ -54,12 +52,10 @@ router.post('/', authMiddleware, async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
-    const { retailer, market, description, weight_kg, dimensions, shipping_speed, insurance, declared_value, hs_tier, electronics_item, items } = req.body;
+    const { retailer, description, weight_kg, dimensions, shipping_speed, insurance, declared_value, hs_tier, electronics_item, items } = req.body;
 
-    if (!retailer || !market || !description)
-      return res.status(400).json({ success: false, message: 'Missing required fields: retailer, market, description' });
-    if (!['UK', 'China'].includes(market))
-      return res.status(400).json({ success: false, message: 'Invalid market. Must be UK or China' });
+    if (!retailer || !description)
+      return res.status(400).json({ success: false, message: 'Missing required fields: retailer, description' });
     const speed = shipping_speed || 'economy';
     if (!['economy', 'express'].includes(speed))
       return res.status(400).json({ success: false, message: 'Invalid shipping speed.' });
@@ -84,7 +80,7 @@ router.post('/', authMiddleware, async (req, res) => {
     // Weight and dimensions are now optional at order creation (added by admin later)
     const pricingCtx = await loadPricingContext(db);
     const costBreakdown = weight_kg ? calculateShippingCost({
-      weight_kg: weight_kg || 0, dimensions, market, shipping_speed: speed,
+      weight_kg: weight_kg || 0, dimensions, shipping_speed: speed,
       insurance: insurance || false, declared_value: declared_value || 0,
       electronics_item: electronics_item || null, hs_tier: tier,
       // Pass items[] when supplied → per-item HS-code lookup → summed customs.
@@ -116,11 +112,11 @@ router.post('/', authMiddleware, async (req, res) => {
       // re-mints + reissues the INSERT until it lands.
       ({ trackingNumber } = await insertWithUniqueTrackingNumber(client, (tn) =>
         client.query(
-          `INSERT INTO orders (id, user_id, tracking_number, retailer, market, status, description,
+          `INSERT INTO orders (id, user_id, tracking_number, retailer, status, description,
             weight_kg, dimensions_json, shipping_speed, insurance, declared_value, estimated_cost,
             hs_tier, electronics_item)
-           VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-          [orderId, userId, tn, retailer, market, description,
+           VALUES ($1,$2,$3,$4,'pending',$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+          [orderId, userId, tn, retailer, description,
             weight_kg || null, dimensions ? JSON.stringify(dimensions) : null,
             speed, insurance ? true : false, declared_value || 0, costBreakdown.total,
             tier, electronics_item || null]
@@ -232,7 +228,7 @@ router.post('/', authMiddleware, async (req, res) => {
         };
         sendOrderCreatedEmail(
           customer.email, customer.name || 'Customer',
-          trackingNumber, retailer, market, description,
+          trackingNumber, retailer, description,
           speed, `${appUrl}/orders`, orderForEmail
         ).catch((err) => console.warn('Order created email failed (non-fatal):', err.message));
       }
@@ -288,7 +284,6 @@ router.get('/:id', authMiddleware, async (req, res) => {
       cost_breakdown = calculateShippingCost({
         weight_kg:       order.weight_kg       || 0,
         dimensions:      dims,
-        market:          order.market,
         shipping_speed:  order.shipping_speed  || 'economy',
         insurance:       order.insurance       || false,
         declared_value:  order.declared_value  || 0,
