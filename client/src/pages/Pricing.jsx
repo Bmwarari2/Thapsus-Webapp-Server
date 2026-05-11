@@ -22,7 +22,6 @@ const ELECTRONICS_FEES = {
 
 export default function Pricing() {
   const [form, setForm] = useState({
-    market:          'UK',
     weight_kg:       '',
     length:          '',
     width:           '',
@@ -65,7 +64,6 @@ export default function Pricing() {
         height: parseFloat(form.height) || 0,
       }
       const res = await pricingApi.calculate(
-        form.market,
         parseFloat(form.weight_kg),
         dimensions,
         form.shipping_speed,

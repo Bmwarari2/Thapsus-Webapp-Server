@@ -332,11 +332,11 @@ router.get('/:id/suggested-invoice', authMiddleware, ALLOWED_ADMIN, async (req, 
     const { id } = req.params;
     // Pull every parcel attached to this customer-consolidation along
     // with the cost-relevant fields. orders carries the operator-set
-    // customs_duty + weight_kg + dimensions_json + market /
-    // shipping_speed / declared_value / hs_tier inputs we need to
-    // recompute the shipping leg.
+    // customs_duty + weight_kg + dimensions_json + shipping_speed /
+    // declared_value / hs_tier inputs we need to recompute the
+    // shipping leg.
     const { rows: parcels } = await req.db.query(
-      `SELECT o.id, o.tracking_number, o.market, o.shipping_speed,
+      `SELECT o.id, o.tracking_number, o.shipping_speed,
               o.weight_kg, o.dimensions_json,
               o.declared_value, o.insurance,
               o.electronics_item, o.hs_tier,
@@ -383,7 +383,6 @@ router.get('/:id/suggested-invoice', authMiddleware, ALLOWED_ADMIN, async (req, 
         const cost = calculateShippingCost({
           weight_kg: p.weight_kg || 0,
           dimensions: dims,
-          market: p.market,
           shipping_speed: p.shipping_speed || 'economy',
           insurance: p.insurance || false,
           declared_value: p.declared_value || 0,

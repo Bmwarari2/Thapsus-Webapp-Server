@@ -62,7 +62,6 @@ router.post('/calculate', async (req, res) => {
     const {
       weight_kg = 0,
       dimensions,
-      market,
       shipping_speed = 'economy',
       insurance = false,
       declared_value = 0,
@@ -70,9 +69,6 @@ router.post('/calculate', async (req, res) => {
       items = null,
     } = req.body;
 
-    if (!market || !['UK', 'USA', 'China'].includes(market)) {
-      return res.status(400).json({ success: false, message: 'Invalid market. Must be UK, USA, or China' });
-    }
     if (!['economy', 'express'].includes(shipping_speed)) {
       return res.status(400).json({ success: false, message: 'Invalid shipping_speed. Must be economy or express' });
     }
@@ -92,7 +88,6 @@ router.post('/calculate', async (req, res) => {
     const pricing = calculateShippingCost({
       weight_kg,
       dimensions,
-      market,
       shipping_speed,
       insurance,
       declared_value,
@@ -235,7 +230,7 @@ router.put('/rates', authMiddleware, isAdmin, async (req, res) => {
       return res.status(400).json({ success: false, message: 'rates object is required' });
     }
 
-    const validMarkets = ['UK', 'USA', 'China'];
+    const validMarkets = ['UK'];
 
     await db.query(`
       CREATE TABLE IF NOT EXISTS shipping_rates (

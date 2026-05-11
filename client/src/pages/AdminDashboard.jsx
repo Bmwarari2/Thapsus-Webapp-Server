@@ -96,7 +96,7 @@ export const AdminDashboard = () => {
 
   // Form & Modal States
   const [showCreateOrderForm, setShowCreateOrderForm] = useState(false)
-  const [createOrderForm, setCreateOrderForm] = useState({ retailer: '', market: 'UK', description: '', weight_kg: '', dimensions: { length: '', width: '', height: '' }, shipping_speed: 'economy', insurance: false, declared_value: '', electronics_item: '' })
+  const [createOrderForm, setCreateOrderForm] = useState({ retailer: '', description: '', weight_kg: '', dimensions: { length: '', width: '', height: '' }, shipping_speed: 'economy', insurance: false, declared_value: '', electronics_item: '' })
   const [creatingOrder, setCreatingOrder] = useState(false)
   const [paymentModal, setPaymentModal] = useState(null) 
   const [paymentAmount, setPaymentAmount] = useState('')
@@ -463,7 +463,7 @@ export const AdminDashboard = () => {
       })
       toast.success('Order created')
       setShowCreateOrderForm(false); setSelectedCustomer(null); setCustomerSearch(''); setCustomerResults([])
-      setCreateOrderForm({ retailer:'', market:'UK', description:'', weight_kg:'', dimensions:{length:'',width:'',height:''}, shipping_speed:'economy', insurance:false, declared_value:'', electronics_item:'' })
+      setCreateOrderForm({ retailer:'', description:'', weight_kg:'', dimensions:{length:'',width:'',height:''}, shipping_speed:'economy', insurance:false, declared_value:'', electronics_item:'' })
       fetchData()
     } catch (err) { toast.error('Failed to create order') } finally { setCreatingOrder(false) }
   }

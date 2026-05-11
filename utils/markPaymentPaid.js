@@ -167,7 +167,6 @@ async function maybeCreatePreRegisteredParcelForBfm(client, bfmId) {
 
   const orderId  = uuidv4();
   const retailer = parseRetailerLabel(bfm.retailer_url);
-  const market   = inferMarketFromUrl(bfm.retailer_url); // defaults 'UK'
 
   // Audit P2.4: Stripe webhook redelivery + concurrent BFM accepts
   // were both 23505-prone here — the whole `markPaymentPaid` would
@@ -176,11 +175,11 @@ async function maybeCreatePreRegisteredParcelForBfm(client, bfmId) {
   // Shared helper retries on the unique-index violation.
   await insertWithUniqueTrackingNumber(client, (tn) =>
     client.query(
-      `INSERT INTO orders (id, user_id, tracking_number, retailer, market,
+      `INSERT INTO orders (id, user_id, tracking_number, retailer,
           status, description, weight_kg, dimensions_json, shipping_speed,
           insurance, declared_value, estimated_cost, hs_tier, electronics_item)
-       VALUES ($1,$2,$3,$4,$5,'pending',$6,NULL,NULL,'economy',false,0,0,'general',NULL)`,
-      [orderId, bfm.user_id, tn, retailer, market, bfm.item_name]
+       VALUES ($1,$2,$3,$4,'pending',$5,NULL,NULL,'economy',false,0,0,'general',NULL)`,
+      [orderId, bfm.user_id, tn, retailer, bfm.item_name]
     )
   );
   await client.query(
@@ -201,18 +200,6 @@ function parseRetailerLabel(url) {
     return host || 'Buy-for-me';
   } catch {
     return 'Buy-for-me';
-  }
-}
-
-function inferMarketFromUrl(url) {
-  if (!url) return 'UK';
-  try {
-    const host = new URL(url).hostname.toLowerCase();
-    if (/(\.cn$|taobao|tmall|1688|aliexpress)/.test(host)) return 'China';
-    if (/\.com$/.test(host) && /(amazon\.com|ebay\.com|walmart|bestbuy|target)/.test(host)) return 'USA';
-    return 'UK';
-  } catch {
-    return 'UK';
   }
 }
 

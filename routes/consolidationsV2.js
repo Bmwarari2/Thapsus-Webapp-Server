@@ -201,7 +201,7 @@ router.get('/:id', authMiddleware, ALLOWED_OPERATOR, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Consolidation not found' });
     }
     const { rows: parcels } = await req.db.query(
-      `SELECT o.id, o.tracking_number, o.retailer, o.market, o.status,
+      `SELECT o.id, o.tracking_number, o.retailer, o.status,
               o.weight_kg, o.chargeable_kg, o.declared_value, u.email, u.name
          FROM orders o
          JOIN users u ON u.id = o.user_id
@@ -438,7 +438,7 @@ router.post('/:id/manifest', authMiddleware, ALLOWED_OPERATOR, async (req, res) 
     const { id } = req.params;
 
     const { rows: parcels } = await req.db.query(
-      `SELECT o.id, o.tracking_number, o.retailer, o.description, o.market,
+      `SELECT o.id, o.tracking_number, o.retailer, o.description,
               o.weight_kg, o.chargeable_kg, o.declared_value,
               u.name AS consignee_name, u.email AS consignee_email,
               u.phone AS consignee_phone, u.delivery_address

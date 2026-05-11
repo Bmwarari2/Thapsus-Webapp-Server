@@ -56,27 +56,13 @@ router.get('/addresses', authMiddleware, (req, res) => {
       'United Kingdom',
       '🇬🇧',
     ),
-    China: buildAddress(
-      'China',
-      [
-        'WAREHOUSE_CHINA_LINE1',
-        'WAREHOUSE_CHINA_LINE2',
-        'WAREHOUSE_CHINA_LINE3',
-      ],
-      'China',
-      '🇨🇳',
-    ),
   };
 
   // Apply fallbacks if env vars are not configured so the frontend always
-  // has valid addresses to display even in development.
+  // has a valid address to display even in development.
   if (addresses.UK.lines.length === 0) {
     addresses.UK.lines = ['31 Collingwood Close', 'Hazel Grove, Stockport', 'SK7 4LB', 'United Kingdom'];
     addresses.UK.full  = addresses.UK.lines.join('\n');
-  }
-  if (addresses.China.lines.length === 0) {
-    addresses.China.lines = ['Thapsus Cargo Warehouse', 'Shanghai, China'];
-    addresses.China.full  = addresses.China.lines.join('\n');
   }
 
   res.json({ success: true, addresses, tcCode });

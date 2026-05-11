@@ -141,7 +141,7 @@ router.get('/users/:id', authMiddleware, isAdmin, async (req, res) => {
 
     const ordersRes = await db.query(
       `SELECT
-         id, tracking_number, retailer, market, status,
+         id, tracking_number, retailer, status,
          estimated_cost, actual_cost, customs_duty,
          weight_kg, dimensions_json, shipping_speed, insurance,
          declared_value, electronics_item, order_notes, created_at
@@ -155,7 +155,6 @@ router.get('/users/:id', authMiddleware, isAdmin, async (req, res) => {
         cost_breakdown = calculateShippingCost({
           weight_kg: o.weight_kg || 0,
           dimensions: dims,
-          market: o.market,
           shipping_speed: o.shipping_speed || 'economy',
           insurance: o.insurance || false,
           declared_value: o.declared_value || 0,
@@ -424,13 +423,11 @@ router.get('/orders', authMiddleware, isAdmin, async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const status = req.query.status;
-    const market = req.query.market;
     const startDate = req.query.startDate;
     const endDate = req.query.endDate;
     const params = [];
     let conditions = 'WHERE 1=1';
     if (status) { params.push(status); conditions += ` AND o.status = $${params.length}`; }
-    if (market) { params.push(market); conditions += ` AND o.market = $${params.length}`; }
     if (startDate) { params.push(startDate); conditions += ` AND DATE(o.created_at) >= $${params.length}`; }
     if (endDate) { params.push(endDate); conditions += ` AND DATE(o.created_at) <= $${params.length}`; }
     const countRes = await db.query(`SELECT COUNT(*) AS count FROM orders o ${conditions}`, params);
@@ -439,7 +436,7 @@ router.get('/orders', authMiddleware, isAdmin, async (req, res) => {
     const offset = (page - 1) * limit;
     params.push(limit, offset);
     const orders = await db.query(
-      `SELECT o.id, o.tracking_number, o.retailer, o.market, o.status,
+      `SELECT o.id, o.tracking_number, o.retailer, o.status,
               o.estimated_cost, o.actual_cost, o.created_at, o.description,
               o.weight_kg, o.dimensions_json, o.shipping_speed, o.insurance,
               o.declared_value, o.customs_duty, o.electronics_item, o.order_notes, o.user_id,
@@ -574,7 +571,7 @@ router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
       const effectiveWeight = weight_kg !== undefined ? weight_kg : order.weight_kg;
       const effectiveElectronics = electronics_item !== undefined ? (electronics_item || null) : (order.electronics_item || null);
       costBreakdown = calculateShippingCost({
-        weight_kg: effectiveWeight, dimensions: dims, market: order.market,
+        weight_kg: effectiveWeight, dimensions: dims,
         shipping_speed: order.shipping_speed || 'economy',
         insurance: order.insurance || false,
         declared_value: order.declared_value || 0,
@@ -622,7 +619,6 @@ router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
         costBreakdown = calculateShippingCost({
           weight_kg: updatedOrder.weight_kg || 0,
           dimensions: dims,
-          market: updatedOrder.market,
           shipping_speed: updatedOrder.shipping_speed || 'economy',
           insurance: updatedOrder.insurance || false,
           declared_value: updatedOrder.declared_value || 0,
@@ -654,7 +650,6 @@ router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
         updatedOrder.name,
         updatedOrder.tracking_number,
         updatedOrder.retailer,
-        updatedOrder.market,
         updatedOrder.description,
         updatedOrder.shipping_speed || 'economy',
         emailOrder,
@@ -681,10 +676,9 @@ router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
 router.get('/stats', authMiddleware, isAdmin, async (req, res) => {
   try {
     const db = req.db;
-    const [userStats, orderStats, marketStats, statusStats, revenueStats, referralStats, newUsersToday, newOrdersToday, activeOrders, recentOrders] = await Promise.all([
+    const [userStats, orderStats, statusStats, revenueStats, referralStats, newUsersToday, newOrdersToday, activeOrders, recentOrders] = await Promise.all([
       db.query(`SELECT COUNT(*) AS total, SUM(CASE WHEN role='customer' THEN 1 ELSE 0 END) AS customers, SUM(CASE WHEN role='admin' THEN 1 ELSE 0 END) AS admins, SUM(CASE WHEN is_active=true THEN 1 ELSE 0 END) AS active_users FROM users`),
       db.query(`SELECT COUNT(*) AS total_orders, SUM(CASE WHEN status='delivered' THEN 1 ELSE 0 END) AS delivered, SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) AS pending, SUM(CASE WHEN status='in_transit' THEN 1 ELSE 0 END) AS in_transit, AVG(estimated_cost) AS avg_estimated_cost, SUM(estimated_cost) AS total_estimated_value FROM orders`),
-      db.query(`SELECT market, COUNT(*) AS count, SUM(estimated_cost) AS value FROM orders GROUP BY market`),
       db.query(`SELECT status, COUNT(*) AS count FROM orders GROUP BY status`),
       // Exclude referral_reward credits from all revenue figures so referral bonuses
       // are not double-counted as income — they are user wallet credits, not cash inflows.
@@ -710,7 +704,6 @@ router.get('/stats', authMiddleware, isAdmin, async (req, res) => {
       stats: {
         users: { ...userStats.rows[0], new_today: parseInt(newUsersToday.rows[0].count) || 0 },
         orders: { ...orderStats.rows[0], new_today: parseInt(newOrdersToday.rows[0].count) || 0, active_orders: parseInt(activeOrders.rows[0].count) || 0 },
-        markets: marketStats.rows,
         order_statuses: statusStats.rows,
         revenue: revenueStats.rows[0],
         referrals: referralStats.rows[0],
@@ -1008,7 +1001,7 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
     const db = req.db;
     const adminId = req.user.id;
     const {
-      customer_email, customer_name, retailer, market, description,
+      customer_email, customer_name, retailer, description,
       weight_kg, dimensions, shipping_speed, insurance, declared_value,
       electronics_item = null, hs_tier = null,
     } = req.body;
@@ -1034,10 +1027,8 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
       return res.status(404).json({ success: false, message: 'Customer not found.' });
     const customer = customerRes.rows[0];
 
-    if (!retailer || !market || !description)
+    if (!retailer || !description)
       return res.status(400).json({ success: false, message: 'Missing required fields' });
-    if (!['UK','China'].includes(market))
-      return res.status(400).json({ success: false, message: 'Invalid market. Must be UK or China' });
     const speed = shipping_speed || 'economy';
     if (!['economy','express'].includes(speed))
       return res.status(400).json({ success: false, message: 'Invalid shipping speed' });
@@ -1049,12 +1040,11 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
         rates_gbp = {};
         ratesRes.rows.forEach(r => { rates_gbp[r.market] = parseFloat(r.rate_gbp); });
       }
-    } catch (_) { /* table may not exist yet */ }
+    } catch (_) { /* table may not exist yet — retired in PR 4 */ }
 
     const costBreakdown = calculateShippingCost({
       weight_kg: weight_kg || 0,
       dimensions,
-      market,
       shipping_speed: speed,
       insurance: insurance || false,
       declared_value: declared_value || 0,
@@ -1094,14 +1084,14 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
       ({ trackingNumber } = await insertWithUniqueTrackingNumber(client, (tn) =>
         client.query(
           `INSERT INTO orders (
-             id, user_id, tracking_number, retailer, market, status,
+             id, user_id, tracking_number, retailer, status,
              description, weight_kg, dimensions_json, shipping_speed,
              insurance, declared_value, estimated_cost, customs_duty,
              electronics_item, hs_tier
            )
-           VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+           VALUES ($1,$2,$3,$4,'pending',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
           [
-            orderId, customer.id, tn, retailer, market, description,
+            orderId, customer.id, tn, retailer, description,
             weight_kg || null, dimensions ? JSON.stringify(dimensions) : null,
             speed, insurance ? true : false, declared_value || 0, costBreakdown.total,
             customsEstimate, electronics_item || null, tier,
@@ -1182,7 +1172,6 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
       customer.name,
       trackingNumber,
       retailer,
-      market,
       description + handlingFeeNote,
       speed,
       `${appUrl}/orders`,
@@ -1195,7 +1184,7 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, re
       order: {
         id: orderId, tracking_number: trackingNumber,
         customer: { id: customer.id, name: customer.name, email: customer.email },
-        retailer, market, description, weight_kg, dimensions,
+        retailer, description, weight_kg, dimensions,
         shipping_speed: speed, insurance, declared_value,
         status: 'pending', estimated_cost: costBreakdown.total,
         cost_breakdown: costBreakdown,
@@ -1822,7 +1811,7 @@ router.put('/shipping-rates', authMiddleware, isAdmin, async (req, res) => {
       return res.status(400).json({ success: false, message: 'rates object is required' });
     }
 
-    const validMarkets = ['UK', 'USA', 'China'];
+    const validMarkets = ['UK'];
 
     await db.query(`
       CREATE TABLE IF NOT EXISTS shipping_rates (

@@ -421,10 +421,8 @@ async function sendPaymentReminderEmail(toEmail, toName, trackingNumber, amount,
   }
 }
 
-async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, market, description, shippingSpeed, ordersLink, order = null, gbpToKes = null) {
+async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, description, shippingSpeed, ordersLink, order = null, gbpToKes = null) {
   const speedLabel    = shippingSpeed === 'express' ? 'Express' : 'Economy';
-  const marketFlags   = { UK: '🇬🇧', USA: '🇺🇸', China: '🇨🇳' };
-  const marketDisplay = `${marketFlags[market] || ''} ${market}`.trim();
 
   const bodyHtml = `
     <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Your Order Has Been Created</h2>
@@ -443,10 +441,6 @@ async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, 
           <td style="padding:10px 12px;color:#111827;">${retailer}</td>
         </tr>
         <tr style="border-bottom:1px solid #e5e7eb;">
-          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Market</td>
-          <td style="padding:10px 12px;color:#111827;">${marketDisplay}</td>
-        </tr>
-        <tr style="border-bottom:1px solid #e5e7eb;background:#f9fafb;">
           <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Description</td>
           <td style="padding:10px 12px;color:#111827;">${description}</td>
         </tr>
@@ -589,7 +583,6 @@ async function sendOrderUpdatedEmail(
   toName,
   trackingNumber,
   retailer,
-  market,
   description,
   shippingSpeed,
   order,
@@ -597,8 +590,6 @@ async function sendOrderUpdatedEmail(
   gbpToKes = null
 ) {
   const speedLabel    = shippingSpeed === 'express' ? 'Express' : 'Economy';
-  const marketFlags   = { UK: '🇬🇧', USA: '🇺🇸', China: '🇨🇳' };
-  const marketDisplay = `${marketFlags[market] || ''} ${market}`.trim();
 
   const bodyHtml = `
     <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Your Order Has Been Updated</h2>
@@ -618,10 +609,6 @@ async function sendOrderUpdatedEmail(
           <td style="padding:10px 12px;color:#111827;">${retailer}</td>
         </tr>
         <tr style="border-bottom:1px solid #e5e7eb;">
-          <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Market</td>
-          <td style="padding:10px 12px;color:#111827;">${marketDisplay}</td>
-        </tr>
-        <tr style="border-bottom:1px solid #e5e7eb;background:#f9fafb;">
           <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Description</td>
           <td style="padding:10px 12px;color:#111827;">${description}</td>
         </tr>
