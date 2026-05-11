@@ -158,11 +158,28 @@ export const pricingApi = {
     })
   },
 
-  /** Get current per-kg shipping rates */
+  /** Get current per-kg shipping rates (legacy per-market) */
   getRates: () => api.get('/pricing/rates'),
 
   /** Get current USD/GBP/CNY → KES exchange rates */
   getExchangeRates: () => api.get('/exchange/rates'),
+
+  /**
+   * Six-knob pricing model (migration 051):
+   *   getSettings()       → { base_shipping_per_kg, base_handling_fee,
+   *                            card_processing_pct, dim_divisor }
+   *   updateSettings(p)   → admin PUT — body shape { settings: { key: value, ... } }
+   *   getCustomsTiers()   → public read of duty/VAT/IDF/RDL bands
+   *   updateCustomsTiers(map) → admin PUT — body { tiers: { tier_key: {...} } }
+   *   getHsCodes()        → array of { hs_prefix, tier_key }
+   *   updateHsCodes(p)    → admin PUT — body { upsert: [...], remove: [...] }
+   */
+  getSettings:       ()    => api.get('/pricing/settings'),
+  updateSettings:    (p)   => api.put('/pricing/settings',      { settings: p }),
+  getCustomsTiers:   ()    => api.get('/pricing/hs-tiers'),
+  updateCustomsTiers:(t)   => api.put('/pricing/customs-tiers', { tiers: t }),
+  getHsCodes:        ()    => api.get('/pricing/hs-codes'),
+  updateHsCodes:     (p)   => api.put('/pricing/hs-codes',      p),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
