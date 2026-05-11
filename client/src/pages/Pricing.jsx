@@ -1,5 +1,17 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { pricingApi } from '../api'
+
+/**
+ * Pricing engine outputs GBP, customer sees KES. We fetch the live GBP→KES
+ * rate from /api/exchange/rates once on mount; if it fails the calculator
+ * falls back to displaying £ so a missing FX row doesn't break quotes.
+ */
+function formatKes(gbp, rate) {
+  if (!Number.isFinite(rate) || rate <= 0) {
+    return `£${Number(gbp).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
+  return `KES ${Math.round(gbp * rate).toLocaleString()}`
+}
 
 const ELECTRONICS_FEES = {
   phone:      { label: 'Phone (+£75 handling fee)',                fee: 75 },
@@ -24,6 +36,16 @@ export default function Pricing() {
   const [result, setResult]   = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState(null)
+  // Live GBP→KES rate, fetched once on mount. We only need to refresh on
+  // page load — the rate moves day-to-day at most, and a stale rate is
+  // strictly safer than a missing one (calculator falls back to £).
+  const [gbpToKes, setGbpToKes] = useState(null)
+
+  useEffect(() => {
+    pricingApi.getExchangeRates()
+      .then((r) => setGbpToKes(Number(r.data?.data?.GBP_KES) || null))
+      .catch(() => setGbpToKes(null))
+  }, [])
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
@@ -258,31 +280,31 @@ export default function Pricing() {
                 {result.breakdown?.base_shipping?.amount != null && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Base shipping cost</span>
-                    <span className="text-lg font-bold text-slate-300 tracking-tight">£{Number(result.breakdown.base_shipping.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="text-lg font-bold text-slate-300 tracking-tight">{formatKes(result.breakdown.base_shipping.amount, gbpToKes)}</span>
                   </div>
                 )}
                 {result.breakdown?.handling_fee?.amount > 0 && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Handling &amp; processing</span>
-                    <span className="text-lg font-bold text-slate-300 tracking-tight">£{Number(result.breakdown.handling_fee.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="text-lg font-bold text-slate-300 tracking-tight">{formatKes(result.breakdown.handling_fee.amount, gbpToKes)}</span>
                   </div>
                 )}
                 {result.breakdown?.electronics_handling?.included && result.breakdown?.electronics_handling?.amount > 0 && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">Electronics handling fee</span>
-                    <span className="text-lg font-bold text-amber-400 tracking-tight">£{Number(result.breakdown.electronics_handling.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="text-lg font-bold text-amber-400 tracking-tight">{formatKes(result.breakdown.electronics_handling.amount, gbpToKes)}</span>
                   </div>
                 )}
                 {result.breakdown?.insurance?.included && result.breakdown?.insurance?.amount > 0 && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs font-bold text-blue-400 uppercase tracking-widest">Insurance (3%)</span>
-                    <span className="text-lg font-bold text-blue-300 tracking-tight">£{Number(result.breakdown.insurance.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="text-lg font-bold text-blue-300 tracking-tight">{formatKes(result.breakdown.insurance.amount, gbpToKes)}</span>
                   </div>
                 )}
                 {result.breakdown?.customs_estimate?.amount > 0 && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs font-bold text-purple-400 uppercase tracking-widest">Customs estimate (VAT+Duty)</span>
-                    <span className="text-lg font-bold text-purple-300 tracking-tight">£{Number(result.breakdown.customs_estimate.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="text-lg font-bold text-purple-300 tracking-tight">{formatKes(result.breakdown.customs_estimate.amount, gbpToKes)}</span>
                   </div>
                 )}
 
@@ -293,7 +315,7 @@ export default function Pricing() {
                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{result.notes?.delivery_time}</span>
                     </div>
                     <span className="text-3xl font-black text-orange-400 tracking-tighter">
-                      £{Number(result.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {formatKes(result.total, gbpToKes)}
                     </span>
                   </div>
                 )}

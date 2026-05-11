@@ -5,6 +5,22 @@ import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
 import { sendAdminPasswordResetEmail, sendPaymentRequestEmail, sendOrderCreatedEmail, sendWelcomeAccountEmail, sendPaymentReminderEmail, sendPaymentReceiptEmail, sendOrderUpdatedEmail, emailConfigStatus } from '../utils/email.js';
 import { calculateShippingCost, ELECTRONICS_HANDLING, HS_TIERS } from '../utils/pricing.js';
+import { getGbpToKesRate } from '../utils/fx.js';
+
+/**
+ * Fetch the live GBP→KES rate without throwing — used to render the
+ * customer-facing emails (and downstream invoice copy) in KES while the
+ * engine stays GBP-native. When the rate is unavailable the email falls
+ * back to displaying £ (see utils/email.js costBreakdownTable).
+ */
+async function safeGbpToKes(db) {
+  try {
+    const { rate } = await getGbpToKesRate(db);
+    return rate;
+  } catch {
+    return null;
+  }
+}
 import { sendInAppNotification } from '../utils/notifications.js';
 import { pushToUser, pushToAdmins } from './events.js';
 import { logRouteError } from '../utils/errorLogger.js';
@@ -631,6 +647,7 @@ router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
       };
 
       const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
+      const gbpToKes = await safeGbpToKes(db);
       sendOrderUpdatedEmail(
         updatedOrder.email,
         updatedOrder.name,
@@ -640,7 +657,8 @@ router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
         updatedOrder.description,
         updatedOrder.shipping_speed || 'economy',
         emailOrder,
-        `${frontendUrl}/orders`
+        `${frontendUrl}/orders`,
+        gbpToKes
       ).catch((err) =>
         console.warn('Order updated email failed (non-fatal):', err.message)
       );
@@ -1249,6 +1267,7 @@ router.post('/orders/:id/request-payment', authMiddleware, isAdmin, async (req, 
     // Attempt to send email — surface failures to the admin instead of swallowing them
     let emailWarning = null;
     try {
+      const gbpToKes = await safeGbpToKes(db);
       await sendPaymentRequestEmail(
         order.email,
         order.customer_name,
@@ -1256,7 +1275,8 @@ router.post('/orders/:id/request-payment', authMiddleware, isAdmin, async (req, 
         paymentAmount,
         notes || '',
         `${frontendUrl}/pay/${id}?amount=${paymentAmount}`,
-        order
+        order,
+        gbpToKes
       );
     } catch (emailErr) {
       console.error('Payment request email failed:', emailErr.message || emailErr);
@@ -1467,6 +1487,7 @@ router.post('/orders/:id/send-reminder', authMiddleware, isAdmin, async (req, re
     // Attempt to send email — surface failures to admin instead of swallowing them
     let emailWarning = null;
     try {
+      const gbpToKes = await safeGbpToKes(db);
       await sendPaymentReminderEmail(
         order.email,
         order.customer_name,
@@ -1474,7 +1495,8 @@ router.post('/orders/:id/send-reminder', authMiddleware, isAdmin, async (req, re
         reminderAmount,
         notes || '',
         `${frontendUrl}/pay/${id}?amount=${reminderAmount}`,
-        order
+        order,
+        gbpToKes
       );
     } catch (emailErr) {
       console.error('Payment reminder email failed:', emailErr.message || emailErr);

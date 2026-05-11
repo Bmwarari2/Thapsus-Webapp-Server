@@ -46,6 +46,10 @@ export const PricingCalculator = () => {
   })
   const [result, setResult] = useState(null)
   const [currentRates, setCurrentRates] = useState(null)
+  // Live GBP→KES rate so the customer-facing total renders in KES while
+  // the engine continues to compute in GBP. Falls back to displaying £
+  // when the rate is unavailable so the calculator never breaks.
+  const [gbpToKes, setGbpToKes] = useState(null)
 
   const markets = ['UK', 'China']
   const shippingSpeeds = [
@@ -59,7 +63,18 @@ export const PricingCalculator = () => {
       .getRates()
       .then((res) => { if (res.data?.success) setCurrentRates(res.data.rates) })
       .catch(() => {})
+    pricingApi
+      .getExchangeRates()
+      .then((res) => setGbpToKes(Number(res.data?.data?.GBP_KES) || null))
+      .catch(() => setGbpToKes(null))
   }, [])
+
+  const formatKes = (gbp) => {
+    if (!Number.isFinite(gbpToKes) || gbpToKes <= 0) {
+      return `£${Number(gbp || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    }
+    return `KES ${Math.round((gbp || 0) * gbpToKes).toLocaleString()}`
+  }
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
@@ -371,7 +386,7 @@ export const PricingCalculator = () => {
                       <p className="text-xs text-slate-400 mt-1 font-medium">{bd?.base_shipping?.description}</p>
                     </div>
                     <span className="font-black text-white text-lg tracking-tight">
-                      £{(bd?.base_shipping?.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {formatKes(bd?.base_shipping?.amount)}
                     </span>
                   </div>
 
@@ -383,7 +398,7 @@ export const PricingCalculator = () => {
                         <p className="text-xs text-slate-400 mt-1 font-medium">{elec.description}</p>
                       </div>
                       <span className="font-black text-orange-400 text-lg tracking-tight">
-                        £{(elec.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {formatKes(elec.amount)}
                       </span>
                     </div>
                   )}
@@ -396,7 +411,7 @@ export const PricingCalculator = () => {
                         <p className="text-xs text-slate-400 mt-1 font-medium">{bd?.handling_fee?.description}</p>
                       </div>
                       <span className="font-black text-white text-lg tracking-tight">
-                        £{(bd?.handling_fee?.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {formatKes(bd?.handling_fee?.amount)}
                       </span>
                     </div>
                   )}
@@ -406,7 +421,7 @@ export const PricingCalculator = () => {
                     <div className="flex justify-between items-center py-4 border-b border-slate-700/50 group/row hover:bg-slate-800/20 px-2 rounded-lg transition-colors -mx-2">
                       <span className="text-slate-200 font-bold tracking-tight">Insurance (3%)</span>
                       <span className="font-black text-white text-lg tracking-tight">
-                        £{(bd?.insurance?.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {formatKes(bd?.insurance?.amount)}
                       </span>
                     </div>
                   )}
@@ -419,7 +434,7 @@ export const PricingCalculator = () => {
                         <p className="text-xs text-slate-400 mt-1 font-medium">VAT 16% + Duty 10% — estimate only</p>
                       </div>
                       <span className="font-black text-white text-lg tracking-tight">
-                        £{(bd?.customs_estimate?.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {formatKes(bd?.customs_estimate?.amount)}
                       </span>
                     </div>
                   )}
@@ -431,7 +446,7 @@ export const PricingCalculator = () => {
                     
                     <p className="text-sm text-orange-100 font-bold mb-1 tracking-tight">{t('pricing.total')}</p>
                     <p className="text-4xl md:text-5xl font-black tracking-tighter leading-none mb-2 drop-shadow-sm">
-                      £{((sm?.total || result?.total) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {formatKes(sm?.total || result?.total)}
                     </p>
                     <p className="text-xs text-orange-100/90 font-medium bg-black/10 inline-block px-3 py-1.5 rounded-lg backdrop-blur-sm mt-2">
                       {(sm?.shipping_speed || result?.shipping_speed) === 'express' ? 'Express' : 'Economy'} shipping · {sm?.market || result?.market}

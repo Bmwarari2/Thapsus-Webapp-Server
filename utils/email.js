@@ -211,12 +211,23 @@ async function logEmailSent({ toEmail, emailType, subject, userId = null, errorM
 
 // ── Helpers & Layouts ──────────────────────────────────────────────────────
 
-function costBreakdownTable(order) {
-  // All amounts are GBP — post-2026-05 customs_duty is GBP everywhere
-  // (was KES; flipped alongside the six-knob pricing model). Format with two
-  // decimals so the engine's per-item customs (e.g. £10.07) doesn't get
-  // int-rounded to "10" in the email.
-  const fmt = (n) => Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function costBreakdownTable(order, gbpToKes = null) {
+  // The order row's money fields are GBP (engine-native). The customer-facing
+  // receipt shows KES — fetch the live GBP→KES rate at the call site and pass
+  // it in. When gbpToKes is missing (FX row unset, caller didn't fetch, etc.)
+  // we fall back to showing £ so the email still goes out with usable numbers
+  // rather than nothing.
+  const hasRate = Number.isFinite(gbpToKes) && gbpToKes > 0;
+  const symbol = hasRate ? 'KES' : '£';
+  const fmt = (gbp) => {
+    if (gbp == null) return null;
+    const value = hasRate ? gbp * gbpToKes : Number(gbp);
+    return hasRate
+      // KES is integer-formatted (no fractional shillings in receipts).
+      ? Math.round(value).toLocaleString()
+      : value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
   const shipping_cost  = order.shipping_cost != null ? fmt(order.shipping_cost) : (order.estimated_cost != null ? fmt(order.estimated_cost) : null);
   const handling_fee   = order.handling_fee  > 0 ? fmt(order.handling_fee)  : null;
   const insurance_fee  = order.insurance_fee > 0 ? fmt(order.insurance_fee) : null;
@@ -229,7 +240,7 @@ function costBreakdownTable(order) {
       <thead>
         <tr style="background:#f3f4f6;">
           <th style="padding:8px 12px; text-align:left; color:#6b7280; font-weight:600;">Item</th>
-          <th style="padding:8px 12px; text-align:right; color:#6b7280; font-weight:600;">Amount (£)</th>
+          <th style="padding:8px 12px; text-align:right; color:#6b7280; font-weight:600;">Amount (${symbol})</th>
         </tr>
       </thead>
       <tbody>
@@ -239,7 +250,7 @@ function costBreakdownTable(order) {
         ${customs_duty  ? `<tr><td style="padding:8px 12px; border-bottom:1px solid #e5e7eb;">Customs Duty</td><td style="padding:8px 12px; text-align:right; border-bottom:1px solid #e5e7eb;">${customs_duty}</td></tr>`  : ''}
         <tr style="background:#eff6ff;">
           <td style="padding:10px 12px; font-weight:700; color:#1e3a5f;">Total</td>
-          <td style="padding:10px 12px; text-align:right; font-weight:700; color:#1e3a5f;">£${total_cost}</td>
+          <td style="padding:10px 12px; text-align:right; font-weight:700; color:#1e3a5f;">${symbol} ${total_cost}</td>
         </tr>
       </tbody>
     </table>
@@ -348,7 +359,7 @@ async function sendAdminPasswordResetEmail(toEmail, toName, resetLink) {
   }
 }
 
-async function sendPaymentRequestEmail(toEmail, toName, trackingNumber, amount, notes, paymentLink, order) {
+async function sendPaymentRequestEmail(toEmail, toName, trackingNumber, amount, notes, paymentLink, order, gbpToKes = null) {
   const bodyHtml = `
     <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment Request</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
@@ -356,7 +367,7 @@ async function sendPaymentRequestEmail(toEmail, toName, trackingNumber, amount, 
       A payment is due for your order <strong>${trackingNumber}</strong>.
     </p>
 
-    ${order ? costBreakdownTable(order) : `<p style="font-size:16px;font-weight:bold;color:#1e3a5f;">Amount Due: KES ${amount?.toLocaleString?.() ?? amount}</p>`}
+    ${order ? costBreakdownTable(order, gbpToKes) : `<p style="font-size:16px;font-weight:bold;color:#1e3a5f;">Amount Due: KES ${amount?.toLocaleString?.() ?? amount}</p>`}
 
     ${notes ? `<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;background-color:#f9fafb;padding:12px 16px;border-left:4px solid #f97316;border-radius:4px;"><em>${notes}</em></p>` : ''}
 
@@ -379,7 +390,7 @@ async function sendPaymentRequestEmail(toEmail, toName, trackingNumber, amount, 
   }
 }
 
-async function sendPaymentReminderEmail(toEmail, toName, trackingNumber, amount, notes, paymentLink, order) {
+async function sendPaymentReminderEmail(toEmail, toName, trackingNumber, amount, notes, paymentLink, order, gbpToKes = null) {
   const bodyHtml = `
     <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment Reminder</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
@@ -387,7 +398,7 @@ async function sendPaymentReminderEmail(toEmail, toName, trackingNumber, amount,
       This is a friendly reminder that a payment is outstanding for your order <strong>${trackingNumber}</strong>.
     </p>
 
-    ${order ? costBreakdownTable(order) : `<p style="font-size:16px;font-weight:bold;color:#1e3a5f;">Amount Due: KES ${amount?.toLocaleString?.() ?? amount}</p>`}
+    ${order ? costBreakdownTable(order, gbpToKes) : `<p style="font-size:16px;font-weight:bold;color:#1e3a5f;">Amount Due: KES ${amount?.toLocaleString?.() ?? amount}</p>`}
 
     ${notes ? `<div style="margin:0 0 24px;background-color:#fef9c3;padding:12px 16px;border-left:4px solid #f59e0b;border-radius:4px;"><p style="margin:0;color:#92400e;font-size:14px;line-height:1.6;"><strong>Note from admin:</strong> ${notes}</p></div>` : ''}
 
@@ -410,7 +421,7 @@ async function sendPaymentReminderEmail(toEmail, toName, trackingNumber, amount,
   }
 }
 
-async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, market, description, shippingSpeed, ordersLink, order = null) {
+async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, market, description, shippingSpeed, ordersLink, order = null, gbpToKes = null) {
   const speedLabel    = shippingSpeed === 'express' ? 'Express' : 'Economy';
   const marketFlags   = { UK: '🇬🇧', USA: '🇺🇸', China: '🇨🇳' };
   const marketDisplay = `${marketFlags[market] || ''} ${market}`.trim();
@@ -582,7 +593,8 @@ async function sendOrderUpdatedEmail(
   description,
   shippingSpeed,
   order,
-  ordersLink
+  ordersLink,
+  gbpToKes = null
 ) {
   const speedLabel    = shippingSpeed === 'express' ? 'Express' : 'Economy';
   const marketFlags   = { UK: '🇬🇧', USA: '🇺🇸', China: '🇨🇳' };
@@ -621,7 +633,7 @@ async function sendOrderUpdatedEmail(
     </table>
 
     <h3 style="margin:0 0 8px;color:#1e3a5f;font-size:16px;font-weight:700;">Updated Cost Breakdown</h3>
-    ${costBreakdownTable(order)}
+    ${costBreakdownTable(order, gbpToKes)}
 
     <p style="margin:16px 0 24px;color:#4b5563;font-size:14px;line-height:1.6;">
       If anything looks incorrect, please contact support before making payment.
