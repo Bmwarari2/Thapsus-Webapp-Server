@@ -7,12 +7,20 @@
 // in between (and on first deploy of a new environment).
 //
 // Why Frankfurter:
-//   - Native GBP base, so we map response → our rows with no cross-
-//     rate math (exchangeratesapi.io free tier forces EUR base).
+//   - Native GBP base + KES coverage in one response, so we derive
+//     all four <X>_KES rows from a single call (one division per
+//     non-KES pair). exchangeratesapi.io free tier forces EUR base.
 //   - 200+ currencies on v2 incl. KES. v1 doesn't carry KES, so the
 //     URL below is pinned to v2 deliberately — DO NOT downgrade.
 //   - No key / no plan tier means CI + staging + prod all hit the
 //     same endpoint without secret management.
+//
+// Storage convention: this table stores `<from>_KES` rows (KES is
+// always the quote currency) because every customer-facing surface
+// renders in KES. The Frankfurter response is GBP-base, so we
+// translate: GBP_KES = rates.KES directly; for X ∈ {USD, EUR, CNY}
+// the cross-rate is `X_KES = rates.KES / rates.X`. routes/exchange.js
+// reads these rows back as-is — keep the schema shape in sync.
 //
 // Failure mode is deliberately silent for the cron path: if Frankfurter
 // is down or returns a malformed response we log to `error_logs` and
@@ -30,19 +38,23 @@ import { cacheInvalidate } from './cache.js';
 import { EXCHANGE_RATES_CACHE_KEY_EXPORT } from '../routes/exchange.js';
 
 const FRANKFURTER_URL = 'https://api.frankfurter.dev/v2/rates?base=GBP';
-const PAIRS = ['USD', 'EUR', 'CNY', 'KES'];
+// Source codes we need from Frankfurter's response (GBP base). KES
+// must be in this list because every <X>_KES cross-rate is derived
+// from it. NON_KES_PAIRS drives the cross-rate division loop below.
+const REQUIRED_CODES = ['USD', 'EUR', 'CNY', 'KES'];
+const NON_KES_PAIRS = ['USD', 'EUR', 'CNY'];
 const FETCH_TIMEOUT_MS = 10_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WARMUP_MS = 60 * 1000;
 
 /**
- * Fetch GBP-base rates from Frankfurter and upsert the four pairs we
- * care about (GBP→USD/EUR/CNY/KES) into `exchange_rates`. Single
- * transaction so a partial network failure mid-write can't leave a
- * row stale-by-half.
+ * Fetch GBP-base rates from Frankfurter and upsert the four
+ * `<from>_KES` rows (GBP_KES, USD_KES, EUR_KES, CNY_KES) into
+ * `exchange_rates`. Single transaction so a partial network failure
+ * mid-write can't leave a row stale-by-half.
  *
  * Returns:
- *   { ok: true,  rates: { GBP_USD, GBP_EUR, GBP_CNY, GBP_KES }, rateDate }
+ *   { ok: true,  rates: { GBP_KES, USD_KES, EUR_KES, CNY_KES }, rateDate }
  *   { ok: false, error: string, status?: number }
  *
  * Never throws — caller (scheduler or admin route) decides what to
@@ -95,15 +107,26 @@ export async function refreshFxRatesFromFrankfurter(db) {
     return { ok: false, error: err };
   }
 
-  const ratesOut = {};
-  for (const code of PAIRS) {
+  // Validate every required source code is present + numeric BEFORE
+  // computing cross-rates. A NaN here would otherwise propagate
+  // silently into the persisted rows.
+  const src = {};
+  for (const code of REQUIRED_CODES) {
     const v = Number(ratesIn[code]);
     if (!Number.isFinite(v) || v <= 0) {
       const err = `Frankfurter response missing/invalid rate for ${code}`;
       await logError({ level: 'warn', source: 'fx-refresh', message: err, meta: { code, raw: ratesIn[code] } });
       return { ok: false, error: err };
     }
-    ratesOut[`GBP_${code}`] = v;
+    src[code] = v;
+  }
+
+  // Derive <from>_KES form. GBP_KES is the direct Frankfurter value;
+  // every other pair divides KES-against-GBP by source-against-GBP
+  // to get source-against-KES.
+  const ratesOut = { GBP_KES: src.KES };
+  for (const code of NON_KES_PAIRS) {
+    ratesOut[`${code}_KES`] = src.KES / src[code];
   }
 
   // updated_by is a TEXT FK to users(id) with ON DELETE SET NULL —

@@ -41,7 +41,7 @@ afterEach(() => {
 });
 
 describe('refreshFxRatesFromFrankfurter', () => {
-  it('upserts the four pairs and busts the cache on success', async () => {
+  it('upserts the four <X>_KES pairs and busts the cache on success', async () => {
     fetch.mockResolvedValue({ ok: true, status: 200, json: async () => OK_PAYLOAD });
     const pool = makePool();
 
@@ -49,15 +49,19 @@ describe('refreshFxRatesFromFrankfurter', () => {
 
     expect(result.ok).toBe(true);
     expect(result.rateDate).toBe('2026-05-11');
-    expect(result.rates).toEqual({
-      GBP_USD: 1.3605, GBP_EUR: 1.1565, GBP_CNY: 9.2506, GBP_KES: 175.69,
-    });
+    // GBP_KES is the direct Frankfurter value; the others are cross-rates
+    // (KES-per-GBP / X-per-GBP = KES-per-X). Tolerance is wide because
+    // these are floats — exact arithmetic isn't the point of the test.
+    expect(result.rates.GBP_KES).toBeCloseTo(175.69, 4);
+    expect(result.rates.USD_KES).toBeCloseTo(175.69 / 1.3605, 4);
+    expect(result.rates.EUR_KES).toBeCloseTo(175.69 / 1.1565, 4);
+    expect(result.rates.CNY_KES).toBeCloseTo(175.69 / 9.2506, 4);
 
     // BEGIN + 4 upserts + COMMIT = 6 queries.
     const inserts = pool.query.mock.calls.filter(([sql]) => /INSERT INTO exchange_rates/.test(sql));
     expect(inserts).toHaveLength(4);
     const pairs = inserts.map(([, params]) => params[0]).sort();
-    expect(pairs).toEqual(['GBP_CNY', 'GBP_EUR', 'GBP_KES', 'GBP_USD']);
+    expect(pairs).toEqual(['CNY_KES', 'EUR_KES', 'GBP_KES', 'USD_KES']);
     // updated_by is hardcoded to NULL in SQL; the params are [pair, rate] only.
     expect(inserts[0][1]).toHaveLength(2);
 
@@ -69,7 +73,7 @@ describe('refreshFxRatesFromFrankfurter', () => {
     const pool = makePool();
     const result = await refreshFxRatesFromFrankfurter(pool);
     expect(result.ok).toBe(true);
-    expect(result.rates.GBP_KES).toBe(175.69);
+    expect(result.rates.GBP_KES).toBeCloseTo(175.69, 4);
   });
 
   it('returns ok:false and does NOT upsert when Frankfurter returns HTTP 500', async () => {
