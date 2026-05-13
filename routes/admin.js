@@ -846,13 +846,73 @@ router.get('/revenue', authMiddleware, isAdmin, async (req, res) => {
     const db = req.db;
     const startDate = req.query.startDate;
     const endDate = req.query.endDate;
-    const params = [];
-    // Exclude referral credits from revenue reporting — they are wallet bonuses, not cash income.
-    let filter = "WHERE status = 'completed' AND type NOT IN ('referral_reward','referral_credit')";
-    if (startDate) { params.push(startDate); filter += ` AND DATE(created_at) >= $${params.length}`; }
-    if (endDate) { params.push(endDate); filter += ` AND DATE(created_at) <= $${params.length}`; }
-    const revenue = await db.query(`SELECT DATE(created_at) AS date, payment_method, type, COUNT(*) AS count, SUM(amount) AS total FROM transactions ${filter} GROUP BY DATE(created_at), payment_method, type ORDER BY date DESC`, params);
-    const summary = await db.query(`SELECT payment_method, SUM(CASE WHEN type='deposit' THEN amount ELSE 0 END) AS deposits, SUM(CASE WHEN type='payment' THEN amount ELSE 0 END) AS payments, SUM(amount) AS total FROM transactions ${filter} GROUP BY payment_method`, params);
+    // The endpoint sources from TWO tables since the wallet rip (mig 028):
+    //   • transactions (legacy)  — STK-confirm M-Pesa + historical wallet ops
+    //   • payments     (modern)  — every Stripe + M-Pesa payment via /api/payments
+    // Both are amount-in-whole-KES. Without the union, every card payment
+    // since mig 028 is invisible to /admin/revenue, and modern M-Pesa
+    // (admin-approval queue) is also missing. Sister fix to /admin/stats
+    // in PR #209.
+    //
+    // For payments rows we synthesize the `type` column as 'payment' (every
+    // paid payments row is a customer outflow), and `payment_method` from
+    // payments.method (∈ stripe, mpesa). Date column is paid_at to match
+    // when the money was actually received; falls back to created_at for
+    // rows missing paid_at on legacy data.
+    const txParams = [];
+    const payParams = [];
+    let txFilter = "WHERE status = 'completed' AND type NOT IN ('referral_reward','referral_credit')";
+    let payFilter = "WHERE status = 'paid'";
+    if (startDate) {
+      txParams.push(startDate);
+      payParams.push(startDate);
+      txFilter  += ` AND DATE(created_at) >= $${txParams.length}`;
+      payFilter += ` AND DATE(COALESCE(paid_at, created_at)) >= $${payParams.length}`;
+    }
+    if (endDate) {
+      txParams.push(endDate);
+      payParams.push(endDate);
+      txFilter  += ` AND DATE(created_at) <= $${txParams.length}`;
+      payFilter += ` AND DATE(COALESCE(paid_at, created_at)) <= $${payParams.length}`;
+    }
+
+    const unionedDaily = `
+      SELECT DATE(created_at) AS date, payment_method, type,
+             amount::numeric AS amount
+        FROM transactions ${txFilter}
+      UNION ALL
+      SELECT DATE(COALESCE(paid_at, created_at)) AS date,
+             method AS payment_method,
+             'payment'::text AS type,
+             amount_due_kes::numeric AS amount
+        FROM payments ${payFilter}
+    `;
+    const unionedSummary = `
+      SELECT payment_method, type, amount::numeric AS amount
+        FROM transactions ${txFilter}
+      UNION ALL
+      SELECT method AS payment_method,
+             'payment'::text AS type,
+             amount_due_kes::numeric AS amount
+        FROM payments ${payFilter}
+    `;
+
+    const revenue = await db.query(
+      `SELECT date, payment_method, type, COUNT(*) AS count, SUM(amount) AS total
+         FROM (${unionedDaily}) u
+        GROUP BY date, payment_method, type
+        ORDER BY date DESC`,
+      [...txParams, ...payParams]
+    );
+    const summary = await db.query(
+      `SELECT payment_method,
+              SUM(CASE WHEN type='deposit' THEN amount ELSE 0 END) AS deposits,
+              SUM(CASE WHEN type='payment' THEN amount ELSE 0 END) AS payments,
+              SUM(amount) AS total
+         FROM (${unionedSummary}) u
+        GROUP BY payment_method`,
+      [...txParams, ...payParams]
+    );
     res.json({ success: true, revenue: revenue.rows, summary: summary.rows });
   } catch (error) {
     console.error('Get revenue error:', error);
