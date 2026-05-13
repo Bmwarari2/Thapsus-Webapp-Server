@@ -132,8 +132,8 @@ export const Home = () => {
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 overflow-x-hidden">
       <SEO
-        title="Ship from the UK to Kenya"
-        description="Thapsus Cargo offers affordable, reliable shipping and forwarding from the UK to Kenya. Track packages, calculate instant quotes, and enjoy door-to-door delivery."
+        title="UK→Kenya concierge shopping & shipping"
+        description="Send us a link from any UK retailer — Thapsus Cargo buys it, ships it, and delivers to your door in Kenya. Pre-register parcels you already bought, or get instant shipping quotes."
       />
       <style>{`
         @keyframes morph {
@@ -185,7 +185,7 @@ export const Home = () => {
                 <div className="p-1 bg-orange-500 rounded-lg text-white">
                     <Sparkles size={12} className="md:w-3.5 md:h-3.5"/>
                 </div>
-                <span className="text-[10px] md:text-xs font-black text-slate-700 uppercase tracking-widest">Global Logistics Redefined</span>
+                <span className="text-[10px] md:text-xs font-black text-slate-700 uppercase tracking-widest">{t('home.hero.eyebrow')}</span>
               </div>
               
               <h1 className="text-4xl md:text-6xl lg:text-8xl font-black tracking-tighter text-[#0f172a] leading-[1.1] lg:leading-[0.9]">
@@ -196,13 +196,25 @@ export const Home = () => {
                 {t('home.hero.subtitle')}
               </p>
 
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center lg:justify-start gap-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center lg:justify-start gap-4 flex-wrap">
+                {/* Primary CTA — concierge / Buy-for-me. Authed customers
+                    land straight on /buy-for-me; visitors register first
+                    then land there as the post-signup target. */}
                 <Link
-                  to={isAuthenticated ? '/ship-instructions' : '/register'}
+                  to={isAuthenticated ? '/buy-for-me' : '/register?next=/buy-for-me'}
                   className="glass-sheen px-8 py-4 md:px-10 md:py-5 bg-[#0f172a] hover:bg-slate-800 text-white rounded-[1.5rem] md:rounded-[2rem] font-black shadow-2xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-3 group text-base md:text-lg"
                 >
                   {t('home.hero.cta')}
                   <ArrowRight size={20} className="md:w-[22px] md:h-[22px] group-hover:translate-x-1 transition-transform" />
+                </Link>
+                {/* Secondary CTA — pre-register a parcel customers already
+                    bought elsewhere. Co-equal alternative path; outline
+                    style makes it visibly secondary. */}
+                <Link
+                  to={isAuthenticated ? '/new-order' : '/register?next=/new-order'}
+                  className="glass-sheen px-8 py-4 md:px-10 md:py-5 bg-white/70 hover:bg-white border-2 border-[#0f172a] text-[#0f172a] rounded-[1.5rem] md:rounded-[2rem] font-black shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-3 group text-base md:text-lg"
+                >
+                  {t('home.hero.cta_secondary')}
                 </Link>
                 {/* WhatsApp Chat Button */}
                 <a
@@ -448,7 +460,7 @@ export const Home = () => {
            
            <div className="flex flex-col sm:flex-row justify-center gap-4 md:gap-6 pt-4">
              <Link
-               to={isAuthenticated ? '/ship-instructions' : '/register'}
+               to={isAuthenticated ? '/buy-for-me' : '/register?next=/buy-for-me'}
                /* Audit a11y fix: bg-orange-500 + text-white = 2.8:1
                   contrast (under WCAG AA 4.5:1). Bumped to orange-700
                   for ~5.2:1; hover stays on orange-600 so the hue still

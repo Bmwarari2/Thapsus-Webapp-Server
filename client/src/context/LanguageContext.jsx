@@ -20,16 +20,18 @@ const translations = {
     'nav.admin': 'Admin',
 
     // Home Page
-    'home.hero.title': 'Ship from the UK to Kenya',
-    'home.hero.subtitle': 'Fast, affordable, and reliable shipping services',
-    'home.hero.cta': 'Get Started',
+    'home.hero.title': 'We shop the UK, you receive in Kenya',
+    'home.hero.subtitle': 'Send us a link from any UK retailer and we buy, ship, and deliver to your door.',
+    'home.hero.cta': 'Have us shop & ship for you',
+    'home.hero.cta_secondary': 'I already bought — pre-register a parcel',
     'home.hero.track': 'Track Package',
+    'home.hero.eyebrow': 'Shop UK · receive Kenya',
 
     'home.howitworks': 'How It Works',
-    'home.step1': 'Shop from your favorite retailers',
-    'home.step2': 'Ship to our warehouse',
-    'home.step3': 'We consolidate & deliver',
-    'home.step4': 'Receive in Kenya',
+    'home.step1': 'Send us a retailer link',
+    'home.step2': 'We buy on your behalf',
+    'home.step3': 'UK warehouse and air freight',
+    'home.step4': 'Door-step delivery in Kenya',
 
     'home.retailers': 'Supported Retailers',
     'home.markets': 'Our Markets',
@@ -380,16 +382,18 @@ const translations = {
     'nav.admin': 'Msimamizi',
 
     // Home Page
-    'home.hero.title': 'Tuma kutoka UK hadi Kenya',
-    'home.hero.subtitle': 'Huduma ya utoaji ya haraka, nafuu, na kutegemewa',
-    'home.hero.cta': 'Anza',
+    'home.hero.title': 'Tunanunua UK, unapokea Kenya',
+    'home.hero.subtitle': 'Tutumie kiungo kutoka kwa duka lolote la UK na tutanunulia, kutuma, na kukufikishia mlangoni mwako.',
+    'home.hero.cta': 'Tunakununulia na kukutumia',
+    'home.hero.cta_secondary': 'Tayari nilinunua — sajili pakiti mapema',
     'home.hero.track': 'Fuatilia Pakiti',
+    'home.hero.eyebrow': 'Nunua UK · Pokea Kenya',
 
     'home.howitworks': 'Jinsi inavyofanya kazi',
-    'home.step1': 'Nunua kutoka kwa ndege zako',
-    'home.step2': 'Tuma kwenye ghala letu',
-    'home.step3': 'Tunaunganisha na kudelivery',
-    'home.step4': 'Pokea huko Kenya',
+    'home.step1': 'Tutumie kiungo cha duka',
+    'home.step2': 'Tunakununulia kwa niaba yako',
+    'home.step3': 'Ghala la UK na usafiri wa ndege',
+    'home.step4': 'Tunakuletea mlangoni Kenya',
 
     'home.retailers': 'Ndege Zilizotengea',
     'home.markets': 'Soko Letu',

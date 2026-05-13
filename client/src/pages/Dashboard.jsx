@@ -324,15 +324,33 @@ export const Dashboard = () => {
           </GlassCard>
         </div>
 
-        {/* Quick Actions (Border Gradient) */}
+        {/* Primary action — Buy-for-me concierge. Full-width on top so it
+            visibly outranks the other actions. This is the customer's
+            main "I want to buy something from the UK" entry point. */}
+        <Link
+          to="/buy-for-me"
+          className="glass-sheen block bg-[#0f172a] hover:bg-slate-800 text-white px-8 py-8 md:px-10 md:py-10 rounded-[2.5rem] shadow-2xl hover:-translate-y-1 transition-all mb-6"
+        >
+          <div className="flex items-center justify-between gap-6">
+            <div>
+              <p className="text-[10px] md:text-xs font-black uppercase tracking-widest text-orange-300 mb-2">Primary</p>
+              <h3 className="text-2xl md:text-3xl font-black tracking-tight leading-tight">Start a Buy-for-me request</h3>
+              <p className="text-sm md:text-base text-slate-300 font-medium mt-2 max-w-xl">Send us a link from any UK retailer — we buy on your behalf, consolidate, and ship to Kenya.</p>
+            </div>
+            <ArrowRight size={28} className="md:w-9 md:h-9 shrink-0" />
+          </div>
+        </Link>
+
+        {/* Secondary actions: pre-register (co-equal alternate path) and
+            credit/referrals. Both demoted below the BFM hero card. */}
         <div className="p-1 bg-gradient-to-br from-orange-400 via-orange-300 to-blue-400 rounded-[3rem] shadow-2xl mb-12">
           <div className="h-full w-full bg-white/95 backdrop-blur-3xl rounded-[2.9rem] p-4 flex flex-col md:flex-row gap-4">
             <Link
-              to="/orders"
-              className="glass-sheen flex-1 bg-[#0f172a] hover:bg-slate-800 text-white px-6 py-6 rounded-[2.5rem] font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all shadow-xl hover:-translate-y-1"
+              to="/new-order"
+              className="glass-sheen flex-1 bg-white border-2 border-[#0f172a] hover:bg-slate-50 text-[#0f172a] px-6 py-6 rounded-[2.5rem] font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all shadow-xl hover:-translate-y-1"
             >
               <Box size={20} />
-              View My Orders
+              Pre-register a parcel
             </Link>
             <Link
               to="/credit"
