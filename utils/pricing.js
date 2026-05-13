@@ -408,6 +408,7 @@ export function calculateShippingCost(options) {
     hsMap            = null,       // when null, no prefix matching
     electronicsFees  = null,       // when null, ELECTRONICS_HANDLING used
     skipCustoms      = false,      // public calculator: hide customs entirely
+    gbpToKesRate     = null,       // when set, response carries pre-converted KES
   } = options;
 
   const cfg          = { ...DEFAULT_SETTINGS, ...(settings || {}) };
@@ -492,9 +493,48 @@ export function calculateShippingCost(options) {
 
   const total = subtotal + cardFee;
 
+  // ── 8. KES conversion (optional; only when caller supplies a rate)
+  //
+  // Calculator parity problem: web and iOS each fetch the FX rate
+  // separately and multiply locally, so a stale cache on one side
+  // produces a different KES total. Fix: when the caller passes
+  // `gbpToKesRate`, the engine returns canonical KES amounts here.
+  // Both clients display these verbatim and cannot drift.
+  //
+  // Invariant: total_kes = sum(line_kes) — each visible line is
+  // rounded to the nearest shilling individually, then summed. This
+  // guarantees the displayed lines always add up to the displayed
+  // total even though that means the KES total is not exactly equal
+  // to round(total_gbp * rate). Customer-facing "lines sum to total"
+  // beats "total matches GBP * rate" because the former is
+  // verifiable on screen and the latter is invisible.
+  const kes = (gbpToKesRate && gbpToKesRate > 0)
+    ? (() => {
+        const toKes = (gbp) => Math.round((Number(gbp) || 0) * gbpToKesRate);
+        const lines = {
+          base_shipping:        toKes(shippingCost),
+          electronics_handling: toKes(electronicsHandlingGbp),
+          handling_fee:         toKes(handlingFee),
+          insurance:            toKes(insuranceCost),
+          customs_estimate:     toKes(customs.total),
+          card_fee:             toKes(cardFee),
+        };
+        return {
+          rate: gbpToKesRate,
+          ...lines,
+          subtotal: lines.base_shipping + lines.electronics_handling
+                  + lines.handling_fee + lines.insurance + lines.customs_estimate,
+          total:    lines.base_shipping + lines.electronics_handling
+                  + lines.handling_fee + lines.insurance + lines.customs_estimate
+                  + lines.card_fee,
+        };
+      })()
+    : null;
+
   return {
     total: parseFloat(total.toFixed(2)),
     currency: 'GBP',
+    kes,
     shipping_speed,
     hs_tier: customs.tier_key,
     settings: {
