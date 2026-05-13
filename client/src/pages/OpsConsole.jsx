@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Package, Truck, Plane, ShieldAlert, Clock, RefreshCw,
-  Search, ArrowRight, CheckCircle, XCircle, Scale, Camera, Scan, Printer
+  Search, ArrowRight, CheckCircle, XCircle, Scale, Camera, Scan, Printer,
+  Sparkles
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { opsApi, consolidationsApi } from '../api'
+import { opsApi, consolidationsApi, buyForMeApi } from '../api'
 import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '../components/GlassUI'
 import { BarcodeScanner } from '../components/BarcodeScanner'
 import { PrintableParcelLabel } from '../components/PrintableParcelLabel'
@@ -18,6 +19,10 @@ import { PrintableParcelLabel } from '../components/PrintableParcelLabel'
  */
 export const OpsConsole = () => {
   const [today,    setToday]    = useState({})
+  // BFM queue counts shown alongside the parcel-intake tiles. Operator
+  // workflow leads with concierge orders after the BFM-primary pivot —
+  // see the top stats row + reordered Quick Links below.
+  const [bfmCounts, setBfmCounts] = useState({ pending_quote: 0, quoted: 0 })
   const [parcels,  setParcels]  = useState([])
   const [filter,   setFilter]   = useState('')
   const [status,   setStatus]   = useState('')
@@ -48,13 +53,25 @@ export const OpsConsole = () => {
   }, [printingParcel])
 
   const fetchToday   = () => opsApi.today().then(r => setToday(r.data?.today || {})).catch(() => {})
+  const fetchBfm     = () => buyForMeApi.queue().then(r => {
+    // GET /buy-for-me/queue returns rows with status IN (pending_quote,
+    // quoted, paid, rejected). Counting client-side keeps the change
+    // single-PR (no new aggregate endpoint required).
+    const orders = r.data?.orders || []
+    const counts = { pending_quote: 0, quoted: 0 }
+    for (const o of orders) {
+      if (o.status === 'pending_quote') counts.pending_quote += 1
+      else if (o.status === 'quoted')   counts.quoted += 1
+    }
+    setBfmCounts(counts)
+  }).catch(() => {})
   const fetchParcels = () => opsApi.parcels({ status: status || undefined, q: filter || undefined })
                                     .then(r => setParcels(r.data?.parcels || []))
                                     .catch(() => toast.error('Failed to load parcels'))
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([fetchToday(), fetchParcels()]).finally(() => setLoading(false))
+    Promise.all([fetchToday(), fetchBfm(), fetchParcels()]).finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -127,7 +144,32 @@ export const OpsConsole = () => {
         <PageHeading icon={Package} title="Operations Console"
           subtitle="Receive, screen, consolidate. Stockport hub overview." />
 
-        {/* Today's view */}
+        {/* BFM queue lead — primary operator surface in the BFM-first
+            pivot. Two-tile callout on the row above the parcel-intake
+            stats so unquoted and quoted-unpaid counts are unmissable.
+            Both tiles deep-link straight into /ops/buy-for-me. */}
+        <div className="grid grid-cols-2 gap-3 md:gap-4 mb-4">
+          <Link to="/ops/buy-for-me" className="block">
+            <Tile
+              label="Unquoted BFM requests"
+              value={bfmCounts.pending_quote}
+              icon={<Sparkles size={20}/>}
+              tone="text-orange-700"
+              accent
+            />
+          </Link>
+          <Link to="/ops/buy-for-me" className="block">
+            <Tile
+              label="Quoted, awaiting payment"
+              value={bfmCounts.quoted}
+              icon={<Clock size={20}/>}
+              tone="text-orange-700"
+              accent
+            />
+          </Link>
+        </div>
+
+        {/* Parcel intake stats — secondary now that BFM leads. */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-8">
           <Tile label="Expected"      value={today.expected      ?? 0} icon={<Clock size={20}/>}      tone="text-blue-700" />
           <Tile label="Received"      value={today.received      ?? 0} icon={<Package size={20}/>}    tone="text-emerald-700" />
@@ -136,11 +178,11 @@ export const OpsConsole = () => {
           <Tile label="Held"          value={today.held          ?? 0} icon={<ShieldAlert size={20}/>} tone="text-red-700" />
         </div>
 
-        {/* Quick links */}
+        {/* Quick links — Buy-for-me queue leads. */}
         <div className="flex flex-wrap gap-3 mb-8">
+          <QuickLink to="/ops/buy-for-me"     label="Buy-for-me queue" />
           <QuickLink to="/ops/consolidations" label="Consolidations" />
           <QuickLink to="/ops/dispatch"       label="Dispatch board" />
-          <QuickLink to="/ops/buy-for-me"     label="Buy-for-me queue" />
           <QuickLink to="/ops/settings"       label="Pricing settings" />
         </div>
 
@@ -329,8 +371,8 @@ export const OpsConsole = () => {
   )
 }
 
-const Tile = ({ label, value, icon, tone = 'text-slate-700' }) => (
-  <GlassCard className="p-4 md:p-5">
+const Tile = ({ label, value, icon, tone = 'text-slate-700', accent = false }) => (
+  <GlassCard className={`p-4 md:p-5 ${accent ? 'border-orange-300/60 ring-1 ring-orange-300/40 hover:ring-orange-400/60 transition' : ''}`}>
     <div className={`flex items-center gap-2 ${tone}`}>
       {icon}
       <span className="text-[10px] uppercase tracking-widest font-black">{label}</span>
