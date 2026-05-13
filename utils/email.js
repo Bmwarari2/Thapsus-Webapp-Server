@@ -472,7 +472,10 @@ async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, 
       </tr>
     </table>`;
 
-  const subject = `New Order Created — ${trackingNumber}`;
+  // Pre-register confirmation. "Parcel" disambiguates from BFM "Order"
+  // emails so customers can scan their inbox and tell the two flows
+  // apart at a glance.
+  const subject = `Parcel pre-registered — ${trackingNumber}`;
   try {
     const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
     await logEmailSent({ toEmail, emailType: 'order_created', subject, userId: order?.user_id ?? null });
@@ -634,7 +637,10 @@ async function sendOrderUpdatedEmail(
       </tr>
     </table>`;
 
-  const subject = `Order Updated — ${trackingNumber}`;
+  // Pre-register status update — parallel to the "Parcel pre-registered"
+  // confirmation. BFM lifecycle uses different subjects ("Quote ready",
+  // "Payment receipt") so this stays scoped to parcel-only updates.
+  const subject = `Parcel update — ${trackingNumber}`;
   try {
     const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
     await logEmailSent({ toEmail, emailType: 'order_updated', subject, userId: order?.user_id ?? null });
@@ -991,18 +997,19 @@ async function sendNpsInvitationEmail(toEmail, toName, trackingNumber, surveyLin
 
 /**
  * Buy-for-me concierge: operator has set a quote on the request. Customer
- * accepts or rejects from the Orders tab — deep-linked via the existing
- * `/orders` Universal Link that iOS already handles (PR #54).
+ * accepts or rejects from the Shop tab — deep-linked via the
+ * `/buy-for-me` route which web renders directly and iOS routes into
+ * BuyForMeView (PR 2 of the BFM-primary pivot).
  */
 async function sendBuyForMeQuoteEmail(toEmail, toName, orderId, itemName, estimateGbp, markupPct) {
-  const ordersUrl = `${process.env.APP_URL || 'https://www.thapsus.uk'}/orders`;
+  const ordersUrl = `${process.env.APP_URL || 'https://www.thapsus.uk'}/buy-for-me`;
   const gbp = Number(estimateGbp || 0).toFixed(2);
   const total = (Number(estimateGbp || 0) * (1 + Number(markupPct || 0) / 100)).toFixed(2);
   const bodyHtml = `
     <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Your quote is ready</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
-      We've reviewed your concierge request for <strong>${itemName}</strong> and prepared a quote.
+      We've reviewed your Buy-for-me request for <strong>${itemName}</strong> and prepared a quote.
     </p>
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 24px;">
       <tr><td align="center" style="background:#1e3a5f;border-radius:12px;padding:24px;">
@@ -1012,7 +1019,7 @@ async function sendBuyForMeQuoteEmail(toEmail, toName, orderId, itemName, estima
       </td></tr>
     </table>
     <p style="margin:0 0 16px;color:#4b5563;font-size:14px;line-height:1.6;">
-      Open the Orders tab to <strong>accept</strong> (we'll buy it for you) or <strong>reject</strong> the quote.
+      Open the Shop tab to <strong>accept</strong> (we'll buy it for you) or <strong>reject</strong> the quote.
       We hold quotes for 7 days.
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">

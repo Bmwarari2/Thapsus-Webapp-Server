@@ -4,19 +4,44 @@ import { Link } from 'react-router-dom'
 
 const faqs = [
   {
+    category: 'Shop & ship (Buy-for-me)',
+    items: [
+      {
+        q: 'How does Buy-for-me work?',
+        a: 'Send us a link from any UK online retailer — Amazon, ASOS, Next, John Lewis, anywhere — and a friendly operator quotes you the total in GBP. Pay by card or M-Pesa to confirm, and we buy the item, receive it at our UK warehouse, and ship it on to Kenya. No UK card, UK address, or sign-up at the retailer required.',
+      },
+      {
+        q: 'Which retailers can I buy from?',
+        a: 'Effectively any UK e-commerce store that delivers to our Stockport warehouse. Most customers shop on Amazon UK, ASOS, John Lewis, Next, Boots, Currys, JD Sports, Argos, Selfridges. If you\'re not sure whether a retailer is supported, just send the link — we\'ll tell you in the quote.',
+      },
+      {
+        q: 'When do I pay?',
+        a: 'You pay the BFM quote up front, before we make the purchase. The quote covers the item price, our 10% buying fee, UK handling, and shipping to Kenya. Customs (VAT + Duty) may be charged separately by Kenya Revenue Authority on clearance and are not included.',
+      },
+      {
+        q: 'What if the item is out of stock when you try to buy?',
+        a: 'We refund you in full or apply the amount as credit toward another order — your choice. Quotes are good for 24 hours; after that we re-check stock before charging.',
+      },
+    ],
+  },
+  {
     category: 'Getting Started',
     items: [
       {
         q: 'How does Thapsus Cargo work?',
-        a: 'Thapsus Cargo gives you a personal UK warehouse address. You shop from any UK online retailer and ship to our warehouse. Once we receive your packages, we consolidate them and ship everything together to Kenya — saving you on international shipping costs.',
+        a: 'Two ways. Most customers use our Buy-for-me service — send us a link, we shop, ship, and deliver. Or if you have already bought something from a UK retailer (or are forwarding items you already own), pre-register the parcel and ship it to your personal UK warehouse address. Either way, we consolidate, fly it to Kenya, and deliver to your door.',
+      },
+      {
+        q: 'When should I use Buy-for-me vs pre-register?',
+        a: 'Buy-for-me is the easiest path — you don\'t need a UK payment method, address, or retailer account. Pre-register a parcel when you have already paid for something, or when the seller doesn\'t ship to our warehouse (e.g. private resellers, eBay collections).',
       },
       {
         q: 'How do I get my warehouse address (TC Code)?',
-        a: 'Once you create a free account and log in, go to "Warehouse Address" in your dashboard. You will find your unique TC Code and full UK warehouse address. Use these details as the delivery address when shopping online.',
+        a: 'Only needed for the pre-register path. Once you create a free account, your unique TC Code and full UK warehouse address appear under "Warehouse Address" in the dashboard. Use these as the delivery address at checkout when shopping yourself.',
       },
       {
         q: 'Is there a registration fee?',
-        a: 'No — creating an account with Thapsus Cargo is completely free. You only pay for the actual shipping weight of your goods.',
+        a: 'No — creating an account is completely free. With Buy-for-me you pay the item price + a 10% buying fee + shipping. With pre-register you only pay the shipping weight of your goods.',
       },
     ],
   },
@@ -25,7 +50,7 @@ const faqs = [
     items: [
       {
         q: 'How much does shipping cost?',
-        a: 'Shipping rates depend on total weight and the speed you choose. UK shipments start from £9/kg for air freight. Use our Shipping Calculator for an instant quote including insurance and customs fees before you commit.',
+        a: 'Shipping rates depend on the chargeable weight (the heavier of actual or volumetric weight). UK shipments start from £9/kg for air freight. Use our Shipping Calculator for an instant quote including handling, insurance, and the card-processing surcharge.',
       },
       {
         q: 'What is package consolidation and how does it save me money?',
@@ -63,7 +88,7 @@ const faqs = [
       },
       {
         q: 'Will I pay customs duty in Kenya?',
-        a: 'Customs duty is assessed by Kenya Revenue Authority based on the declared value of your goods. Our shipping quote includes an estimated customs handling fee, but final KRA duties depend on the type and value of items. Electronics and clothing may attract different duty rates.',
+        a: 'Customs (VAT + Duty) is assessed by Kenya Revenue Authority based on the declared value of your goods on clearance. Our shipping quote does not include those charges — they are billed separately by KRA when your parcel clears. Electronics, clothing, and other categories attract different duty rates; we will guide you through the typical range when you place the order.',
       },
     ],
   },
