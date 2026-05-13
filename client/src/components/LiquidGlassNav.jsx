@@ -281,6 +281,10 @@ function buildLinkSets({ isAuthenticated, isAdmin, role, t }) {
       label: 'Operator tools',
       icon:  Truck,
       links: [
+        // BFM concierge queue leads the operator group after the BFM-
+        // primary pivot. /ops Operator console stays as #2 — it's
+        // still the parcel intake / receive / screen workflow.
+        { to: '/ops/buy-for-me',     label: 'Buy-for-me queue',  icon: ShoppingBag },
         { to: '/ops',                label: 'Operator console',  icon: Truck },
         { to: '/ops/consolidations', label: 'Consolidations',    icon: Plane },
         { to: '/ops/dispatch',       label: 'Dispatch board',    icon: Bike },
