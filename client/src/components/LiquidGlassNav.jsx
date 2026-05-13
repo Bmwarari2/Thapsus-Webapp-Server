@@ -246,14 +246,20 @@ function buildLinkSets({ isAuthenticated, isAdmin, role, t }) {
     { to: '/prohibited', label: 'Prohibited items', icon: ShieldAlert },
   ]
 
-  // Account links visible only when authenticated
+  // Account links visible only when authenticated.
+  //
+  // Buy-for-me leads the list as the primary product surface: customers
+  // send us a link, we buy and ship. Parcel tracking (the pre-register
+  // flow) is kept as a co-equal secondary — for customers who already
+  // bought from a retailer we don't support, or who are consolidating
+  // items they already own.
   const account = isAuthenticated ? [
     { to: '/dashboard',  label: t('nav.dashboard') || 'Dashboard', icon: LayoutDashboard },
-    { to: '/orders',     label: 'My orders',                       icon: Receipt },
+    { to: '/buy-for-me', label: 'Shop & ship',                     icon: ShoppingBag },
+    { to: '/orders',     label: 'Parcel tracking',                 icon: Receipt },
     { to: '/credit',     label: 'My credit',                       icon: WalletIcon },
     { to: '/transactions', label: 'Transactions',                  icon: History },
     { to: '/notifications', label: 'Notifications',                 icon: Bell },
-    { to: '/buy-for-me', label: 'Buy for me',                      icon: ShoppingBag },
     { to: '/consolidation', label: 'Consolidation',                icon: Plane },
     { to: '/support',    label: 'Support',                         icon: LifeBuoy },
     { to: '/warehouse',  label: 'Warehouse address',               icon: WarehouseIcon },
@@ -309,9 +315,12 @@ function buildLinkSets({ isAuthenticated, isAdmin, role, t }) {
       icon:  BarChart3,
       links: [
         { to: '/admin',                          label: t('nav.admin') || 'Admin dashboard', icon: BarChart3 },
+        // Create Buy-for-me leads the admin tools group — admins
+        // building concierge orders on behalf of customers is now
+        // the primary on-behalf creation path.
+        { to: '/admin/create-bfm',               label: 'Create Buy-for-me',                 icon: ShoppingBag },
         { to: '/admin/customer-consolidations',  label: 'Customer consolidations',           icon: Receipt },
         { to: '/admin/issue-invoice',            label: 'Issue invoice',                     icon: FileText },
-        { to: '/admin/create-bfm',               label: 'Create Buy-for-me',                 icon: ShoppingBag },
         { to: '/admin/dsar',                     label: 'DSAR queue',                        icon: Database },
         { to: '/kpi',                            label: 'KPI dashboard',                     icon: Activity },
         { to: '/ops/settings',                   label: 'Pricing settings',                  icon: Settings },
