@@ -77,6 +77,18 @@ export const PricingCalculator = () => {
     return `KES ${Math.round((gbp || 0) * gbpToKes).toLocaleString()}`
   }
 
+  // Prefer the server's pre-converted KES amounts when present —
+  // /api/pricing/calculate returns a sum-stable `kes` block computed
+  // with the canonical FX rate, so iOS and web cannot diverge on the
+  // displayed totals. Falls back to local conversion when the FX row
+  // is unavailable server-side (`result.kes` is null) or for legacy
+  // surfaces (electronics, surcharges).
+  const formatServerKes = (key, fallbackGbp) => {
+    const cents = result?.kes?.[key]
+    if (Number.isFinite(cents)) return `KES ${cents.toLocaleString()}`
+    return formatKes(fallbackGbp)
+  }
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
     setFormData((prev) => ({
@@ -370,7 +382,7 @@ export const PricingCalculator = () => {
                       <p className="text-xs text-slate-400 mt-1 font-medium">{bd?.base_shipping?.description}</p>
                     </div>
                     <span className="font-black text-white text-lg tracking-tight">
-                      {formatKes(bd?.base_shipping?.amount)}
+                      {formatServerKes('base_shipping', bd?.base_shipping?.amount)}
                     </span>
                   </div>
 
@@ -382,7 +394,7 @@ export const PricingCalculator = () => {
                         <p className="text-xs text-slate-400 mt-1 font-medium">{elec.description}</p>
                       </div>
                       <span className="font-black text-orange-400 text-lg tracking-tight">
-                        {formatKes(elec.amount)}
+                        {formatServerKes('electronics_handling', elec.amount)}
                       </span>
                     </div>
                   )}
@@ -395,7 +407,7 @@ export const PricingCalculator = () => {
                         <p className="text-xs text-slate-400 mt-1 font-medium">{bd?.handling_fee?.description}</p>
                       </div>
                       <span className="font-black text-white text-lg tracking-tight">
-                        {formatKes(bd?.handling_fee?.amount)}
+                        {formatServerKes('handling_fee', bd?.handling_fee?.amount)}
                       </span>
                     </div>
                   )}
@@ -405,7 +417,7 @@ export const PricingCalculator = () => {
                     <div className="flex justify-between items-center py-4 border-b border-slate-700/50 group/row hover:bg-slate-800/20 px-2 rounded-lg transition-colors -mx-2">
                       <span className="text-slate-200 font-bold tracking-tight">Insurance (3%)</span>
                       <span className="font-black text-white text-lg tracking-tight">
-                        {formatKes(bd?.insurance?.amount)}
+                        {formatServerKes('insurance', bd?.insurance?.amount)}
                       </span>
                     </div>
                   )}
@@ -420,7 +432,7 @@ export const PricingCalculator = () => {
                         </p>
                       </div>
                       <span className="font-black text-white text-lg tracking-tight">
-                        {formatKes(bd?.card_fee?.amount)}
+                        {formatServerKes('card_fee', bd?.card_fee?.amount)}
                       </span>
                     </div>
                   )}
@@ -432,7 +444,7 @@ export const PricingCalculator = () => {
                     
                     <p className="text-sm text-orange-100 font-bold mb-1 tracking-tight">{t('pricing.total')}</p>
                     <p className="text-4xl md:text-5xl font-black tracking-tighter leading-none mb-2 drop-shadow-sm">
-                      {formatKes(sm?.total || result?.total)}
+                      {formatServerKes('total', sm?.total || result?.total)}
                     </p>
                     <p className="text-xs text-orange-100/90 font-medium bg-black/10 inline-block px-3 py-1.5 rounded-lg backdrop-blur-sm mt-2">
                       {(sm?.shipping_speed || result?.shipping_speed) === 'express' ? 'Express' : 'Economy'} shipping · UK

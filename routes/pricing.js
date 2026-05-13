@@ -10,6 +10,7 @@ import {
   HS_TIERS,
   PRICING_CACHE_KEYS,
 } from '../utils/pricing.js';
+import { getGbpToKesRate, FxRateUnavailableError } from '../utils/fx.js';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
 import { cacheInvalidate } from '../utils/cache.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -58,6 +59,18 @@ router.post('/calculate', async (req, res) => {
     const db = req.db;
     const ctx = await loadPricingContext(db);
 
+    // FX rate is best-effort here: when the GBP_KES row is missing or
+    // invalid, the calculator falls back to GBP-only display rather
+    // than 503'ing (a payment route would 503; a quote is read-only).
+    let gbpToKesRate = null;
+    try {
+      const { rate } = await getGbpToKesRate(db);
+      gbpToKesRate = rate;
+    } catch (e) {
+      if (!(e instanceof FxRateUnavailableError)) throw e;
+      console.warn('[pricing/calculate] FX rate unavailable — returning GBP only:', e.message);
+    }
+
     const pricing = calculateShippingCost({
       weight_kg,
       dimensions,
@@ -76,6 +89,10 @@ router.post('/calculate', async (req, res) => {
       // Order-creation paths (routes/orders.js, routes/admin.js) call the
       // engine directly without this flag, so they still get customs.
       skipCustoms:     true,
+      // Pre-converted KES amounts on the response — the client renders
+      // these verbatim instead of multiplying locally, so iOS and web
+      // can never diverge on the displayed KES totals.
+      gbpToKesRate,
     });
 
     res.json({ success: true, pricing });

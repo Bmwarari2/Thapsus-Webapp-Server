@@ -13,6 +13,17 @@ function formatKes(gbp, rate) {
   return `KES ${Math.round(gbp * rate).toLocaleString()}`
 }
 
+// Prefer pre-converted KES from `/api/pricing/calculate` (`result.kes`)
+// over client-side multiplication. Server uses the canonical FX rate
+// and a sum-stable rounding rule (total = sum of visible lines), so
+// iOS and web cannot diverge on the displayed totals. Falls back to
+// local conversion if the server omitted `kes` (e.g. FX row missing).
+function serverKes(result, key, fallbackGbp, rate) {
+  const cents = result?.kes?.[key]
+  if (Number.isFinite(cents)) return `KES ${cents.toLocaleString()}`
+  return formatKes(fallbackGbp, rate)
+}
+
 const ELECTRONICS_FEES = {
   phone:      { label: 'Phone (+£75 handling fee)',                fee: 75 },
   laptop:     { label: 'Laptop / Accessories (+£65 handling fee)', fee: 65 },
@@ -263,31 +274,31 @@ export default function Pricing() {
                 {result.breakdown?.base_shipping?.amount != null && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Base shipping cost</span>
-                    <span className="text-lg font-bold text-slate-300 tracking-tight">{formatKes(result.breakdown.base_shipping.amount, gbpToKes)}</span>
+                    <span className="text-lg font-bold text-slate-300 tracking-tight">{serverKes(result, 'base_shipping', result.breakdown.base_shipping.amount, gbpToKes)}</span>
                   </div>
                 )}
                 {result.breakdown?.handling_fee?.amount > 0 && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Handling &amp; processing</span>
-                    <span className="text-lg font-bold text-slate-300 tracking-tight">{formatKes(result.breakdown.handling_fee.amount, gbpToKes)}</span>
+                    <span className="text-lg font-bold text-slate-300 tracking-tight">{serverKes(result, 'handling_fee', result.breakdown.handling_fee.amount, gbpToKes)}</span>
                   </div>
                 )}
                 {result.breakdown?.electronics_handling?.included && result.breakdown?.electronics_handling?.amount > 0 && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">Electronics handling fee</span>
-                    <span className="text-lg font-bold text-amber-400 tracking-tight">{formatKes(result.breakdown.electronics_handling.amount, gbpToKes)}</span>
+                    <span className="text-lg font-bold text-amber-400 tracking-tight">{serverKes(result, 'electronics_handling', result.breakdown.electronics_handling.amount, gbpToKes)}</span>
                   </div>
                 )}
                 {result.breakdown?.insurance?.included && result.breakdown?.insurance?.amount > 0 && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs font-bold text-blue-400 uppercase tracking-widest">Insurance (3%)</span>
-                    <span className="text-lg font-bold text-blue-300 tracking-tight">{formatKes(result.breakdown.insurance.amount, gbpToKes)}</span>
+                    <span className="text-lg font-bold text-blue-300 tracking-tight">{serverKes(result, 'insurance', result.breakdown.insurance.amount, gbpToKes)}</span>
                   </div>
                 )}
                 {result.breakdown?.card_fee?.amount > 0 && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Card processing</span>
-                    <span className="text-lg font-bold text-slate-300 tracking-tight">{formatKes(result.breakdown.card_fee.amount, gbpToKes)}</span>
+                    <span className="text-lg font-bold text-slate-300 tracking-tight">{serverKes(result, 'card_fee', result.breakdown.card_fee.amount, gbpToKes)}</span>
                   </div>
                 )}
 
@@ -298,7 +309,7 @@ export default function Pricing() {
                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{result.notes?.delivery_time}</span>
                     </div>
                     <span className="text-3xl font-black text-orange-400 tracking-tighter">
-                      {formatKes(result.total, gbpToKes)}
+                      {serverKes(result, 'total', result.total, gbpToKes)}
                     </span>
                   </div>
                 )}
