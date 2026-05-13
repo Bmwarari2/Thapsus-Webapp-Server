@@ -127,7 +127,7 @@ export const PricingCalculator = () => {
     <div className="relative min-h-screen bg-[#f8f9fa] py-12 px-4 overflow-hidden z-0">
       <SEO
         title="Shipping Calculator — Get Instant Quotes"
-        description="Calculate shipping costs from the UK to Kenya instantly. Get transparent pricing with weight, dimensions, insurance, and customs estimates."
+        description="Calculate shipping costs from the UK to Kenya instantly. Get transparent pricing with weight, dimensions, and insurance."
       />
       {/* ── Liquid Backgrounds (Blobs) ── */}
       <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-blue-400/20 rounded-full mix-blend-multiply filter blur-[100px] opacity-70 animate-morph pointer-events-none -z-10" />
@@ -410,26 +410,13 @@ export const PricingCalculator = () => {
                     </div>
                   )}
 
-                  {/* Customs Estimate */}
-                  {(bd?.customs_estimate?.amount || 0) > 0 && (
-                    <div className="flex justify-between items-center py-4 border-b border-slate-700/50 group/row hover:bg-slate-800/20 px-2 rounded-lg transition-colors -mx-2">
-                      <div>
-                        <span className="text-slate-200 font-bold tracking-tight">Customs Estimate</span>
-                        <p className="text-xs text-slate-400 mt-1 font-medium">VAT 16% + Duty 10% — estimate only</p>
-                      </div>
-                      <span className="font-black text-white text-lg tracking-tight">
-                        {formatKes(bd?.customs_estimate?.amount)}
-                      </span>
-                    </div>
-                  )}
-
                   {/* Card Processing */}
                   {(bd?.card_fee?.amount || 0) > 0 && (
                     <div className="flex justify-between items-center py-4 border-b border-slate-700/50 group/row hover:bg-slate-800/20 px-2 rounded-lg transition-colors -mx-2">
                       <div>
                         <span className="text-slate-200 font-bold tracking-tight">Card Processing</span>
                         <p className="text-xs text-slate-400 mt-1 font-medium">
-                          {((result?.settings?.card_processing_pct ?? bd?.card_fee?.rate ?? 0) * 100).toFixed(2)}% of subtotal incl. customs
+                          {((result?.settings?.card_processing_pct ?? bd?.card_fee?.rate ?? 0) * 100).toFixed(2)}% of subtotal
                         </p>
                       </div>
                       <span className="font-black text-white text-lg tracking-tight">

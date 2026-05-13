@@ -284,12 +284,6 @@ export default function Pricing() {
                     <span className="text-lg font-bold text-blue-300 tracking-tight">{formatKes(result.breakdown.insurance.amount, gbpToKes)}</span>
                   </div>
                 )}
-                {result.breakdown?.customs_estimate?.amount > 0 && (
-                  <div className="flex justify-between items-center border-b border-white/10 pb-3">
-                    <span className="text-xs font-bold text-purple-400 uppercase tracking-widest">Customs estimate (VAT+Duty)</span>
-                    <span className="text-lg font-bold text-purple-300 tracking-tight">{formatKes(result.breakdown.customs_estimate.amount, gbpToKes)}</span>
-                  </div>
-                )}
                 {result.breakdown?.card_fee?.amount > 0 && (
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Card processing</span>
@@ -318,8 +312,9 @@ export default function Pricing() {
               </div>
 
               <p className="mt-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
-                * This is an estimate only. Final charges may vary based on actual weight, dimensions,
-                and customs requirements upon warehouse arrival.
+                * This is an estimate only. Final charges may vary based on actual weight and dimensions
+                upon warehouse arrival. Customs (VAT + Duty) may be charged separately by Kenya Revenue
+                Authority on clearance and are not included in this quote.
               </p>
             </div>
           </div>

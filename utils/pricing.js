@@ -407,6 +407,7 @@ export function calculateShippingCost(options) {
     customsTiers     = null,       // when null, HS_TIERS constant used
     hsMap            = null,       // when null, no prefix matching
     electronicsFees  = null,       // when null, ELECTRONICS_HANDLING used
+    skipCustoms      = false,      // public calculator: hide customs entirely
   } = options;
 
   const cfg          = { ...DEFAULT_SETTINGS, ...(settings || {}) };
@@ -457,7 +458,16 @@ export function calculateShippingCost(options) {
   // electronics → electronics tier, otherwise 'general'.
   let customs;
   let customsItemsBreakdown = null;
-  if (Array.isArray(items) && items.length > 0) {
+  if (skipCustoms) {
+    customs = {
+      total: 0,
+      tier_key: null,
+      tier_label: null,
+      breakdown: null,
+      rates: null,
+      note: 'Customs not included in this quote — paid separately by recipient on KRA clearance.',
+    };
+  } else if (Array.isArray(items) && items.length > 0) {
     const c = calculateCustomsForItems(items, tiers, hsMapArr, shippingCost, insuranceCost);
     customs = {
       total: c.total,
@@ -474,7 +484,9 @@ export function calculateShippingCost(options) {
     customs = calculateCustomsEstimate(cif, resolvedTier, tiers);
   }
 
-  // ── 7. Card processing fee — applied to the FULL subtotal incl. customs
+  // ── 7. Card processing fee — applied to the FULL subtotal
+  // When skipCustoms is true, customs.total is 0 so the subtotal naturally
+  // excludes it; otherwise customs is rolled in.
   const subtotal = shippingCost + electronicsHandlingGbp + handlingFee + insuranceCost + customs.total;
   const cardFee  = subtotal * cfg.card_processing_pct;
 
@@ -540,14 +552,18 @@ export function calculateShippingCost(options) {
       card_fee: {
         amount: parseFloat(cardFee.toFixed(2)),
         rate: cfg.card_processing_pct,
-        description: `Card processing surcharge (${(cfg.card_processing_pct * 100).toFixed(2)}% of subtotal incl. customs)`,
+        description: skipCustoms
+          ? `Card processing surcharge (${(cfg.card_processing_pct * 100).toFixed(2)}% of subtotal)`
+          : `Card processing surcharge (${(cfg.card_processing_pct * 100).toFixed(2)}% of subtotal incl. customs)`,
       },
       subtotal: parseFloat(subtotal.toFixed(2)),
     },
     notes: {
       delivery_time: shipping_speed === 'express' ? '5-7 business days' : '10-14 business days',
       warehouse: '31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB',
-      disclaimer: 'Customs are estimated per HS-code tier. Final duty is set by KRA at clearing.',
+      disclaimer: skipCustoms
+        ? 'Customs (VAT + Duty) may apply when your parcel clears Kenya Revenue Authority. This estimate does not include those charges.'
+        : 'Customs are estimated per HS-code tier. Final duty is set by KRA at clearing.',
     },
   };
 }

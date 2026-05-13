@@ -71,6 +71,11 @@ router.post('/calculate', async (req, res) => {
       customsTiers:    ctx.customsTiers,
       hsMap:           ctx.hsMap,
       electronicsFees: ctx.electronicsFees,
+      // Public calculator omits customs from the customer-facing total.
+      // Customs (VAT + Duty) are billed separately by KRA on clearance.
+      // Order-creation paths (routes/orders.js, routes/admin.js) call the
+      // engine directly without this flag, so they still get customs.
+      skipCustoms:     true,
     });
 
     res.json({ success: true, pricing });
