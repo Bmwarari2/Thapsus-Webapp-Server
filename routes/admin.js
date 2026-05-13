@@ -680,15 +680,53 @@ router.get('/stats', authMiddleware, isAdmin, async (req, res) => {
       db.query(`SELECT COUNT(*) AS total, SUM(CASE WHEN role='customer' THEN 1 ELSE 0 END) AS customers, SUM(CASE WHEN role='admin' THEN 1 ELSE 0 END) AS admins, SUM(CASE WHEN is_active=true THEN 1 ELSE 0 END) AS active_users FROM users`),
       db.query(`SELECT COUNT(*) AS total_orders, SUM(CASE WHEN status='delivered' THEN 1 ELSE 0 END) AS delivered, SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) AS pending, SUM(CASE WHEN status='in_transit' THEN 1 ELSE 0 END) AS in_transit, AVG(estimated_cost) AS avg_estimated_cost, SUM(estimated_cost) AS total_estimated_value FROM orders`),
       db.query(`SELECT status, COUNT(*) AS count FROM orders GROUP BY status`),
-      // Exclude referral_reward credits from all revenue figures so referral bonuses
-      // are not double-counted as income — they are user wallet credits, not cash inflows.
+      // Revenue spans TWO tables because the platform straddles a migration:
+      //   • `transactions` (legacy)  — pre-mig-028 deposits + the active
+      //     legacy M-Pesa STK confirm path (/api/payment) still writes here
+      //   • `payments`    (modern)   — every Stripe + M-Pesa payment created
+      //     via /api/payments since mig-028 lands here with status='paid'
+      // Summing only `transactions` (the historical query) under-counted by
+      // 100% of post-mig-028 card and M-Pesa receipts. Card payments in
+      // particular have NEVER touched `transactions` so they were entirely
+      // invisible. Both tables store whole-KES amounts.
+      //
+      // Referral credits are excluded from revenue — they are user wallet
+      // credits, not cash inflows. The `payments` table doesn't carry
+      // referrals (those are credit_ledger), so no equivalent filter needed.
       db.query(`SELECT
-        COUNT(*) AS total_transactions,
-        SUM(CASE WHEN status='completed' AND type NOT IN ('referral_reward','referral_credit') THEN amount ELSE 0 END) AS total_revenue,
-        SUM(CASE WHEN type='deposit'  AND status='completed' AND type NOT IN ('referral_reward','referral_credit') THEN amount ELSE 0 END) AS deposits,
-        SUM(CASE WHEN type='payment'  AND status='completed' THEN amount ELSE 0 END) AS payments,
-        SUM(CASE WHEN type IN ('referral_reward','referral_credit') AND status='completed' THEN amount ELSE 0 END) AS referral_credits_issued
-        FROM transactions`),
+        (SELECT COUNT(*) FROM transactions
+                WHERE status='completed' AND type NOT IN ('referral_reward','referral_credit'))
+        + (SELECT COUNT(*) FROM payments WHERE status='paid')
+        AS total_transactions,
+
+        (SELECT COALESCE(SUM(amount), 0) FROM transactions
+                WHERE status='completed' AND type NOT IN ('referral_reward','referral_credit'))
+        + (SELECT COALESCE(SUM(amount_due_kes), 0) FROM payments WHERE status='paid')
+        AS total_revenue,
+
+        (SELECT COALESCE(SUM(amount), 0) FROM transactions
+                WHERE type='deposit' AND status='completed' AND type NOT IN ('referral_reward','referral_credit'))
+        AS deposits,
+
+        (SELECT COALESCE(SUM(amount), 0) FROM transactions
+                WHERE type='payment' AND status='completed')
+        + (SELECT COALESCE(SUM(amount_due_kes), 0) FROM payments WHERE status='paid')
+        AS payments,
+
+        (SELECT COALESCE(SUM(amount_due_kes), 0) FROM payments
+                WHERE status='paid' AND method='stripe')
+        AS paid_via_card,
+
+        (SELECT COALESCE(SUM(amount_due_kes), 0) FROM payments
+                WHERE status='paid' AND method='mpesa')
+        + (SELECT COALESCE(SUM(amount), 0) FROM transactions
+                WHERE status='completed' AND payment_method='mpesa' AND type NOT IN ('referral_reward','referral_credit'))
+        AS paid_via_mpesa,
+
+        (SELECT COALESCE(SUM(amount), 0) FROM transactions
+                WHERE type IN ('referral_reward','referral_credit') AND status='completed')
+        AS referral_credits_issued
+      `),
       db.query(`SELECT COUNT(*) AS total_referrals, SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) AS completed_referrals, SUM(CASE WHEN status='completed' THEN reward_amount ELSE 0 END) AS total_rewards_paid FROM referrals`),
       // New users registered today
       db.query(`SELECT COUNT(*) AS count FROM users WHERE DATE(created_at) = CURRENT_DATE`),

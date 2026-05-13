@@ -936,6 +936,17 @@ export const AdminDashboard = () => {
                 <h3 className="text-4xl md:text-5xl font-black text-orange-600 tracking-tighter">KES {(stats?.revenue?.total_revenue||0).toLocaleString()}</h3>
               </GlassCard>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+              <GlassCard className="p-8 border-indigo-200/50 bg-indigo-50/30">
+                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-700/60 mb-3">Paid via card (Stripe)</p>
+                <h3 className="text-4xl md:text-5xl font-black text-indigo-700 tracking-tighter">KES {(stats?.revenue?.paid_via_card||0).toLocaleString()}</h3>
+              </GlassCard>
+              <GlassCard className="p-8 border-emerald-200/50 bg-emerald-50/30">
+                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700/60 mb-3">Paid via M-Pesa</p>
+                <h3 className="text-4xl md:text-5xl font-black text-emerald-700 tracking-tighter">KES {(stats?.revenue?.paid_via_mpesa||0).toLocaleString()}</h3>
+              </GlassCard>
+            </div>
           </div>
         )}
 
