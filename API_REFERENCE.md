@@ -1,1083 +1,414 @@
-# SwiftCargo API Reference
+# Thapsus Cargo API Reference
+
+For the why-behind-the-what — auth model, RLS posture, webhook idempotency — read [`ARCHITECTURE.md`](./ARCHITECTURE.md) first. The authoritative source for endpoint shapes is `routes/*.js`; this document is best-effort.
 
 ## Base URL
+
 ```
-http://localhost:5000/api
+http://localhost:5000/api       # dev
+https://thapsus.uk/api          # production (proxied to Railway)
 ```
 
 ## Authentication
-All protected endpoints require a Bearer token in the Authorization header:
+
+Protected endpoints require a Bearer token:
+
 ```
-Authorization: Bearer <jwt_token>
+Authorization: Bearer <sc_token>
 ```
+
+The `sc_token` is an HS256-signed JWT (`{ id, email, role, warehouse_id, iat }`), default lifetime **7 days** (`JWT_EXPIRY`, see #149). Web and mobile clients silently refresh on `/auth/me` — the server attaches a fresh `refreshed_token` to that response whenever it's close to expiry.
+
+For direct Supabase PostgREST / Realtime calls the iOS app exchanges its `sc_token` for a short-lived `supabase_token` via `POST /auth/supabase-token`.
+
+Roles: `customer`, `operator`, `clearing_agent`, `rider`, `admin`. Admin always satisfies any role gate.
 
 ---
 
-## Authentication Endpoints
+## Auth
 
 ### Register
 ```
 POST /auth/register
-Content-Type: application/json
-
 {
   "name": "John Doe",
   "email": "john@example.com",
-  "password": "password123",
+  "password": "<≥8 chars, ≥1 letter, ≥1 number — NIST SP 800-63B>",
   "phone": "+254712345678",
+  "country": "KE",
+  "accepted_terms": true,
   "referral_code": "REF_OPTIONAL"
 }
 
-Response (201):
-{
-  "success": true,
-  "message": "Registration successful",
-  "token": "eyJhbGc...",
-  "user": {
-    "id": "uuid",
-    "email": "john@example.com",
-    "name": "John Doe",
-    "phone": "+254712345678",
-    "warehouse_id": "SC-XXXX",
-    "referral_code": "REF_XXXX",
-    "role": "customer"
-  }
-}
+Response 201: { success, token, supabase_token, user }
 ```
 
 ### Login
 ```
 POST /auth/login
-Content-Type: application/json
+{ "email": "...", "password": "..." }
 
-{
-  "email": "john@example.com",
-  "password": "password123"
-}
-
-Response (200):
-{
-  "success": true,
-  "message": "Login successful",
-  "token": "eyJhbGc...",
-  "user": {
-    "id": "uuid",
-    "email": "john@example.com",
-    "name": "John Doe",
-    "role": "customer",
-    "warehouse_id": "SC-XXXX",
-    "language_pref": "en",
-    "wallet_balance": 1500.00
-  }
-}
+Response 200: { success, token, supabase_token, user }
 ```
 
-### Get Current User
+### Current user (silent refresh)
 ```
-GET /auth/me
-Authorization: Bearer <token>
+GET /auth/me   (Bearer)
 
-Response (200):
-{
-  "success": true,
-  "user": {
-    "id": "uuid",
-    "email": "john@example.com",
-    "name": "John Doe",
-    "phone": "+254712345678",
-    "role": "customer",
-    "warehouse_id": "SC-XXXX",
-    "language_pref": "en",
-    "referral_code": "REF_XXXX",
-    "wallet_balance": 1500.00,
-    "created_at": "2026-03-31T12:00:00Z",
-    "updated_at": "2026-03-31T12:00:00Z"
-  }
-}
+Response 200: { success, user, refreshed_token? }
 ```
 
-### Update Profile
+`refreshed_token` is included only when the current token is close to expiry. Web and iOS replace their cached token whenever the field is present.
+
+### Logout (revoke)
 ```
-PUT /auth/profile
-Authorization: Bearer <token>
-Content-Type: application/json
+POST /auth/logout   (Bearer)
 
-{
-  "name": "John Updated",
-  "phone": "+254723456789",
-  "language_pref": "sw"
-}
-
-Response (200):
-{
-  "success": true,
-  "message": "Profile updated successfully",
-  "user": { /* updated user object */ }
-}
+The SHA-256 hash of the presented token is inserted into `revoked_tokens`. The plaintext is never stored. Subsequent calls with that token are rejected.
 ```
 
-### Change Password
+### Forgot / reset password
 ```
-PUT /auth/password
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "current_password": "password123",
-  "new_password": "newpassword123"
-}
-
-Response (200):
-{
-  "success": true,
-  "message": "Password changed successfully"
-}
+POST /auth/forgot-password   { "email": "..." }
+POST /auth/reset-password    { "token": "<hex>", "new_password": "..." }
 ```
+
+Resetting the password bumps `users.password_changed_at`. Any JWT whose `iat` predates that timestamp is rejected by the auth middleware — every outstanding token for the user is invalidated.
+
+### Supabase token exchange
+```
+POST /auth/supabase-token   (Bearer)
+
+Response 200: { supabase_token, expires_at }
+```
+
+Used by the iOS app for direct PostgREST + Realtime access under RLS.
 
 ---
 
-## Order Endpoints
+## Orders (parcel forwarding)
 
-### Create Order
+UK-only since 2026-05-11. The `market` parameter was removed in migration 052; clients should omit it.
+
+### Create
 ```
-POST /orders
-Authorization: Bearer <token>
-Content-Type: application/json
-
+POST /orders   (Bearer)
 {
-  "retailer": "Amazon",
-  "market": "USA",
-  "description": "Electronics and accessories",
+  "retailer": "Amazon UK",
+  "description": "Electronics",
   "weight_kg": 2.5,
-  "dimensions": {
-    "length": 30,
-    "width": 20,
-    "height": 15
-  },
-  "shipping_speed": "economy",
+  "dimensions": { "length": 30, "width": 20, "height": 15 },
+  "declared_value_gbp": 150,
   "insurance": true,
-  "declared_value": 150
+  "shipping_speed": "economy"
 }
 
-Response (201):
-{
-  "success": true,
-  "message": "Order created successfully",
-  "order": {
-    "id": "uuid",
-    "tracking_number": "SC-20260331-XXXX",
-    "retailer": "Amazon",
-    "market": "USA",
-    "description": "Electronics and accessories",
-    "weight_kg": 2.5,
-    "dimensions": { /* as provided */ },
-    "shipping_speed": "economy",
-    "insurance": true,
-    "declared_value": 150,
-    "status": "pending",
-    "cost_breakdown": {
-      "summary": {
-        "total": 3450.50,
-        "currency": "KES",
-        "shipping_speed": "economy",
-        "market": "USA"
-      },
-      "breakdown": {
-        "base_shipping": { "amount": 2600.00 },
-        "dimensional_weight": { /* details */ },
-        "insurance": { "amount": 4.50 },
-        "handling_fee": { "amount": 250.00 },
-        "customs_estimate": { "amount": 30.00 }
-      }
-    }
-  }
-}
+Response 201: { success, order: { ..., tracking_number, status } }
 ```
 
-### List Orders
+### List / detail
 ```
-GET /orders?page=1&limit=10&status=pending&market=USA
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "orders": [ /* array of orders */ ],
-  "pagination": {
-    "page": 1,
-    "limit": 10,
-    "total": 25,
-    "totalPages": 3
-  }
-}
+GET  /orders?page=1&limit=10&status=pending
+GET  /orders/:id
+PUT  /orders/:id          (admin)
 ```
 
-### Get Order Details
+### Public tracking
 ```
-GET /orders/{id}
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "order": { /* full order object */ },
-  "packages": [ /* associated packages */ ]
-}
-```
-
-### Update Order (Admin)
-```
-PUT /orders/{id}
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "status": "in_transit",
-  "actual_cost": 3200,
-  "customs_duty": 500
-}
-
-Response (200):
-{
-  "success": true,
-  "message": "Order updated successfully",
-  "order": { /* updated order */ }
-}
+GET /tracking/:trackingNumber           # no auth — limited fields
+GET /tracking/user/packages             # Bearer — user's parcels
+PUT /tracking/:packageId/status         # admin/operator
 ```
 
 ---
 
-## Tracking Endpoints
+## Buy-for-me (primary product)
 
-### Public Tracking (No Auth)
+Concierge "Shop & ship" flow. As of 2026-05-13 this is the default surface across customer + operator + admin consoles.
+
 ```
-GET /tracking/{trackingNumber}
-
-Response (200):
-{
-  "success": true,
-  "tracking": {
-    "id": "uuid",
-    "user_id": "uuid",
-    "tracking_number": "SC-20260331-XXXX",
-    "retailer": "Amazon",
-    "market": "USA",
-    "status": "in_transit",
-    "packages": [ /* array of packages */ ]
-  }
-}
+POST /buy-for-me                # create request (retailer + URL + items + notes)
+GET  /buy-for-me                # customer list
+GET  /buy-for-me/:id            # customer detail
+POST /buy-for-me/:id/cancel
+GET  /buy-for-me/operator/queue # operator queue
+POST /buy-for-me/:id/quote      # operator → set quote breakdown
+POST /buy-for-me/:id/accept     # customer accepts → invoice issued
+POST /buy-for-me/:id/pay        # routes through /api/payments
 ```
 
-### Get User's Packages
-```
-GET /tracking/user/packages?page=1&status=in_transit
-Authorization: Bearer <token>
+The quote is calculated server-side from the six-knob pricing model (`pricing_settings`, `customs_tiers`, `hs_code_tiers`, `electronics_fees`). Customer surfaces show KES; operator surfaces show GBP. The web `/calculator` shows the same breakdown but hides the customs estimate (KRA charges separately on clearance).
 
-Response (200):
-{
-  "success": true,
-  "packages": [
-    {
-      "id": "uuid",
-      "tracking_number": "SC-20260331-XXXX",
-      "retailer": "Amazon",
-      "market": "USA",
-      "status": "in_transit",
-      "weight_kg": 2.5,
-      "warehouse_location": "Section-A-45",
-      "received_at": "2026-03-25T10:30:00Z"
-    }
-  ],
-  "pagination": { /* pagination details */ }
-}
+---
+
+## Payments
+
+Unified surface for Stripe + M-Pesa Lipana. Replaces the retired wallet (`/api/wallet` → HTTP 410 Gone since migration 028).
+
+```
+POST /payments/stripe/intent       # creates a PaymentIntent
+POST /payments/lipana/initiate     # initiates an STK Push prompt to user's phone
+POST /payments/stripe/webhook      # raw body — Stripe-Signature verified
+POST /payments/lipana/webhook      # raw body — X-Lipana-Signature verified (HMAC-SHA256)
+GET  /payments/public/:id          # public payment lookup (used by /public-pay)
+GET  /payments                     # customer payment history
 ```
 
-### Update Package Status (Admin)
+Both webhooks:
+- Are mounted with `express.raw({ limit: '1mb' })` **before** `express.json()`.
+- Insert into a per-provider `*_events_seen` table (PK on `event_id`) before any side-effect, so retries / replays land twice on the row but only run side-effects once.
+- Converge on `utils/markPaymentPaid.js` — the same code path that the admin M-Pesa manual approval route uses. Parcel status flip, credit ledger debit, receipt email all happen exactly once regardless of provider.
+
+### Credit Centre (replaces wallet)
 ```
-PUT /tracking/{packageId}/status
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "status": "out_for_delivery",
-  "warehouse_location": "Section-B-78"
-}
-
-Response (200):
-{
-  "success": true,
-  "message": "Package status updated successfully",
-  "package": { /* updated package */ }
-}
+GET  /payments/credits             # current balance + ledger
+POST /payments/credits/use         # apply credits to a Buy-for-me invoice or order
 ```
 
 ---
 
-## Wallet Endpoints
+## Consolidations
 
-### Get Wallet
+Framework v2 is the supported surface.
+
 ```
-GET /wallet
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "wallet": {
-    "id": "uuid",
-    "user_id": "uuid",
-    "balance": 5000.00,
-    "currency": "KES",
-    "last_updated": "2026-03-31T12:00:00Z"
-  },
-  "recent_transactions": [
-    {
-      "id": "uuid",
-      "type": "deposit",
-      "amount": 2000,
-      "currency": "KES",
-      "payment_method": "mpesa",
-      "status": "completed",
-      "created_at": "2026-03-31T10:00:00Z"
-    }
-  ]
-}
+GET  /consolidations                       # operator queue + customer-facing per-id
+POST /consolidations                       # operator create
+GET  /consolidations/:id
+POST /consolidations/:id/dispatch
+POST /consolidations/:id/printable-manifest # A4 manifest
+GET  /customer-consolidations              # customer's consolidations
 ```
 
-### Deposit Funds
+The v1 surface (`/api/consolidation/*`) is deprecated. Calls receive RFC 8594 `Deprecation: true`, `Sunset: 2026-05-23`, `Link: rel="successor-version"` headers.
+
+---
+
+## Customs · Last-mile · Insurance · DSAR · Notifications · NPS
+
 ```
-POST /wallet/deposit
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "amount": 1000,
-  "payment_method": "mpesa",
-  "payment_details": {
-    "phone": "+254712345678"
-  }
-}
-
-Response (202):
-{
-  "success": true,
-  "message": "Deposit initiated",
-  "transaction_id": "uuid",
-  "processing": {
-    "success": true,
-    "method": "MPESA_STK_PUSH",
-    "phone": "+254712345678",
-    "amount": 1000,
-    "instruction": "Check your phone for M-Pesa prompt"
-  }
-}
-```
-
-### Pay from Wallet
-```
-POST /wallet/pay
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "order_id": "uuid",
-  "amount": 3450.50
-}
-
-Response (200):
-{
-  "success": true,
-  "message": "Payment completed from wallet",
-  "transaction_id": "uuid",
-  "amount_paid": 3450.50,
-  "order_id": "uuid",
-  "new_balance": 1549.50
-}
-```
-
-### Transaction History
-```
-GET /wallet/transactions?page=1&type=deposit&status=completed
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "transactions": [ /* array of transactions */ ],
-  "pagination": { /* pagination details */ }
-}
+GET /customs                  # customs entries / declarations
+…   /last-mile/runs           # rider run lifecycle: assign, start, complete, POD
+POST /last-mile/pod           # POD photo + signature + OTP
+GET /insurance/quote          # declared-value insurance quote
+POST /insurance/claim
+POST /dsar                    # GDPR DSAR request (export emailed to user)
+GET /admin/dsar               # admin DSAR queue (PR #144)
+GET /notifications            # customer inbox (PR #143)
+POST /nps/respond             # NPS survey
 ```
 
 ---
 
-## Referral Endpoints
+## Tickets
 
-### Get Referral Info
 ```
-GET /referral
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "referral": {
-    "referral_code": "REF_XXXX",
-    "current_balance": 5000,
-    "statistics": {
-      "total_referrals": 3,
-      "completed_referrals": 2,
-      "total_earned": 100,
-      "pending_referrals": 1
-    }
-  },
-  "referred_users": [
-    {
-      "id": "uuid",
-      "referee_email": "jane@example.com",
-      "referee_name": "Jane Smith",
-      "orders_placed": 2,
-      "reward_status": "completed",
-      "reward_amount": 50,
-      "referred_at": "2026-03-15T08:00:00Z"
-    }
-  ]
-}
-```
-
-### Apply Referral Code
-```
-POST /referral/apply
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "referral_code": "REF_XXXX"
-}
-
-Response (200):
-{
-  "success": true,
-  "message": "Referral code applied successfully",
-  "referrer_code": "REF_XXXX"
-}
-```
-
-### Referral History
-```
-GET /referral/history?page=1&limit=10
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "referrals": [ /* array of referrals */ ],
-  "pagination": { /* pagination details */ }
-}
+POST /tickets                       # multipart/form-data — subject, description, priority, photo
+GET  /tickets?page=1&status=open
+GET  /tickets/:id
+POST /tickets/:id/message
+PUT  /tickets/:id/status            # admin/operator
+GET  /tickets/admin/all             # staff queue
 ```
 
 ---
 
-## Ticket Endpoints
+## Pricing (six-knob model)
 
-### Create Ticket
-```
-POST /tickets
-Authorization: Bearer <token>
-Content-Type: multipart/form-data
+Live quote engine. The web public calculator and the iOS/Android quote screens all call this.
 
-Form Data:
-- subject: "Package Delayed"
-- description: "My package has not arrived as expected"
-- priority: "high"
-- photo: (file - optional)
-
-Response (201):
-{
-  "success": true,
-  "message": "Ticket created successfully",
-  "ticket": {
-    "id": "uuid",
-    "user_id": "uuid",
-    "subject": "Package Delayed",
-    "description": "My package has not arrived as expected",
-    "status": "open",
-    "priority": "high",
-    "photo_url": "/uploads/ticket-xxx.jpg",
-    "created_at": "2026-03-31T12:00:00Z"
-  }
-}
-```
-
-### List Tickets
-```
-GET /tickets?page=1&status=open&priority=high
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "tickets": [ /* array of tickets */ ],
-  "pagination": { /* pagination details */ }
-}
-```
-
-### Get Ticket Details
-```
-GET /tickets/{id}
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "ticket": { /* ticket object */ },
-  "messages": [
-    {
-      "id": "uuid",
-      "message": "Hello, we received your ticket",
-      "email": "admin@swiftcargo.co.ke",
-      "name": "SwiftCargo Admin",
-      "role": "admin",
-      "created_at": "2026-03-31T12:30:00Z"
-    }
-  ]
-}
-```
-
-### Add Message to Ticket
-```
-POST /tickets/{id}/message
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "message": "Have you tracked your package?"
-}
-
-Response (201):
-{
-  "success": true,
-  "message": "Message added successfully",
-  "message_id": "uuid"
-}
-```
-
-### Update Ticket Status (Admin)
-```
-PUT /tickets/{id}/status
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "status": "resolved",
-  "admin_message": "Your package has been located and is on the way"
-}
-
-Response (200):
-{
-  "success": true,
-  "message": "Ticket status updated successfully",
-  "ticket": { /* updated ticket */ }
-}
-```
-
----
-
-## Pricing Endpoints
-
-### Calculate Shipping Cost
 ```
 POST /pricing/calculate
-Content-Type: application/json
-
 {
   "weight_kg": 2.5,
-  "dimensions": {
-    "length": 30,
-    "width": 20,
-    "height": 15
+  "dimensions": { "length": 30, "width": 20, "height": 15 },
+  "declared_value_gbp": 0,            # zeroed in public calculator (web parity)
+  "hs_code": "",                       # optional — drives hs_code_tiers
+  "is_electronics": false,             # drives electronics_fees
+  "insurance": false
+}
+
+Response 200:
+{
+  "summary": {
+    "total_gbp": …,                    # operator-facing
+    "total_kes": …,                    # customer-facing (server-side FX, parity with iOS)
+    "actual_kg": 2.5,
+    "vol_kg": 1.8,                     # L·W·H/6000
+    "chargeable_kg": 2.5
   },
-  "market": "USA",
-  "shipping_speed": "economy",
-  "insurance": true,
-  "declared_value": 150
-}
-
-Response (200):
-{
-  "success": true,
-  "pricing": {
-    "summary": {
-      "total": 3450.50,
-      "currency": "KES",
-      "shipping_speed": "economy",
-      "market": "USA"
-    },
-    "breakdown": {
-      "base_shipping": {
-        "amount": 2600.00,
-        "description": "Base shipping cost (2.50 kg @ 10.00 USD/kg economy)"
-      },
-      "dimensional_weight": {
-        "actual_weight_kg": 2.5,
-        "dimensional_weight_kg": 1.8,
-        "chargeable_weight_kg": 2.5,
-        "calculation": "(30x20x15)/5000"
-      },
-      "insurance": {
-        "amount": 4.50,
-        "rate": "3% of declared value",
-        "declared_value": 150,
-        "included": true
-      },
-      "handling_fee": {
-        "amount": 250.00,
-        "description": "Handling and processing fee"
-      },
-      "customs_estimate": {
-        "amount": 30.00,
-        "vat_rate": "16%",
-        "duty_rate": "10%",
-        "declared_value": 150,
-        "note": "Estimate only"
-      }
-    },
-    "notes": {
-      "delivery_time": "10-14 business days",
-      "warehouse": "31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB"
-    }
+  "breakdown": {
+    "base_shipping": …,
+    "weight_tier":  …,                 # via pricing_settings + customs_tiers
+    "electronics":  …,                 # if applicable
+    "insurance":    …,
+    "handling":     …,
+    "card_processing": …               # Stripe processing line (PR #206)
   }
 }
+```
+
+The public calculator omits the customs estimate (PR #207) — KRA charges on clearance.
+
+### Pricing tiers (public + admin)
+```
+GET  /pricing-tiers/tiers     # public read
+GET  /pricing-tiers/fees      # public read
+POST /pricing-tiers           # admin create/update promotion
 ```
 
 ---
 
-## Exchange Rate Endpoints
+## FX
 
-### Get Rates
 ```
-GET /exchange/rates
-
-Response (200):
-{
-  "success": true,
-  "message": "Exchange rates retrieved",
-  "data": {
-    "USD_KES": 130.50,
-    "GBP_KES": 164.20,
-    "EUR_KES": 142.80,
-    "CNY_KES": 18.20,
-    "timestamp": "2026-03-31T12:00:00Z",
-    "last_updated": "31 Mar, 2:00 PM East Africa Time"
-  }
-}
-```
-
-### Convert Currency
-```
+GET  /exchange/rates           # cached daily refresh from frankfurter.dev (PR #199)
 POST /exchange/convert
-Content-Type: application/json
-
-{
-  "amount": 100,
-  "from_currency": "USD",
-  "to_currency": "KES"
-}
-
-Response (200):
-{
-  "success": true,
-  "conversion": {
-    "amount": 100,
-    "from_currency": "USD",
-    "to_currency": "KES",
-    "rate": 130.50,
-    "converted_amount": 13050.00,
-    "timestamp": "2026-03-31T12:00:00Z"
-  }
-}
+POST /admin/exchange/refresh   # admin manual trigger
 ```
+
+Rates land in DB with the `_KES` suffix convention.
 
 ---
 
-## Consolidation Endpoints
+## Prohibited items (UK → KE)
 
-### Get Packages Waiting
-```
-GET /consolidation
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "packages_waiting": 3,
-  "total_weight_kg": 7.5,
-  "packages": [
-    {
-      "id": "uuid",
-      "description": "Electronics",
-      "weight_kg": 2.5,
-      "received_at": "2026-03-25T10:00:00Z",
-      "warehouse_location": "Section-A-45",
-      "tracking_number": "SC-20260331-XXXX",
-      "retailer": "Amazon",
-      "market": "USA"
-    }
-  ]
-}
-```
-
-### Request Consolidation
-```
-POST /consolidation/request
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "package_ids": ["uuid1", "uuid2", "uuid3"]
-}
-
-Response (201):
-{
-  "success": true,
-  "message": "Consolidation request created",
-  "consolidation": {
-    "consolidation_id": "uuid",
-    "packages_count": 3,
-    "total_weight_kg": 7.5,
-    "status": "consolidating",
-    "created_at": "2026-03-31T12:00:00Z"
-  }
-}
-```
-
-### Get Consolidation Details
-```
-GET /consolidation/{consolidationId}
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "consolidation": {
-    "consolidation_id": "uuid",
-    "status": "in_transit",
-    "packages_count": 3,
-    "total_weight_kg": 7.5,
-    "packages": [ /* array of packages */ ]
-  }
-}
-```
-
----
-
-## Prohibited Items Endpoints
-
-### Check Item
 ```
 GET /prohibited/check?item=fireworks
-
-Response (200):
-{
-  "success": true,
-  "item": "fireworks",
-  "check": {
-    "allowed": false,
-    "reason": "Safety hazard during transportation",
-    "category": "Dangerous Goods",
-    "risk_level": "critical"
-  }
-}
-```
-
-### Get Categories
-```
 GET /prohibited/categories
-
-Response (200):
-{
-  "success": true,
-  "categories": [
-    {
-      "category": "Dangerous Goods",
-      "risk_level": "critical",
-      "item_count": 17,
-      "reason": "Safety hazard during transportation"
-    }
-  ]
-}
+GET /prohibited/categories/:category
+POST /prohibited                    # admin CRUD
 ```
 
-### Get Items in Category
-```
-GET /prohibited/categories/Dangerous%20Goods
+Catalogue seeded by migration 030 — 18 categories covering UK-export and KE-import restrictions.
 
-Response (200):
-{
-  "success": true,
-  "category": {
-    "category": "Dangerous Goods",
-    "risk_level": "critical",
-    "reason": "Safety hazard during transportation",
-    "items": ["explosives", "flammable liquids", ...]
-  }
-}
+---
+
+## Operator console & parcels
+
+```
+POST /parcels                     # operator intake (camera barcode → zxing)
+POST /parcels/:id/label           # browser-print thermal label
+GET  /ops/today                   # operator today queue (BFM-first)
+POST /ops/consolidations          # build manifest
+GET  /ops/scanner                 # SKU scanner config
 ```
 
 ---
 
-## Admin Endpoints
+## Clearing-agent invoices · AML
 
-### List Users
 ```
-GET /admin/users?page=1&search=john&role=customer
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "users": [ /* array of users */ ],
-  "pagination": { /* pagination details */ }
-}
+GET  /agent-invoices              # agent's queue
+POST /agent-invoices              # upload (signed URL → Supabase Storage)
+GET  /agent-invoices/admin        # admin queue
+GET  /admin/aml-flags             # AML review queue
+POST /admin/aml-flags/:id/resolve
 ```
 
-### Get User Details
+Uploads never traverse Express. Clients request a signed URL from `/agent-invoices/upload-url`, then PUT directly to Supabase Storage (`agent-invoices` private bucket).
+
+---
+
+## Admin
+
 ```
-GET /admin/users/{userId}
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "user": {
-    "id": "uuid",
-    "email": "john@example.com",
-    "name": "John Doe",
-    "ordersCount": 5,
-    "orders": [ /* user's orders */ ]
-  },
-  "recentTransactions": [ /* recent transactions */ ]
-}
-```
-
-### Update User
-```
-PUT /admin/users/{userId}
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "role": "admin",
-  "is_active": false
-}
-
-Response (200):
-{
-  "success": true,
-  "message": "User updated successfully",
-  "user": { /* updated user */ }
-}
-```
-
-### List All Orders
-```
-GET /admin/orders?page=1&status=delivered&market=USA&startDate=2026-03-01&endDate=2026-03-31
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "orders": [ /* array of orders */ ],
-  "pagination": { /* pagination details */ }
-}
-```
-
-### Bulk Update Orders
-```
-PUT /admin/orders/bulk-update
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "order_ids": ["uuid1", "uuid2"],
-  "status": "in_transit"
-}
-
-Response (200):
-{
-  "success": true,
-  "message": "Updated 2 orders",
-  "updated_count": 2,
-  "orders": [ /* updated orders */ ]
-}
-```
-
-### Dashboard Stats
-```
-GET /admin/stats
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "stats": {
-    "users": {
-      "total": 100,
-      "customers": 95,
-      "admins": 5,
-      "active_users": 85
-    },
-    "orders": {
-      "total_orders": 250,
-      "delivered": 180,
-      "pending": 30,
-      "in_transit": 40,
-      "avg_estimated_cost": 3500,
-      "total_estimated_value": 875000
-    },
-    "markets": [ /* orders by market */ ],
-    "order_statuses": [ /* orders by status */ ],
-    "revenue": {
-      "total_transactions": 200,
-      "total_revenue": 650000,
-      "deposits": 400000,
-      "payments": 250000
-    }
-  }
-}
-```
-
-### Revenue Report
-```
-GET /admin/revenue?startDate=2026-03-01&endDate=2026-03-31
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "revenue": [ /* daily revenue data */ ],
-  "summary": [ /* revenue by payment method */ ]
-}
-```
-
-### Export Revenue
-```
-GET /admin/revenue/export?startDate=2026-03-01&endDate=2026-03-31
-Authorization: Bearer <token>
-
-Response (200):
-Content-Type: text/csv
-Content-Disposition: attachment; filename="revenue-export.csv"
-
-(CSV file with transaction data)
-```
-
-### Admin Logs
-```
-GET /admin/logs?page=1&limit=10
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "logs": [ /* array of logs */ ],
-  "pagination": { /* pagination details */ }
-}
+GET  /admin/users?search=&role=&page=1
+GET  /admin/users/:userId
+PUT  /admin/users/:userId
+GET  /admin/orders
+PUT  /admin/orders/bulk-update
+GET  /admin/stats                 # includes payments table since PR #209
+GET  /admin/revenue               # daily rows include Stripe + M-Pesa (PR #210)
+GET  /admin/revenue/export        # CSV
+GET  /admin/logs                  # admin actions audit log
+GET  /admin/error-logs            # threaded with X-Request-Id (PR #135)
+GET  /admin/email-diagnostics     # surfaces whether Gmail OAuth env is visible to the process
 ```
 
 ---
 
-## Error Responses
+## KPIs · App config · Warehouse · Retailers
 
-### 400 Bad Request
-```json
-{
-  "success": false,
-  "message": "Missing required fields: name, email, password, phone"
-}
 ```
-
-### 401 Unauthorized
-```json
-{
-  "success": false,
-  "message": "Missing or invalid authorization header"
-}
-```
-
-### 403 Forbidden
-```json
-{
-  "success": false,
-  "message": "Admin access required"
-}
-```
-
-### 404 Not Found
-```json
-{
-  "success": false,
-  "message": "Order not found"
-}
-```
-
-### 409 Conflict
-```json
-{
-  "success": false,
-  "message": "Email already registered"
-}
-```
-
-### 500 Server Error
-```json
-{
-  "success": false,
-  "message": "Internal server error"
-}
+GET /kpi/dashboard                # KPI dashboard data
+GET /app-config                   # runtime client config
+GET /warehouse/addresses          # UK warehouse details
+GET /retailers                    # UK retailers catalogue (filters BFM picker, PR #203)
 ```
 
 ---
 
-## Rate Limiting
+## Realtime
 
-- **General endpoints:** 100 requests per 15 minutes
-- **Auth endpoints:** 5 requests per 15 minutes
-
-Returns `429 Too Many Requests` when exceeded.
-
----
-
-## Pagination
-
-Most list endpoints support pagination:
-
-**Query Parameters:**
-- `page` - Page number (default: 1)
-- `limit` - Items per page (default: 10)
-
-**Response includes:**
-```json
-{
-  "pagination": {
-    "page": 1,
-    "limit": 10,
-    "total": 150,
-    "totalPages": 15
-  }
-}
+### Server-Sent Events (web)
+```
+GET /events   (Bearer; long-lived stream)
 ```
 
+The web client opens a single `EventSource` and receives JSON-encoded events from the in-memory emitter `server.js` fires whenever a mutation should fan out. EventSource auto-reconnects on transport hiccups (handled by the browser).
+
+### Supabase Realtime (iOS / Android)
+
+Mobile clients subscribe directly to Supabase Realtime channels for `packages`, `consolidations`, `customer_consolidations`, `notifications`. Subscriptions are gated by `supabase_token` claims and RLS. The KMP layer in `thapsus-v1.1` (`shared/.../RealtimeSync.kt`) consolidates these into a single coroutine flow.
+
 ---
 
-## Best Practices
+## Universal Links
 
-1. Always include `Authorization` header for protected endpoints
-2. Check `success` flag in response before processing data
-3. Handle error responses with appropriate messages
-4. Implement pagination for list endpoints
-5. Use appropriate HTTP methods (GET, POST, PUT)
-6. Validate input before sending to API
-7. Implement exponential backoff for retries
-8. Cache exchange rates (valid for ~5 minutes)
-9. Store JWT tokens securely
-10. Refresh tokens before expiration
+```
+GET /.well-known/apple-app-site-association
+```
+
+Served as `Content-Type: application/json` with no redirects (Apple is strict). If you touch the SPA fallback wildcard, keep this handler above it.
+
+---
+
+## Error responses
+
+```json
+{ "success": false, "message": "<human-readable>", "code": "<optional>" }
+```
+
+| Status | Meaning |
+| --- | --- |
+| 400 | Bad request / validation failure |
+| 401 | Missing / invalid / revoked JWT; password changed; user deactivated |
+| 403 | Role gate refused; CORS origin not allowlisted |
+| 404 | Resource not found |
+| 409 | Conflict (e.g. email already registered) |
+| 410 | Resource permanently gone (`/api/wallet` since mig 028) |
+| 413 | Body too large (200 KB global cap; sanitizer recursion / key count exceeded) |
+| 429 | Rate-limited |
+| 500 | Server error — `error_logs` row written, threaded with `X-Request-Id` |
+
+Every response includes the `X-Request-Id` header for correlation against `error_logs.meta.request_id` and the morgan access log.
+
+---
+
+## Rate limits
+
+| Scope | Limit |
+| --- | --- |
+| Auth (`/auth/*` mutations) | 10 / 15 min |
+| Forgot-password | 5 / hour |
+| Reset-password | 10 / hour |
+| Payments | 10 / 15 min |
+| Signed-URL mints | 30 / 15 min |
+| Public tracking | 60 / 15 min |
+| Global `/api/*` | 200 / 15 min |
+
+Webhooks bypass all limiters — signature verification is the defence; dropping a legitimate retry is worse than absorbing the cost.
+
+---
+
+## Best practices
+
+1. Always honour the `refreshed_token` in `/auth/me` responses — replace your cached token in place.
+2. Check `success` before processing data; pre-flight on `code` for typed branches.
+3. Use pagination on list endpoints (`?page`, `?limit`).
+4. Implement exponential backoff for retries.
+5. Cache `/exchange/rates` for ~5 minutes — the server refreshes once daily.
+6. Store JWTs in Keychain (iOS) / EncryptedSharedPreferences (Android) / `localStorage` is acceptable for the SPA pending CSRF mitigations on the API.
+7. Send Stripe / M-Pesa webhooks only at the documented `/webhook` paths — they're the only routes mounted with raw-body parsing.
+8. For very-public endpoints (`/tracking/:n`, `/pricing-tiers/tiers`, `/prohibited/categories`, `/exchange/rates`) prefer GETs without auth — the rate limit is more permissive.
