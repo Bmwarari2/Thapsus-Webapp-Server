@@ -1,324 +1,266 @@
-# SwiftCargo Backend - Setup Guide
+# Thapsus Cargo Backend — Setup Guide
 
-## Quick Start
+Local-dev walkthrough for the Express 5 API + React 19 SPA. For the why-behind-the-what (auth, RLS, webhook idempotency) read [`ARCHITECTURE.md`](./ARCHITECTURE.md) afterward.
 
-### 1. Installation
+## Prerequisites
+
+- **Node 22.x** — pinned via `.nvmrc`. `nvm use` from the repo root.
+- **A Supabase project.** Free tier is fine. You'll need the direct connection string (port 5432, not the 6543 pooler) and the JWT secret.
+- **Gmail OAuth2 refresh token** for transactional email (registration confirmations, ticket replies, receipts, DSAR exports). One-time consent flow — see Gmail section.
+- **Stripe test keys** (publishable + secret + webhook secret).
+- **M-Pesa Daraja sandbox credentials** (consumer key/secret, passkey, shortcode) for Lipana STK Push.
+
+## 1. Install
 
 ```bash
-cd swiftcargo
+nvm use                # Node 22
 npm install
-```
-
-### 2. Environment Configuration
-
-Copy the example environment file and configure it:
-
-```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your actual configuration values:
+## 2. Configure `.env`
 
-```
+Minimum to boot locally:
+
+```bash
 PORT=5000
 NODE_ENV=development
-JWT_SECRET=your_secure_secret_key_here
-DATABASE_PATH=./swiftcargo.db
-CORS_ORIGIN=http://localhost:3000
-ADMIN_PASSWORD=admin123
+
+# Auth
+JWT_SECRET=<32+ random chars>
+JWT_EXPIRY=7d
+
+# DB — Supabase direct connection (port 5432). Port 6543 is read-only.
+DATABASE_URL=postgresql://postgres:<pwd>@db.<ref>.supabase.co:5432/postgres
+
+# Bootstrap admin (server refuses to boot if ADMIN_PASSWORD is unset)
+ADMIN_EMAIL=admin@thapsus.uk
+ADMIN_PASSWORD=<strong-pwd>
+
+# CORS — dev permits localhost; production needs an explicit allowlist
+CORS_ORIGIN=http://localhost:5173
+
+# Supabase short-lived JWT (matches Supabase → Settings → API → JWT Settings)
+SUPABASE_JWT_SECRET=<from Supabase dashboard>
+SUPABASE_JWT_TTL_SECONDS=3600
 ```
 
-### 3. Initialize Database
+For real workflows you'll also need the payment + email vars in the next sections.
 
-The database will be automatically initialized on first server startup. However, you can manually run the seed script to populate with test data:
+## 3. Provision the database
+
+The schema is migration-driven. The boot-time runner is **opt-in** (since 2026-05-11) — set `RUN_MIGRATIONS_ON_BOOT=true` only when you want it to apply.
+
+First-time provision against an empty Supabase project:
 
 ```bash
-npm run seed
+RUN_MIGRATIONS_ON_BOOT=true npm start
 ```
 
-This will create:
-- 1 admin user (admin@swiftcargo.co.ke / admin123)
-- 5 sample customers with test credentials
-- Sample orders, packages, and transactions
+The server reads `database/migrations/*.sql` in alphabetical order, applies anything missing from the `_migrations` ledger, then calls `ensureAdminUser()` to seed the admin user from `ADMIN_EMAIL` / `ADMIN_PASSWORD`. Watch the console for `[init] migrations applied: N`.
 
-### 4. Start the Server
+For every subsequent run, drop the flag (or set it to `false`) so the server boots without touching DDL:
 
-**Development mode** (with auto-reload):
-```bash
-npm run dev
-```
-
-**Production mode**:
 ```bash
 npm start
 ```
 
-The server will start on `http://localhost:5000` (or your configured PORT).
+If you need to apply a single SQL file out-of-band, paste it into the Supabase SQL Editor; the `_migrations` ledger is the source of truth for what's already applied.
 
-## API Endpoints Overview
+## 4. Stripe webhook (cards)
 
-### Authentication
-- `POST /api/auth/register` - Register new customer
-- `POST /api/auth/login` - Login
-- `GET /api/auth/me` - Get current user
-- `PUT /api/auth/profile` - Update profile
-- `PUT /api/auth/password` - Change password
-
-### Orders
-- `GET /api/orders` - List user's orders
-- `POST /api/orders` - Create new order
-- `GET /api/orders/:id` - Get order details
-- `PUT /api/orders/:id` - Update order (admin only)
-
-### Tracking
-- `GET /api/tracking/:trackingNumber` - Public tracking (no auth)
-- `GET /api/tracking/user/packages` - User's packages
-- `PUT /api/tracking/:id/status` - Update status (admin only)
-
-### Wallet
-- `GET /api/wallet` - Get wallet balance
-- `POST /api/wallet/deposit` - Deposit funds
-- `POST /api/wallet/pay` - Pay from wallet
-- `GET /api/wallet/transactions` - Transaction history
-
-### Referral
-- `GET /api/referral` - Get referral info
-- `POST /api/referral/apply` - Apply referral code
-- `GET /api/referral/history` - Referral history
-
-### Tickets
-- `GET /api/tickets` - List tickets
-- `POST /api/tickets` - Create ticket
-- `GET /api/tickets/:id` - Get ticket details
-- `POST /api/tickets/:id/message` - Add message
-- `PUT /api/tickets/:id/status` - Update status (admin only)
-
-### Pricing
-- `POST /api/pricing/calculate` - Calculate shipping cost
-
-### Exchange Rates
-- `GET /api/exchange/rates` - Get current rates
-- `POST /api/exchange/convert` - Convert currency
-
-### Consolidation
-- `GET /api/consolidation` - Get packages waiting
-- `POST /api/consolidation/request` - Request consolidation
-- `GET /api/consolidation/:id` - Get consolidation details
-
-### Admin
-- `GET /api/admin/users` - List all users
-- `GET /api/admin/users/:id` - Get user details
-- `PUT /api/admin/users/:id` - Update user
-- `GET /api/admin/orders` - List all orders
-- `PUT /api/admin/orders/bulk-update` - Bulk update orders
-- `GET /api/admin/stats` - Dashboard statistics
-- `GET /api/admin/revenue` - Revenue report
-- `GET /api/admin/revenue/export` - Export CSV
-- `GET /api/admin/logs` - Admin logs
-
-### Prohibited Items
-- `GET /api/prohibited/check?item=xxx` - Check if item is prohibited
-- `GET /api/prohibited/categories` - Get all categories
-- `GET /api/prohibited/categories/:category` - Get items in category
-
-## Test Credentials
-
-### Admin
-- Email: `admin@swiftcargo.co.ke`
-- Password: `admin123`
-
-### Sample Customers
-After running `npm run seed`:
-1. `john.doe@example.com` / `password123`
-2. `jane.smith@example.com` / `password123`
-3. `david.mwangi@example.com` / `password123`
-4. `sarah.omondi@example.com` / `password123`
-5. `michael.kipchoge@example.com` / `password123`
-
-## Project Structure
-
-```
-swiftcargo/
-├── database/
-│   ├── init.js           # Database initialization
-│   └── seed.js           # Seed sample data
-├── middleware/
-│   └── auth.js           # JWT authentication & authorization
-├── routes/
-│   ├── auth.js           # Authentication routes
-│   ├── orders.js         # Order management
-│   ├── tracking.js       # Package tracking
-│   ├── admin.js          # Admin dashboard
-│   ├── wallet.js         # Wallet management
-│   ├── exchange.js       # Currency exchange
-│   ├── referral.js       # Referral program
-│   ├── tickets.js        # Support tickets
-│   ├── pricing.js        # Pricing calculation
-│   ├── consolidation.js  # Package consolidation
-│   └── prohibited.js     # Prohibited items check
-├── utils/
-│   ├── notifications.js  # SMS, Email, WhatsApp, In-app
-│   ├── prohibited.js     # Prohibited items database
-│   └── translations.js   # i18n (English & Swahili)
-├── uploads/              # File uploads directory
-├── server.js             # Main Express server
-├── package.json          # Dependencies
-├── .env.example          # Environment template
-└── .gitignore            # Git ignore rules
-```
-
-## Features Implemented
-
-### Core Functionality
-- User authentication with JWT
-- Role-based access control (customer/admin)
-- Order management and tracking
-- Package consolidation
-- Multi-currency support (USD, GBP, EUR, CNY to KES)
-
-### Payment Systems (Placeholders)
-- M-Pesa STK Push integration structure
-- Stripe checkout integration structure
-- PayPal integration structure
-- Wallet system for internal payments
-
-### Notifications
-- SMS via Africa's Talking API
-- WhatsApp Business API
-- Email via SendGrid
-- In-app notifications
-
-### Admin Features
-- User management
-- Order management and bulk updates
-- Revenue reporting and CSV export
-- Admin activity logging
-- Dashboard statistics
-
-### Customer Features
-- Virtual warehouse addresses
-- Package consolidation requests
-- Support ticket system
-- Referral program (KES 50 reward)
-- Real-time tracking
-- Shipping cost calculator
-
-### Multi-language Support
-- English
-- Swahili
-
-## Database Schema
-
-### Tables
-- `users` - Customer and admin accounts
-- `orders` - Shipping orders
-- `packages` - Individual packages
-- `transactions` - Payment transactions
-- `wallet` - User wallet balances
-- `referrals` - Referral program tracking
-- `tickets` - Support tickets
-- `ticket_messages` - Support ticket messages
-- `notifications` - User notifications
-- `admin_logs` - Admin activity logs
-
-## Security Features
-
-- Helmet.js for secure headers
-- CORS protection
-- Rate limiting (100 req/15min, stricter for auth)
-- Password hashing with bcryptjs
-- JWT token authentication
-- SQL injection prevention (parameterized queries)
-- Environment variable protection
-
-## Development Tips
-
-### Adding a New Route
-1. Create file in `routes/` directory
-2. Import and mount in `server.js`:
-   ```js
-   import myRoutes from './routes/my-routes.js';
-   app.use('/api/my-endpoint', myRoutes);
+1. In the Stripe dashboard create a restricted key and a webhook endpoint pointed at `https://<your-host>/api/payments/stripe/webhook`.
+2. Set the secret in `.env`:
    ```
+   STRIPE_SECRET_KEY=sk_test_...
+   STRIPE_PUBLISHABLE_KEY=pk_test_...
+   STRIPE_WEBHOOK_SECRET=whsec_...
+   ```
+3. The webhook route is mounted with `express.raw({ limit: '1mb' })` **before** `express.json()` so `stripe.webhooks.constructEvent()` sees the unmodified body. Don't reorder that in `server.js`.
+4. Idempotency: every accepted event is inserted into `stripe_events_seen` (PK on `event_id`); retries short-circuit on conflict. The shared "money received" side-effect lives in `utils/markPaymentPaid.js` and is called from both webhooks plus the admin M-Pesa approval route.
 
-### Database Operations
-Always use parameterized queries to prevent SQL injection:
-```js
-const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+For local dev use the Stripe CLI:
+
+```bash
+stripe listen --forward-to localhost:5000/api/payments/stripe/webhook
 ```
 
-### Authentication
-Import middleware in routes:
-```js
-import { authMiddleware, isAdmin } from '../middleware/auth.js';
+## 5. M-Pesa Lipana STK Push
 
-router.get('/admin-only', authMiddleware, isAdmin, (req, res) => {
-  // req.user contains JWT payload
-});
+```
+MPESA_PROVIDER=lipana
+MPESA_CONSUMER_KEY=...
+MPESA_CONSUMER_SECRET=...
+MPESA_PASSKEY=...
+MPESA_SHORTCODE=...
+MPESA_BUSINESS_TYPE=till   # or paybill
 ```
 
-### Error Handling
-All routes should have try/catch blocks:
-```js
-try {
-  // Your code
-} catch (error) {
-  console.error('Error:', error);
-  res.status(500).json({
-    success: false,
-    message: 'Operation failed'
-  });
-}
+The Lipana webhook is at `/api/payments/lipana/webhook`. It verifies HMAC-SHA256 over the raw body against `X-Lipana-Signature` and inserts into `lipana_events_seen` for idempotency. `MPESA_PROVIDER=manual` falls back to the legacy SMS-approval flow (admin posts STK confirmation manually).
+
+## 6. Gmail OAuth2
+
+The `googleapis` client is wired in `utils/email.js`. You need a Google Cloud OAuth client (Desktop or Web), then a one-time consent to obtain a refresh token.
+
+```
+GMAIL_CLIENT_ID=...
+GMAIL_CLIENT_SECRET=...
+GMAIL_REFRESH_TOKEN=...
+GMAIL_SENDER_EMAIL=ops@thapsus.uk
 ```
 
-## Integration Checklist
+If the running process can't see these, the admin email diagnostic (Admin Console → Email Diagnostics) shows precisely which vars are missing.
 
-Before going to production, implement actual integrations:
+## 7. Run the SPA
 
-- [x] M-Pesa API (Lipana STK Push live — `utils/lipanaClient.js`, `routes/payments.js`, iOS sheet on `feat/lipana-ios`)
-- [ ] Stripe API (remove placeholders)
-- [ ] PayPal API (remove placeholders)
-- [ ] SendGrid API (remove placeholders)
-- [ ] Africa's Talking API (remove placeholders)
-- [ ] WhatsApp Business API (remove placeholders)
-- [ ] Production database (migrate from SQLite)
-- [ ] Environment variables properly configured
-- [ ] JWT_SECRET changed from default
-- [ ] CORS_ORIGIN updated
-- [ ] Rate limiting adjusted for production
-- [ ] SSL/TLS certificates configured
-- [ ] Database backups automated
+In a second shell:
+
+```bash
+cd client
+npm install
+npm run dev          # Vite on :5173
+```
+
+The SPA calls the API on `http://localhost:5000` (configured in `client/src/api/`). Stripe Elements expects `VITE_STRIPE_PUBLISHABLE_KEY` in `client/.env`.
+
+## 8. Tests
+
+```bash
+npm test                       # vitest run
+npm run test:watch
+npm run test:coverage          # v8 coverage over middleware/, routes/, utils/
+npm run test:db                # standalone DB connectivity smoke
+```
+
+Unit suites (no DB required):
+- `tests/unit/sanitize.test.js` — XSS scrub middleware
+- `tests/unit/stripeWebhook.test.js` / `lipanaWebhook.test.js` — payment webhook branches with mocked SDKs
+- `tests/unit/deprecation.test.js` — RFC 8594 header emission
+- `tests/unit/fxRefresh.test.js` / `logRetention.test.js` — daily-cron helpers
+- `tests/unit/outboxShouldQueue.test.js` — web-outbox eligibility
+- `tests/unit/pricing.test.js` — six-knob quote engine
+
+Integration suites (require a separate `TEST_DATABASE_URL`):
+- `tests/integration/appBoot.test.js` — supertest smoke through the middleware chain (404, request-id, body-size guard, sanitize)
+- `tests/integration/auth.test.js` — register / login / `/me` refresh / logout / token revocation
+- `tests/integration/roleMatrix.test.js` — table-driven 5×5 role-gate matrix
+
+Integration tests self-skip via `describe.skipIf(!process.env.TEST_DATABASE_URL)`. `tests/setup.js` installs safe placeholders for fail-fast env vars (`JWT_SECRET`, `STRIPE_SECRET_KEY`, etc.) so route modules can be imported without throwing.
+
+## 9. Production deploy (Railway)
+
+- `railway.toml` declares the nixpacks build (`buildCommand` installs both root + client deps and runs `vite build`), `startCommand = node server.js`, healthcheck `/health` (30s timeout), restart on failure, persistent volume mount at `/data`.
+- The whole `.env` must be mirrored into Railway Variables. **Redeploy the service after any change** — env is injected at container start.
+- Toggle `RUN_MIGRATIONS_ON_BOOT=true` on a one-shot deploy when you intend to push schema, then turn it off again.
+- The Lighthouse a11y gate (≥0.9) in CI prevents regressions on the public marketing pages.
+
+## 10. Project structure
+
+```
+swiftcargo-main/
+├── server.js                # Express bootstrap (~700 LOC): CORS, helmet, request-id, raw-body webhooks, rate limit, routes
+├── polyfills/webcrypto.js   # populates globalThis.crypto before uuid/Supabase load
+├── client/                  # React 19 + Vite SPA (own package.json, own build)
+│   └── src/
+│       ├── api/             # axios client + outbox interceptor
+│       ├── pages/           # 40+ pages (customer, admin, ops, partner)
+│       ├── components/      # shared UI
+│       └── ...
+├── database/
+│   ├── init.js              # pg.Pool, _migrations ledger, opt-in runner
+│   ├── seed.js
+│   ├── migrations/          # numbered forward-only migrations (0000..052+)
+│   ├── manual-migrations/   # out-of-band SQL
+│   └── scripts/             # purge_test_data.sql, etc.
+├── middleware/
+│   ├── auth.js              # HS256-pinned JWT verify, revocation, password-changed-at, is_active
+│   ├── sanitize.js          # xss-lib scrub, MAX_DEPTH=16, MAX_KEYS=256
+│   └── deprecation.js       # RFC 8594 Deprecation/Sunset/Link headers
+├── routes/                  # 36 route modules — see README.md routing overview
+├── utils/                   # 22 helpers: email, fx, lipanaClient, stripeClient, pricing, …
+├── public/                  # service worker, PWA manifest
+├── tests/                   # vitest + supertest
+│   ├── unit/
+│   └── integration/
+├── .github/workflows/       # test.yml (unit + integration + lighthouse), codeql.yml
+├── railway.toml
+├── .lighthouserc.json
+├── vitest.config.js
+├── package.json
+└── .env.example
+```
+
+## Features (current)
+
+### Core
+- JWT auth with revocation + password-changed-at + is_active enforcement
+- Roles: customer · operator · clearing-agent · rider · admin
+- Buy-for-me primary lifecycle (request → quote → invoice → pay → receive → consolidate → dispatch → POD)
+- Parcel forwarding (UK → Kenya — China retired 2026-05-11)
+- Six-knob pricing model: `pricing_settings`, `customs_tiers`, `hs_code_tiers`, `electronics_fees`
+- Customer KES / operator GBP currency convention. FX auto-refreshes daily from frankfurter.dev.
+
+### Payments (live)
+- Stripe Checkout / PaymentIntents with raw-body webhook + `stripe_events_seen` idempotency
+- M-Pesa **Lipana STK Push** with HMAC-verified webhook + `lipana_events_seen` idempotency
+- Manual M-Pesa SMS approval retained as fallback (`MPESA_PROVIDER=manual`)
+- Credit ledger (`user_credits` + `credit_ledger`) — replaces retired wallet table
+
+### Operations
+- Operator console: camera-driven barcode intake (`@zxing/browser`), browser-print thermal labels, A4 consolidation manifest
+- Rider runs with POD capture, signature pad, OTP
+- Clearing-agent invoice queue with private signed-URL uploads
+- Customer notifications inbox at `/notifications`
+- Admin DSAR queue at `/admin/dsar`
+- KPI dashboard + audit / error logs + admin revenue reports
+
+### PWA
+- Web Outbox: IndexedDB queue + axios interceptor replay for offline mutations
+- Service Worker Background Sync for closed-tab outbox replay
+- Lighthouse a11y gate (≥0.9) in CI
+
+### Email
+- Gmail API with OAuth2 refresh tokens
+- Templates live in `utils/email.js`
+
+### Security
+- Helmet + strict CSP (Stripe, GA, FB pixel, Google Fonts allowlisted)
+- HSTS 1y `includeSubDomains` `preload`
+- CORS fails closed in production (`'*'` rejected unless `NODE_ENV=development`)
+- 200 KB global body limit; uploads bypass Express via Supabase Storage signed URLs
+- Tiered rate limiting (auth 10/15m, payments 10/15m, signed-URL mints 30/15m, tracking 60/15m, global 200/15m); webhooks bypass
+- XSS sanitiser with bounded recursion + key count
+- Pinned JWT algorithm `HS256` (defends against alg-confusion)
+- Token revocation by SHA-256 hash; password-reset bumps `password_changed_at`
+- CodeQL SAST weekly; Dependabot grouped patches
+
+## Test credentials
+
+There is no longer a baked-in sample dataset. The first admin row is created from `ADMIN_EMAIL` / `ADMIN_PASSWORD` at boot. Create customer accounts via the SPA (`/register`) or programmatically against `/api/auth/register`.
 
 ## Troubleshooting
 
-### Port Already in Use
-```bash
-# Change port in .env
-PORT=5001
-```
+### `ECONNREFUSED` / can't reach DB
+Verify `DATABASE_URL` uses the **direct** Supabase connection (port 5432). The 6543 pooler is read-only and rejects DDL — useful for read traffic but not for `npm start` with migrations enabled.
 
-### Database Errors
-```bash
-# Delete corrupted database and reinitialize
-rm swiftcargo.db*
-npm run seed
-```
+### `ERROR: 42703: column "<X>" does not exist` during migration 001
+A prior attempt left a v2 table half-built. Make sure `database/migrations/000_repair_phase4_tables.sql` is present — it runs before 001 and issues `ALTER TABLE ADD COLUMN IF NOT EXISTS` for every column 001 needs.
 
-### Missing Modules
-```bash
-# Reinstall dependencies
-rm -rf node_modules package-lock.json
-npm install
-```
+### Webhook signature verification fails
+Almost always one of: `STRIPE_WEBHOOK_SECRET` mismatched against the Stripe dashboard, Lipana key rotated and not re-pasted, or someone reordered `express.json()` ahead of the raw-body webhook routes in `server.js`. The raw mount must come **first**.
 
-## Support
+### CORS errors in production
+Check `CORS_ORIGIN` is a comma-separated allowlist of origins (e.g. `https://thapsus.uk,https://www.thapsus.uk`). `'*'` is rejected outside development.
 
-For issues, refer to:
-- API logs in console
-- Database queries in `database/init.js`
-- Route handlers for specific endpoints
-- Error handler in `server.js`
+### `process.env.GMAIL_*` looks empty
+Railway only injects env on container restart. Redeploy after editing variables. The admin email diagnostic shows what the running process actually sees.
+
+### Port already in use
+Override `PORT` in `.env`.
+
+### Tests fail with `JWT_SECRET is required`
+`tests/setup.js` installs safe placeholders, but only via vitest. If you import a route file from a one-off script, set the env yourself.
 
 ## License
 
-MIT License - SwiftCargo Team
+MIT — Thapsus Cargo team.
