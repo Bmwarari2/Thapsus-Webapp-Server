@@ -417,15 +417,37 @@ const MobileLayout = ({ links, isAuthenticated, user, isAdmin, onLogout, t }) =>
   const hideBars = scrollHidden && !sheetOpen
 
   // Bottom-tab definition. Always 5 cells so spacing stays even.
-  const tabs = useMemo(() => ([
-    { to: '/',        label: 'Home',    icon: HomeIcon },
-    { to: '/track',   label: 'Track',   icon: Search },
-    { to: '/pricing', label: 'Pricing', icon: Calculator },
-    isAuthenticated
-      ? { to: '/dashboard', label: 'Account', icon: LayoutDashboard }
-      : { to: '/login',     label: 'Sign in', icon: LogIn },
-    { kind: 'menu', label: 'Menu', icon: Menu },
-  ]), [isAuthenticated])
+  //
+  // Customer (auth'd, non-staff) gets the iOS 5-tab layout: Home / Shop /
+  // Activity / Quote / Account. The Activity + Account tabs are launchers
+  // that fan out to every secondary destination, so we drop the "Menu" cell.
+  //
+  // Everyone else (public visitors, operators, admins, agents, riders)
+  // keeps the legacy primary nav + Menu sheet — desktop nav is unchanged
+  // and the role-specific accordions live there.
+  const role = user?.role || ''
+  const isCustomer = isAuthenticated && !isAdmin
+    && !['operator', 'clearing_agent', 'rider'].includes(role)
+  const tabs = useMemo(() => {
+    if (isCustomer) {
+      return [
+        { to: '/dashboard',  label: 'Home',     icon: HomeIcon },
+        { to: '/buy-for-me', label: 'Shop',     icon: ShoppingBag },
+        { to: '/activity',   label: 'Activity', icon: Activity },
+        { to: '/pricing',    label: 'Quote',    icon: Calculator },
+        { to: '/account',    label: 'Account',  icon: User },
+      ]
+    }
+    return [
+      { to: '/',        label: 'Home',    icon: HomeIcon },
+      { to: '/track',   label: 'Track',   icon: Search },
+      { to: '/pricing', label: 'Pricing', icon: Calculator },
+      isAuthenticated
+        ? { to: '/dashboard', label: 'Account', icon: LayoutDashboard }
+        : { to: '/login',     label: 'Sign in', icon: LogIn },
+      { kind: 'menu', label: 'Menu', icon: Menu },
+    ]
+  }, [isCustomer, isAuthenticated])
 
   return (
     <>
