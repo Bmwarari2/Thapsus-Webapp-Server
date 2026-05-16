@@ -27,7 +27,6 @@ const Login             = lazy(() => import('./pages/Login').then(m => ({ defaul
 const Register          = lazy(() => import('./pages/Register').then(m => ({ default: m.Register })))
 const Dashboard         = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })))
 const TrackPackage      = lazy(() => import('./pages/TrackPackage').then(m => ({ default: m.TrackPackage })))
-const ExchangeRate      = lazy(() => import('./pages/ExchangeRate').then(m => ({ default: m.ExchangeRate })))
 const PricingCalculator = lazy(() => import('./pages/PricingCalculator').then(m => ({ default: m.PricingCalculator })))
 const Orders            = lazy(() => import('./pages/Orders').then(m => ({ default: m.Orders })))
 const CreditCenter      = lazy(() => import('./pages/CreditCenter').then(m => ({ default: m.CreditCenter })))
@@ -121,7 +120,6 @@ function App() {
                 /track/<TN> returned 404 — audit A2. */}
             <Route path="/track/:tn" element={<TrackPackage />} />
             <Route path="/pricing" element={<PricingCalculator />} />
-            <Route path="/exchange" element={<ExchangeRate />} />
             <Route path="/prohibited" element={<ProhibitedItems />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
