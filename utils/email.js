@@ -1277,6 +1277,59 @@ function emailConfigStatus() {
   };
 }
 
+/**
+ * Account-deletion confirmation. Customer requested account deletion with
+ * a 14-day cooldown; this email confirms the timeline and ships the
+ * download link for the HTML data export.
+ *
+ * Body is the email layout text; the actual export is hosted on Supabase
+ * Storage (signed URL valid ~30 days). We do NOT attach the export as an
+ * .html file because the file is multi-MB for active accounts and the
+ * customer already has the in-app download path.
+ */
+async function sendAccountDeletionRequestedEmail({ toEmail, toName, scheduledDeletionAt, exportUrl, userId }) {
+  const subject = 'Your Thapsus Cargo account will be deleted on ' + new Date(scheduledDeletionAt).toISOString().slice(0,10);
+  const greeting = toName ? `Hi ${toName.split(' ')[0]},` : 'Hi,';
+  const formattedDate = new Date(scheduledDeletionAt).toUTCString();
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Account deletion confirmed</h2>
+    <p style="margin:0 0 12px;color:#4b5563;font-size:16px;line-height:1.6;">${greeting}</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      We've received your request to delete your Thapsus Cargo account. As a safety net, deletion is held for 14 days from today — your account will be permanently deleted on:
+    </p>
+    <p style="margin:0 0 24px;color:#1e3a5f;font-size:18px;font-weight:bold;text-align:center;">
+      ${formattedDate}
+    </p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      Changed your mind? Open the app and tap "Cancel deletion" on the Data rights screen any time before that date and the request will be voided.
+    </p>
+    <h3 style="margin:24px 0 8px;color:#1e3a5f;font-size:18px;">Your data, as HTML</h3>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:15px;line-height:1.6;">
+      We've packaged everything we hold against your account as a single HTML file you can open in any browser. The link below stays live for 30 days from today.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
+      <tr>
+        <td style="background-color:#f97316;border-radius:8px;">
+          <a href="${exportUrl}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">Download my data</a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0 0 8px;color:#6b7280;font-size:13px;line-height:1.5;">
+      Payment-proof artefacts (M-Pesa SMS contents, Stripe identifiers, payer phone numbers) are deliberately excluded — they leave no audit trail for either party if forwarded.
+    </p>
+    <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.5;">
+      If you didn't request this, reply to this email immediately and we'll cancel the deletion.
+    </p>`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'account_deletion_requested', subject, userId: userId || null });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'account_deletion_requested', subject, userId: userId || null, errorMessage: error.message });
+    throw error;
+  }
+}
+
 // ── Exports ────────────────────────────────────────────────────────────────────
 
 export {
@@ -1301,6 +1354,7 @@ export {
   sendBuyForMeAdminNewRequestEmail,
   sendUnifiedPaymentReceiptEmail,
   sendDsarExportEmail,
+  sendAccountDeletionRequestedEmail,
   emailConfigStatus,
 };
 
@@ -1326,5 +1380,6 @@ export default {
   sendBuyForMeAdminNewRequestEmail,
   sendUnifiedPaymentReceiptEmail,
   sendDsarExportEmail,
+  sendAccountDeletionRequestedEmail,
   emailConfigStatus,
 };
