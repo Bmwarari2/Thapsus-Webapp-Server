@@ -67,6 +67,7 @@ const AgentPortal         = lazy(() => import('./pages/partner/AgentPortal').the
 const AgentInvoices       = lazy(() => import('./pages/partner/AgentPortal').then(m => ({ default: m.AgentInvoices })))
 const RiderPwa            = lazy(() => import('./pages/partner/RiderPwa').then(m => ({ default: m.RiderPwa })))
 const NpsLanding          = lazy(() => import('./pages/NpsLanding').then(m => ({ default: m.NpsLanding })))
+const Referral            = lazy(() => import('./pages/Referral').then(m => ({ default: m.Referral })))
 
 // ── Minimal loading spinner (shown briefly while lazy chunks load) ──────────
 const PageLoader = () => (
@@ -142,6 +143,7 @@ function App() {
             <Route path="/orders/new" element={<ProtectedRoute><NewOrder /></ProtectedRoute>} />
             <Route path="/orders/confirmation" element={<ProtectedRoute><OrderConfirmation /></ProtectedRoute>} />
             <Route path="/credit" element={<ProtectedRoute><CreditCenter /></ProtectedRoute>} />
+            <Route path="/referral" element={<ProtectedRoute><Referral /></ProtectedRoute>} />
             <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
             <Route path="/consolidation" element={<ProtectedRoute><Consolidation /></ProtectedRoute>} />
             <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
