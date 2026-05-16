@@ -19,6 +19,7 @@ import { initializeDatabase, getPool } from './database/init.js';
 import { logError, errorLoggingMiddleware, logRouteError } from './utils/errorLogger.js';
 import { startLogRetention } from './utils/logRetention.js';
 import { startFxRefresh } from './utils/fxRefresh.js';
+import { startAccountDeletionRunner } from './utils/accountDeletionRunner.js';
 import { sanitizeBody, sanitizeQuery } from './middleware/sanitize.js';
 import { deprecate } from './middleware/deprecation.js';
 
@@ -113,10 +114,12 @@ import opsRoutes              from './routes/ops.js';
 import pricingTiersRoutes     from './routes/pricingTiers.js';
 import npsRoutes              from './routes/nps.js';
 import notificationsRoutes    from './routes/notifications.js';
+
 import agentInvoicesRoutes   from './routes/agentInvoices.js';
 import amlFlagsRoutes         from './routes/amlFlags.js';
 import appConfigRoutes        from './routes/appConfig.js';
 import customerConsolidationsRoutes from './routes/customerConsolidations.js';
+import accountDeletionRoutes        from './routes/accountDeletion.js';
 
 const app      = express();
 const PORT     = process.env.PORT     || 5000;
@@ -587,6 +590,7 @@ app.use('/api/agent-invoices', agentInvoicesRoutes);
 app.use('/api/admin/aml-flags', amlFlagsRoutes);
 app.use('/api/app-config',     appConfigRoutes);
 app.use('/api/customer-consolidations', customerConsolidationsRoutes);
+app.use('/api/account/deletion-request', accountDeletionRoutes);
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 app.get(/^\/(?!api).*/, (req, res) => {
@@ -658,10 +662,16 @@ Ready ✨
     // untouched (utils/fxRefresh.js for the why).
     const stopFxRefresh = startFxRefresh(pool);
 
+    // Daily sweep of account_deletion_requests for rows whose 14-day
+    // cooldown is up. Hard-deletes the underlying user via FK CASCADE.
+    // Same shape as fxRefresh: 60s warm-up, 24h cadence, unref'd.
+    const stopAccountDeletionRunner = startAccountDeletionRunner(pool);
+
     const shutdown = (signal) => {
       console.log(`${signal} — shutting down gracefully`);
       try { stopLogRetention?.() } catch { /* ignore */ }
       try { stopFxRefresh?.() } catch { /* ignore */ }
+      try { stopAccountDeletionRunner?.() } catch { /* ignore */ }
       server.close(() => { pool.end(); process.exit(0); });
     };
     process.on('SIGTERM', () => shutdown('SIGTERM'));
