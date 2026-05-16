@@ -241,7 +241,6 @@ function buildLinkSets({ isAuthenticated, isAdmin, role, t }) {
 
   // Browse-style public links (mobile sheet + desktop column 1)
   const browse = [
-    { to: '/exchange',   label: 'Exchange rates',  icon: Globe },
     { to: '/faq',        label: 'FAQ',             icon: BookOpen },
     { to: '/prohibited', label: 'Prohibited items', icon: ShieldAlert },
   ]
