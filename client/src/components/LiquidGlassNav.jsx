@@ -260,7 +260,6 @@ function buildLinkSets({ isAuthenticated, isAdmin, role, t }) {
     { to: '/referral',   label: 'Refer & earn',                    icon: Gift },
     { to: '/transactions', label: 'Transactions',                  icon: History },
     { to: '/notifications', label: 'Notifications',                 icon: Bell },
-    { to: '/consolidation', label: 'Consolidation',                icon: Plane },
     { to: '/support',    label: 'Support',                         icon: LifeBuoy },
     { to: '/warehouse',  label: 'Warehouse address',               icon: WarehouseIcon },
     { to: '/dsar',       label: 'My data',                         icon: Database },

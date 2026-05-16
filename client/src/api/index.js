@@ -321,24 +321,6 @@ export const adminApi = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CONSOLIDATION  →  /api/consolidation/*
-// ─────────────────────────────────────────────────────────────────────────────
-export const consolidationApi = {
-  /** List packages available for consolidation */
-  listPackages: () => api.get('/consolidation'),
-
-  /** List existing consolidation requests */
-  getRequests: () => api.get('/consolidation/requests'),
-
-  /**
-   * Submit a consolidation request.
-   * @param {string[]} package_ids
-   */
-  requestConsolidation: (package_ids) =>
-    api.post('/consolidation/request', { package_ids }),
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // REFERRAL  →  /api/referral/*
 // ─────────────────────────────────────────────────────────────────────────────
 export const referralApi = {
