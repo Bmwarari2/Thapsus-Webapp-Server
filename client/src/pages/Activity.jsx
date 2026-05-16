@@ -50,11 +50,11 @@ export const Activity = () => {
             subtitle="Already bought something? Tell us it's coming — your UK warehouse address is here too."
           />
           <HubCard
-            to="/orders"
+            to="/invoices"
             icon={<FileText size={22} />}
             iconBg="bg-orange-600"
             title="Invoices"
-            subtitle="Active and past shipping invoices alongside the parcels they cover."
+            subtitle="Active and past shipping invoices in one place."
           />
           <HubCard
             to="/transactions"

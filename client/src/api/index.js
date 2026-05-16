@@ -27,6 +27,15 @@ export const authApi = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CUSTOMER INVOICES — read-only list of the signed-in user's customer
+// consolidations (the invoiceable batches). Mirror of iOS CustomerInvoicesView.
+// ─────────────────────────────────────────────────────────────────────────────
+export const customerInvoicesApi = {
+  /** GET /api/customer-consolidations/me → { customer_consolidations: [...] } */
+  listMine: () => api.get('/customer-consolidations/me'),
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ACCOUNT DELETION (14-day cooldown). Mirror of iOS AccountDeletionView.
 // ─────────────────────────────────────────────────────────────────────────────
 export const accountDeletionApi = {

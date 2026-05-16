@@ -143,6 +143,33 @@ router.get('/', authMiddleware, ALLOWED_ADMIN, async (req, res) => {
 });
 
 /**
+ * GET /api/customer-consolidations/me  (customer)
+ *
+ * Customer-scoped read of their own customer_consolidations. iOS hits
+ * Supabase directly with RLS to render the Invoices archive; web has no
+ * Supabase JS client wired so we expose this thin per-user endpoint for
+ * parity. Same row shape as the admin GET above (minus the user_email /
+ * user_name joins — pointless when you're reading your own rows).
+ */
+router.get('/me', authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await req.db.query(
+      `SELECT cc.*, (SELECT COUNT(*)::int FROM packages p
+                       WHERE p.customer_consolidation_id = cc.id) AS parcel_count
+         FROM customer_consolidations cc
+         WHERE cc.user_id = $1
+         ORDER BY cc.created_at DESC
+         LIMIT 200`,
+      [req.user.id]
+    );
+    res.json({ success: true, customer_consolidations: rows });
+  } catch (err) {
+    console.error('GET /customer-consolidations/me error:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch invoices' });
+  }
+});
+
+/**
  * POST /api/customer-consolidations/standalone-invoice  (admin)  [PR 5]
  *
  * Mints a one-off "standalone" invoice — no parcels attached, just an
