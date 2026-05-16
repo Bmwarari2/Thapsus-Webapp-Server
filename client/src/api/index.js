@@ -259,6 +259,10 @@ export const adminApi = {
   /** Get email logs for a user */
   getUserEmails: (id) => api.get(`/admin/users/${id}/emails`),
 
+  /** Get audit logs — paginated feed of privileged actions (provision user,
+   *  reset password, edit pricing, etc.). Backed by `admin_logs` table. */
+  getAuditLogs: (params = {}) => api.get('/admin/logs', { params }),
+
   /** Get error logs (paginated, filterable) */
   getErrorLogs: (params = {}) => api.get('/admin/error-logs', { params }),
 

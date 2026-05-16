@@ -136,6 +136,13 @@ export const AdminDashboard = () => {
   const [loadingErrorLogs, setLoadingErrorLogs] = useState(false)
   const [expandedError, setExpandedError] = useState(null)
 
+  // Audit Log Pagination — privileged-action feed (admin_logs table)
+  const [auditLogs, setAuditLogs] = useState([])
+  const [auditLogPage, setAuditLogPage] = useState(1)
+  const [auditLogTotalPages, setAuditLogTotalPages] = useState(0)
+  const [loadingAuditLogs, setLoadingAuditLogs] = useState(false)
+  const [expandedAudit, setExpandedAudit] = useState(null)
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true)
@@ -196,6 +203,18 @@ export const AdminDashboard = () => {
         setErrorLogTotalPages(res.data.pagination.totalPages)
       }
     } catch (err) { toast.error('Failed to load error logs') } finally { setLoadingErrorLogs(false) }
+  }
+
+  const fetchAuditLogs = async (page = 1) => {
+    try {
+      setLoadingAuditLogs(true)
+      const res = await adminApi.getAuditLogs({ page, limit: 25 })
+      if (res.data?.logs) {
+        setAuditLogs(res.data.logs)
+        setAuditLogPage(res.data.pagination?.page || page)
+        setAuditLogTotalPages(res.data.pagination?.totalPages || 0)
+      }
+    } catch (err) { toast.error('Failed to load audit logs') } finally { setLoadingAuditLogs(false) }
   }
 
   const handleClearErrorLogs = async (keepDays) => {
@@ -554,8 +573,8 @@ export const AdminDashboard = () => {
             <p className="text-slate-500 font-bold text-sm tracking-wide uppercase">Global Terminal • System Live</p>
           </div>
           <div className="flex bg-white/60 backdrop-blur-2xl p-2 rounded-[2rem] border border-white/50 shadow-sm overflow-x-auto no-scrollbar">
-            {['overview', 'users', 'orders', 'payments', 'revenue', 'tickets', 'exchange', 'settings', 'errorLogs'].map((tab) => (
-              <button key={tab} onClick={() => { setActiveTab(tab); if(tab === 'errorLogs') fetchErrorLogs(); }}
+            {['overview', 'users', 'orders', 'payments', 'revenue', 'tickets', 'exchange', 'settings', 'auditLogs', 'errorLogs'].map((tab) => (
+              <button key={tab} onClick={() => { setActiveTab(tab); if(tab === 'errorLogs') fetchErrorLogs(); if(tab === 'auditLogs') fetchAuditLogs(); }}
                 className={`relative px-6 py-3 rounded-[1.5rem] font-black text-xs uppercase tracking-widest whitespace-nowrap transition-all ${activeTab === tab ? 'bg-[#0f172a] text-white shadow-xl glass-sheen' : 'text-slate-500 hover:text-[#0f172a] hover:bg-white/50'}`}>
                 {tab.replace(/([A-Z])/g, ' $1')}
                 {tab === 'errorLogs' && errorLogStats && parseInt(errorLogStats.last_24h) > 0 && (
@@ -1070,6 +1089,66 @@ export const AdminDashboard = () => {
                </h3>
                <ShippingRatesPanel />
             </GlassCard>
+          </div>
+        )}
+
+        {/* --- AUDIT LOGS --- privileged-action feed (admin_logs table). */}
+        {activeTab === 'auditLogs' && (
+          <div className="space-y-8 animate-in fade-in duration-500">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <h2 className="text-3xl font-black text-[#0f172a] uppercase tracking-tighter leading-none">Privileged Action Feed</h2>
+              <button onClick={() => fetchAuditLogs(1)} disabled={loadingAuditLogs} className={btnOutline + " !py-2.5 !px-5"}>
+                {loadingAuditLogs ? 'Refreshing…' : 'Refresh'}
+              </button>
+            </div>
+
+            <div className={tableWrapper}>
+              <table className="w-full text-left">
+                <thead className="bg-[#0f172a]/5">
+                  <tr>
+                    <th className={thClass}>Action</th>
+                    <th className={thClass}>Admin</th>
+                    <th className={thClass}>Details</th>
+                    <th className={thClass}>Time</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/50">
+                  {auditLogs.length === 0 && !loadingAuditLogs && (
+                    <tr><td colSpan="4" className={tdClass + " text-center font-bold text-slate-400"}>No audit entries on this page.</td></tr>
+                  )}
+                  {auditLogs.map(log => (
+                    <React.Fragment key={log.id}>
+                      <tr onClick={() => setExpandedAudit(expandedAudit === log.id ? null : log.id)} className="hover:bg-blue-50/40 cursor-pointer transition-colors">
+                        <td className={tdClass}>
+                          <span className="inline-flex px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm border bg-blue-50 text-blue-700 border-blue-200">{log.action}</span>
+                        </td>
+                        <td className={tdClass + " font-bold text-slate-700"}>
+                          {log.admin_name || log.admin_email || '—'}
+                        </td>
+                        <td className={tdClass + " font-mono text-[10px] text-slate-600 truncate max-w-md"}>
+                          {typeof log.details === 'string' ? log.details : JSON.stringify(log.details || {})}
+                        </td>
+                        <td className={tdClass + " text-[10px] font-black uppercase tracking-widest text-slate-400"}>
+                          {new Date(log.created_at).toLocaleString()}
+                        </td>
+                      </tr>
+                      {expandedAudit === log.id && (
+                        <tr>
+                          <td colSpan="4" className="bg-[#0f172a] text-blue-300 p-8 font-mono text-[10px] sm:text-xs whitespace-pre-wrap shadow-inner border-y border-white/20">
+                            {JSON.stringify(log.details || {}, null, 2)}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+              <div className="p-6 flex gap-3 justify-end bg-white/30 backdrop-blur-md border-t border-white/50">
+                <button onClick={() => fetchAuditLogs(auditLogPage - 1)} disabled={auditLogPage <= 1 || loadingAuditLogs} className={btnOutline + " !py-2.5 !px-5"}>Prev</button>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 self-center">Page {auditLogPage} / {auditLogTotalPages || 1}</span>
+                <button onClick={() => fetchAuditLogs(auditLogPage + 1)} disabled={auditLogPage >= auditLogTotalPages || loadingAuditLogs} className={btnOutline + " !py-2.5 !px-5"}>Next</button>
+              </div>
+            </div>
           </div>
         )}
 
