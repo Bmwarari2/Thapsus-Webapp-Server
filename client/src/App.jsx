@@ -68,6 +68,7 @@ const NpsLanding          = lazy(() => import('./pages/NpsLanding').then(m => ({
 const Referral            = lazy(() => import('./pages/Referral').then(m => ({ default: m.Referral })))
 const AccountDeletion     = lazy(() => import('./pages/AccountDeletion').then(m => ({ default: m.AccountDeletion })))
 const Activity            = lazy(() => import('./pages/Activity').then(m => ({ default: m.Activity })))
+const Invoices            = lazy(() => import('./pages/Invoices').then(m => ({ default: m.Invoices })))
 const Account             = lazy(() => import('./pages/Account').then(m => ({ default: m.Account })))
 
 // ── Minimal loading spinner (shown briefly while lazy chunks load) ──────────
@@ -152,6 +153,7 @@ function App() {
             <Route path="/warehouse" element={<ProtectedRoute><WarehouseAddresses /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
             <Route path="/activity" element={<ProtectedRoute><Activity /></ProtectedRoute>} />
+            <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
 
             {/* Customer-facing Framework v2 routes */}
             <Route path="/buy-for-me" element={<ProtectedRoute><BuyForMe /></ProtectedRoute>} />
