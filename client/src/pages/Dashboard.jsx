@@ -1,11 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react'
+// Dashboard.jsx
+// Customer Home tab. Mirror of iOS CustomerDashboardView, top-to-bottom:
+//   1. Welcome header (greeting + first name)
+//   2. CutoffBanner (weekly outgoing-shipment countdown)
+//   3. BFM hero card (primary action — full-width orange gradient)
+//   4. Pre-register card (secondary action — full-width dark ink, same height)
+//   5. Stat tiles ("This month" — Parcels · In transit · Out for delivery)
+//   6. Recent orders preview (web-only convenience, links to /orders)
+//
+// Surfaces that USED to live here but have moved:
+//   • Warehouse address — now lives on /new-order (pre-register flow only).
+//     iOS removed it from home in PR #126 ("ios-remove-warehouse-from-home").
+//   • Credit balance + referral earnings — now reachable from the Account
+//     hub (/account) via the credit hero card and the Refer & earn link.
+
+import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Package, Gift, TrendingUp, Eye, Copy, CheckCheck, MapPin, ArrowRight, Box } from 'lucide-react'
+import {
+  Package, Eye, ArrowRight, Box, Wand2, ShoppingBag,
+} from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
-import { ordersApi, paymentsApi, warehouseApi } from '../api'
+import { ordersApi } from '../api'
 import toast from 'react-hot-toast'
-import { useOrderUpdates, useCreditUpdates } from '../hooks/useRealtimeUpdates'
+import { useOrderUpdates } from '../hooks/useRealtimeUpdates'
 import { CutoffBanner } from '../components/CutoffBanner'
 
 // --- CUSTOM STYLES & GLASS COMPONENTS ---
@@ -18,7 +35,7 @@ const DashboardStyles = () => (
       100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; transform: translate(0, 0) scale(1); }
     }
     .animate-morph { animation: morph 15s ease-in-out infinite; }
-    
+
     @keyframes sheen {
       0% { transform: translateX(-100%) skewX(-15deg); }
       100% { transform: translateX(200%) skewX(-15deg); }
@@ -29,159 +46,74 @@ const DashboardStyles = () => (
       background: linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent);
       animation: sheen 4s infinite;
     }
-    
+
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   `}</style>
-);
+)
 
 const LiquidBlob = ({ className, color }) => (
   <div className={`absolute blur-[100px] md:blur-[120px] rounded-full mix-blend-multiply opacity-60 animate-morph pointer-events-none ${className} ${color}`} />
-);
+)
 
 const GlassCard = ({ children, className = "" }) => (
   <div className={`relative overflow-hidden rounded-[2.5rem] bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] ${className}`}>
     <div className="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent pointer-events-none" />
     <div className="relative z-10">{children}</div>
   </div>
-);
+)
+
+// Order statuses that count as "active" (still moving through the pipeline).
+// Used both for filtering the recent-orders preview and computing stat tiles.
+const ACTIVE_STATUSES = ['pending', 'received_at_warehouse', 'consolidating', 'in_transit', 'customs', 'out_for_delivery']
 
 export const Dashboard = () => {
   const { user } = useAuth()
   const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [orders, setOrders] = useState([])
-  const [copied, setCopied] = useState(false)
-  const [stats, setStats] = useState({
-    activeOrders: 0,
-    creditBalance: 0,
-  })
-  // UK warehouse address lines loaded from the API (falls back to inline defaults)
-  const [ukAddressLines, setUkAddressLines] = useState([])
-
-  const ACTIVE_STATUSES = ['pending', 'received_at_warehouse', 'consolidating', 'in_transit', 'customs', 'out_for_delivery']
 
   // Fetch once on mount
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Wallet replaced by per-user credit (server PR #61, migration 028).
-        // Credit auto-applies on every payment; the dashboard tile shows the
-        // remaining balance the customer can use against their next invoice.
-        const [ordersResult, creditResult, warehouseResult] = await Promise.allSettled([
-          ordersApi.list(),
-          paymentsApi.myCredit(),
-          warehouseApi.getAddresses(),
-        ])
-
-        let fetchedOrders = []
-        let creditBalance = 0
-
-        if (ordersResult.status === 'fulfilled') {
-          fetchedOrders = ordersResult.value.data?.orders || []
-        }
-
-        if (creditResult.status === 'fulfilled') {
-          creditBalance = creditResult.value.data?.balance_kes ?? 0
-        }
-
-        if (warehouseResult.status === 'fulfilled') {
-          const uk = warehouseResult.value.data?.addresses?.UK
-          if (uk?.lines?.length) setUkAddressLines(uk.lines)
-        }
-
-        const activeOrders = fetchedOrders.filter((o) =>
-          ACTIVE_STATUSES.includes(o.status)
-        )
-
-        setOrders(activeOrders)
-        setStats({
-          activeOrders: activeOrders.length,
-          creditBalance,
-        })
+        const r = await ordersApi.list()
+        const all = r.data?.orders || []
+        // Keep all rows so we can derive month + active + in-transit stats;
+        // recent-orders table filters to ACTIVE_STATUSES at render time.
+        setOrders(all)
       } catch (err) {
         toast.error('Failed to load dashboard')
       } finally {
         setLoading(false)
       }
     }
-
     fetchData()
   }, [])
 
-  // Live updates
-  useOrderUpdates(({ action, order }) => {
+  // Live updates — flip or insert rows as parcels change status.
+  useOrderUpdates(({ order }) => {
     if (!order) return
-
-    const isActiveStatus = ['pending', 'received_at_warehouse', 'consolidating', 'in_transit', 'customs', 'out_for_delivery'].includes(
-      order.status,
-    )
-
     setOrders((prev) => {
-      let next = prev.filter((o) => o.id !== order.id)
-      if (isActiveStatus) {
-        next = [order, ...next].sort(
-          (a, b) => new Date(b.created_at || b.createdAt) - new Date(a.created_at || a.createdAt),
-        )
-      }
-      setStats((prevStats) => ({
-        ...prevStats,
-        activeOrders: next.length,
-      }))
-      return next
+      const without = prev.filter((o) => o.id !== order.id)
+      return [order, ...without].sort(
+        (a, b) => new Date(b.created_at || b.createdAt) - new Date(a.created_at || a.createdAt),
+      )
     })
   })
 
-  // Re-fetch credit balance on any credit-update event (e.g. referral
-  // bonus from routes/orders.js). The server pushes `delta_kes` only;
-  // simpler + safer to re-read the authoritative balance than mutate.
-  useCreditUpdates(() => {
-    paymentsApi.myCredit()
-      .then((r) => setStats((prev) => ({ ...prev, creditBalance: r.data?.balance_kes ?? prev.creditBalance })))
-      .catch(() => {})
-  })
+  // Stat-tile math: iOS shows Parcels (this month), In transit, Out for delivery.
+  // "This month" matches by year + month on created_at.
+  const now = new Date()
+  const thisMonthParcels = orders.filter((o) => {
+    const d = new Date(o.created_at || o.createdAt || 0)
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+  }).length
+  const inTransit = orders.filter((o) => o.status === 'in_transit').length
+  const outForDelivery = orders.filter((o) => o.status === 'out_for_delivery').length
 
-  // Build address lines: personal identifier first, then warehouse location from API
-  const warehouseLines = ukAddressLines.length > 0
-    ? ukAddressLines
-    : ['31 Collingwood Close', 'Hazel Grove, Stockport', 'SK7 4LB', 'United Kingdom']
-
-  const addressLines = [
-    user?.name || '',
-    user?.warehouse_id || user?.warehouseId || '',
-    ...warehouseLines,
-  ].filter(Boolean)
-
-  /** Copy text with a graceful fallback for browsers without clipboard API */
-  const copyToClipboard = useCallback(async (text) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      toast.success('Address copied to clipboard')
-      setTimeout(() => setCopied(false), 2000)
-    } catch (_) {
-      // Fallback: select text via a temporary textarea
-      try {
-        const el = document.createElement('textarea')
-        el.value = text
-        el.setAttribute('readonly', '')
-        el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0'
-        document.body.appendChild(el)
-        el.select()
-        document.execCommand('copy')
-        document.body.removeChild(el)
-        setCopied(true)
-        toast.success('Address copied to clipboard')
-        setTimeout(() => setCopied(false), 2000)
-      } catch (_) {
-        toast.error('Could not copy automatically. Please select and copy manually.')
-      }
-    }
-  }, [])
-
-  const handleCopyAddress = useCallback(() => {
-    copyToClipboard(addressLines.join('\n'))
-  }, [addressLines, copyToClipboard])
+  // Recent-orders preview — only currently-active rows.
+  const activeOrders = orders.filter((o) => ACTIVE_STATUSES.includes(o.status))
 
   const getStatusColor = (status) => {
     const colors = {
@@ -197,217 +129,136 @@ export const Dashboard = () => {
     return colors[status] || 'bg-slate-50 text-slate-700 border-slate-200'
   }
 
-  const formatStatus = (status) => {
-    return status?.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'Pending'
-  }
-
-  const referralEarnings = user?.referral_earnings || user?.referralEarnings || 0
+  const formatStatus = (status) =>
+    status?.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'Pending'
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-[#f8fafc]">
-        <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
 
+  const firstName = user?.name?.split(' ')[0] || ''
+
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 overflow-x-hidden relative pb-24">
       <DashboardStyles />
-      
+
       {/* --- LIQUID BACKGROUNDS --- */}
       <LiquidBlob className="top-[-5%] left-[-10%] w-[400px] h-[400px] md:w-[600px] md:h-[600px]" color="bg-blue-200" />
       <LiquidBlob className="bottom-[20%] right-[-5%] w-[350px] h-[350px] md:w-[500px] md:h-[500px]" color="bg-orange-200" />
       <div className="absolute inset-0 bg-white/30 backdrop-blur-[2px] pointer-events-none" />
 
-      <div className="max-w-6xl mx-auto px-6 py-12 relative z-10">
+      <div className="max-w-5xl mx-auto px-4 md:px-6 py-10 md:py-12 relative z-10 space-y-6">
 
-        {/* Weekly cut-off countdown banner */}
-        <div className="mb-8">
-          <CutoffBanner />
-        </div>
-
-        {/* NPS post-delivery survey auto-prompt deliberately disabled
-            — customer feedback (2026-05-07): the popup firing right
-            after every delivered parcel was intrusive on both iOS and
-            web. The <NpsAutoPrompt /> component itself stays in the
-            codebase so this can be re-enabled with a one-line add
-            here if/when we want a less aggressive trigger (e.g. once
-            per N deliveries, only via the email link, or behind a
-            settings toggle). The matching iOS change ships in
-            thapsus-v1.1 PR #15. */}
-
-        {/* Welcome Section */}
-        <div className="mb-10 text-center md:text-left">
+        {/* Welcome header */}
+        <div className="text-center md:text-left">
           <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-md border border-white/50 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 shadow-sm mb-4">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            Client Terminal
+            Home
           </div>
-          <h1 className="text-4xl md:text-6xl font-black text-[#0f172a] tracking-tighter uppercase leading-none mb-3">
-            {t('dashboard.welcome')}, <span className="text-orange-700">{user?.name?.split(' ')[0]}</span>
+          <h1 className="text-3xl md:text-5xl font-black text-[#0f172a] tracking-tighter uppercase leading-none mb-3">
+            {t('dashboard.welcome')}{firstName && <>, <span className="text-orange-700">{firstName}</span></>}
           </h1>
-          <p className="text-slate-500 font-bold max-w-lg mx-auto md:mx-0">
-            Your global logistics overview and active shipments pipeline.
-          </p>
         </div>
 
-        {/* Warehouse Address Card (Dark Glass & Tilted) */}
-        <div className="relative group overflow-hidden rounded-[2.5rem] bg-[#0f172a] p-8 md:p-12 text-white shadow-2xl flex flex-col transition-all hover:scale-[1.01] transform lg:rotate-1 hover:rotate-0 duration-700 mb-12">
-          <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-orange-500/20 blur-[80px] -z-0 pointer-events-none" />
-          <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-8">
-            <div className="space-y-4">
-              <h3 className="text-xl md:text-2xl font-black uppercase tracking-tighter flex items-center gap-3">
-                <MapPin className="text-orange-400" size={24} /> {t('dashboard.warehouseAddress')}
-              </h3>
-              <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-[1.5rem] p-6 font-mono text-sm leading-relaxed shadow-inner">
-                {addressLines.map((line, i) => (
-                  <p key={i} className={i < 2 ? 'text-orange-400 font-black text-base tracking-tight mb-1' : 'text-slate-300 font-bold'}>
-                    {line}
-                  </p>
-                ))}
-              </div>
-            </div>
-            <button
-              onClick={handleCopyAddress}
-              className="glass-sheen flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-[2rem] font-black uppercase tracking-widest text-xs transition-all shadow-xl hover:-translate-y-1 w-full md:w-auto"
-            >
-              {copied ? <CheckCheck size={18} /> : <Copy size={18} />}
-              {copied ? 'Copied!' : t('warehouse.copy')}
-            </button>
-          </div>
-        </div>
+        {/* Cut-off countdown banner */}
+        <CutoffBanner />
 
-        {/* Stats Cards (Crystal Bento) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <Link to="/orders" className="block">
-          <GlassCard className="p-8 group hover:-translate-y-2 transition-all duration-500 cursor-pointer">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{t('dashboard.activeOrders')}</p>
-                <h3 className="text-5xl font-black text-[#0f172a] tracking-tighter">{stats.activeOrders}</h3>
-                <p className="text-[9px] font-bold text-orange-700 uppercase tracking-widest mt-2 flex items-center gap-1">View My Orders →</p>
-              </div>
-              <div className="p-4 bg-blue-50 border border-blue-100 rounded-[1.5rem] text-blue-600 group-hover:scale-110 transition-transform shadow-sm">
-                <Package size={28} />
-              </div>
-            </div>
-          </GlassCard>
-          </Link>
-
-          <GlassCard className="p-8 group hover:-translate-y-2 transition-all duration-500">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">My credit</p>
-                <h3 className="text-4xl md:text-5xl font-black text-green-600 tracking-tighter">
-                  <span className="text-2xl">KES</span> {stats.creditBalance.toLocaleString()}
-                </h3>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-2">Auto-applied to next invoice</p>
-              </div>
-              <div className="p-4 bg-green-50 border border-green-100 rounded-[1.5rem] text-green-600 group-hover:scale-110 transition-transform shadow-sm">
-                <Gift size={28} />
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="p-8 group hover:-translate-y-2 transition-all duration-500">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{t('dashboard.referralEarnings')}</p>
-                <h3 className="text-4xl md:text-5xl font-black text-orange-700 tracking-tighter">
-                  <span className="text-2xl">KES</span> {referralEarnings.toLocaleString()}
-                </h3>
-              </div>
-              <div className="p-4 bg-orange-50 border border-orange-100 rounded-[1.5rem] text-orange-600 group-hover:scale-110 transition-transform shadow-sm">
-                <TrendingUp size={28} />
-              </div>
-            </div>
-          </GlassCard>
-        </div>
-
-        {/* Primary action — Buy-for-me concierge. Full-width on top so it
-            visibly outranks the other actions. This is the customer's
-            main "I want to buy something from the UK" entry point. */}
+        {/* BFM-primary action grid: hero card (orange gradient) on top,
+            pre-register secondary (dark ink) below. Both full-width and
+            roughly equal height — mirrors iOS CustomerDashboardView.actionGrid. */}
         <Link
           to="/buy-for-me"
-          className="glass-sheen block bg-[#0f172a] hover:bg-slate-800 text-white px-8 py-8 md:px-10 md:py-10 rounded-[2.5rem] shadow-2xl hover:-translate-y-1 transition-all mb-6"
+          className="glass-sheen block rounded-[2rem] p-6 md:p-7 bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-xl hover:-translate-y-1 transition-all"
         >
-          <div className="flex items-center justify-between gap-6">
-            <div>
-              <p className="text-[10px] md:text-xs font-black uppercase tracking-widest text-orange-300 mb-2">Primary</p>
-              <h3 className="text-2xl md:text-3xl font-black tracking-tight leading-tight">Start a Buy-for-me request</h3>
-              <p className="text-sm md:text-base text-slate-300 font-medium mt-2 max-w-xl">Send us a link from any UK retailer — we buy on your behalf, consolidate, and ship to Kenya.</p>
+          <div className="flex items-center gap-4 md:gap-5">
+            <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white/15 flex items-center justify-center shrink-0">
+              <Wand2 size={26} />
             </div>
-            <ArrowRight size={28} className="md:w-9 md:h-9 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/80 mb-1">Primary</p>
+              <p className="text-xl md:text-2xl font-black tracking-tight leading-tight">Start a Buy-for-me request</p>
+              <p className="text-sm text-white/90 font-medium mt-1.5">
+                Send us a link from any UK retailer — we buy on your behalf, ship to Kenya, deliver to your door.
+              </p>
+            </div>
+            <ArrowRight size={22} className="shrink-0" aria-hidden />
           </div>
         </Link>
 
-        {/* Secondary actions: pre-register (co-equal alternate path) and
-            credit/referrals. Both demoted below the BFM hero card. */}
-        <div className="p-1 bg-gradient-to-br from-orange-400 via-orange-300 to-blue-400 rounded-[3rem] shadow-2xl mb-12">
-          <div className="h-full w-full bg-white/95 backdrop-blur-3xl rounded-[2.9rem] p-4 flex flex-col md:flex-row gap-4">
-            <Link
-              to="/new-order"
-              className="glass-sheen flex-1 bg-white border-2 border-[#0f172a] hover:bg-slate-50 text-[#0f172a] px-6 py-6 rounded-[2.5rem] font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all shadow-xl hover:-translate-y-1"
-            >
-              <Box size={20} />
-              Pre-register a parcel
-            </Link>
-            <Link
-              to="/credit"
-              className="glass-sheen flex-1 bg-orange-500 hover:bg-orange-600 text-white px-6 py-6 rounded-[2.5rem] font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all shadow-xl hover:-translate-y-1"
-            >
-              <Gift size={20} />
-              Credit & Referrals
-            </Link>
+        <Link
+          to="/new-order"
+          className="block rounded-[2rem] p-6 md:p-7 bg-[#0f172a] text-white shadow-lg hover:-translate-y-1 transition-all border border-white/5"
+        >
+          <div className="flex items-center gap-4 md:gap-5">
+            <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white/10 flex items-center justify-center shrink-0 text-orange-400">
+              <Box size={24} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-lg md:text-xl font-black tracking-tight leading-tight">Pre-register a parcel</p>
+              <p className="text-sm text-slate-300 font-medium mt-1.5">
+                Already bought somewhere we don't cover? Tell us it's coming — your UK warehouse address is here too.
+              </p>
+            </div>
+            <ArrowRight size={18} className="shrink-0 text-slate-300" aria-hidden />
+          </div>
+        </Link>
+
+        {/* Stat tiles — "This month" eyebrow + 3 tiles (mirrors iOS) */}
+        <div className="pt-2">
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-3 ml-1">This month</p>
+          <div className="grid grid-cols-3 gap-3 md:gap-4">
+            <StatTile label="Parcels" value={thisMonthParcels} />
+            <StatTile label="In transit" value={inTransit} accent />
+            <StatTile label="Out for delivery" value={outForDelivery} />
           </div>
         </div>
 
-        {/* Recent Orders Table */}
-        <GlassCard className="p-8">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-black text-[#0f172a] uppercase tracking-tighter">{t('dashboard.recentOrders')}</h2>
+        {/* Recent orders preview — web-only convenience. iOS users dig into
+            the Activity → Parcel tracking surface for this; on desktop a
+            small inline preview saves a hop without ballooning the page. */}
+        <GlassCard className="p-6 md:p-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl md:text-2xl font-black text-[#0f172a] uppercase tracking-tighter">{t('dashboard.recentOrders')}</h2>
             <Link to="/orders" className="text-xs font-black text-orange-700 hover:text-orange-600 uppercase tracking-widest flex items-center gap-1 group transition-colors">
-              View All <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform"/>
+              View all <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
 
-          {orders.length > 0 ? (
-            <div className="bg-white/50 backdrop-blur-md rounded-3xl overflow-hidden border border-white">
+          {activeOrders.length > 0 ? (
+            <div className="bg-white/50 backdrop-blur-md rounded-2xl overflow-hidden border border-white">
               <div className="overflow-x-auto no-scrollbar">
                 <table className="w-full text-left">
                   <thead className="bg-[#0f172a]/5">
                     <tr>
-                      <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tracking #</th>
-                      <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('orders.market')}</th>
-                      <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('orders.status')}</th>
-                      <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('orders.date')}</th>
-                      <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('orders.amount')}</th>
-                      <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                      <th className="px-5 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tracking #</th>
+                      <th className="px-5 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('orders.status')}</th>
+                      <th className="px-5 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('orders.date')}</th>
+                      <th className="px-5 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/50">
-                    {orders.slice(0, 5).map((order) => (
+                    {activeOrders.slice(0, 5).map((order) => (
                       <tr key={order.id} className="hover:bg-white/40 transition-colors">
-                        <td className="px-6 py-5 font-mono text-xs font-black text-[#0f172a]">
+                        <td className="px-5 py-4 font-mono text-xs font-black text-[#0f172a]">
                           {order.tracking_number || `#${order.id.slice(0, 8)}`}
                         </td>
-                        <td className="px-6 py-5 text-xs font-bold text-slate-600">{order.market}</td>
-                        <td className="px-6 py-5">
-                          <span className={`inline-flex px-3 py-1 rounded-full text-[9px] font-black uppercase border shadow-sm ${getStatusColor(order.status)}`}>
+                        <td className="px-5 py-4">
+                          <span className={`inline-flex px-2.5 py-1 rounded-full text-[9px] font-black uppercase border shadow-sm ${getStatusColor(order.status)}`}>
                             {formatStatus(order.status)}
                           </span>
                         </td>
-                        <td className="px-6 py-5 text-xs font-bold text-slate-600">
-                          {new Date(order.created_at || order.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        <td className="px-5 py-4 text-xs font-bold text-slate-600">
+                          {new Date(order.created_at || order.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
                         </td>
-                        <td className="px-6 py-5 text-sm font-black text-[#0f172a]">
-                          KES {(order.estimated_cost || order.totalCost || 0).toLocaleString()}
-                        </td>
-                        <td className="px-6 py-5 text-right">
+                        <td className="px-5 py-4 text-right">
                           <Link
                             to={`/orders/${order.id}`}
                             className="inline-flex items-center justify-center p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors"
-                            title="View Details"
+                            title="View details"
                           >
                             <Eye size={16} />
                           </Link>
@@ -419,14 +270,27 @@ export const Dashboard = () => {
               </div>
             </div>
           ) : (
-            <div className="text-center py-16 bg-white/50 rounded-3xl border border-white">
-              <Package className="mx-auto text-slate-300 mb-6" size={48} />
-              <p className="text-lg font-black text-[#0f172a] uppercase tracking-tight mb-2">{t('orders.noOrders')}</p>
-              <p className="text-sm font-bold text-slate-500">Orders are logged by dispatch operators. Need assistance?</p>
+            <div className="text-center py-12 bg-white/50 rounded-2xl border border-white">
+              <ShoppingBag className="mx-auto text-slate-300 mb-4" size={40} />
+              <p className="text-base font-black text-[#0f172a] tracking-tight mb-1">No active parcels</p>
+              <p className="text-sm font-bold text-slate-500">Start a Buy-for-me request or pre-register a parcel above.</p>
             </div>
           )}
         </GlassCard>
       </div>
+    </div>
+  )
+}
+
+// ─── Stat tile ──────────────────────────────────────────────────────────────
+
+function StatTile({ label, value, accent = false }) {
+  return (
+    <div className={`rounded-2xl p-4 md:p-5 border ${accent
+      ? 'bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200'
+      : 'bg-white border-slate-200'}`}>
+      <p className={`text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-1 ${accent ? 'text-orange-700' : 'text-slate-400'}`}>{label}</p>
+      <p className={`text-3xl md:text-4xl font-black tracking-tighter ${accent ? 'text-orange-700' : 'text-[#0f172a]'}`}>{value}</p>
     </div>
   )
 }
