@@ -263,6 +263,12 @@ export const adminApi = {
    *  reset password, edit pricing, etc.). Backed by `admin_logs` table. */
   getAuditLogs: (params = {}) => api.get('/admin/logs', { params }),
 
+  /** AML risk queue — list flagged users/parcels by status (open by default).
+   *  Resolution writes status=cleared|escalated, optional notes. */
+  listAmlFlags:   (status = 'open') => api.get('/admin/aml-flags', { params: { status } }),
+  resolveAmlFlag: (id, status, notes) =>
+    api.patch(`/admin/aml-flags/${id}`, notes ? { status, notes } : { status }),
+
   /** Get error logs (paginated, filterable) */
   getErrorLogs: (params = {}) => api.get('/admin/error-logs', { params }),
 

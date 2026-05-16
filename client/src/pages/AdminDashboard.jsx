@@ -143,6 +143,12 @@ export const AdminDashboard = () => {
   const [loadingAuditLogs, setLoadingAuditLogs] = useState(false)
   const [expandedAudit, setExpandedAudit] = useState(null)
 
+  // AML risk queue — server filters by status (open|cleared|escalated)
+  const [amlFlags, setAmlFlags] = useState([])
+  const [amlStatusFilter, setAmlStatusFilter] = useState('open')
+  const [loadingAml, setLoadingAml] = useState(false)
+  const [resolvingAml, setResolvingAml] = useState(null)
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true)
@@ -215,6 +221,28 @@ export const AdminDashboard = () => {
         setAuditLogTotalPages(res.data.pagination?.totalPages || 0)
       }
     } catch (err) { toast.error('Failed to load audit logs') } finally { setLoadingAuditLogs(false) }
+  }
+
+  const fetchAmlFlags = async (status = amlStatusFilter) => {
+    try {
+      setLoadingAml(true)
+      const res = await adminApi.listAmlFlags(status)
+      setAmlFlags(res.data?.flags || [])
+    } catch (err) { toast.error('Failed to load AML queue') } finally { setLoadingAml(false) }
+  }
+
+  const handleResolveAml = async (id, status) => {
+    let notes = null
+    if (status === 'escalated') {
+      notes = window.prompt('Escalation notes (optional)')
+      if (notes === null) return // user cancelled
+    }
+    try {
+      setResolvingAml(id)
+      await adminApi.resolveAmlFlag(id, status, notes || undefined)
+      toast.success(status === 'cleared' ? 'Flag cleared' : 'Flag escalated')
+      fetchAmlFlags(amlStatusFilter)
+    } catch (err) { toast.error('Failed to update flag') } finally { setResolvingAml(null) }
   }
 
   const handleClearErrorLogs = async (keepDays) => {
@@ -573,8 +601,8 @@ export const AdminDashboard = () => {
             <p className="text-slate-500 font-bold text-sm tracking-wide uppercase">Global Terminal • System Live</p>
           </div>
           <div className="flex bg-white/60 backdrop-blur-2xl p-2 rounded-[2rem] border border-white/50 shadow-sm overflow-x-auto no-scrollbar">
-            {['overview', 'users', 'orders', 'payments', 'revenue', 'tickets', 'exchange', 'settings', 'auditLogs', 'errorLogs'].map((tab) => (
-              <button key={tab} onClick={() => { setActiveTab(tab); if(tab === 'errorLogs') fetchErrorLogs(); if(tab === 'auditLogs') fetchAuditLogs(); }}
+            {['overview', 'users', 'orders', 'payments', 'revenue', 'tickets', 'aml', 'exchange', 'settings', 'auditLogs', 'errorLogs'].map((tab) => (
+              <button key={tab} onClick={() => { setActiveTab(tab); if(tab === 'errorLogs') fetchErrorLogs(); if(tab === 'auditLogs') fetchAuditLogs(); if(tab === 'aml') fetchAmlFlags(amlStatusFilter); }}
                 className={`relative px-6 py-3 rounded-[1.5rem] font-black text-xs uppercase tracking-widest whitespace-nowrap transition-all ${activeTab === tab ? 'bg-[#0f172a] text-white shadow-xl glass-sheen' : 'text-slate-500 hover:text-[#0f172a] hover:bg-white/50'}`}>
                 {tab.replace(/([A-Z])/g, ' $1')}
                 {tab === 'errorLogs' && errorLogStats && parseInt(errorLogStats.last_24h) > 0 && (
@@ -1148,6 +1176,77 @@ export const AdminDashboard = () => {
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 self-center">Page {auditLogPage} / {auditLogTotalPages || 1}</span>
                 <button onClick={() => fetchAuditLogs(auditLogPage + 1)} disabled={auditLogPage >= auditLogTotalPages || loadingAuditLogs} className={btnOutline + " !py-2.5 !px-5"}>Next</button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- AML RISK QUEUE --- compliance review, mirrors iOS AdminAmlQueueView. */}
+        {activeTab === 'aml' && (
+          <div className="space-y-8 animate-in fade-in duration-500">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <h2 className="text-3xl font-black text-[#0f172a] uppercase tracking-tighter leading-none">AML Risk Queue</h2>
+              <div className="flex gap-2">
+                {['open','cleared','escalated'].map(s => (
+                  <button key={s}
+                    onClick={() => { setAmlStatusFilter(s); fetchAmlFlags(s) }}
+                    className={`px-5 py-2.5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest transition-all ${amlStatusFilter === s ? 'bg-[#0f172a] text-white shadow-lg' : 'bg-white/60 text-slate-500 hover:text-[#0f172a] border border-white/50'}`}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className={tableWrapper}>
+              <table className="w-full text-left">
+                <thead className="bg-[#0f172a]/5">
+                  <tr>
+                    <th className={thClass}>User</th>
+                    <th className={thClass}>Reason</th>
+                    <th className={thClass}>Notes</th>
+                    <th className={thClass}>Raised</th>
+                    <th className={thClass}>Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/50">
+                  {amlFlags.length === 0 && !loadingAml && (
+                    <tr><td colSpan="5" className={tdClass + " text-center font-bold text-slate-400"}>
+                      No {amlStatusFilter} flags.
+                    </td></tr>
+                  )}
+                  {amlFlags.map(f => (
+                    <tr key={f.id} className="hover:bg-amber-50/40 transition-colors">
+                      <td className={tdClass}>
+                        <p className="font-black text-slate-800">{f.user_name || '—'}</p>
+                        <p className="text-[10px] font-bold text-slate-500 mt-1">{f.user_email || f.user_id}</p>
+                        {f.parcel_id && <p className="text-[10px] font-mono text-amber-700 mt-1">parcel · {f.parcel_id.slice(0,8)}</p>}
+                      </td>
+                      <td className={tdClass + " font-bold text-slate-700"}>{f.reason}</td>
+                      <td className={tdClass + " text-xs text-slate-600 max-w-xs"}>{f.notes || '—'}</td>
+                      <td className={tdClass + " text-[10px] font-black uppercase tracking-widest text-slate-400"}>
+                        {new Date(f.created_at).toLocaleString()}
+                      </td>
+                      <td className={tdClass}>
+                        {f.status === 'open' ? (
+                          <div className="flex gap-2">
+                            <button onClick={() => handleResolveAml(f.id, 'cleared')} disabled={resolvingAml === f.id}
+                              className="bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 px-4 py-2 rounded-[1rem] font-black text-[10px] uppercase tracking-widest transition-colors shadow-sm">
+                              Clear
+                            </button>
+                            <button onClick={() => handleResolveAml(f.id, 'escalated')} disabled={resolvingAml === f.id}
+                              className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-4 py-2 rounded-[1rem] font-black text-[10px] uppercase tracking-widest transition-colors shadow-sm">
+                              Escalate
+                            </button>
+                          </div>
+                        ) : (
+                          <span className={`inline-flex px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm border ${f.status==='escalated' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                            {f.status}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
