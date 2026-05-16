@@ -75,9 +75,14 @@ export const paymentsApi = {
    * @param {string} target_id
    * @param {'stripe'|'mpesa'} method
    * @param {boolean} [apply_credit=true]
+   * @param {string} [phone]  Required when M-Pesa env is `lipana` — the
+   *                          server fires the STK push to this number.
    */
-  create: (target_kind, target_id, method, apply_credit = true) =>
-    api.post('/payments', { target_kind, target_id, method, apply_credit }),
+  create: (target_kind, target_id, method, apply_credit = true, phone = null) => {
+    const body = { target_kind, target_id, method, apply_credit }
+    if (phone) body.phone = phone
+    return api.post('/payments', body)
+  },
 
   /** POST /api/payments/:id/mpesa-confirmation — customer pastes the SMS. */
   submitMpesaConfirmation: (paymentId, message_raw) =>
