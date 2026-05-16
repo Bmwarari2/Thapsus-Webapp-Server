@@ -6,7 +6,7 @@ import {
   Home as HomeIcon, Search, Calculator, LayoutDashboard, LogIn,
   Wallet as WalletIcon, FileText, ShieldAlert, Database, Receipt,
   Warehouse as WarehouseIcon, LifeBuoy, Globe, BookOpen, ScrollText, History,
-  Bell, Gift, Trash2,
+  Bell, Gift, Trash2, User,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
@@ -254,6 +254,7 @@ function buildLinkSets({ isAuthenticated, isAdmin, role, t }) {
   // items they already own.
   const account = isAuthenticated ? [
     { to: '/dashboard',  label: t('nav.dashboard') || 'Dashboard', icon: LayoutDashboard },
+    { to: '/account',    label: 'My account',                      icon: User },
     { to: '/buy-for-me', label: 'Shop & ship',                     icon: ShoppingBag },
     { to: '/orders',     label: 'Parcel tracking',                 icon: Receipt },
     { to: '/activity',   label: 'Activity',                        icon: Activity },
