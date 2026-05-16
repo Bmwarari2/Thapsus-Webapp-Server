@@ -68,6 +68,7 @@ const NpsLanding          = lazy(() => import('./pages/NpsLanding').then(m => ({
 const Referral            = lazy(() => import('./pages/Referral').then(m => ({ default: m.Referral })))
 const AccountDeletion     = lazy(() => import('./pages/AccountDeletion').then(m => ({ default: m.AccountDeletion })))
 const Activity            = lazy(() => import('./pages/Activity').then(m => ({ default: m.Activity })))
+const Account             = lazy(() => import('./pages/Account').then(m => ({ default: m.Account })))
 
 // ── Minimal loading spinner (shown briefly while lazy chunks load) ──────────
 const PageLoader = () => (
@@ -155,6 +156,7 @@ function App() {
             {/* Customer-facing Framework v2 routes */}
             <Route path="/buy-for-me" element={<ProtectedRoute><BuyForMe /></ProtectedRoute>} />
             <Route path="/dsar"       element={<ProtectedRoute><DsarRequest /></ProtectedRoute>} />
+            <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
             <Route path="/account/delete" element={<ProtectedRoute><AccountDeletion /></ProtectedRoute>} />
 
             {/* Operator console routes (operator + admin) */}
