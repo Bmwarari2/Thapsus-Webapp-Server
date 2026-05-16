@@ -140,6 +140,9 @@ function App() {
             <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
             <Route path="/orders/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
             <Route path="/orders/new" element={<ProtectedRoute><NewOrder /></ProtectedRoute>} />
+            {/* Friendly /new-order alias — top-level URL customers can type
+                without remembering the /orders/ prefix. Same component. */}
+            <Route path="/new-order" element={<ProtectedRoute><NewOrder /></ProtectedRoute>} />
             <Route path="/orders/confirmation" element={<ProtectedRoute><OrderConfirmation /></ProtectedRoute>} />
             <Route path="/credit" element={<ProtectedRoute><CreditCenter /></ProtectedRoute>} />
             <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
