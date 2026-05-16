@@ -256,6 +256,7 @@ function buildLinkSets({ isAuthenticated, isAdmin, role, t }) {
     { to: '/dashboard',  label: t('nav.dashboard') || 'Dashboard', icon: LayoutDashboard },
     { to: '/buy-for-me', label: 'Shop & ship',                     icon: ShoppingBag },
     { to: '/orders',     label: 'Parcel tracking',                 icon: Receipt },
+    { to: '/activity',   label: 'Activity',                        icon: Activity },
     { to: '/credit',     label: 'My credit',                       icon: WalletIcon },
     { to: '/referral',   label: 'Refer & earn',                    icon: Gift },
     { to: '/transactions', label: 'Transactions',                  icon: History },

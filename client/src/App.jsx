@@ -67,6 +67,7 @@ const RiderPwa            = lazy(() => import('./pages/partner/RiderPwa').then(m
 const NpsLanding          = lazy(() => import('./pages/NpsLanding').then(m => ({ default: m.NpsLanding })))
 const Referral            = lazy(() => import('./pages/Referral').then(m => ({ default: m.Referral })))
 const AccountDeletion     = lazy(() => import('./pages/AccountDeletion').then(m => ({ default: m.AccountDeletion })))
+const Activity            = lazy(() => import('./pages/Activity').then(m => ({ default: m.Activity })))
 
 // ── Minimal loading spinner (shown briefly while lazy chunks load) ──────────
 const PageLoader = () => (
@@ -149,6 +150,7 @@ function App() {
             <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
             <Route path="/warehouse" element={<ProtectedRoute><WarehouseAddresses /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+            <Route path="/activity" element={<ProtectedRoute><Activity /></ProtectedRoute>} />
 
             {/* Customer-facing Framework v2 routes */}
             <Route path="/buy-for-me" element={<ProtectedRoute><BuyForMe /></ProtectedRoute>} />
