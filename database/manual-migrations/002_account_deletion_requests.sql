@@ -14,7 +14,10 @@
 
 CREATE TABLE IF NOT EXISTS public.account_deletion_requests (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id               UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  -- users.id is stored as TEXT in this database (Express side mints
+  -- uuidv4 strings), so the FK has to be TEXT too — Postgres rejects
+  -- a uuid→text FK with "incompatible types".
+  user_id               TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   requested_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   scheduled_deletion_at TIMESTAMPTZ NOT NULL,
   cancelled_at          TIMESTAMPTZ,
@@ -38,3 +41,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS account_deletion_requests_active_uniq
 CREATE INDEX IF NOT EXISTS account_deletion_requests_due_idx
   ON public.account_deletion_requests (scheduled_deletion_at)
   WHERE cancelled_at IS NULL AND completed_at IS NULL;
+
+-- RLS — the customer's PostgREST realtime channel needs SELECT on
+-- their own row only. All writes go through Express (service role,
+-- bypassing RLS) so we don't need INSERT/UPDATE/DELETE policies.
+ALTER TABLE public.account_deletion_requests ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS account_deletion_requests_self_select ON public.account_deletion_requests;
+CREATE POLICY account_deletion_requests_self_select
+  ON public.account_deletion_requests
+  FOR SELECT
+  TO authenticated
+  USING (user_id = auth.uid()::text);
