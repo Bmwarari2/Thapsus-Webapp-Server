@@ -68,6 +68,7 @@ const AgentInvoices       = lazy(() => import('./pages/partner/AgentPortal').the
 const RiderPwa            = lazy(() => import('./pages/partner/RiderPwa').then(m => ({ default: m.RiderPwa })))
 const NpsLanding          = lazy(() => import('./pages/NpsLanding').then(m => ({ default: m.NpsLanding })))
 const Referral            = lazy(() => import('./pages/Referral').then(m => ({ default: m.Referral })))
+const AccountDeletion     = lazy(() => import('./pages/AccountDeletion').then(m => ({ default: m.AccountDeletion })))
 
 // ── Minimal loading spinner (shown briefly while lazy chunks load) ──────────
 const PageLoader = () => (
@@ -153,6 +154,7 @@ function App() {
             {/* Customer-facing Framework v2 routes */}
             <Route path="/buy-for-me" element={<ProtectedRoute><BuyForMe /></ProtectedRoute>} />
             <Route path="/dsar"       element={<ProtectedRoute><DsarRequest /></ProtectedRoute>} />
+            <Route path="/account/delete" element={<ProtectedRoute><AccountDeletion /></ProtectedRoute>} />
 
             {/* Operator console routes (operator + admin) */}
             <Route path="/ops"                          element={<ProtectedRoute roles={['operator']}><OpsConsole /></ProtectedRoute>} />

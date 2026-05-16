@@ -6,7 +6,7 @@ import {
   Home as HomeIcon, Search, Calculator, LayoutDashboard, LogIn,
   Wallet as WalletIcon, FileText, ShieldAlert, Database, Receipt,
   Warehouse as WarehouseIcon, LifeBuoy, Globe, BookOpen, ScrollText, History,
-  Bell, Gift,
+  Bell, Gift, Trash2,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
@@ -265,6 +265,7 @@ function buildLinkSets({ isAuthenticated, isAdmin, role, t }) {
     { to: '/support',    label: 'Support',                         icon: LifeBuoy },
     { to: '/warehouse',  label: 'Warehouse address',               icon: WarehouseIcon },
     { to: '/dsar',       label: 'My data',                         icon: Database },
+    { to: '/account/delete', label: 'Delete my account',           icon: Trash2 },
   ] : []
 
   // Info / legal links (always visible)

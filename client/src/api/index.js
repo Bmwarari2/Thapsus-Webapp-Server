@@ -27,6 +27,21 @@ export const authApi = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ACCOUNT DELETION (14-day cooldown). Mirror of iOS AccountDeletionView.
+// ─────────────────────────────────────────────────────────────────────────────
+export const accountDeletionApi = {
+  /** GET — current request (or null) */
+  status:        () => api.get('/account/deletion-request'),
+  /** POST — start the 14-day cooldown, build + email export */
+  request:       () => api.post('/account/deletion-request'),
+  /** DELETE — cancel an active request */
+  cancel:        (reason) =>
+    api.delete('/account/deletion-request', reason ? { data: { reason } } : undefined),
+  /** GET — refresh the signed download URL when the previous one expires */
+  refreshExport: () => api.get('/account/deletion-request/export'),
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ORDERS  →  GET /api/orders  |  POST /api/orders  |  GET /api/orders/:id
 // ─────────────────────────────────────────────────────────────────────────────
 export const ordersApi = {
