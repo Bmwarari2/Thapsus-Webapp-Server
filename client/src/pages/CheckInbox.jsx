@@ -52,10 +52,13 @@ export const CheckInbox = () => {
             </div>
 
             <h2 className="text-xl font-black text-slate-900 mb-3">Check your inbox</h2>
-            <p className="text-slate-600 mb-6">
+            <p className="text-slate-600 mb-3">
               {email
                 ? <>We sent an activation link to <span className="font-semibold">{email}</span>. Tap it to finish setting up your account.</>
                 : 'Tap the activation link in the email we just sent to finish setting up your account.'}
+            </p>
+            <p className="text-slate-500 text-sm mb-6">
+              The link expires in <span className="font-semibold">24 hours</span>. After that, use Resend below to get a fresh one.
             </p>
 
             <div className="flex flex-col gap-3">
