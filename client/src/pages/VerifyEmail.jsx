@@ -42,10 +42,14 @@ export const VerifyEmail = () => {
         await verifyEmail(token)
         if (cancelled) return
         setState('verified')
-        // Short beat so the success state registers visually before we
-        // bounce — too-quick navigation looks like the click did nothing.
+        // Bounce to /login (not /dashboard) — verifying via a link is a
+        // confirmation step, not an auth event. The customer may have
+        // tapped the link from a shared / mobile inbox on a device they
+        // don't normally sign in from, so we ask for a deliberate sign-in
+        // rather than silently establishing a session here. Short beat
+        // first so the success state registers visually.
         setTimeout(() => {
-          if (!cancelled) navigate('/dashboard', { replace: true })
+          if (!cancelled) navigate('/login?verified=1', { replace: true })
         }, 1200)
       } catch (err) {
         if (cancelled) return
@@ -85,7 +89,7 @@ export const VerifyEmail = () => {
                   <CheckCircle2 className="text-green-600" size={56} />
                 </div>
                 <h2 className="text-xl font-black text-slate-900 mb-2">Email verified</h2>
-                <p className="text-slate-600">Welcome aboard. Redirecting you to your dashboard…</p>
+                <p className="text-slate-600">Your account is now active. Redirecting you to sign in…</p>
               </>
             )}
 

@@ -174,16 +174,18 @@ export function AuthProvider({ children }) {
   // ── verifyEmail ───────────────────────────────────────────────────────────
   /**
    * POST /auth/verify-email — used by the /verify-email page after the
-   * activation link is opened. On success the server returns the same
-   * auth bundle login does; we save the session and the user lands on
-   * /dashboard automatically via the page-level navigate.
+   * activation link is opened. The server returns the same auth bundle
+   * login does so mobile clients (iOS / Android) can auto-sign-in from
+   * the Universal / App Link.
+   *
+   * The web client intentionally DOES NOT save that session. Activating
+   * via a link is a confirmation step, not an auth event — the customer
+   * may have tapped the link from a shared / mobile inbox on a device
+   * they don't normally sign in from. We discard the returned token and
+   * leave the caller to bounce them to /login with a success toast.
    */
   const verifyEmail = useCallback(async (token) => {
-    const res = await authApi.verifyEmail(token)
-    const { token: scToken, user: verifiedUser } = res.data
-    saveSession(scToken, verifiedUser)
-    setUser(verifiedUser)
-    return verifiedUser
+    await authApi.verifyEmail(token)
   }, [])
 
   // ── resendVerification ────────────────────────────────────────────────────
