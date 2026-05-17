@@ -273,12 +273,19 @@ router.post('/parcels/:id/release', authMiddleware, ALLOWED, async (req, res) =>
  * printed SKU label so a parcel sitting on the warehouse shelf can be tied
  * back to a single user. The orders table only carries user_id; this is the
  * smallest projection that keeps PII off the per-parcel listing endpoint.
+ *
+ * 2026-05-17: also returns `delivery_address` so operators reading the
+ * receive screen can see where the parcel will eventually go without
+ * opening Admin → Users. Nullable when the customer hasn't filled their
+ * address; the mobile clients hide the row in that case.
  */
 router.get('/parcels/:id/customer', authMiddleware, ALLOWED, async (req, res) => {
   try {
     const { id } = req.params;
     const { rows } = await req.db.query(
-      `SELECT COALESCE(u.full_name, u.name) AS full_name, u.warehouse_id
+      `SELECT COALESCE(u.full_name, u.name) AS full_name,
+              u.warehouse_id,
+              u.delivery_address
          FROM orders o
          JOIN users  u ON u.id = o.user_id
         WHERE o.id = $1`,
@@ -290,8 +297,9 @@ router.get('/parcels/:id/customer', authMiddleware, ALLOWED, async (req, res) =>
     res.json({
       success: true,
       customer: {
-        full_name: rows[0].full_name,
-        warehouse_id: rows[0].warehouse_id,
+        full_name:        rows[0].full_name,
+        warehouse_id:     rows[0].warehouse_id,
+        delivery_address: rows[0].delivery_address,
       },
     });
   } catch (err) {
