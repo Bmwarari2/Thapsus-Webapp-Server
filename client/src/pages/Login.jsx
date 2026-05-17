@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
 import toast from 'react-hot-toast'
@@ -53,6 +53,13 @@ export const Login = () => {
     // Same-origin guard — only allow paths beginning with `/` so a
     // crafted ?next=https://evil.example.com link can't open-redirect.
     return next.startsWith('/') ? next : null
+  })()
+  // Set when /verify-email bounces here post-activation. Surfaces an
+  // explicit "Account activated — please sign in" banner so the user
+  // understands why they're back at the login screen.
+  const justVerified = (() => {
+    if (typeof window === 'undefined') return false
+    return new URLSearchParams(window.location.search).get('verified') === '1'
   })()
   const { t } = useLanguage()
   const [loading, setLoading] = useState(false)
@@ -154,6 +161,23 @@ export const Login = () => {
             </h1>
             <p className="text-slate-500 font-bold text-sm tracking-wide uppercase">{t('auth.login') || 'Sign in to your account'}</p>
           </div>
+
+          {/* Just-verified banner — set by /verify-email after a
+              successful activation. We never auto-sign the user in from
+              the link (deliberate; the click might happen on a shared
+              inbox), so we tell them why they're here and prompt the
+              normal credentials flow. */}
+          {justVerified && !emailUnverified && !error && (
+            <div className="mb-8 p-4 bg-green-50/80 backdrop-blur-md border border-green-200/60 rounded-2xl flex items-start gap-3 shadow-sm animate-in fade-in zoom-in duration-300">
+              <CheckCircle2 className="text-green-600 flex-shrink-0 mt-0.5" size={20} />
+              <div>
+                <p className="text-green-800 text-sm font-bold">Email verified</p>
+                <p className="text-green-700 text-sm mt-1">
+                  Your account is now active. Sign in to continue.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Email-not-verified banner — server PR N. Mirrors the iOS /
               Android emailUnverifiedBanner: explicit headline + a one-tap
