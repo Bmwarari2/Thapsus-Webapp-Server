@@ -18,6 +18,22 @@ export const authApi = {
   register: (name, email, phone, password, referral_code = null) =>
     api.post('/auth/register', { name, email, phone, password, referral_code }),
 
+  /**
+   * POST /api/auth/verify-email — consumes the one-shot token from the
+   * activation email (server PR N). Returns the same auth bundle login
+   * does on success so the caller can saveSession + setUser like a
+   * normal sign-in.
+   */
+  verifyEmail: (token) =>
+    api.post('/auth/verify-email', { token }),
+
+  /**
+   * POST /api/auth/resend-verification — generic anti-enumeration response;
+   * always 200 regardless of whether the address exists / is verified.
+   */
+  resendVerification: (email) =>
+    api.post('/auth/resend-verification', { email }),
+
   me: () => api.get('/auth/me'),
 
   updateProfile: (data) => api.put('/auth/profile', data),

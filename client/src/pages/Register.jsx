@@ -76,15 +76,23 @@ export const Register = () => {
 
     try {
       setLoading(true)
-      await register(
+      const result = await register(
         formData.name,
         formData.email,
         formData.phone,
         formData.password,
         formData.referralCode ? formData.referralCode.trim().toUpperCase() : null
       )
-      toast.success(t('auth.registerSuccess'))
-      navigate('/dashboard')
+      // Server PR N — new accounts return verificationRequired and no
+      // token. Route to the check-inbox view (which calls
+      // resendVerification on demand) instead of /dashboard.
+      if (result?.verificationRequired) {
+        toast.success('Check your inbox to activate your account.')
+        navigate(`/check-inbox?email=${encodeURIComponent(result.email)}`)
+      } else {
+        toast.success(t('auth.registerSuccess'))
+        navigate('/dashboard')
+      }
     } catch (err) {
       setError(err.message)
       toast.error(err.message)
