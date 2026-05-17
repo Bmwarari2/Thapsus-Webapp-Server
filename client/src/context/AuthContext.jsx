@@ -150,17 +150,52 @@ export function AuthProvider({ children }) {
   /**
    * Called from Register.jsx as:
    *   register(name, email, phone, password, referralCode)
+   *
+   * Returns a discriminated result:
+   *   { verificationRequired: true, email }  — server PR N: account
+   *     exists but is awaiting email verification, no token issued.
+   *     Caller should route to the check-inbox view instead of /dashboard.
+   *   { user }  — legacy / pre-PR-N server that auto-signs in.
    */
   const register = useCallback(
     async (name, email, phone, password, referralCode = null) => {
       const res = await authApi.register(name, email, phone, password, referralCode)
-      const { token, user: newUser } = res.data
+      const { token, user: newUser, verification_required } = res.data
+      if (verification_required || !token) {
+        return { verificationRequired: true, email }
+      }
       saveSession(token, newUser)
       setUser(newUser)
-      return newUser
+      return { user: newUser }
     },
     []
   )
+
+  // ── verifyEmail ───────────────────────────────────────────────────────────
+  /**
+   * POST /auth/verify-email — used by the /verify-email page after the
+   * activation link is opened. On success the server returns the same
+   * auth bundle login does; we save the session and the user lands on
+   * /dashboard automatically via the page-level navigate.
+   */
+  const verifyEmail = useCallback(async (token) => {
+    const res = await authApi.verifyEmail(token)
+    const { token: scToken, user: verifiedUser } = res.data
+    saveSession(scToken, verifiedUser)
+    setUser(verifiedUser)
+    return verifiedUser
+  }, [])
+
+  // ── resendVerification ────────────────────────────────────────────────────
+  /**
+   * POST /auth/resend-verification — mints a fresh activation email for
+   * an unverified account. Generic anti-enumeration response shape, so
+   * the caller can't tell whether an email actually went out — surface
+   * a generic "if your account exists, we've sent a fresh link" toast.
+   */
+  const resendVerification = useCallback(async (email) => {
+    await authApi.resendVerification(email)
+  }, [])
 
   // ── logout ────────────────────────────────────────────────────────────────
   const logout = useCallback(() => {
@@ -191,6 +226,8 @@ export function AuthProvider({ children }) {
     loading,
     login,
     register,
+    verifyEmail,
+    resendVerification,
     logout,
     updateProfile,
     isAdmin: user?.role === 'admin',

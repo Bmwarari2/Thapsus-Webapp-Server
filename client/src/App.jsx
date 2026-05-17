@@ -25,6 +25,8 @@ import { Home } from './pages/Home'
 // This reduces the initial JS bundle by ~180 KiB (PageSpeed "Reduce unused JS")
 const Login             = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })))
 const Register          = lazy(() => import('./pages/Register').then(m => ({ default: m.Register })))
+const CheckInbox        = lazy(() => import('./pages/CheckInbox').then(m => ({ default: m.CheckInbox })))
+const VerifyEmail       = lazy(() => import('./pages/VerifyEmail').then(m => ({ default: m.VerifyEmail })))
 const Dashboard         = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })))
 const TrackPackage      = lazy(() => import('./pages/TrackPackage').then(m => ({ default: m.TrackPackage })))
 const PricingCalculator = lazy(() => import('./pages/PricingCalculator').then(m => ({ default: m.PricingCalculator })))
@@ -115,6 +117,8 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/check-inbox" element={<CheckInbox />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/track" element={<TrackPackage />} />
             {/* Universal links (iOS) and customer-shared URLs land here when
                 the app isn't installed. Same component pre-fills the
