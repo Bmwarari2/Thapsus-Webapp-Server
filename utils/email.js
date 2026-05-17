@@ -304,6 +304,35 @@ function emailLayout(bodyHtml) {
 
 // ── Exported Email Functions ───────────────────────────────────────────────
 
+async function sendEmailVerificationEmail(toEmail, toName, verifyLink) {
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Activate your account</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 24px;color:#4b5563;font-size:16px;line-height:1.6;">
+      Welcome to Thapsus Cargo. Tap the button below to confirm your email
+      and unlock your account. This link will expire in 24 hours.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
+      <tr>
+        <td style="background-color:#f97316;border-radius:8px;">
+          <a href="${verifyLink}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">Activate my account</a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.6;">
+      Didn't sign up? You can safely ignore this email — no account will be created.
+    </p>`;
+  const subject = 'Activate your Thapsus Cargo account';
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'email_verification', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'email_verification', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
 async function sendPasswordResetEmail(toEmail, toName, resetLink) {
   const bodyHtml = `
     <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Password Reset Request</h2>
@@ -1333,6 +1362,7 @@ async function sendAccountDeletionRequestedEmail({ toEmail, toName, scheduledDel
 // ── Exports ────────────────────────────────────────────────────────────────────
 
 export {
+  sendEmailVerificationEmail,
   sendPasswordResetEmail,
   sendAdminPasswordResetEmail,
   sendPaymentRequestEmail,
@@ -1359,6 +1389,7 @@ export {
 };
 
 export default {
+  sendEmailVerificationEmail,
   sendPasswordResetEmail,
   sendAdminPasswordResetEmail,
   sendPaymentRequestEmail,

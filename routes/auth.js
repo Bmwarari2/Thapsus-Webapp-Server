@@ -195,23 +195,34 @@ router.post('/register', async (req, res) => {
       client.release();
     }
 
-    const token = jwt.sign(
-      { id: userId, email, name, role: 'customer', warehouse_id: warehouseId },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRY }
+    // Email verification (migration 004). Sign-up no longer auto-signs the
+    // user in: we mint a one-shot 24h token, hash it for at-rest storage,
+    // email a verification link, and respond with `verification_required`
+    // so the client can show "check your inbox" instead of routing into the
+    // role-tabs. The user becomes able to sign in once they hit
+    // POST /api/auth/verify-email with the plaintext token.
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationHash = resetTokenSha256(verificationToken);
+    const verificationId = uuidv4();
+    const verificationExpiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+    await db.query(
+      `INSERT INTO email_verification_tokens (id, user_id, token, token_sha256, expires_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [verificationId, userId, verificationToken, verificationHash, verificationExpiresAt]
     );
 
-    const supabase = safeMintSupabaseToken(
-      { id: userId, email, role: 'customer' },
-      'auth/register'
-    );
+    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
+    const verifyLink = `${frontendUrl}/verify-email?token=${verificationToken}`;
+    import('../utils/email.js')
+      .then(({ sendEmailVerificationEmail }) =>
+        sendEmailVerificationEmail(email, name, verifyLink)
+      )
+      .catch(console.error);
 
     res.status(201).json({
       success: true,
-      message: 'Registration successful',
-      token,
-      supabase_token: supabase?.token || null,
-      supabase_token_expires_at: supabase?.expiresAt || null,
+      message: 'Registration successful. Please check your email to activate your account.',
+      verification_required: true,
       user: { id: userId, email, name, phone, warehouse_id: warehouseId, referral_code: newReferralCode, role: 'customer' }
     });
   } catch (error) {
@@ -234,7 +245,8 @@ router.post('/login', async (req, res) => {
     const email = String(rawEmail).trim().toLowerCase();
 
     const { rows } = await db.query(
-      `SELECT id,email,password_hash,name,role,warehouse_id,language_pref,referral_code
+      `SELECT id,email,password_hash,name,role,warehouse_id,language_pref,referral_code,
+              email_verified_at
        FROM users WHERE email=$1 AND is_active=true`,
       [email]
     );
@@ -248,6 +260,19 @@ router.post('/login', async (req, res) => {
     const passwordMatched = await bcrypt.compare(password, hashToCompare);
     if (!user || !passwordMatched) {
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
+    }
+
+    // Email verification gate (migration 004). Unverified accounts can't
+    // sign in; the response carries `code: 'email_unverified'` so the
+    // client can swap the generic error banner for a "resend verification
+    // email" affordance. Pre-existing accounts were backfilled to verified
+    // by the migration, so this branch only fires for post-launch sign-ups.
+    if (user.email_verified_at === null) {
+      return res.status(403).json({
+        success: false,
+        code: 'email_unverified',
+        message: 'Please activate your account from the link we emailed you, then sign in again.'
+      });
     }
 
     const token = jwt.sign(
@@ -572,6 +597,160 @@ router.post('/forgot-password', async (req, res) => {
   } catch (error) {
     console.error('Forgot password error:', error);
     logRouteError(req, res, error, 'Forgot password error');
+    res.status(500).json({ success: false, message: 'Failed to process request' });
+  }
+});
+
+// POST /api/auth/verify-email
+//
+// Consumes a one-shot token minted by /register or /resend-verification,
+// stamps `users.email_verified_at`, marks every pending verification token
+// for that user as used, and returns the same auth bundle /login would
+// (JWT + Supabase token + user row). Clients can transition directly into
+// the role-routed tab view on success.
+//
+// Lookup is by SHA-256 hash so a DB dump never lets an attacker mint a
+// verified account. The legacy `token = $2` clause is kept for symmetry
+// with /reset-password during the grace period.
+router.post('/verify-email', async (req, res) => {
+  try {
+    const { token } = req.body;
+    const db = req.db;
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Verification token is required' });
+    }
+    const tokenHash = resetTokenSha256(token);
+    const tokenRes = await db.query(
+      `SELECT t.id, t.user_id
+         FROM email_verification_tokens t
+        WHERE (t.token_sha256 = $1 OR t.token = $2)
+          AND t.used = false
+          AND t.expires_at > NOW()`,
+      [tokenHash, token]
+    );
+    if (tokenRes.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'This verification link is invalid or has expired. Request a fresh one and try again.'
+      });
+    }
+    const { id: tokenId, user_id: userId } = tokenRes.rows[0];
+
+    await db.query('BEGIN');
+    try {
+      await db.query(
+        `UPDATE users
+            SET email_verified_at = NOW(), updated_at = NOW()
+          WHERE id = $1
+            AND email_verified_at IS NULL`,
+        [userId]
+      );
+      await db.query(
+        'UPDATE email_verification_tokens SET used = true WHERE id = $1',
+        [tokenId]
+      );
+      await db.query(
+        'UPDATE email_verification_tokens SET used = true WHERE user_id = $1 AND used = false',
+        [userId]
+      );
+      await db.query('COMMIT');
+    } catch (e) {
+      await db.query('ROLLBACK');
+      throw e;
+    }
+
+    const { rows } = await db.query(
+      `SELECT id, email, name, role, warehouse_id, language_pref, referral_code
+         FROM users WHERE id = $1`,
+      [userId]
+    );
+    const user = rows[0];
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const jwtToken = jwt.sign(
+      { id: user.id, email: user.email, name: user.name, role: user.role, warehouse_id: user.warehouse_id },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    );
+    const supabase = safeMintSupabaseToken(
+      { id: user.id, email: user.email, role: user.role },
+      'auth/verify-email'
+    );
+
+    res.json({
+      success: true,
+      message: 'Email verified. Welcome aboard.',
+      token: jwtToken,
+      supabase_token: supabase?.token || null,
+      supabase_token_expires_at: supabase?.expiresAt || null,
+      user
+    });
+  } catch (error) {
+    console.error('Verify email error:', error);
+    logRouteError(req, res, error, 'Verify email error');
+    res.status(500).json({ success: false, message: 'Failed to verify email' });
+  }
+});
+
+// POST /api/auth/resend-verification
+//
+// Issues a fresh 24h token + email for an unverified account. Always
+// returns 200 with the generic "if an account exists" message — same
+// anti-enumeration shape /forgot-password uses. Already-verified
+// addresses silently no-op; the customer can just sign in.
+router.post('/resend-verification', async (req, res) => {
+  try {
+    const { email: rawEmail } = req.body;
+    const db = req.db;
+    if (!rawEmail) {
+      return res.status(400).json({ success: false, message: 'Email is required' });
+    }
+    const email = String(rawEmail).trim().toLowerCase();
+    const userRes = await db.query(
+      `SELECT id, name, email, email_verified_at
+         FROM users
+        WHERE email = $1 AND is_active = true`,
+      [email]
+    );
+    // Generic response regardless — prevents enumeration via the
+    // verify endpoint just like forgot-password does.
+    const respondGeneric = () => res.json({
+      success: true,
+      message: 'If your account is awaiting verification, a fresh activation email has been sent.'
+    });
+    if (userRes.rows.length === 0) return respondGeneric();
+    const user = userRes.rows[0];
+    if (user.email_verified_at !== null) return respondGeneric();
+
+    await db.query(
+      'UPDATE email_verification_tokens SET used = true WHERE user_id = $1 AND used = false',
+      [user.id]
+    );
+
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationHash = resetTokenSha256(verificationToken);
+    const verificationId = uuidv4();
+    const verificationExpiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+    await db.query(
+      `INSERT INTO email_verification_tokens (id, user_id, token, token_sha256, expires_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [verificationId, user.id, verificationToken, verificationHash, verificationExpiresAt]
+    );
+
+    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
+    const verifyLink = `${frontendUrl}/verify-email?token=${verificationToken}`;
+    import('../utils/email.js')
+      .then(({ sendEmailVerificationEmail }) =>
+        sendEmailVerificationEmail(user.email, user.name, verifyLink)
+      )
+      .catch(console.error);
+
+    respondGeneric();
+  } catch (error) {
+    console.error('Resend verification error:', error);
+    logRouteError(req, res, error, 'Resend verification error');
     res.status(500).json({ success: false, message: 'Failed to process request' });
   }
 });
