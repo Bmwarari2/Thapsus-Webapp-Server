@@ -10,15 +10,15 @@
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^6.3.0",
-    "@stripe/stripe-js": "^9.4.0",
+    "@stripe/stripe-js": "^9.5.0",
     "@zxing/browser": "^0.2.0",
-    "axios": "^1.7.9",
-    "lucide-react": "^1.14.0",
+    "axios": "^1.16.1",
+    "lucide-react": "^1.16.0",
     "react": "^19.2.0",
     "react-barcode": "^1.6.1",
     "react-dom": "^19.2.0",
     "react-hot-toast": "^2.4.1",
-    "react-router-dom": "^7.15.0",
+    "react-router-dom": "^7.15.1",
     "recharts": "^3.8.1"
   },
   "devDependencies": {
