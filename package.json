@@ -23,7 +23,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "express-rate-limit": "^8.1.0",
+    "express-rate-limit": "^8.5.2",
     "googleapis": "^171.4.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
@@ -31,12 +31,12 @@
     "pg": "^8.11.3",
     "stripe": "^22.1.1",
     "uuid": "^14.0.0",
-    "ws": "^8.20.0",
+    "ws": "^8.20.1",
     "xss": "^1.0.15"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.4",
-    "@vitest/coverage-v8": "^4.1.5",
+    "@vitest/coverage-v8": "^4.1.6",
     "autoprefixer": "^10.4.16",
     "postcss": "^8.4.32",
     "supertest": "^7.1.0",
