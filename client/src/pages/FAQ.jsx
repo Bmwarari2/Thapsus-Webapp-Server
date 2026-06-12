@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
-import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react'
+import { Plus, Minus, HelpCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { PillLabel } from '../components/ui'
+import { Reveal } from '../components/motion'
 
 const faqs = [
   {
@@ -110,93 +112,67 @@ const faqs = [
 const FAQItem = ({ q, a }) => {
   const [open, setOpen] = useState(false)
   return (
-    <div className="border border-white/20 rounded-xl overflow-hidden bg-white/30 backdrop-blur-sm transition-all duration-300">
+    <div className={`rounded-2xl border bg-surface transition-colors duration-300 ${open ? 'border-ember-500/30' : 'border-line hover:border-line-strong'}`}>
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-start justify-between gap-4 p-5 text-left hover:bg-white/20 transition-colors"
+        className="w-full flex items-center justify-between gap-4 p-5 text-left"
         aria-expanded={open}
       >
-        <span className="font-bold text-[#1e3a5f] text-sm md:text-base leading-snug">{q}</span>
-        {open
-          ? <ChevronUp size={20} className="text-orange-700 flex-shrink-0 mt-0.5" />
-          : <ChevronDown size={20} className="text-slate-400 flex-shrink-0 mt-0.5" />
-        }
+        <span className="font-semibold text-white text-sm md:text-base leading-snug">{q}</span>
+        <span className={`shrink-0 grid place-items-center w-7 h-7 rounded-full border transition-colors ${open ? 'bg-ember-gradient text-white border-transparent' : 'border-line text-mute'}`}>
+          {open ? <Minus size={15} /> : <Plus size={15} />}
+        </span>
       </button>
-      {open && (
-        <div className="px-5 pb-5 text-slate-700 text-sm md:text-base leading-relaxed font-medium border-t border-white/20 pt-4">
-          {a}
+      <div className={`grid transition-all duration-300 ease-smooth ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+        <div className="overflow-hidden">
+          <div className="px-5 pb-5 text-mute text-sm md:text-base leading-relaxed">{a}</div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
 
 export const FAQ = () => {
   return (
-    <div className="min-h-screen relative bg-slate-50 overflow-hidden py-12 px-4 font-sans">
-      {/* Liquid Backgrounds */}
-      
-      
+    <div className="relative overflow-hidden py-14 px-4">
+      <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[44rem] h-[44rem] bg-ember-radial blur-2xl pointer-events-none" />
 
-      <div className="max-w-3xl mx-auto relative z-10">
+      <div className="max-w-3xl mx-auto relative">
         {/* Header */}
-        <div className="mb-12 text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-orange-500/10 border border-orange-500/20 mb-6">
-            <HelpCircle size={32} className="text-orange-700" />
-          </div>
-          <h1 className="text-4xl md:text-5xl font-black text-[#1e3a5f] mb-4 leading-none tracking-tighter">
-            Help Centre
-          </h1>
-          <p className="text-slate-600 font-medium text-lg max-w-xl mx-auto">
+        <Reveal className="mb-12 text-center space-y-5">
+          <div className="flex justify-center"><PillLabel>Questions answered</PillLabel></div>
+          <div className="flex justify-center"><span className="ember-badge w-16 h-16 rounded-3xl"><HelpCircle size={32} /></span></div>
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white">Help centre</h1>
+          <p className="text-mute text-lg max-w-xl mx-auto">
             Answers to the most common questions about shipping with Thapsus Cargo.
           </p>
-        </div>
+        </Reveal>
 
-        {/* FAQ Sections */}
+        {/* Sections */}
         <div className="space-y-10">
           {faqs.map(({ category, items }) => (
-            <div key={category}>
-              <h2 className="text-xs font-black uppercase tracking-widest text-orange-700 mb-4 px-1">
-                {category}
-              </h2>
+            <Reveal key={category}>
+              <h2 className="eyebrow !tracking-widest mb-4 px-1">{category}</h2>
               <div className="space-y-3">
-                {items.map((item) => (
-                  <FAQItem key={item.q} {...item} />
-                ))}
+                {items.map((item) => <FAQItem key={item.q} {...item} />)}
               </div>
-            </div>
+            </Reveal>
           ))}
         </div>
 
-        {/* Still need help CTA */}
-        <div className="mt-14 rounded-2xl bg-[#1e3a5f] text-white p-8 text-center">
-          <h3 className="text-2xl font-black tracking-tighter mb-2">Still need help?</h3>
-          <p className="text-slate-300 font-medium mb-6">
-            Our support team is here to assist you with any questions not covered above.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a
-              href="https://wa.me/447424531483"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-6 py-3 bg-green-500 hover:bg-green-400 text-white font-black rounded-xl transition-colors"
-            >
-              WhatsApp Us
-            </a>
-            <a
-              href="mailto:admin@thapsus.uk"
-              className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-black rounded-xl border border-white/20 transition-colors"
-            >
-              Email Support
-            </a>
-            <Link
-              to="/support"
-              className="px-6 py-3 bg-orange-500 hover:bg-orange-400 text-white font-black rounded-xl transition-colors"
-            >
-              Open a Ticket
-            </Link>
+        {/* Still need help */}
+        <Reveal className="mt-14">
+          <div className="glow-card p-8 text-center">
+            <h3 className="text-2xl font-bold text-white mb-2">Still need help?</h3>
+            <p className="text-mute mb-6">Our support team is here to assist with anything not covered above.</p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <a href="https://wa.me/447424531483" target="_blank" rel="noopener noreferrer"
+                className="btn bg-[#25D366] hover:bg-[#1ebe5b] text-white">WhatsApp us</a>
+              <a href="mailto:admin@thapsus.uk" className="btn-secondary">Email support</a>
+              <Link to="/support" className="btn-primary glass-sheen">Open a ticket</Link>
+            </div>
           </div>
-        </div>
+        </Reveal>
       </div>
     </div>
   )
