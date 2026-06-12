@@ -1,5 +1,10 @@
 import plugin from 'tailwindcss/plugin'
 
+/**
+ * Thapsus Cargo — dark design system ("Ember")
+ * Palette derived from the logo: amber #F5A623 → orange #F26418 → scarlet #F03000.
+ * Near-black surfaces, soft orange glows, white headings, gray body.
+ */
 export default {
   content: [
     "./index.html",
@@ -8,130 +13,92 @@ export default {
   theme: {
     extend: {
       colors: {
-        // ── Brand: Navy ──────────────────────────────────────────────────
-        // DEFAULT keeps `text-navy` / `bg-navy` / `border-navy` working as
-        // before, while the numeric scale unlocks subtle tints (navy-50 for
-        // soft fills, navy-700/800 for hover/active depth) so the whole UI can
-        // breathe in one consistent brand hue instead of ad-hoc hex literals.
-        navy: {
-          50:  '#eef3f8',
-          100: '#d6e1ee',
-          200: '#aec3da',
-          300: '#7c9cc0',
-          400: '#4f74a0',
-          500: '#345887',
-          600: '#264a72',
-          DEFAULT: '#1e3a5f',
-          700: '#1a3354',
-          800: '#152941',
-          900: '#0f1d30',
+        // ── Dark surfaces ────────────────────────────────────────────────
+        ink: {
+          DEFAULT: '#08080B',  // page background (deepest)
+          800: '#0C0C10',
+          700: '#101015',
         },
-        // ── Brand: Orange (accent / CTA) ─────────────────────────────────
-        'brand-orange': '#f97316',
-        accent: {
-          50:  '#fff7ed',
-          100: '#ffedd5',
-          200: '#fed7aa',
-          300: '#fdba74',
-          400: '#fb923c',
-          500: '#f97316',
-          DEFAULT: '#f97316',
-          600: '#ea580c',
-          700: '#c2410c',
+        surface: {
+          DEFAULT: '#121216',  // base card
+          2: '#17171D',        // elevated card / input
+          3: '#1F1F27',        // hover / pressed
         },
+        // hairline borders (use as border-line / bg-line)
+        line: 'rgba(255,255,255,0.08)',
+        'line-strong': 'rgba(255,255,255,0.14)',
+        // ── Ember accent (from the logo) ─────────────────────────────────
+        ember: {
+          50:  '#fff5ec',
+          100: '#ffe5d0',
+          200: '#fec9a3',
+          300: '#fba76a',
+          400: '#f5a623',  // logo amber
+          500: '#f26418',  // logo orange — primary accent
+          DEFAULT: '#f26418',
+          600: '#f03000',  // logo scarlet
+          700: '#c2280a',
+        },
+        // muted text helpers
+        mute: '#9aa0aa',
+        dim:  '#6b7280',
+        // transition-safety: legacy (not-yet-converted) pages still reference navy
+        navy: '#1e3a5f',
+        'brand-orange': '#f26418',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
-      // ── Motion easing tokens ───────────────────────────────────────────
-      // One shared rhythm for the whole app. `smooth` for everyday state
-      // changes, `spring` for the gentle overshoot on press/pop, `out-expo`
-      // for confident entrances that decelerate hard then settle.
       transitionTimingFunction: {
         smooth:    'cubic-bezier(0.4, 0, 0.2, 1)',
         spring:    'cubic-bezier(0.34, 1.4, 0.5, 1)',
         'out-expo':'cubic-bezier(0.16, 1, 0.3, 1)',
       },
-      keyframes: {
-        fadeIn: {
-          from: { opacity: '0', transform: 'translateY(8px)' },
-          to:   { opacity: '1', transform: 'translateY(0)' },
-        },
-        slideUp: {
-          from: { opacity: '0', transform: 'translateY(20px)' },
-          to:   { opacity: '1', transform: 'translateY(0)' },
-        },
-        scaleIn: {
-          from: { opacity: '0', transform: 'scale(0.96)' },
-          to:   { opacity: '1', transform: 'scale(1)' },
-        },
-        // Skeleton shimmer — sweeps a soft highlight across loading surfaces.
-        shimmer: {
-          '100%': { transform: 'translateX(100%)' },
-        },
-        // Repurposed from the old orange neon "glow": now a calm, brand-tinted
-        // elevation breathe with no saturated halo. Conveys "live / active"
-        // without the neon look.
-        glow: {
-          '0%, 100%': { boxShadow: '0 1px 2px rgba(15,23,42,0.06)' },
-          '50%':      { boxShadow: '0 8px 24px -6px rgba(30,58,95,0.22)' },
-        },
-        liquidShift: {
-          '0%, 100%': { transform: 'translate3d(0,0,0)' },
-          '50%':      { transform: 'translate3d(0,-1px,0)' },
-        },
+      backgroundImage: {
+        'ember-gradient': 'linear-gradient(135deg, #f5a623 0%, #f26418 48%, #f03000 100%)',
+        'ember-soft':     'radial-gradient(120% 120% at 100% 0%, rgba(242,100,24,0.20) 0%, rgba(242,100,24,0) 55%)',
+        'ember-radial':   'radial-gradient(60% 60% at 50% 0%, rgba(242,100,24,0.16) 0%, rgba(242,100,24,0) 70%)',
       },
-      animation: {
-        'fade-in':     'fadeIn 0.4s cubic-bezier(0.16,1,0.3,1) both',
-        'slide-up':    'slideUp 0.45s cubic-bezier(0.16,1,0.3,1) both',
-        'scale-in':    'scaleIn 0.28s cubic-bezier(0.34,1.4,0.5,1) both',
-        'shimmer':     'shimmer 1.6s infinite',
-        'glow':        'glow 2.8s ease-in-out infinite',
-        'liquid-shift':'liquidShift 7s ease-in-out infinite',
-      },
-      // ── Elevation scale ────────────────────────────────────────────────
-      // Soft, neutral-tinted, layered shadows (ambient + contact) for a clean
-      // modern depth. No inset speculars, no colored neon halos.
       boxShadow: {
-        xs:   '0 1px 2px rgba(15,23,42,0.05)',
-        card: '0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.06)',
-        'card-hover': '0 10px 24px -8px rgba(15,23,42,0.14), 0 4px 8px -6px rgba(15,23,42,0.08)',
-        soft: '0 4px 16px -4px rgba(15,23,42,0.10)',
-        float:'0 12px 32px -8px rgba(15,23,42,0.16), 0 4px 10px -6px rgba(15,23,42,0.08)',
-        // Kept for backward compatibility, retuned to a clean frosted look
-        // (no inset highlight) so legacy references stay sleek, not glassy.
-        'liquid-glass':        '0 8px 30px -10px rgba(15,23,42,0.18)',
-        'liquid-glass-strong': '0 18px 48px -14px rgba(15,23,42,0.28)',
+        card:        '0 1px 0 0 rgba(255,255,255,0.04) inset, 0 12px 32px -16px rgba(0,0,0,0.8)',
+        'card-hover':'0 0 0 1px rgba(255,255,255,0.09) inset, 0 24px 60px -20px rgba(0,0,0,0.85)',
+        ember:       '0 12px 40px -10px rgba(242,100,24,0.50)',
+        'ember-sm':  '0 6px 22px -8px rgba(242,100,24,0.45)',
+        'glow-ring': '0 0 0 1px rgba(242,100,24,0.40), 0 0 32px -4px rgba(242,100,24,0.38)',
       },
       borderRadius: {
         '2xl': '1rem',
         '3xl': '1.5rem',
+        '4xl': '2rem',
+        '5xl': '2.5rem',
       },
-      textShadow: {
-        DEFAULT: '0 1px 2px rgba(0,0,0,0.18)',
-        glass:   '0 1px 1px rgba(0,0,0,0.20), 0 0 6px rgba(255,255,255,0.20)',
+      keyframes: {
+        fadeIn:  { from: { opacity: '0', transform: 'translateY(8px)' },  to: { opacity: '1', transform: 'translateY(0)' } },
+        slideUp: { from: { opacity: '0', transform: 'translateY(22px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
+        scaleIn: { from: { opacity: '0', transform: 'scale(0.96)' },      to: { opacity: '1', transform: 'scale(1)' } },
+        shimmer: { '100%': { transform: 'translateX(100%)' } },
+        scroll:  { '0%': { transform: 'translateX(0)' }, '100%': { transform: 'translateX(-33.333%)' } },
+        float:   { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-8px)' } },
+        emberPulse: {
+          '0%,100%': { opacity: '0.5' },
+          '50%':     { opacity: '1' },
+        },
+      },
+      animation: {
+        'fade-in':  'fadeIn 0.5s cubic-bezier(0.16,1,0.3,1) both',
+        'slide-up': 'slideUp 0.6s cubic-bezier(0.16,1,0.3,1) both',
+        'scale-in': 'scaleIn 0.3s cubic-bezier(0.34,1.4,0.5,1) both',
+        'shimmer':  'shimmer 1.6s infinite',
+        'scroll':   'scroll 36s linear infinite',
+        'float':    'float 6s ease-in-out infinite',
+        'ember-pulse': 'emberPulse 3s ease-in-out infinite',
       },
     },
   },
   plugins: [
     require('@tailwindcss/forms'),
-
-    // Variant: prefers-reduced-transparency:reduce
-    // Lets components opt out of backdrop blur / translucent fills when the OS
-    // signals the user wants reduced transparency, which is critical for WCAG
-    // contrast on the floating frosted pill.
     plugin(({ addVariant }) => {
       addVariant('reduce-transparency', '@media (prefers-reduced-transparency: reduce)')
-    }),
-
-    // Utilities: text-shadow-* (Tailwind has no built-in text-shadow utility)
-    plugin(({ matchUtilities, theme }) => {
-      matchUtilities(
-        {
-          'text-shadow': (value) => ({ textShadow: value }),
-        },
-        { values: theme('textShadow') }
-      )
     }),
   ],
 }

@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from 'react'
 import { Routes, Route } from 'react-router-dom'
-import { Nav } from './components/Nav'
+import { LiquidGlassNav } from './components/LiquidGlassNav'
 import { Footer } from './components/Footer'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { SupportChatWidget } from './components/SupportChatWidget'
@@ -89,16 +89,24 @@ function App() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Nav />
+      <LiquidGlassNav />
 
-      {/* Top spacer reserves layout space for the fixed h-16 top bar so page
-          content doesn't sit underneath it (+ notch safe-area on mobile). */}
+      {/* Top spacer reserves layout space for the fixed top bar so page
+          content doesn't sit underneath it.
+            mobile: 3.25rem brand bar + safe-area inset (notch / Dynamic Island)
+            desktop (lg+): 4rem nav bar
+       */}
       <div
         aria-hidden="true"
-        className="shrink-0 h-[calc(env(safe-area-inset-top,0px)+4rem)]"
+        className="shrink-0 h-[calc(env(safe-area-inset-top,0px)+3.25rem)] lg:h-16"
       />
 
-      <main className="relative flex-grow">
+      {/* Main flex region. On mobile we reserve bottom padding for the
+          floating bottom-pill tab bar — pill height (~3.5rem) + bottom
+          margin (0.75rem) + safe-area-inset-bottom for the iPhone home
+          indicator. The pill itself floats with z-50, so the padding is
+          purely so page content / Footer don't sit underneath it. */}
+      <main className="relative flex-grow pb-[calc(5rem+env(safe-area-inset-bottom,0px))] lg:pb-0">
         <ScrollToTop />
         <GoogleAnalytics />
         <MetaPixel />
