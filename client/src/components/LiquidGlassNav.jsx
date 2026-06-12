@@ -129,35 +129,34 @@ function useScrollDirection({ threshold = 8, topOffset = 80 } = {}) {
 // ──────────────────────────────────────────────────────────────────────────
 
 const SURFACE_THIN = [
-  'bg-neutral-300/20 dark:bg-neutral-400/20',
-  'backdrop-blur-md backdrop-saturate-150',
-  'border-b border-white/20 dark:border-white/10',
-  'shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),0_1px_12px_rgba(0,0,0,0.06)]',
+  'bg-white/75 dark:bg-neutral-900/70',
+  'backdrop-blur-lg backdrop-saturate-150',
+  'border-b border-gray-200/70 dark:border-white/10',
+  'shadow-[0_1px_0_rgba(15,23,42,0.04),0_8px_22px_-16px_rgba(15,23,42,0.20)]',
   'reduce-transparency:bg-white reduce-transparency:dark:bg-gray-900',
   'reduce-transparency:backdrop-blur-0 reduce-transparency:backdrop-saturate-100',
   'reduce-transparency:border-slate-300 reduce-transparency:dark:border-slate-700',
 ].join(' ')
 
 const SURFACE_MEDIUM = [
-  'bg-neutral-300/20 dark:bg-neutral-400/20',
+  'bg-white/75 dark:bg-neutral-900/70',
   'backdrop-blur-xl backdrop-saturate-150',
-  'border-t border-white/20 dark:border-white/10',
-  'shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),0_-2px_18px_rgba(0,0,0,0.08)]',
+  'border-t border-gray-200/70 dark:border-white/10',
+  'shadow-[0_-1px_0_rgba(15,23,42,0.04),0_-10px_28px_-18px_rgba(15,23,42,0.22)]',
   'reduce-transparency:bg-white reduce-transparency:dark:bg-gray-900',
   'reduce-transparency:backdrop-blur-0 reduce-transparency:backdrop-saturate-100',
   'reduce-transparency:border-slate-300 reduce-transparency:dark:border-slate-700',
 ].join(' ')
 
-// Stronger-tint variant for the floating bottom pill. The pill sits over
-// arbitrary page content so it needs a more opaque base than the edge-to-
-// edge bars to keep tab labels legible against any background. We also
-// rim-light the capsule with a brighter inset highlight to read as cut
-// glass even on busy photographic underlays.
+// Floating bottom pill. It sits over arbitrary page content, so it carries a
+// more opaque frosted base to keep tab labels legible against any background,
+// plus a clean hairline border and a soft single drop shadow (no inset
+// speculars / cut-glass rim — just a calm, modern floating surface).
 const SURFACE_PILL = [
-  'bg-white/55 dark:bg-neutral-900/65',
+  'bg-white/80 dark:bg-neutral-900/75',
   'backdrop-blur-2xl backdrop-saturate-150',
-  'border border-white/50 dark:border-white/10',
-  'shadow-[inset_0_1px_1px_rgba(255,255,255,0.55),inset_0_-1px_1px_rgba(0,0,0,0.04),0_10px_30px_rgba(0,0,0,0.18)]',
+  'border border-gray-200/70 dark:border-white/10',
+  'shadow-[0_12px_32px_-8px_rgba(15,23,42,0.18),0_4px_10px_-6px_rgba(15,23,42,0.10)]',
   'reduce-transparency:bg-white reduce-transparency:dark:bg-gray-900',
   'reduce-transparency:backdrop-blur-0 reduce-transparency:backdrop-saturate-100',
   'reduce-transparency:border-slate-300 reduce-transparency:dark:border-slate-700',
@@ -170,20 +169,20 @@ const SURFACE_PILL = [
 // guarantee text/control contrast even when scrolling over photographic
 // hero sections.
 const SURFACE_THICK = [
-  'bg-white/85 dark:bg-neutral-900/85',
+  'bg-white/90 dark:bg-neutral-900/90',
   'backdrop-blur-2xl backdrop-saturate-150',
-  'border border-white/40 dark:border-white/10',
-  'shadow-[inset_0_1px_1px_rgba(255,255,255,0.5),0_24px_60px_rgba(0,0,0,0.22)]',
+  'border border-gray-200/70 dark:border-white/10',
+  'shadow-[0_24px_60px_-20px_rgba(15,23,42,0.30)]',
   'reduce-transparency:bg-white reduce-transparency:dark:bg-gray-900',
   'reduce-transparency:backdrop-blur-0 reduce-transparency:backdrop-saturate-100',
   'reduce-transparency:border-slate-300 reduce-transparency:dark:border-slate-700',
 ].join(' ')
 
 const SURFACE_DROPDOWN = [
-  'bg-white/70 dark:bg-neutral-900/70',
+  'bg-white/85 dark:bg-neutral-900/85',
   'backdrop-blur-2xl backdrop-saturate-150',
-  'border border-white/40 dark:border-white/10',
-  'shadow-[inset_0_1px_1px_rgba(255,255,255,0.5),0_18px_50px_rgba(0,0,0,0.18)]',
+  'border border-gray-200/70 dark:border-white/10',
+  'shadow-[0_18px_50px_-18px_rgba(15,23,42,0.26)]',
   'reduce-transparency:bg-white reduce-transparency:dark:bg-gray-900',
   'reduce-transparency:backdrop-blur-0 reduce-transparency:backdrop-saturate-100',
   'reduce-transparency:border-slate-300 reduce-transparency:dark:border-slate-700',
