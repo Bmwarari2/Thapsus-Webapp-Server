@@ -3,18 +3,12 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Mail, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { PillLabel } from '../components/ui'
 
 /**
  * /check-inbox?email=<user@example.com>
- *
- * Landing surface after a successful /register call when the server
- * returned verification_required = true (PR N). Surfaces the registered
- * email + a one-tap "Resend activation email" affordance backed by
- * AuthContext.resendVerification. The activation link itself opens
- * /verify-email which completes the flow + drops the user on /dashboard.
- *
- * Email comes in via querystring so a refresh / bookmark doesn't lose
- * context; falls back to a generic prompt when absent.
+ * Landing after register when verification_required = true. Shows the
+ * registered email + a one-tap resend backed by AuthContext.resendVerification.
  */
 export const CheckInbox = () => {
   const [search] = useSearchParams()
@@ -36,48 +30,33 @@ export const CheckInbox = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center px-4 py-12 font-sans text-slate-900">
-      <div className="w-full max-w-md">
-        <div className="rounded-2xl">
-          <div className="bg-white border border-gray-100 shadow-card rounded-2xl p-8 sm:p-10 text-center">
-            <h1 className="text-3xl md:text-4xl font-black text-[#0f172a] tracking-tight mb-2 uppercase">
-              <span>Thapsus</span>
-              <span className="text-orange-700">Cargo</span>
-            </h1>
+    <div className="relative min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12 overflow-hidden">
+      <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[40rem] h-[40rem] bg-ember-radial blur-2xl pointer-events-none" />
 
-            <div className="flex justify-center my-8">
-              <div className="rounded-full bg-orange-50 p-5">
-                <Mail className="text-orange-600" size={48} />
-              </div>
-            </div>
+      <div className="w-full max-w-md relative z-10 animate-slide-up">
+        <div className="glow-card p-8 md:p-10 text-center">
+          <div className="flex justify-center mb-6"><PillLabel>Verify email</PillLabel></div>
 
-            <h2 className="text-xl font-black text-slate-900 mb-3">Check your inbox</h2>
-            <p className="text-slate-600 mb-3">
-              {email
-                ? <>We sent an activation link to <span className="font-semibold">{email}</span>. Tap it to finish setting up your account.</>
-                : 'Tap the activation link in the email we just sent to finish setting up your account.'}
-            </p>
-            <p className="text-slate-500 text-sm mb-6">
-              The link expires in <span className="font-semibold">24 hours</span>. After that, use Resend below to get a fresh one.
-            </p>
+          <div className="flex justify-center my-6">
+            <span className="ember-badge w-20 h-20 rounded-3xl"><Mail size={40} /></span>
+          </div>
 
-            <div className="flex flex-col gap-3">
-              <button
-                type="button"
-                onClick={handleResend}
-                disabled={!email || resending}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-orange-600 hover:bg-orange-700 disabled:bg-orange-300 disabled:cursor-not-allowed text-white font-bold text-sm transition-colors"
-              >
-                <RefreshCw size={16} className={resending ? 'animate-spin' : ''} />
-                {resending ? 'Sending…' : 'Resend activation email'}
-              </button>
-              <Link
-                to="/login"
-                className="text-sm font-semibold text-slate-600 hover:text-slate-900"
-              >
-                Back to sign in
-              </Link>
-            </div>
+          <h1 className="text-2xl font-bold text-white mb-3">Check your inbox</h1>
+          <p className="text-mute mb-3">
+            {email
+              ? <>We sent an activation link to <span className="text-white font-semibold">{email}</span>. Tap it to finish setting up your account.</>
+              : 'Tap the activation link in the email we just sent to finish setting up your account.'}
+          </p>
+          <p className="text-dim text-sm mb-7">
+            The link expires in <span className="text-white/80 font-semibold">24 hours</span>. After that, use Resend below to get a fresh one.
+          </p>
+
+          <div className="flex flex-col gap-3">
+            <button type="button" onClick={handleResend} disabled={!email || resending} className="btn-primary glass-sheen w-full">
+              <RefreshCw size={16} className={resending ? 'animate-spin' : ''} />
+              {resending ? 'Sending…' : 'Resend activation email'}
+            </button>
+            <Link to="/login" className="text-sm font-semibold text-mute hover:text-white">Back to sign in</Link>
           </div>
         </div>
       </div>
