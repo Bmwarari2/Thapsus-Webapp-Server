@@ -12,6 +12,7 @@ import toast from 'react-hot-toast'
 import { useOrderUpdates } from '../hooks/useRealtimeUpdates'
 import { CutoffBanner } from '../components/CutoffBanner'
 import { PillLabel, Stat } from '../components/ui'
+import { Reveal, CountUp } from '../components/motion'
 
 const ACTIVE_STATUSES = ['pending', 'received_at_warehouse', 'consolidating', 'in_transit', 'customs', 'out_for_delivery']
 
@@ -131,9 +132,9 @@ export const Dashboard = () => {
       <div className="pt-2">
         <p className="eyebrow mb-3 ml-1 !tracking-[0.25em]">This month</p>
         <div className="grid grid-cols-3 gap-3 md:gap-4">
-          <Stat label="Parcels" value={thisMonthParcels} />
-          <Stat label="In transit" value={inTransit} accent />
-          <Stat label="Out for delivery" value={outForDelivery} />
+          <Stat label="Parcels" value={<CountUp to={thisMonthParcels} duration={1100} />} />
+          <Stat label="In transit" value={<CountUp to={inTransit} duration={1100} />} accent />
+          <Stat label="Out for delivery" value={<CountUp to={outForDelivery} duration={1100} />} />
         </div>
       </div>
 

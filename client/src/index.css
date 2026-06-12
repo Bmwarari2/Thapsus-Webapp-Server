@@ -239,6 +239,100 @@
 @keyframes shimmer { 100% { transform: translateX(100%); } }
 @keyframes scroll  { 0% { transform: translateX(0); } 100% { transform: translateX(-33.333%); } }
 
+/* ─── Motion: scroll reveal ───────────────────────────────────────────────── */
+/* Elements start hidden + nudged; the Reveal component toggles .is-visible
+   (via IntersectionObserver) to animate them into place as they enter view. */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+[data-reveal='left']  { transform: translateX(-28px); }
+[data-reveal='right'] { transform: translateX(28px); }
+[data-reveal='scale'] { transform: scale(0.94); }
+[data-reveal].is-visible { opacity: 1; transform: none; }
+
+/* ─── Motion: blur-to-sharp text focus ────────────────────────────────────── */
+/* Words start dim + blurred and resolve to sharp white, staggered, when the
+   block scrolls into view (the signature headline effect from the reference). */
+.focus-word {
+  display: inline-block;
+  opacity: 0.25;
+  filter: blur(8px);
+  transition: opacity 0.6s ease, filter 0.6s ease;
+  transition-delay: var(--word-delay, 0ms);
+}
+.focus-text.is-visible .focus-word { opacity: 1; filter: blur(0); }
+
+/* ─── Motion: animated ember glow border ──────────────────────────────────── */
+/* A featured card whose border is a slowly-rotating ember conic gradient. */
+.glow-border {
+  position: relative;
+  border-radius: 1.5rem;
+  background: #16191d;
+  isolation: isolate;
+}
+.glow-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--angle, 0deg),
+    rgba(245,166,35,0) 0deg, rgba(242,100,24,0.9) 60deg,
+    rgba(240,48,0,0.6) 120deg, rgba(242,100,24,0) 200deg, rgba(242,100,24,0) 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: borderspin 6s linear infinite;
+}
+@property --angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+@keyframes borderspin { to { --angle: 360deg; } }
+
+/* ─── Motion: hero "data core" ────────────────────────────────────────────── */
+/* Base sits in the components layer so a consumer's `absolute`/`relative`
+   utility (utilities layer) wins for positioning. */
+@layer components { .data-core { position: relative; width: 280px; height: 280px; } }
+.data-core .core-glow {
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 55%, rgba(242,100,24,0.45) 0%, rgba(242,100,24,0) 60%);
+  animation: breathe 5s ease-in-out infinite;
+}
+.data-core .ring {
+  position: absolute; left: 50%; top: 55%; width: 150px; height: 150px;
+  margin: -75px 0 0 -75px; border: 1px solid rgba(242,100,24,0.5);
+  border-radius: 50%; animation: ringPulse 3.2s ease-out infinite;
+}
+.data-core .ring:nth-child(3) { animation-delay: 1.05s; }
+.data-core .ring:nth-child(4) { animation-delay: 2.1s; }
+.data-core .disc {
+  position: absolute; left: 50%; top: 55%; width: 56px; height: 56px; margin: -28px 0 0 -28px;
+  border-radius: 50%; background: var(--ember, linear-gradient(135deg,#f5a623,#f26418 48%,#f03000));
+  box-shadow: 0 0 30px 6px rgba(242,100,24,0.6);
+}
+.data-core .spark {
+  position: absolute; left: 50%; top: 55%; width: 4px; height: 4px; border-radius: 50%;
+  background: #f5a623; box-shadow: 0 0 8px 1px rgba(245,166,35,0.9);
+  animation: rise 2.6s ease-in infinite;
+}
+.data-core .orbit-node {
+  position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px;
+  border-radius: 50%; background: rgba(255,255,255,0.18);
+  animation: orbit 14s linear infinite;
+}
+@keyframes ringPulse { 0% { transform: scale(0.7); opacity: 0.7; } 100% { transform: scale(1.6); opacity: 0; } }
+@keyframes rise { 0% { transform: translateY(0) scale(0.5); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(-110px) scale(1); opacity: 0; } }
+@keyframes orbit {
+  from { transform: rotate(0deg) translateX(var(--orbit,110px)) rotate(0deg); }
+  to   { transform: rotate(360deg) translateX(var(--orbit,110px)) rotate(-360deg); }
+}
+
+/* ─── Card hover: subtle ember ring ───────────────────────────────────────── */
+.glow-card:hover, .card.glow-hover:hover { box-shadow: var(--tw-shadow, 0 0 0 0), 0 0 0 1px rgba(242,100,24,0.18), 0 20px 60px -24px rgba(242,100,24,0.25); }
+
 /* ─── React Hot Toast (dark) ───────────────────────────────────────────────── */
 .react-hot-toast { @apply font-sans text-sm !important; }
 

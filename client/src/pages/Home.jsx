@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext'
 import { SEO } from '../components/SEO'
 import { CutoffBanner } from '../components/CutoffBanner'
 import { PillLabel, EmberIcon, ArcDecoration } from '../components/ui'
+import { Reveal, FocusText, CountUp, DataCore } from '../components/motion'
 
 const MarqueeRetailers = ({ retailers }) => {
   const triple = [...retailers, ...retailers, ...retailers]
@@ -85,7 +86,7 @@ export const Home = () => {
 
         <div className="max-w-7xl mx-auto px-4 md:px-6 pt-8 md:pt-12 pb-16 md:pb-24 relative">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            <div className="space-y-7 text-center lg:text-left animate-slide-up">
+            <Reveal className="space-y-7 text-center lg:text-left">
               <div className="flex justify-center lg:justify-start"><PillLabel>{t('home.hero.eyebrow') || 'Shop UK · receive Kenya'}</PillLabel></div>
 
               <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.05] text-white">
@@ -134,14 +135,18 @@ export const Home = () => {
                 </div>
                 <div className="h-9 w-px bg-line" />
                 <p className="text-xs text-mute max-w-[200px] leading-relaxed text-left">
-                  Over <span className="text-white font-semibold">12,000+</span> shipments delivered across East Africa.
+                  Over <span className="text-white font-semibold"><CountUp to={12000} suffix="+" /></span> shipments delivered across East Africa.
                 </p>
               </div>
-            </div>
+            </Reveal>
 
-            {/* Hero visual: live shipment card */}
-            <div className="relative animate-fade-in">
-              <div className="glow-card p-6 md:p-8">
+            {/* Hero visual: live shipment card + ambient data-core behind it */}
+            <Reveal variant="scale" delay={120} className="relative">
+              <div className="hidden md:block pointer-events-none"
+                style={{ position: 'absolute', top: '-92px', right: '-56px', zIndex: 0, opacity: 0.75 }}>
+                <DataCore />
+              </div>
+              <div className="relative glow-border p-6 md:p-8 overflow-hidden">
                 <ArcDecoration className="top-0 right-0 w-72 h-72 opacity-70" />
                 <div className="flex justify-between items-center mb-10">
                   <EmberIcon icon={Plane} wrap="w-12 h-12" />
@@ -171,7 +176,7 @@ export const Home = () => {
                   </div>
                 </div>
               </div>
-            </div>
+            </Reveal>
           </div>
         </div>
       </section>
@@ -180,13 +185,13 @@ export const Home = () => {
 
       {/* ── HOW IT WORKS ──────────────────────────────────────────────────── */}
       <section className="max-w-7xl mx-auto px-4 md:px-6 py-20 md:py-28">
-        <div className="mb-14 space-y-5">
+        <Reveal className="mb-14 space-y-5">
           <PillLabel>Our workflow</PillLabel>
-          <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-white">{t('home.howitworks') || 'How it works'}</h2>
-        </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 stagger">
+          <FocusText as="h2" text={t('home.howitworks') || 'How it works'} className="text-3xl md:text-5xl font-bold tracking-tight text-white" />
+        </Reveal>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {steps.map((s, i) => (
-            <div key={s.n} className="glow-card p-7 flex flex-col gap-6 min-h-[15rem]" style={{ '--i': i }}>
+            <Reveal as="div" key={s.n} delay={i * 90} className="glow-card p-7 flex flex-col gap-6 min-h-[15rem]">
               <div className="flex items-center justify-between">
                 <EmberIcon icon={s.icon} wrap="w-12 h-12" />
                 <span className="text-2xl font-bold text-white/15">{s.n}</span>
@@ -195,7 +200,7 @@ export const Home = () => {
                 <h3 className="text-lg font-bold text-white mb-2">{s.title}</h3>
                 <p className="text-sm text-mute leading-relaxed">{s.desc}</p>
               </div>
-            </div>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -205,19 +210,18 @@ export const Home = () => {
         <div className="relative overflow-hidden rounded-5xl border border-line bg-surface p-8 md:p-14 lg:p-20">
           <div className="absolute -top-32 -right-20 w-[36rem] h-[36rem] bg-ember-radial blur-2xl pointer-events-none" />
           <div className="relative grid lg:grid-cols-2 gap-12 items-center">
-            <div className="space-y-6 text-center lg:text-left">
+            <Reveal variant="left" className="space-y-6 text-center lg:text-left">
               <PillLabel>Pricing</PillLabel>
-              <h2 className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight text-white leading-tight">
-                {t('home.pricing.title') || 'Transparent pricing'}
-              </h2>
+              <FocusText as="h2" text={t('home.pricing.title') || 'Transparent pricing'}
+                className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight text-white leading-tight" />
               <p className="text-mute text-base md:text-lg max-w-md mx-auto lg:mx-0">
                 {t('home.pricing.description') || 'See exactly what you pay before you ship.'}
               </p>
               <Link to="/pricing" className="btn-primary glass-sheen btn-lg">
                 {t('home.pricing.calculate') || 'Calculate now'} <ArrowRight size={18} />
               </Link>
-            </div>
-            <div className="grid sm:grid-cols-2 gap-5">
+            </Reveal>
+            <Reveal variant="right" delay={120} className="grid sm:grid-cols-2 gap-5">
               <div className="card flex flex-col justify-between min-h-[14rem]">
                 <EmberIcon icon={Plane} wrap="w-12 h-12" />
                 <div>
@@ -234,20 +238,20 @@ export const Home = () => {
                   <p className="text-3xl font-bold text-white">$450<small className="text-sm text-mute font-medium ml-1.5">/CBM</small></p>
                 </div>
               </div>
-            </div>
+            </Reveal>
           </div>
         </div>
       </section>
 
       {/* ── TESTIMONIALS ──────────────────────────────────────────────────── */}
       <section className="max-w-7xl mx-auto px-4 md:px-6 pb-20 md:pb-28">
-        <div className="mb-14 space-y-5">
+        <Reveal className="mb-14 space-y-5">
           <PillLabel>Customer stories</PillLabel>
-          <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-white">{t('home.testimonials') || 'What our customers say'}</h2>
-        </div>
+          <FocusText as="h2" text={t('home.testimonials') || 'What our customers say'} className="text-3xl md:text-5xl font-bold tracking-tight text-white" />
+        </Reveal>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {testimonials.map((test) => (
-            <div key={test.name} className="card flex flex-col">
+          {testimonials.map((test, i) => (
+            <Reveal as="div" key={test.name} delay={(i % 3) * 100} className="card flex flex-col">
               <div className="flex text-ember-400 mb-6">
                 {[...Array(5)].map((_, i) => <Star key={i} size={16} fill="currentColor" />)}
               </div>
@@ -261,7 +265,7 @@ export const Home = () => {
                   <p className="text-[11px] font-medium text-mute uppercase tracking-widest">{test.location} · Verified</p>
                 </div>
               </div>
-            </div>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -270,9 +274,9 @@ export const Home = () => {
       <section className="relative max-w-7xl mx-auto px-4 md:px-6 pb-24">
         <div className="relative overflow-hidden rounded-5xl border border-line bg-surface p-10 md:p-20 text-center">
           <div className="absolute -bottom-32 left-1/2 -translate-x-1/2 w-[40rem] h-[40rem] bg-ember-radial blur-2xl pointer-events-none" />
-          <div className="relative space-y-8 max-w-3xl mx-auto">
-            <div className="flex justify-center"><EmberIcon icon={Sparkles} size={30} wrap="w-16 h-16 rounded-3xl" /></div>
-            <h2 className="text-4xl md:text-6xl font-bold tracking-tight text-white leading-[1.05]">Start shipping today.</h2>
+          <Reveal className="relative space-y-8 max-w-3xl mx-auto">
+            <div className="flex justify-center"><EmberIcon icon={Sparkles} size={30} wrap="w-16 h-16 rounded-3xl animate-float" /></div>
+            <FocusText as="h2" text="Start shipping today." className="text-4xl md:text-6xl font-bold tracking-tight text-white leading-[1.05]" />
             <p className="text-mute text-base md:text-xl">
               Join the new era of cross-border commerce. No borders, no limits — just seamless logistics.
             </p>
@@ -282,7 +286,7 @@ export const Home = () => {
               </Link>
               <Link to="/faq" className="btn-secondary btn-lg"><Headphones size={20} /> Help centre</Link>
             </div>
-          </div>
+          </Reveal>
         </div>
       </section>
     </div>

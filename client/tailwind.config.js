@@ -15,14 +15,14 @@ export default {
       colors: {
         // ── Dark surfaces ────────────────────────────────────────────────
         ink: {
-          DEFAULT: '#08080B',  // page background (deepest)
-          800: '#0C0C10',
-          700: '#101015',
+          DEFAULT: '#0e1012',  // page background
+          800: '#121417',
+          700: '#171a1e',
         },
         surface: {
-          DEFAULT: '#121216',  // base card
-          2: '#17171D',        // elevated card / input
-          3: '#1F1F27',        // hover / pressed
+          DEFAULT: '#16191d',  // base card
+          2: '#1c2025',        // elevated card / input
+          3: '#23272d',        // hover / pressed
         },
         // hairline borders (use as border-line / bg-line)
         line: 'rgba(255,255,255,0.08)',
@@ -79,10 +79,13 @@ export default {
         shimmer: { '100%': { transform: 'translateX(100%)' } },
         scroll:  { '0%': { transform: 'translateX(0)' }, '100%': { transform: 'translateX(-33.333%)' } },
         float:   { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-8px)' } },
-        emberPulse: {
-          '0%,100%': { opacity: '0.5' },
-          '50%':     { opacity: '1' },
-        },
+        emberPulse: { '0%,100%': { opacity: '0.45' }, '50%': { opacity: '1' } },
+        // Hero "data core" + decorative motion
+        spinSlow:  { to: { transform: 'rotate(360deg)' } },
+        breathe:   { '0%,100%': { transform: 'scale(1)', opacity: '0.55' }, '50%': { transform: 'scale(1.06)', opacity: '0.9' } },
+        rise:      { '0%': { transform: 'translateY(0) scale(0.6)', opacity: '0' }, '20%': { opacity: '1' }, '100%': { transform: 'translateY(-90px) scale(1)', opacity: '0' } },
+        ringPulse: { '0%': { transform: 'scale(0.85)', opacity: '0.7' }, '100%': { transform: 'scale(1.5)', opacity: '0' } },
+        orbit:     { from: { transform: 'rotate(0deg) translateX(var(--orbit, 90px)) rotate(0deg)' }, to: { transform: 'rotate(360deg) translateX(var(--orbit, 90px)) rotate(-360deg)' } },
       },
       animation: {
         'fade-in':  'fadeIn 0.5s cubic-bezier(0.16,1,0.3,1) both',
@@ -92,6 +95,8 @@ export default {
         'scroll':   'scroll 36s linear infinite',
         'float':    'float 6s ease-in-out infinite',
         'ember-pulse': 'emberPulse 3s ease-in-out infinite',
+        'spin-slow': 'spinSlow 8s linear infinite',
+        'breathe':   'breathe 5s ease-in-out infinite',
       },
     },
   },
