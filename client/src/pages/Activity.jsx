@@ -20,16 +20,16 @@ import {
 
 export const Activity = () => {
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 pb-24">
+    <div className="min-h-screen bg-transparent font-sans text-white pb-24">
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-12">
         <div className="mb-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-50 border border-orange-200 text-[10px] font-black uppercase tracking-[0.3em] text-orange-700 mb-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-ember-500/10 border border-ember-500/25 text-[10px] font-black uppercase tracking-[0.3em] text-ember-400 mb-4">
             <ActivityIcon size={12} /> Activity
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-[#0f172a] tracking-tighter uppercase leading-none mb-4">
+          <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase leading-none mb-4">
             Activity
           </h1>
-          <p className="text-slate-500 font-bold leading-relaxed text-sm md:text-base max-w-2xl">
+          <p className="text-mute font-bold leading-relaxed text-sm md:text-base max-w-2xl">
             Tracking, invoices, transactions, and pre-register in one place.
           </p>
         </div>
@@ -38,7 +38,7 @@ export const Activity = () => {
           <HubCard
             to="/orders"
             icon={<Package size={22} />}
-            iconBg="bg-[#0f172a]"
+            iconBg="bg-surface"
             title="Parcel tracking"
             subtitle="Every parcel we're shipping for you, by status."
           />
@@ -59,7 +59,7 @@ export const Activity = () => {
           <HubCard
             to="/transactions"
             icon={<History size={22} />}
-            iconBg="bg-[#0f172a]"
+            iconBg="bg-surface"
             title="Transactions"
             subtitle="Every card or M-Pesa payment plus your credit activity."
           />
@@ -75,19 +75,19 @@ function HubCard({ to, icon, iconBg, title, subtitle }) {
   return (
     <Link
       to={to}
-      className="group block rounded-3xl bg-white border border-slate-200 hover:border-orange-200 hover:shadow-lg transition-all p-5 md:p-6"
+      className="group block rounded-3xl bg-surface border border-line hover:border-ember-500/25 hover:shadow-lg transition-all p-5 md:p-6"
     >
       <div className="flex items-center gap-4 md:gap-5">
         <div className={`w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-inner ${iconBg}`}>
           {icon}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-black text-base md:text-lg text-[#0f172a] tracking-tight">{title}</p>
-          <p className="text-xs md:text-sm text-slate-500 font-semibold mt-1 leading-snug">{subtitle}</p>
+          <p className="font-black text-base md:text-lg text-white tracking-tight">{title}</p>
+          <p className="text-xs md:text-sm text-mute font-semibold mt-1 leading-snug">{subtitle}</p>
         </div>
         <ChevronRight
           size={18}
-          className="text-slate-300 group-hover:text-orange-500 group-hover:translate-x-0.5 transition-all shrink-0"
+          className="text-mute group-hover:text-ember-400 group-hover:translate-x-0.5 transition-all shrink-0"
         />
       </div>
     </Link>

@@ -36,39 +36,39 @@ export function CreditCenter() {
   })
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 sm:px-8 py-12">
+    <div className="min-h-screen bg-white/[0.03] px-4 sm:px-8 py-12">
       <div className="max-w-3xl mx-auto">
-        <p className="text-[10px] font-black uppercase tracking-widest text-orange-600 mb-3">Credit</p>
-        <h1 className="text-4xl sm:text-5xl font-black text-[#0f172a] tracking-tighter mb-2">My credit</h1>
-        <p className="text-slate-500 text-sm mb-10">
+        <p className="text-[10px] font-black uppercase tracking-widest text-ember-400 mb-3">Credit</p>
+        <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tighter mb-2">My credit</h1>
+        <p className="text-mute text-sm mb-10">
           Earned from referrals — auto-applied to your next payment.
         </p>
 
-        <div className="bg-white/70 backdrop-blur-2xl rounded-[2.5rem] border border-orange-100 shadow-xl p-10 mb-8">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
+        <div className="bg-surface-2 backdrop-blur-2xl rounded-[2.5rem] border border-ember-500/20 shadow-xl p-10 mb-8">
+          <p className="text-[10px] font-black uppercase tracking-widest text-dim mb-3">
             Available credit
           </p>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-slate-400">KES</span>
-            <span className="text-6xl font-black text-[#0f172a] tracking-tighter">
+            <span className="text-2xl font-black text-dim">KES</span>
+            <span className="text-6xl font-black text-white tracking-tighter">
               {loading ? '—' : fmt(credit)}
             </span>
           </div>
-          <p className="text-slate-500 text-sm mt-4">
+          <p className="text-mute text-sm mt-4">
             {credit === 0
               ? 'Refer a friend to earn KES 50.'
               : 'Will be deducted from your next invoice.'}
           </p>
           <Link
             to="/transactions"
-            className="mt-6 inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-orange-600 hover:text-orange-700"
+            className="mt-6 inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-ember-400 hover:text-ember-400"
           >
             View transactions <ChevronRight size={14} />
           </Link>
         </div>
 
-        <div className="bg-white/70 backdrop-blur-2xl rounded-[2.5rem] border border-slate-200 shadow-sm p-8 mb-8">
-          <h2 className="text-lg font-black text-[#0f172a] tracking-tight mb-4">How credit works</h2>
+        <div className="bg-surface-2 backdrop-blur-2xl rounded-[2.5rem] border border-line shadow-sm p-8 mb-8">
+          <h2 className="text-lg font-black text-white tracking-tight mb-4">How credit works</h2>
           <ol className="space-y-4">
             <Step n="1" title="Earn" body="Refer someone with your code → both of you get KES 50 on their first paid order." />
             <Step n="2" title="Apply" body="On any payment, your full credit balance is auto-applied first." />
@@ -77,15 +77,15 @@ export function CreditCenter() {
         </div>
 
         {referral?.referral_code && (
-          <div className="bg-white/70 backdrop-blur-2xl rounded-[2.5rem] border border-slate-200 shadow-sm p-8 flex items-center gap-4">
-            <div className="p-4 rounded-2xl bg-orange-50 text-orange-600">
+          <div className="bg-surface-2 backdrop-blur-2xl rounded-[2.5rem] border border-line shadow-sm p-8 flex items-center gap-4">
+            <div className="p-4 rounded-2xl bg-ember-500/10 text-ember-400">
               <TrendingUp size={24} />
             </div>
             <div className="flex-1">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Your referral code</p>
-              <p className="text-xl font-black tracking-tight text-[#0f172a]">{referral.referral_code}</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-dim mb-1">Your referral code</p>
+              <p className="text-xl font-black tracking-tight text-white">{referral.referral_code}</p>
               {typeof referral.stats?.completed_referrals === 'number' && (
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-mute mt-1">
                   {referral.stats.completed_referrals} successful referral
                   {referral.stats.completed_referrals === 1 ? '' : 's'}
                 </p>
@@ -101,12 +101,12 @@ export function CreditCenter() {
 function Step({ n, title, body }) {
   return (
     <li className="flex gap-4">
-      <div className="flex-shrink-0 w-9 h-9 rounded-full bg-[#0f172a] text-white grid place-items-center text-xs font-black">
+      <div className="flex-shrink-0 w-9 h-9 rounded-full bg-surface text-white grid place-items-center text-xs font-black">
         {n}
       </div>
       <div>
-        <p className="font-bold text-[#0f172a]">{title}</p>
-        <p className="text-sm text-slate-500">{body}</p>
+        <p className="font-bold text-white">{title}</p>
+        <p className="text-sm text-mute">{body}</p>
       </div>
     </li>
   )
