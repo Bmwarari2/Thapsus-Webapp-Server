@@ -67,8 +67,8 @@ export const VerifyEmail = () => {
   return (
     <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center px-4 py-12 font-sans text-slate-900">
       <div className="w-full max-w-md">
-        <div className="rounded-[24px] p-[1px] bg-gradient-to-br from-blue-300/60 via-white/20 to-orange-300/60 shadow-2xl">
-          <div className="bg-white/80 backdrop-blur-3xl rounded-[23px] p-8 sm:p-10 text-center">
+        <div className="rounded-2xl">
+          <div className="bg-white border border-gray-100 shadow-card rounded-2xl p-8 sm:p-10 text-center">
             <h1 className="text-3xl md:text-4xl font-black text-[#0f172a] tracking-tight mb-2 uppercase">
               <span>Thapsus</span>
               <span className="text-orange-700">Cargo</span>

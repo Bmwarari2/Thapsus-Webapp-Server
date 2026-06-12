@@ -101,9 +101,9 @@ export default function Pricing() {
   return (
     <div className="min-h-screen relative bg-slate-50 overflow-hidden py-12 px-4 font-sans">
       {/* Liquid Backgrounds */}
-      <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-blue-300/30 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-orange-300/20 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
-      <div className="absolute top-[40%] left-[50%] -translate-x-1/2 w-[40vw] h-[40vw] max-w-[400px] max-h-[400px] bg-indigo-200/20 rounded-full blur-[120px] animate-morph mix-blend-multiply pointer-events-none" />
+      
+      
+      
 
       <div className="max-w-2xl mx-auto relative z-10">
 
@@ -116,8 +116,8 @@ export default function Pricing() {
         </div>
 
         {/* Electronics info banner - Border Gradient Bento */}
-        <div className="rounded-2xl p-[1px] bg-gradient-to-br from-amber-300/60 via-white/20 to-orange-300/60 mb-8 shadow-lg transform transition-transform hover:scale-[1.01] duration-500">
-          <div className="bg-white/60 backdrop-blur-3xl rounded-[15px] p-6 relative overflow-hidden glass-sheen">
+        <div className="rounded-2xl mb-8">
+          <div className="bg-white border border-gray-100 shadow-card rounded-2xl p-6">
             <div className="absolute top-0 right-0 w-40 h-40 bg-amber-400/10 rounded-full blur-[40px] pointer-events-none" />
             <p className="font-black text-amber-800 tracking-tight text-lg mb-2 relative z-10">Electronics &amp; Device Handling Fees</p>
             <p className="text-sm font-medium text-amber-900/80 leading-relaxed relative z-10">

@@ -95,7 +95,7 @@ export const NpsLanding = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-blue-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="bg-white rounded-3xl shadow-xl max-w-md w-full p-6 md:p-8">
         {done ? (
           <div className="text-center">

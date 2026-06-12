@@ -35,7 +35,7 @@ const ReferralStyles = () => (
 );
 
 const LiquidBlob = ({ className, color }) => (
-  <div className={`absolute blur-[100px] md:blur-[120px] rounded-full mix-blend-multiply opacity-60 animate-morph pointer-events-none ${className} ${color}`} />
+  null
 );
 
 const GlassCard = ({ children, className = "" }) => (
@@ -134,7 +134,7 @@ export const Referral = () => {
 
         {/* Referral Code Card (Tilted Interactive Glass) */}
         <div className="transform lg:-rotate-1 hover:rotate-0 transition-all duration-700 perspective-1000 mb-12">
-          <GlassCard className="p-6 md:p-12 group hover:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] transition-all flex flex-col lg:flex-row items-center justify-between gap-8 bg-gradient-to-br from-white/40 to-orange-50/40 border-orange-200/50">
+          <GlassCard className="p-6 md:p-12 group hover:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] transition-all flex flex-col lg:flex-row items-center justify-between gap-8 ">
             <div className="w-full lg:w-auto flex-1 flex flex-col items-center lg:items-start">
               <h2 className="text-[10px] md:text-xs font-black uppercase tracking-widest text-slate-400 mb-3 text-center lg:text-left">Your Referral Code</h2>
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full">
@@ -213,8 +213,8 @@ export const Referral = () => {
 
         {/* Wallet Balance Banner (Border Gradient Bento) */}
         {currentBalance > 0 && (
-          <div className="p-1.5 bg-gradient-to-br from-green-400 via-emerald-300 to-teal-400 rounded-[3rem] shadow-2xl mb-12 transition-all hover:scale-[1.01] mx-2 md:mx-0">
-            <div className="h-full w-full bg-white/95 backdrop-blur-3xl rounded-[2.85rem] p-8 md:p-12 flex flex-col md:flex-row items-center gap-8 text-center md:text-left">
+          <div className="rounded-3xl mb-12 mx-2 md:mx-0">
+            <div className="h-full w-full bg-white border border-gray-100 shadow-card rounded-3xl p-8 md:p-12 flex flex-col md:flex-row items-center gap-8 text-center md:text-left">
               <div className="w-20 h-20 bg-green-100 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
                 <Gift size={40} className="text-green-600" />
               </div>

@@ -31,9 +31,9 @@ export const OrderConfirmation = () => {
   return (
     <div className="min-h-screen relative bg-slate-50 overflow-hidden py-12 px-4 font-sans">
       {/* Liquid Backgrounds */}
-      <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-blue-300/30 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-orange-300/20 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
-      <div className="absolute top-[40%] left-[50%] -translate-x-1/2 w-[40vw] h-[40vw] max-w-[400px] max-h-[400px] bg-indigo-200/20 rounded-full blur-[120px] animate-morph mix-blend-multiply pointer-events-none" />
+      
+      
+      
 
       <div className="max-w-3xl mx-auto relative z-10">
 
@@ -192,8 +192,8 @@ export const OrderConfirmation = () => {
         </div>
 
         {/* Shipping Address - Border Gradient (Step 4 style evolution) */}
-        <div className="rounded-2xl p-[1px] bg-gradient-to-br from-blue-300/60 via-white/20 to-orange-300/60 mb-10 shadow-lg">
-          <div className="bg-white/50 backdrop-blur-3xl rounded-[15px] p-6 h-full relative overflow-hidden">
+        <div className="rounded-2xl mb-10">
+          <div className="bg-white border border-gray-100 shadow-card rounded-2xl p-6 h-full">
             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-400/10 rounded-full blur-[40px] pointer-events-none" />
             
             <p className="text-sm font-black text-[#1e3a5f] mb-4 uppercase tracking-widest flex items-center gap-2">

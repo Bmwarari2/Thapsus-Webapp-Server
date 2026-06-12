@@ -58,7 +58,7 @@ const DashboardStyles = () => (
 );
 
 const LiquidBlob = ({ className, color }) => (
-  <div className={`absolute blur-[100px] md:blur-[120px] rounded-full mix-blend-multiply opacity-60 animate-morph pointer-events-none ${className} ${color}`} />
+  null
 );
 
 const GlassCard = ({ children, className = "" }) => (
@@ -620,7 +620,7 @@ export const AdminDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               {/* Revenue Card — Large Dark Glass */}
               <div className="relative group overflow-hidden rounded-[2.5rem] bg-[#0f172a] p-10 text-white shadow-2xl flex flex-col justify-between transition-all hover:scale-[1.01] transform lg:rotate-1 hover:rotate-0 duration-700 md:col-span-2 md:row-span-2 glass-sheen min-h-[320px]">
-                <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-orange-500/20 blur-[80px] -z-0 pointer-events-none animate-morph" />
+                
                 <div className="relative z-10">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Global Revenue (Completed)</span>
                   <h3 className="text-5xl lg:text-7xl font-black tracking-tighter mt-2 leading-none">KES {(stats?.revenue?.total_revenue || 0).toLocaleString()}</h3>
@@ -955,8 +955,8 @@ export const AdminDashboard = () => {
         {/* --- REVENUE (Border Gradient Bento) --- */}
         {activeTab === 'revenue' && (
           <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="p-1 bg-gradient-to-br from-orange-400 via-orange-300 to-blue-400 rounded-[3rem] shadow-2xl group transition-all hover:scale-[1.01]">
-              <div className="h-full w-full bg-white/95 backdrop-blur-3xl rounded-[2.9rem] p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="rounded-3xl">
+              <div className="h-full w-full bg-white border border-gray-100 shadow-card rounded-3xl p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8">
                 <div>
                   <h2 className="text-3xl md:text-4xl font-black text-[#0f172a] uppercase tracking-tighter leading-none mb-2">Revenue Reporting</h2>
                   <p className="text-sm font-bold text-slate-500">Extract and analyze financial throughput.</p>
@@ -1052,8 +1052,8 @@ export const AdminDashboard = () => {
         {activeTab === 'exchange' && (
           <div className="max-w-2xl mx-auto animate-in fade-in duration-500">
             {/* Border Gradient Wrap */}
-            <div className="p-1 bg-gradient-to-br from-orange-400 via-orange-300 to-blue-400 rounded-[3rem] shadow-2xl group transition-all hover:scale-[1.01]">
-              <div className="h-full w-full bg-white/95 backdrop-blur-3xl rounded-[2.9rem] p-10 md:p-14 space-y-10">
+            <div className="rounded-3xl">
+              <div className="h-full w-full bg-white border border-gray-100 shadow-card rounded-3xl p-10 md:p-14 space-y-10">
                 <div className="flex flex-col md:flex-row items-center md:items-start gap-6 text-center md:text-left">
                   <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
                     <Globe size={32} className="text-orange-700" />
@@ -1311,7 +1311,7 @@ export const AdminDashboard = () => {
         {/* Create Order for Client Modal */}
         {showCreateOrderForm && (
           <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm z-[100] flex justify-end">
-            <div className="bg-white/80 backdrop-blur-3xl w-full max-w-2xl h-full overflow-y-auto shadow-2xl relative p-10 md:p-14 animate-fade-in border-l border-white/50">
+            <div className="bg-white w-full max-w-2xl h-full overflow-y-auto shadow-float relative p-10 md:p-14 animate-fade-in border-l border-gray-100">
                <button onClick={() => setShowCreateOrderForm(false)} aria-label="Close" className="absolute top-10 right-10 w-10 h-10 bg-white rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 shadow-sm transition-colors"><X size={20}/></button>
                
                <div className="mb-10">
@@ -1367,7 +1367,7 @@ export const AdminDashboard = () => {
         {/* User Details Side Panel */}
         {selectedUser && selectedUserData && (
           <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm z-[100] flex justify-end">
-            <div className="bg-white/80 backdrop-blur-3xl w-full max-w-3xl h-full overflow-y-auto shadow-2xl relative p-10 md:p-14 animate-fade-in border-l border-white/50">
+            <div className="bg-white w-full max-w-3xl h-full overflow-y-auto shadow-float relative p-10 md:p-14 animate-fade-in border-l border-gray-100">
               <button onClick={() => setSelectedUser(null)} aria-label="Close" className="absolute top-10 right-10 w-10 h-10 bg-white rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 shadow-sm transition-colors"><X size={20}/></button>
               
               <div className="mb-10">
@@ -1636,7 +1636,7 @@ export const AdminDashboard = () => {
         {editOrderModal && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6 animate-in fade-in duration-200" onClick={() => setEditOrderModal(null)}>
             <div onClick={e => e.stopPropagation()} className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <GlassCard className="!bg-white/90 backdrop-blur-3xl p-8 md:p-10 shadow-2xl">
+              <GlassCard className="p-8 md:p-10">
                 <div className="flex items-center justify-between mb-8">
                   <div>
                     <h3 className="text-2xl font-black text-[#0f172a] uppercase tracking-tighter">Edit Order</h3>

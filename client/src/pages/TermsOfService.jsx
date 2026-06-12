@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { FileText, ArrowLeft, Zap } from 'lucide-react'
 
 const LiquidBlob = ({ className, color }) => (
-  <div className={`absolute blur-[120px] rounded-full mix-blend-multiply opacity-50 animate-morph pointer-events-none ${className} ${color}`} />
+  null
 )
 
 const GlassCard = ({ children, className = '' }) => (

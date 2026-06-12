@@ -75,9 +75,9 @@ export const PublicPayment = () => {
   // Helper component for the liquid backgrounds to keep code DRY across screens
   const LiquidBackgrounds = () => (
     <>
-      <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-blue-300/30 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-orange-300/20 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
-      <div className="absolute top-[40%] left-[50%] -translate-x-1/2 w-[40vw] h-[40vw] max-w-[400px] max-h-[400px] bg-indigo-200/20 rounded-full blur-[120px] animate-morph mix-blend-multiply pointer-events-none" />
+      
+      
+      
     </>
   )
 
@@ -97,8 +97,8 @@ export const PublicPayment = () => {
     return (
       <div className="min-h-screen relative bg-slate-50 overflow-hidden flex items-center justify-center p-4 font-sans">
         <LiquidBackgrounds />
-        <div className="rounded-[24px] p-[1px] bg-gradient-to-br from-red-300/60 via-white/20 to-red-400/60 shadow-2xl max-w-md w-full relative z-10">
-          <div className="bg-white/60 backdrop-blur-3xl rounded-[23px] p-10 text-center relative overflow-hidden glass-sheen">
+        <div className="rounded-2xl max-w-md w-full relative z-10">
+          <div className="bg-white border border-gray-100 shadow-card rounded-2xl p-10 text-center">
             <div className="absolute top-0 right-0 w-32 h-32 bg-red-400/10 rounded-full blur-[40px] pointer-events-none" />
             <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-6" />
             <h2 className="text-3xl font-black text-[#1e3a5f] tracking-tighter leading-none mb-3">Order Not Found</h2>
@@ -113,8 +113,8 @@ export const PublicPayment = () => {
     return (
       <div className="min-h-screen relative bg-slate-50 overflow-hidden flex items-center justify-center p-4 font-sans">
         <LiquidBackgrounds />
-        <div className="rounded-[24px] p-[1px] bg-gradient-to-br from-green-300/60 via-white/20 to-emerald-300/60 shadow-2xl max-w-md w-full relative z-10">
-          <div className="bg-white/60 backdrop-blur-3xl rounded-[23px] p-10 text-center relative overflow-hidden glass-sheen">
+        <div className="rounded-2xl max-w-md w-full relative z-10">
+          <div className="bg-white border border-gray-100 shadow-card rounded-2xl p-10 text-center">
             <div className="absolute top-0 right-0 w-32 h-32 bg-green-400/10 rounded-full blur-[40px] pointer-events-none" />
             <CheckCircle className="w-16 h-16 text-emerald-500 mx-auto mb-6" />
             <h2 className="text-3xl font-black text-[#1e3a5f] tracking-tighter leading-none mb-3">Payment Submitted</h2>
@@ -162,8 +162,8 @@ export const PublicPayment = () => {
         </div>
 
         {/* M-Pesa Instructions - Border Gradient (Step 4 Style) */}
-        <div className="rounded-[24px] p-[1px] bg-gradient-to-br from-blue-300/60 via-white/20 to-orange-300/60 shadow-xl mb-8 transform transition-transform hover:scale-[1.01] duration-500">
-          <div className="bg-white/60 backdrop-blur-3xl rounded-[23px] p-8 md:p-10 relative overflow-hidden glass-sheen">
+        <div className="rounded-2xl mb-8">
+          <div className="bg-white border border-gray-100 shadow-card rounded-2xl p-8 md:p-10">
             <div className="absolute top-0 right-0 w-48 h-48 bg-blue-400/10 rounded-full blur-[50px] pointer-events-none" />
             
             <h3 className="text-2xl font-black text-[#1e3a5f] tracking-tighter leading-none mb-6 relative z-10">M-Pesa Payment Instructions</h3>

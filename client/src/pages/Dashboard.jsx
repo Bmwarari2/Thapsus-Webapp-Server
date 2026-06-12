@@ -53,7 +53,7 @@ const DashboardStyles = () => (
 )
 
 const LiquidBlob = ({ className, color }) => (
-  <div className={`absolute blur-[100px] md:blur-[120px] rounded-full mix-blend-multiply opacity-60 animate-morph pointer-events-none ${className} ${color}`} />
+  null
 )
 
 const GlassCard = ({ children, className = "" }) => (

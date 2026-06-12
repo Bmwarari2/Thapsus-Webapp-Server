@@ -142,9 +142,9 @@ export const PricingCalculator = () => {
         description="Calculate shipping costs from the UK to Kenya instantly. Get transparent pricing with weight, dimensions, and insurance."
       />
       {/* ── Liquid Backgrounds (Blobs) ── */}
-      <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-blue-400/20 rounded-full mix-blend-multiply filter blur-[100px] opacity-70 animate-morph pointer-events-none -z-10" />
-      <div className="absolute top-[20%] right-[-10%] w-[40vw] h-[40vw] bg-orange-400/20 rounded-full mix-blend-multiply filter blur-[100px] opacity-70 animate-morph pointer-events-none -z-10" style={{ animationDelay: '2s' }} />
-      <div className="absolute bottom-[-10%] left-[20%] w-[60vw] h-[60vw] bg-purple-400/20 rounded-full mix-blend-multiply filter blur-[100px] opacity-70 animate-morph pointer-events-none -z-10" style={{ animationDelay: '4s' }} />
+      
+      
+      
 
       <div className="max-w-6xl mx-auto relative z-10">
         {/* Header - Refined Typography */}
@@ -343,7 +343,7 @@ export const PricingCalculator = () => {
           {/* ── Results Card (Dark Glass / Bento Evolution) ── */}
           <div className="h-full">
             {result ? (
-              <div className="h-full bg-slate-900/80 backdrop-blur-3xl border border-slate-700/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-[24px] p-8 relative overflow-hidden group hover:[transform:perspective(1200px)_rotateX(1deg)_rotateY(1deg)] transition-all duration-500">
+              <div className="h-full bg-navy border border-navy-700 shadow-card rounded-2xl p-8 relative overflow-hidden">
                 {/* Dark Glass Orbs */}
                 <div className="absolute -top-20 -right-20 w-64 h-64 bg-orange-500/20 rounded-full blur-[80px] pointer-events-none transition-transform group-hover:scale-110 duration-1000" />
                 <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-blue-500/20 rounded-full blur-[80px] pointer-events-none transition-transform group-hover:scale-110 duration-1000" />

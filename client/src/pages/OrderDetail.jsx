@@ -33,7 +33,7 @@ const OrderDetailStyles = () => (
 );
 
 const LiquidBlob = ({ className, color }) => (
-  <div className={`absolute blur-[100px] md:blur-[120px] rounded-full mix-blend-multiply opacity-60 animate-morph pointer-events-none ${className} ${color}`} />
+  null
 );
 
 const GlassCard = ({ children, className = "" }) => (
@@ -427,8 +427,8 @@ export const OrderDetail = () => {
 
         {/* --- PAYMENT CTA (Border Gradient Bento) --- */}
         {order.status !== 'cancelled' && order.status !== 'delivered' && cost > 0 && (
-          <div className="p-1 bg-gradient-to-br from-orange-400 via-orange-300 to-blue-400 rounded-[2.5rem] shadow-2xl group transition-all hover:scale-[1.01]">
-            <div className="h-full w-full bg-white/95 backdrop-blur-3xl rounded-[2.4rem] p-8 md:p-10 flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="rounded-3xl">
+            <div className="h-full w-full bg-white border border-gray-100 shadow-card rounded-3xl p-8 md:p-10 flex flex-col md:flex-row items-center justify-between gap-8">
               <div className="flex items-center gap-6">
                 <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center shrink-0">
                   <DollarSign size={32} className="text-orange-700" />

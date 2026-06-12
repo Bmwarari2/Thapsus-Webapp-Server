@@ -107,7 +107,7 @@ export function Notifications() {
   const onLoadMore = () => fetchPage(offset, false)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/40 px-4 sm:px-8 py-12">
+    <div className="min-h-screen bg-gray-50 px-4 sm:px-8 py-12">
       <div className="max-w-3xl mx-auto">
         <Link to="/dashboard" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[#0f172a] mb-6">
           <ArrowLeft size={16} /> Back to dashboard

@@ -36,7 +36,7 @@ export function CreditCenter() {
   })
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/40 px-4 sm:px-8 py-12">
+    <div className="min-h-screen bg-gray-50 px-4 sm:px-8 py-12">
       <div className="max-w-3xl mx-auto">
         <p className="text-[10px] font-black uppercase tracking-widest text-orange-600 mb-3">Credit</p>
         <h1 className="text-4xl sm:text-5xl font-black text-[#0f172a] tracking-tighter mb-2">My credit</h1>

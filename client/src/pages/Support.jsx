@@ -176,9 +176,9 @@ export const Support = () => {
   return (
     <div className="min-h-screen relative bg-slate-50 overflow-hidden py-12 px-4 font-sans">
       {/* Liquid Backgrounds */}
-      <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-blue-300/30 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-orange-300/20 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
-      <div className="absolute top-[40%] left-[50%] -translate-x-1/2 w-[40vw] h-[40vw] max-w-[400px] max-h-[400px] bg-indigo-200/20 rounded-full blur-[120px] animate-morph mix-blend-multiply pointer-events-none" />
+      
+      
+      
 
       <div className="max-w-7xl mx-auto relative z-10">
         {/* Header - Refined Typography */}
@@ -400,8 +400,8 @@ export const Support = () => {
               </div>
             ) : (
               /* Empty State - Border Gradient */
-              <div className="rounded-[24px] p-[1px] bg-gradient-to-br from-blue-300/60 via-white/20 to-orange-300/60 shadow-xl h-full min-h-[400px] transform transition-transform hover:scale-[1.01] duration-500">
-                <div className="bg-white/60 backdrop-blur-3xl rounded-[23px] p-12 text-center h-full flex flex-col items-center justify-center relative overflow-hidden glass-sheen">
+              <div className="rounded-2xl h-full min-h-[400px]">
+                <div className="bg-white border border-gray-100 shadow-card rounded-2xl p-12 text-center h-full flex flex-col items-center justify-center">
                   <div className="absolute top-0 right-0 w-48 h-48 bg-blue-400/10 rounded-full blur-[50px] pointer-events-none" />
                   <div className="absolute bottom-0 left-0 w-48 h-48 bg-orange-400/10 rounded-full blur-[50px] pointer-events-none" />
                   

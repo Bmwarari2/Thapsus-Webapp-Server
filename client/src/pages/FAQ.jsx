@@ -135,8 +135,8 @@ export const FAQ = () => {
   return (
     <div className="min-h-screen relative bg-slate-50 overflow-hidden py-12 px-4 font-sans">
       {/* Liquid Backgrounds */}
-      <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-blue-300/30 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] bg-orange-300/20 rounded-full blur-[100px] animate-morph mix-blend-multiply pointer-events-none" />
+      
+      
 
       <div className="max-w-3xl mx-auto relative z-10">
         {/* Header */}

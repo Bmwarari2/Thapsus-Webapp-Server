@@ -48,7 +48,7 @@ function estimateDelivery(order) {
  * LIQUID GLASS COMPONENTS
  */
 const LiquidBlob = ({ className, color }) => (
-  <div className={`absolute blur-[120px] rounded-full mix-blend-multiply opacity-60 animate-morph ${className} ${color}`} />
+  null
 );
 
 const GlassCard = ({ children, className = "" }) => (
@@ -210,7 +210,7 @@ export const TrackPackage = () => {
         {/* Search Bar - Glassmorphic */}
         <div className="max-w-2xl mx-auto mb-16">
           <form onSubmit={handleTrack} className="relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-orange-400 to-blue-400 rounded-[2.5rem] blur opacity-10 group-hover:opacity-30 transition duration-1000"></div>
+            <div className="absolute -inset-1 bg-gradient-to-r from-orange-400 to-navy rounded-[2.5rem] blur opacity-10 group-hover:opacity-30 transition duration-1000"></div>
             <div className="relative flex items-center gap-2 p-2 bg-white/80 backdrop-blur-2xl border border-white/50 rounded-[2.5rem] shadow-2xl">
               <Search className="ml-6 text-slate-400" size={20} />
               <input

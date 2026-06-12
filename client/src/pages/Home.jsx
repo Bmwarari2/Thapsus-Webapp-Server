@@ -336,7 +336,7 @@ export const Home = () => {
               </div>
             </GlassCard>
 
-            <div className="md:col-span-1 lg:col-span-2 p-0.5 bg-gradient-to-br from-orange-400 to-blue-400 rounded-[2.5rem] shadow-2xl group">
+            <div className="md:col-span-1 lg:col-span-2 p-0.5 bg-gradient-to-br from-orange-400 to-navy rounded-[2.5rem] shadow-2xl group">
                <div className="h-full w-full bg-white/95 backdrop-blur-3xl rounded-[2.4rem] p-8 md:p-10 flex flex-col sm:flex-row items-center gap-6 md:gap-10 text-center sm:text-left">
                   <div className="w-20 h-20 md:w-24 md:h-24 shrink-0 bg-slate-900 rounded-2xl md:rounded-3xl flex items-center justify-center text-white group-hover:scale-110 transition-transform"><Truck size={36} className="md:w-10 md:h-10"/></div>
                   <div>

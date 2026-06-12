@@ -176,7 +176,7 @@ export const ShipInstructions = () => {
             }
             if (i === 3) { // Step 4: Border Gradient
               return (
-                <div key={i} className="md:col-span-1 p-[1.5px] rounded-[2rem] bg-gradient-to-tr from-purple-500 via-blue-400 to-emerald-400 shadow-xl transition-all duration-500 hover:-translate-y-2">
+                <div key={i} className="md:col-span-1 p-[1.5px] rounded-[2rem] bg-gradient-to-tr from-navy via-navy-600 to-orange-500 shadow-xl transition-all duration-500 hover:-translate-y-2">
                   <div className="h-full bg-white/60 backdrop-blur-2xl rounded-[1.9rem] p-8 flex flex-col justify-between">
                     <div>
                       <div className="w-12 h-12 bg-purple-100 rounded-2xl flex items-center justify-center mb-6">{step.icon}</div>
@@ -222,7 +222,7 @@ export const ShipInstructions = () => {
 
         {/* Footer CTA */}
         <footer className="relative group">
-          <div className="p-[1.5px] rounded-[3rem] bg-gradient-to-r from-orange-400 via-[#1e3a5f] to-blue-500 shadow-2xl">
+          <div className="p-[1.5px] rounded-[3rem] bg-gradient-to-r from-orange-400 to-navy shadow-2xl">
             <div className="bg-white/80 backdrop-blur-3xl rounded-[2.9rem] p-12 text-center relative overflow-hidden">
                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-400/10 rounded-full blur-[80px] pointer-events-none animate-morph" />
                <h2 className="text-5xl md:text-6xl font-black text-[#1e3a5f] tracking-tighter mb-4 leading-none">Ready to Ship?</h2>

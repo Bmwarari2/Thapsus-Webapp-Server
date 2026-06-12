@@ -31,7 +31,7 @@ export const OpsConsolidations = () => {
   }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-orange-50 via-white to-blue-50">
+    <div className="relative min-h-screen bg-gray-50">
       <GlassStyles />
       <LiquidBlob className="top-[-15%] right-[-15%] w-[40rem] h-[40rem]" color="bg-orange-200" />
 
@@ -189,7 +189,7 @@ export const OpsConsolidationDetail = () => {
 
   const c = data.consolidation
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-orange-50 via-white to-blue-50">
+    <div className="relative min-h-screen bg-gray-50">
       <GlassStyles />
       <LiquidBlob className="top-[-15%] left-[-15%] w-[40rem] h-[40rem]" color="bg-blue-200"  />
 
