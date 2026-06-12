@@ -7,25 +7,25 @@ const LiquidBlob = ({ className, color }) => (
 )
 
 const GlassCard = ({ children, className = '' }) => (
-  <div className={`relative overflow-hidden rounded-[2rem] bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] ${className}`}>
-    <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent pointer-events-none" />
+  <div className={`relative overflow-hidden rounded-[2rem] bg-surface border border-line shadow-card ${className}`}>
+    <div className="absolute inset-0 hidden" />
     <div className="relative z-10">{children}</div>
   </div>
 )
 
 const Section = ({ title, children }) => (
   <div className="mb-10">
-    <h2 className="text-xl font-black text-[#0f172a] tracking-tighter uppercase mb-4 flex items-center gap-3">
+    <h2 className="text-xl font-black text-white tracking-tighter uppercase mb-4 flex items-center gap-3">
       <span className="w-1.5 h-6 bg-orange-500 rounded-full shrink-0" />
       {title}
     </h2>
-    <div className="text-slate-600 font-medium text-sm leading-relaxed space-y-3">{children}</div>
+    <div className="text-mute font-medium text-sm leading-relaxed space-y-3">{children}</div>
   </div>
 )
 
 export const TermsOfService = () => {
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 overflow-x-hidden relative">
+    <div className="min-h-screen bg-transparent font-sans text-white overflow-x-hidden relative">
       <style>{`
         @keyframes morph {
           0%   { transform: translate(0,0)       scale(1);   }
@@ -48,31 +48,31 @@ export const TermsOfService = () => {
 
       <LiquidBlob className="top-[-10%] left-[-5%]  w-[500px] h-[500px]" color="bg-orange-200"  />
       <LiquidBlob className="bottom-[5%] right-[-5%] w-[600px] h-[600px]" color="bg-blue-100"   />
-      <div className="absolute inset-0 bg-white/20 backdrop-blur-[2px] pointer-events-none" />
+      <div className="absolute inset-0 hidden" />
 
       <div className="max-w-3xl mx-auto px-6 py-12 lg:py-20 relative z-10">
 
         {/* Back */}
-        <Link to="/" className="inline-flex items-center gap-2 text-slate-500 hover:text-orange-700 font-black uppercase tracking-widest text-[10px] mb-10 transition-all group">
+        <Link to="/" className="inline-flex items-center gap-2 text-mute hover:text-ember-400 font-black uppercase tracking-widest text-[10px] mb-10 transition-all group">
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
           Back to Home
         </Link>
 
         {/* Header */}
         <div className="mb-12 space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-md border border-white/50 text-[9px] font-black uppercase tracking-[0.3em] text-slate-500 shadow-sm">
-            <Zap size={10} className="text-orange-700" />
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.05] border border-line text-[9px] font-black uppercase tracking-[0.3em] text-mute shadow-sm">
+            <Zap size={10} className="text-ember-400" />
             Legal Document
           </div>
           <div className="flex items-start gap-4">
-            <div className="w-14 h-14 bg-[#0f172a] rounded-2xl flex items-center justify-center shadow-xl shrink-0">
+            <div className="w-14 h-14 bg-ember-gradient rounded-2xl flex items-center justify-center shadow-xl shrink-0">
               <FileText size={28} className="text-white" />
             </div>
             <div>
-              <h1 className="text-4xl md:text-6xl font-black text-[#0f172a] tracking-tighter uppercase leading-none">
+              <h1 className="text-4xl md:text-6xl font-black text-white tracking-tighter uppercase leading-none">
                 Terms of Service
               </h1>
-              <p className="text-slate-500 font-bold text-sm mt-2">Last updated: {new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' })}</p>
+              <p className="text-mute font-bold text-sm mt-2">Last updated: {new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' })}</p>
             </div>
           </div>
         </div>
@@ -80,8 +80,8 @@ export const TermsOfService = () => {
         {/* Content */}
         <GlassCard className="p-8 md:p-12">
 
-          <p className="text-slate-600 font-medium text-sm leading-relaxed mb-10">
-            These Terms of Service ("Terms") govern your use of the Thapsus Cargo platform located at <span className="font-black text-[#0f172a]">thapsus.uk</span> and all related services (collectively, the "Service"). By accessing or using our Service, you agree to be bound by these Terms. Please read them carefully.
+          <p className="text-mute font-medium text-sm leading-relaxed mb-10">
+            These Terms of Service ("Terms") govern your use of the Thapsus Cargo platform located at <span className="font-black text-white">thapsus.uk</span> and all related services (collectively, the "Service"). By accessing or using our Service, you agree to be bound by these Terms. Please read them carefully.
           </p>
 
           <Section title="1. Acceptance of Terms">
@@ -129,8 +129,8 @@ export const TermsOfService = () => {
           <Section title="7. Delivery Timescales">
             <p>Estimated delivery timeframes are provided in good faith but are not guaranteed. Delays may occur due to customs inspections, adverse weather, carrier delays, or other factors outside our control. Thapsus Cargo is not liable for losses arising from delivery delays.</p>
             <ul className="list-disc pl-5 space-y-1.5 mt-2">
-              <li><strong className="text-slate-800">Economy shipping:</strong> 10–14 business days.</li>
-              <li><strong className="text-slate-800">Express shipping:</strong> 5–7 business days.</li>
+              <li><strong className="text-white">Economy shipping:</strong> 10–14 business days.</li>
+              <li><strong className="text-white">Express shipping:</strong> 5–7 business days.</li>
             </ul>
           </Section>
 
@@ -157,9 +157,9 @@ export const TermsOfService = () => {
           <Section title="13. Contact Us">
             <p>If you have any questions about these Terms, please contact us:</p>
             <ul className="list-none mt-3 space-y-1.5">
-              <li><strong className="text-slate-800">Email:</strong> <a href="mailto:admin@thapsus.uk" className="text-orange-700 hover:underline font-bold">admin@thapsus.uk</a></li>
-              <li><strong className="text-slate-800">Phone / WhatsApp:</strong> <a href="https://wa.me/447424531483" target="_blank" rel="noopener noreferrer" className="text-orange-700 hover:underline font-bold">+44 7424 531483</a></li>
-              <li><strong className="text-slate-800">Address:</strong> 31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB, United Kingdom</li>
+              <li><strong className="text-white">Email:</strong> <a href="mailto:admin@thapsus.uk" className="text-ember-400 hover:underline font-bold">admin@thapsus.uk</a></li>
+              <li><strong className="text-white">Phone / WhatsApp:</strong> <a href="https://wa.me/447424531483" target="_blank" rel="noopener noreferrer" className="text-ember-400 hover:underline font-bold">+44 7424 531483</a></li>
+              <li><strong className="text-white">Address:</strong> 31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB, United Kingdom</li>
             </ul>
           </Section>
 
@@ -169,8 +169,8 @@ export const TermsOfService = () => {
         <div className="mt-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
           <p>© {new Date().getFullYear()} Thapsus Cargo Global</p>
           <div className="flex gap-6">
-            <Link to="/privacy" className="hover:text-slate-700 transition-colors">Privacy Policy</Link>
-            <Link to="/terms" className="text-orange-700">Terms of Service</Link>
+            <Link to="/privacy" className="hover:text-white/80 transition-colors">Privacy Policy</Link>
+            <Link to="/terms" className="text-ember-400">Terms of Service</Link>
           </div>
         </div>
 
