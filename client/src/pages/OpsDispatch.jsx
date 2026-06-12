@@ -68,7 +68,7 @@ export const OpsDispatch = () => {
   }
 
   return (
-    <div className="relative min-h-screen bg-gray-50">
+    <div className="relative min-h-screen bg-white/[0.03]">
       <GlassStyles />
       <LiquidBlob className="top-[-15%] left-[-15%] w-[40rem] h-[40rem]" color="bg-orange-200" />
 
@@ -76,19 +76,19 @@ export const OpsDispatch = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
           <PageHeading icon={Truck} title="Last-mile dispatch" subtitle="Nairobi rider runs by zone" />
           <button onClick={refresh}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1e3a5f] text-white text-sm font-bold">
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-ember-gradient text-white text-sm font-bold">
             <RefreshCw size={14}/> Refresh
           </button>
         </div>
 
         {/* Run builder */}
         <GlassCard className="p-5 md:p-6 mb-8">
-          <h3 className="text-lg font-black text-[#1e3a5f] mb-4">Create rider run</h3>
+          <h3 className="text-lg font-black text-white mb-4">Create rider run</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <Select label="Zone" value={zone} onChange={setZone}
                     options={zones.map(z => [z, z])} />
             <input type="date" value={date} onChange={e => setDate(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-slate-200 bg-white/80" />
+              className="px-3 py-2 rounded-xl border border-line bg-surface-2" />
             <Select label="Rider" value={riderId} onChange={setRiderId}
                     options={[
                       ['', riders.length === 0 ? '— no riders provisioned —' : '— unassigned —'],
@@ -103,25 +103,25 @@ export const OpsDispatch = () => {
 
         {/* Pending parcels */}
         <GlassCard className="p-5 md:p-6 mb-8">
-          <h3 className="text-lg font-black text-[#1e3a5f] mb-4">Awaiting dispatch ({pending.length})</h3>
+          <h3 className="text-lg font-black text-white mb-4">Awaiting dispatch ({pending.length})</h3>
           {pending.length === 0 ? (
-            <p className="text-slate-500 text-sm">No parcels awaiting last-mile.</p>
+            <p className="text-mute text-sm">No parcels awaiting last-mile.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {pending.map(p => (
                 <label key={p.id}
                   className={`block cursor-pointer p-4 rounded-xl border-2 transition-all
                     ${picked.includes(p.id)
-                      ? 'border-orange-500 bg-orange-50'
-                      : 'border-slate-200 bg-white/70 hover:border-slate-300'}`}>
+                      ? 'border-orange-500 bg-ember-500/10'
+                      : 'border-line bg-surface-2 hover:border-slate-300'}`}>
                   <div className="flex items-start gap-3">
                     <input type="checkbox" checked={picked.includes(p.id)}
                       onChange={() => togglePick(p.id)}
-                      className="mt-1 accent-orange-500" />
+                      className="mt-1 accent-ember-500" />
                     <div className="flex-1">
-                      <p className="font-mono text-xs text-slate-500">{p.tracking_number}</p>
-                      <p className="font-semibold text-slate-800">{p.name}</p>
-                      <p className="text-xs text-slate-500 mt-1 inline-flex items-center gap-1">
+                      <p className="font-mono text-xs text-mute">{p.tracking_number}</p>
+                      <p className="font-semibold text-white">{p.name}</p>
+                      <p className="text-xs text-mute mt-1 inline-flex items-center gap-1">
                         <MapPin size={12}/> {p.delivery_address || 'No address on file'}
                       </p>
                     </div>
@@ -134,22 +134,22 @@ export const OpsDispatch = () => {
 
         {/* Active runs */}
         <GlassCard className="p-5 md:p-6">
-          <h3 className="text-lg font-black text-[#1e3a5f] mb-4">Active runs</h3>
+          <h3 className="text-lg font-black text-white mb-4">Active runs</h3>
           {runs.length === 0 ? (
-            <p className="text-slate-500 text-sm">No active runs.</p>
+            <p className="text-mute text-sm">No active runs.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {runs.map(r => (
                 <GlassCard key={r.id} className="p-4">
                   <div className="flex items-start justify-between mb-2">
                     <div>
-                      <p className="text-[10px] uppercase text-slate-500 font-black">Zone</p>
-                      <p className="text-lg font-black text-[#1e3a5f]">{r.zone}</p>
+                      <p className="text-[10px] uppercase text-mute font-black">Zone</p>
+                      <p className="text-lg font-black text-white">{r.zone}</p>
                     </div>
                     <StatusBadge status={r.status} />
                   </div>
-                  <p className="text-xs text-slate-500">Date: {r.run_date}</p>
-                  <p className="text-xs text-slate-500">Rider: {r.rider_name || '— unassigned —'}</p>
+                  <p className="text-xs text-mute">Date: {r.run_date}</p>
+                  <p className="text-xs text-mute">Rider: {r.rider_name || '— unassigned —'}</p>
                   <p className="text-xs mt-2">
                     <span className="font-bold">{r.completed_stops}</span>/{r.total_stops} delivered
                   </p>
@@ -174,9 +174,9 @@ export const OpsDispatch = () => {
 
 const Select = ({ label, value, onChange, options }) => (
   <label className="block">
-    <span className="block text-[10px] uppercase tracking-widest text-slate-500 font-black mb-1">{label}</span>
+    <span className="block text-[10px] uppercase tracking-widest text-mute font-black mb-1">{label}</span>
     <select value={value} onChange={(e) => onChange(e.target.value)}
-            className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white/80">
+            className="w-full px-3 py-2 rounded-xl border border-line bg-surface-2">
       {options.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
     </select>
   </label>

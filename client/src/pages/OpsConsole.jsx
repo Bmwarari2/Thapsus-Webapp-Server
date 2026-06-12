@@ -135,7 +135,7 @@ export const OpsConsole = () => {
   }
 
   return (
-    <div className="relative min-h-screen bg-gray-50">
+    <div className="relative min-h-screen bg-white/[0.03]">
       <GlassStyles />
       <LiquidBlob className="top-[-15%] left-[-15%] w-[40rem] h-[40rem]" color="bg-orange-200" />
       <LiquidBlob className="bottom-[-15%] right-[-15%] w-[40rem] h-[40rem]" color="bg-blue-200"  />
@@ -154,7 +154,7 @@ export const OpsConsole = () => {
               label="Unquoted BFM requests"
               value={bfmCounts.pending_quote}
               icon={<Sparkles size={20}/>}
-              tone="text-orange-700"
+              tone="text-ember-400"
               accent
             />
           </Link>
@@ -163,7 +163,7 @@ export const OpsConsole = () => {
               label="Quoted, awaiting payment"
               value={bfmCounts.quoted}
               icon={<Clock size={20}/>}
-              tone="text-orange-700"
+              tone="text-ember-400"
               accent
             />
           </Link>
@@ -171,11 +171,11 @@ export const OpsConsole = () => {
 
         {/* Parcel intake stats — secondary now that BFM leads. */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-8">
-          <Tile label="Expected"      value={today.expected      ?? 0} icon={<Clock size={20}/>}      tone="text-blue-700" />
-          <Tile label="Received"      value={today.received      ?? 0} icon={<Package size={20}/>}    tone="text-emerald-700" />
-          <Tile label="Consolidating" value={today.consolidating ?? 0} icon={<Truck size={20}/>}      tone="text-purple-700" />
-          <Tile label="In transit"    value={today.in_transit    ?? 0} icon={<Plane size={20}/>}      tone="text-indigo-700" />
-          <Tile label="Held"          value={today.held          ?? 0} icon={<ShieldAlert size={20}/>} tone="text-red-700" />
+          <Tile label="Expected"      value={today.expected      ?? 0} icon={<Clock size={20}/>}      tone="text-blue-300" />
+          <Tile label="Received"      value={today.received      ?? 0} icon={<Package size={20}/>}    tone="text-emerald-300" />
+          <Tile label="Consolidating" value={today.consolidating ?? 0} icon={<Truck size={20}/>}      tone="text-purple-300" />
+          <Tile label="In transit"    value={today.in_transit    ?? 0} icon={<Plane size={20}/>}      tone="text-indigo-300" />
+          <Tile label="Held"          value={today.held          ?? 0} icon={<ShieldAlert size={20}/>} tone="text-red-300" />
         </div>
 
         {/* Quick links — Buy-for-me queue leads. */}
@@ -190,15 +190,15 @@ export const OpsConsole = () => {
         <GlassCard className="p-4 md:p-6 mb-8">
           <div className="flex flex-col md:flex-row gap-3 md:items-center">
             <div className="flex-1 relative">
-              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-dim" />
               <input
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
                 placeholder="Search tracking, email, description…"
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-line bg-surface-2 focus:outline-none focus:ring-2 focus:ring-orange-400" />
             </div>
             <select value={status} onChange={(e) => setStatus(e.target.value)}
-                    className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white/80">
+                    className="px-4 py-2.5 rounded-xl border border-line bg-surface-2">
               <option value="">All statuses</option>
               <option value="pending">Pending</option>
               <option value="received_at_warehouse">Received</option>
@@ -209,7 +209,7 @@ export const OpsConsole = () => {
               <option value="delivered">Delivered</option>
             </select>
             <button onClick={fetchParcels}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1e3a5f] text-white font-bold text-sm hover:bg-[#2a4a7f]">
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-ember-gradient text-white font-bold text-sm hover:bg-[#2a4a7f]">
               <RefreshCw size={16} /> Refresh
             </button>
           </div>
@@ -218,14 +218,14 @@ export const OpsConsole = () => {
         {/* Parcels table */}
         <GlassCard className="p-4 md:p-6">
           {loading ? (
-            <p className="py-10 text-center text-slate-500">Loading…</p>
+            <p className="py-10 text-center text-mute">Loading…</p>
           ) : parcels.length === 0 ? (
-            <p className="py-10 text-center text-slate-500">No parcels match your filter.</p>
+            <p className="py-10 text-center text-mute">No parcels match your filter.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                  <tr className="text-[10px] uppercase tracking-wider text-mute border-b border-line">
                     <th className="text-left py-3 px-3">Tracking</th>
                     <th className="text-left py-3 px-3">Customer</th>
                     <th className="text-left py-3 px-3">Description</th>
@@ -236,11 +236,11 @@ export const OpsConsole = () => {
                 </thead>
                 <tbody>
                   {parcels.map((p) => (
-                    <tr key={p.id} className="border-b border-slate-100 hover:bg-orange-50/30 transition-colors">
+                    <tr key={p.id} className="border-b border-line hover:bg-ember-500/10/30 transition-colors">
                       <td className="py-3 px-3 font-mono text-xs">{p.tracking_number}</td>
                       <td className="py-3 px-3">
-                        <div className="font-semibold text-slate-700">{p.name}</div>
-                        <div className="text-xs text-slate-500">{p.email} · {p.warehouse_id}</div>
+                        <div className="font-semibold text-white/80">{p.name}</div>
+                        <div className="text-xs text-mute">{p.email} · {p.warehouse_id}</div>
                       </td>
                       <td className="py-3 px-3 max-w-xs truncate">{p.description}</td>
                       <td className="py-3 px-3"><StatusBadge status={p.status} /></td>
@@ -254,14 +254,14 @@ export const OpsConsole = () => {
                         </button>
                         <button onClick={() => setPrintingParcel(p)}
                           title="Print parcel label"
-                          className="text-xs px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-800 inline-flex items-center gap-1">
+                          className="text-xs px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 text-white inline-flex items-center gap-1">
                           <Printer size={12}/> Label
                         </button>
-                        <button onClick={() => onScreen(p)} className="text-xs px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-800">Screen</button>
+                        <button onClick={() => onScreen(p)} className="text-xs px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 text-white">Screen</button>
                         {p.hold_reason ? (
-                          <button onClick={() => onRelease(p)} className="text-xs px-2 py-1 rounded bg-emerald-100 text-emerald-700">Release</button>
+                          <button onClick={() => onRelease(p)} className="text-xs px-2 py-1 rounded bg-emerald-500/15 text-emerald-300">Release</button>
                         ) : (
-                          <button onClick={() => onHold(p)} className="text-xs px-2 py-1 rounded bg-red-100 text-red-700">Hold</button>
+                          <button onClick={() => onHold(p)} className="text-xs px-2 py-1 rounded bg-red-500/15 text-red-300">Hold</button>
                         )}
                       </td>
                     </tr>
@@ -278,7 +278,7 @@ export const OpsConsole = () => {
           label and nothing else. The @page rule sets standard 100mm ×
           150mm thermal-label paper; printers configured for A4 will
           render the label in the top-left of the page, still scannable. */}
-      <div className="hidden print:block fixed inset-0 bg-white">
+      <div className="hidden print:block fixed inset-0 bg-surface">
         {printingParcel && <PrintableParcelLabel parcel={printingParcel} />}
       </div>
       <style>{`
@@ -308,9 +308,9 @@ export const OpsConsole = () => {
       {/* Receive modal */}
       {active && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <GlassCard className="bg-white max-w-lg w-full p-6">
-            <h3 className="text-xl font-black text-[#1e3a5f] mb-1">Receive parcel</h3>
-            <p className="text-xs text-slate-500 mb-4">{active.tracking_number} · {active.name}</p>
+          <GlassCard className="bg-surface max-w-lg w-full p-6">
+            <h3 className="text-xl font-black text-white mb-1">Receive parcel</h3>
+            <p className="text-xs text-mute mb-4">{active.tracking_number} · {active.name}</p>
 
             <div className="grid grid-cols-2 gap-3">
               <Input label="Actual weight (kg)" type="number" step="0.01" value={receive.weight_kg}
@@ -332,31 +332,31 @@ export const OpsConsole = () => {
 
             <div className="mt-3">
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 font-black mb-1">
+                <span className="block text-[10px] uppercase tracking-widest text-mute font-black mb-1">
                   HS tier (customs category)
                 </span>
                 <select value={receive.hs_tier}
                         onChange={(e) => setReceive({ ...receive, hs_tier: e.target.value })}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-orange-400">
+                        className="w-full px-3 py-2 rounded-xl border border-line bg-surface-2 focus:outline-none focus:ring-2 focus:ring-orange-400">
                   <option value="">— Leave unchanged —</option>
                   {HS_TIER_OPTIONS.map(o => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>
               </label>
-              <p className="text-[11px] text-slate-500 mt-1">
+              <p className="text-[11px] text-mute mt-1">
                 Buy-for-me parcels default to <strong>general</strong> at accept time. Pick the right tier here so duty/VAT on the invoice matches the goods.
               </p>
             </div>
 
-            <div className="mt-3 text-xs text-slate-500">
+            <div className="mt-3 text-xs text-mute">
               Volumetric kg = (L × W × H) / 6 000.  Chargeable = max(actual, volumetric).
               Duty feeds the Phase 2 invoice prefill on the admin console.
             </div>
 
             <div className="flex gap-3 justify-end mt-6">
               <button onClick={() => setActive(null)}
-                      className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm">
+                      className="px-4 py-2 rounded-xl bg-white/[0.05] hover:bg-slate-200 text-white/80 font-bold text-sm">
                 Cancel
               </button>
               <button onClick={onReceive}
@@ -371,18 +371,18 @@ export const OpsConsole = () => {
   )
 }
 
-const Tile = ({ label, value, icon, tone = 'text-slate-700', accent = false }) => (
+const Tile = ({ label, value, icon, tone = 'text-white/80', accent = false }) => (
   <GlassCard className={`p-4 md:p-5 ${accent ? 'border-orange-300/60 ring-1 ring-orange-300/40 hover:ring-orange-400/60 transition' : ''}`}>
     <div className={`flex items-center gap-2 ${tone}`}>
       {icon}
       <span className="text-[10px] uppercase tracking-widest font-black">{label}</span>
     </div>
-    <div className="text-3xl md:text-4xl font-black tracking-tighter text-[#1e3a5f] mt-2">{value}</div>
+    <div className="text-3xl md:text-4xl font-black tracking-tighter text-white mt-2">{value}</div>
   </GlassCard>
 )
 
 const QuickLink = ({ to, label }) => (
-  <Link to={to} className="inline-flex items-center gap-1 px-4 py-2 rounded-full bg-white/70 hover:bg-white text-[#1e3a5f] text-sm font-bold border border-slate-200 transition-colors">
+  <Link to={to} className="inline-flex items-center gap-1 px-4 py-2 rounded-full bg-surface-2 hover:bg-surface text-white text-sm font-bold border border-line transition-colors">
     {label} <ArrowRight size={14}/>
   </Link>
 )
@@ -402,9 +402,9 @@ const HS_TIER_OPTIONS = [
 
 const Input = ({ label, value, onChange, type = 'text', step }) => (
   <label className="block">
-    <span className="block text-[10px] uppercase tracking-widest text-slate-500 font-black mb-1">{label}</span>
+    <span className="block text-[10px] uppercase tracking-widest text-mute font-black mb-1">{label}</span>
     <input type={type} step={step} value={value} onChange={(e) => onChange(e.target.value)}
-           className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+           className="w-full px-3 py-2 rounded-xl border border-line bg-surface-2 focus:outline-none focus:ring-2 focus:ring-orange-400" />
   </label>
 )
 
@@ -413,19 +413,19 @@ const Input = ({ label, value, onChange, type = 'text', step }) => (
 // happens in the parent component (the scanner replaces it on success).
 const BarcodeField = ({ value, onChange, onScanClick }) => (
   <label className="block">
-    <span className="block text-[10px] uppercase tracking-widest text-slate-500 font-black mb-1">Barcode</span>
+    <span className="block text-[10px] uppercase tracking-widest text-mute font-black mb-1">Barcode</span>
     <div className="flex items-stretch gap-2">
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Scan or type"
-        className="flex-1 min-w-0 px-3 py-2 rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-orange-400"
+        className="flex-1 min-w-0 px-3 py-2 rounded-xl border border-line bg-surface-2 focus:outline-none focus:ring-2 focus:ring-orange-400"
       />
       <button
         type="button"
         onClick={onScanClick}
-        className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#1e3a5f] text-white text-sm font-bold hover:bg-[#2a4a7f]"
+        className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-ember-gradient text-white text-sm font-bold hover:bg-[#2a4a7f]"
         aria-label="Scan barcode with camera"
       >
         <Scan size={14} /> Scan

@@ -23,7 +23,7 @@ export const KpiDashboard = () => {
   }, [])
 
   return (
-    <div className="relative min-h-screen bg-gray-50">
+    <div className="relative min-h-screen bg-white/[0.03]">
       <GlassStyles />
       <LiquidBlob className="top-[-15%] right-[-15%] w-[40rem] h-[40rem]" color="bg-orange-200" />
       <LiquidBlob className="bottom-[-15%] left-[-15%] w-[40rem] h-[40rem]" color="bg-blue-200"  />
@@ -33,9 +33,9 @@ export const KpiDashboard = () => {
           subtitle="Live snapshot — Framework v2 §14 numbers." />
 
         {loading ? (
-          <p className="py-10 text-center text-slate-500">Loading…</p>
+          <p className="py-10 text-center text-mute">Loading…</p>
         ) : !kpi ? (
-          <p className="py-10 text-center text-slate-500">No data yet — once parcels start moving, numbers populate here.</p>
+          <p className="py-10 text-center text-mute">No data yet — once parcels start moving, numbers populate here.</p>
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -44,7 +44,7 @@ export const KpiDashboard = () => {
                 label="Chargeable kg this week"
                 value={kpi.kg_this_week}
                 trend={kpi.kg_trend_pct}
-                accent="text-orange-700"
+                accent="text-ember-400"
               />
               <KpiTile
                 icon={<Clock size={20}/>}
@@ -75,7 +75,7 @@ export const KpiDashboard = () => {
                 icon={<TrendingUp size={20}/>}
                 label="Pending inbound (KES)"
                 value={kpi.pending_inbound?.toLocaleString?.() || 0}
-                accent="text-blue-700"
+                accent="text-blue-300"
               />
               <KpiTile
                 icon={<Shield size={20}/>}
@@ -94,12 +94,12 @@ export const KpiDashboard = () => {
 
             {marketing && (
               <GlassCard className="p-6 mb-8">
-                <h3 className="text-lg font-black text-[#1e3a5f] mb-3">UTM signups (last 90 days)</h3>
+                <h3 className="text-lg font-black text-white mb-3">UTM signups (last 90 days)</h3>
                 {marketing.utm?.length === 0 ? (
-                  <p className="text-slate-500 text-sm">No UTM-tagged signups yet.</p>
+                  <p className="text-mute text-sm">No UTM-tagged signups yet.</p>
                 ) : (
                   <table className="min-w-full text-sm">
-                    <thead className="text-[10px] uppercase text-slate-500">
+                    <thead className="text-[10px] uppercase text-mute">
                       <tr>
                         <th className="text-left py-2">Source</th>
                         <th className="text-left py-2">Medium</th>
@@ -109,10 +109,10 @@ export const KpiDashboard = () => {
                     </thead>
                     <tbody>
                       {marketing.utm?.map((row, i) => (
-                        <tr key={i} className="border-t border-slate-100">
+                        <tr key={i} className="border-t border-line">
                           <td className="py-2 font-bold">{row.source}</td>
-                          <td className="py-2 text-slate-500">{row.medium}</td>
-                          <td className="py-2 text-slate-500">{row.campaign}</td>
+                          <td className="py-2 text-mute">{row.medium}</td>
+                          <td className="py-2 text-mute">{row.campaign}</td>
                           <td className="py-2 text-right font-mono">{row.signups}</td>
                         </tr>
                       ))}
@@ -120,7 +120,7 @@ export const KpiDashboard = () => {
                   </table>
                 )}
                 {marketing.retention_90d && (
-                  <p className="mt-4 text-sm text-slate-600">
+                  <p className="mt-4 text-sm text-mute">
                     <span className="font-bold">90-day repeat rate:</span>{' '}
                     {marketing.retention_90d.pct == null ? '—' : `${marketing.retention_90d.pct}%`}{' '}
                     ({marketing.retention_90d.repeat_in_90d}/{marketing.retention_90d.cohort_size})
@@ -135,13 +135,13 @@ export const KpiDashboard = () => {
   )
 }
 
-const KpiTile = ({ icon, label, value, trend, sub, accent = 'text-slate-700' }) => (
+const KpiTile = ({ icon, label, value, trend, sub, accent = 'text-white/80' }) => (
   <GlassCard className="p-5">
     <div className={`flex items-center gap-2 ${accent}`}>{icon}
       <span className="text-[10px] uppercase tracking-widest font-black">{label}</span>
     </div>
-    <div className="mt-3 text-3xl font-black tracking-tighter text-[#1e3a5f]">{value}</div>
-    {sub && <div className="text-xs text-slate-500 mt-1">{sub}</div>}
+    <div className="mt-3 text-3xl font-black tracking-tighter text-white">{value}</div>
+    {sub && <div className="text-xs text-mute mt-1">{sub}</div>}
     {trend !== undefined && trend !== null && (
       <div className={`mt-2 inline-flex items-center text-xs font-bold ${trend >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
         {trend >= 0 ? <TrendingUp size={14}/> : <TrendingDown size={14}/>}

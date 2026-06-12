@@ -15,9 +15,9 @@ import { dsarApi } from '../api'
 // Visual style per status — kept in sync with the server enum
 // ('open', 'in_progress', 'fulfilled', 'rejected') from routes/dsar.js.
 const STATUS_STYLE = {
-  open:         { label: 'Open',        klass: 'bg-amber-50  text-amber-700  ring-amber-100' },
-  in_progress:  { label: 'In progress', klass: 'bg-blue-50   text-blue-700   ring-blue-100' },
-  fulfilled:    { label: 'Fulfilled',   klass: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
+  open:         { label: 'Open',        klass: 'bg-amber-500/10  text-amber-300  ring-amber-100' },
+  in_progress:  { label: 'In progress', klass: 'bg-blue-500/10   text-blue-300   ring-blue-100' },
+  fulfilled:    { label: 'Fulfilled',   klass: 'bg-emerald-500/10 text-emerald-300 ring-emerald-100' },
   rejected:     { label: 'Rejected',    klass: 'bg-rose-50   text-rose-700   ring-rose-100' },
 }
 
@@ -145,21 +145,21 @@ export function AdminDsarQueue() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 sm:px-8 py-12">
+    <div className="min-h-screen bg-white/[0.03] px-4 sm:px-8 py-12">
       <div className="max-w-5xl mx-auto">
-        <Link to="/admin" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[#0f172a] mb-6">
+        <Link to="/admin" className="inline-flex items-center gap-2 text-sm font-semibold text-mute hover:text-white mb-6">
           <ArrowLeft size={16} /> Back to admin
         </Link>
 
         <div className="flex items-start justify-between gap-4 mb-8">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-orange-600 mb-3 inline-flex items-center gap-2">
+            <p className="text-[10px] font-black uppercase tracking-widest text-ember-400 mb-3 inline-flex items-center gap-2">
               <Database size={12} /> Compliance
             </p>
-            <h1 className="text-4xl sm:text-5xl font-black text-[#0f172a] tracking-tighter mb-2">
+            <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tighter mb-2">
               DSAR queue
             </h1>
-            <p className="text-slate-500 text-sm">
+            <p className="text-mute text-sm">
               Open and in-progress data-subject requests under GDPR / DPA 2018.
               Statutory deadline is 30 days; overdue rows surface at the top.
             </p>
@@ -169,7 +169,7 @@ export function AdminDsarQueue() {
             type="button"
             onClick={refresh}
             disabled={loading}
-            className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white ring-1 ring-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-surface ring-1 ring-slate-200 text-sm font-semibold text-white/80 hover:bg-white/[0.03] disabled:opacity-50"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             Refresh
@@ -177,16 +177,16 @@ export function AdminDsarQueue() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-24 text-slate-400 gap-2">
+          <div className="flex items-center justify-center py-24 text-dim gap-2">
             <Loader2 size={18} className="animate-spin" /> Loading queue…
           </div>
         ) : sorted.length === 0 ? (
-          <div className="rounded-2xl bg-white ring-1 ring-slate-200 px-6 py-16 text-center">
-            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500">
+          <div className="rounded-2xl bg-surface ring-1 ring-slate-200 px-6 py-16 text-center">
+            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
               <CheckCircle2 size={20} />
             </div>
-            <p className="text-base font-bold text-slate-700">Queue is empty</p>
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-base font-bold text-white/80">Queue is empty</p>
+            <p className="text-sm text-mute mt-1">
               No outstanding data-subject requests right now.
             </p>
           </div>
@@ -201,7 +201,7 @@ export function AdminDsarQueue() {
               return (
                 <li key={req.id}
                   className={[
-                    'rounded-2xl bg-white ring-1 transition',
+                    'rounded-2xl bg-surface ring-1 transition',
                     overdue ? 'ring-rose-200 shadow-[0_0_0_1px_rgba(244,63,94,0.05)]' : 'ring-slate-200',
                   ].join(' ')}
                 >
@@ -211,7 +211,7 @@ export function AdminDsarQueue() {
                         <span className={['inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold ring-1', status.klass].join(' ')}>
                           {status.label}
                         </span>
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold ring-1 bg-slate-50 text-slate-700 ring-slate-200">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold ring-1 bg-white/[0.03] text-white/80 ring-slate-200">
                           <TypeIcon size={11} /> {typeMeta.label}
                         </span>
                         {overdue && (
@@ -220,25 +220,25 @@ export function AdminDsarQueue() {
                           </span>
                         )}
                       </div>
-                      <p className="text-base font-semibold text-slate-900 truncate">
-                        {req.name || '—'} <span className="text-slate-400 font-normal">·</span>{' '}
-                        <span className="text-slate-600 font-mono text-sm">{req.email || '—'}</span>
+                      <p className="text-base font-semibold text-white truncate">
+                        {req.name || '—'} <span className="text-dim font-normal">·</span>{' '}
+                        <span className="text-mute font-mono text-sm">{req.email || '—'}</span>
                       </p>
-                      <p className="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
+                      <p className="text-xs text-mute mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
                         <span className="inline-flex items-center gap-1"><Clock size={11} /> Submitted {fmtDate(req.created_at)}</span>
                         <span className={overdue ? 'text-rose-600 font-semibold' : ''}>
                           Due {fmtDate(req.due_at)}
                         </span>
                       </p>
                       {req.notes && (
-                        <p className="text-xs text-slate-600 mt-2 italic line-clamp-2">{req.notes}</p>
+                        <p className="text-xs text-mute mt-2 italic line-clamp-2">{req.notes}</p>
                       )}
                     </div>
 
                     <div className="flex flex-wrap gap-2 shrink-0">
                       {req.status === 'open' && (
                         <button onClick={() => onPickUp(req)} disabled={busy}
-                          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 text-blue-700 text-sm font-bold hover:bg-blue-100 disabled:opacity-50">
+                          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-500/10 text-blue-300 text-sm font-bold hover:bg-blue-500/15 disabled:opacity-50">
                           {busy ? <Loader2 size={14} className="animate-spin" /> : <Clock size={14} />}
                           Pick up
                         </button>
@@ -258,7 +258,7 @@ export function AdminDsarQueue() {
                         </button>
                       )}
                       <button onClick={() => { setRejectFor(req); setRejectNotes('') }} disabled={busy}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white ring-1 ring-slate-200 text-slate-700 text-sm font-bold hover:bg-slate-50 disabled:opacity-50">
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-surface ring-1 ring-slate-200 text-white/80 text-sm font-bold hover:bg-white/[0.03] disabled:opacity-50">
                         <XCircle size={14} /> Reject
                       </button>
                     </div>
@@ -273,18 +273,18 @@ export function AdminDsarQueue() {
       {/* Reject modal */}
       {rejectFor && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl bg-surface shadow-2xl">
             <div className="p-6">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600">
                   <XCircle size={18} />
                 </div>
                 <div>
-                  <p className="text-base font-bold text-slate-900">Reject DSAR</p>
-                  <p className="text-xs text-slate-500">{rejectFor.email}</p>
+                  <p className="text-base font-bold text-white">Reject DSAR</p>
+                  <p className="text-xs text-mute">{rejectFor.email}</p>
                 </div>
               </div>
-              <p className="text-sm text-slate-600 mb-3">
+              <p className="text-sm text-mute mb-3">
                 Note the reason for rejection — it stays on the record and is required so an audit
                 can review the decision later.
               </p>
@@ -293,13 +293,13 @@ export function AdminDsarQueue() {
                 onChange={(e) => setRejectNotes(e.target.value)}
                 rows={4}
                 placeholder="e.g. Identity verification failed; re-issued IDV email."
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm"
+                className="w-full px-3 py-2 rounded-xl border border-line text-sm"
               />
             </div>
             <div className="flex justify-end gap-2 px-6 pb-6">
               <button onClick={() => { setRejectFor(null); setRejectNotes('') }}
                 disabled={busyId === rejectFor.id}
-                className="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold hover:bg-slate-200 disabled:opacity-50">
+                className="px-3 py-2 rounded-xl bg-white/[0.05] text-white/80 text-sm font-bold hover:bg-slate-200 disabled:opacity-50">
                 Cancel
               </button>
               <button onClick={onConfirmReject} disabled={busyId === rejectFor.id || !rejectNotes.trim()}

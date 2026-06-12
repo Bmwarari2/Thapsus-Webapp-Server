@@ -62,8 +62,8 @@ const LiquidBlob = ({ className, color }) => (
 );
 
 const GlassCard = ({ children, className = "" }) => (
-  <div className={`relative overflow-hidden rounded-[2.5rem] bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] ${className}`}>
-    <div className="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent pointer-events-none" />
+  <div className={`relative overflow-hidden rounded-[2.5rem] bg-surface-2 backdrop-blur-2xl border border-line shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] ${className}`}>
+    <div className="absolute inset-0 hidden" />
     <div className="relative z-10">{children}</div>
   </div>
 );
@@ -561,49 +561,49 @@ export const AdminDashboard = () => {
 
   // --- UI Styles & Helpers ---
   const COLORS = ['#1e3a5f', '#f97316', '#10b981', '#6366f1']
-  const tableWrapper = "bg-white/40 backdrop-blur-2xl border border-white/40 rounded-[2.5rem] shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] overflow-hidden overflow-x-auto"
-  const inputClass = "w-full px-5 py-3.5 bg-white/50 border border-gray-200/80 rounded-2xl focus:ring-4 focus:ring-orange-500/10 focus:border-orange-500 transition-all outline-none font-bold text-slate-800 placeholder-slate-400 shadow-sm"
-  const thClass = "px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-500"
+  const tableWrapper = "bg-surface-2 backdrop-blur-2xl border border-line rounded-[2.5rem] shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] overflow-hidden overflow-x-auto"
+  const inputClass = "w-full px-5 py-3.5 bg-surface-2 border border-line/80 rounded-2xl focus:ring-4 focus:ring-orange-500/10 focus:border-ember-500 transition-all outline-none font-bold text-white placeholder-white/30 shadow-sm"
+  const thClass = "px-6 py-5 text-[10px] font-black uppercase tracking-widest text-mute"
   const tdClass = "px-6 py-5 text-sm"
-  const btnPrimary = "glass-sheen bg-[#0f172a] text-white px-6 py-3 rounded-[1.5rem] font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 hover:bg-slate-800 transition-all disabled:opacity-50 hover:-translate-y-1"
-  const btnOutline = "bg-white/60 backdrop-blur-md border border-white/50 text-[#0f172a] px-6 py-3 rounded-[1.5rem] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white/90 transition-all disabled:opacity-50 shadow-sm hover:-translate-y-1"
+  const btnPrimary = "glass-sheen bg-surface text-white px-6 py-3 rounded-[1.5rem] font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 hover:bg-slate-800 transition-all disabled:opacity-50 hover:-translate-y-1"
+  const btnOutline = "bg-surface-2 backdrop-blur-md border border-line text-white px-6 py-3 rounded-[1.5rem] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-2 transition-all disabled:opacity-50 shadow-sm hover:-translate-y-1"
 
   const statusBadge = (status) => {
     const cls = {
-      delivered: 'bg-green-50 text-green-700 border-green-200',
-      in_transit: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-      pending: 'bg-amber-50 text-amber-700 border-amber-200',
-      cancelled: 'bg-red-50 text-red-700 border-red-200',
+      delivered: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
+      in_transit: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20',
+      pending: 'bg-amber-500/10 text-amber-300 border-amber-500/20',
+      cancelled: 'bg-red-500/10 text-red-300 border-red-500/20',
     }
-    return <span className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border shadow-sm ${cls[status] || 'bg-slate-50 text-slate-700 border-slate-200'}`}>{status?.replace(/_/g, ' ')}</span>
+    return <span className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border shadow-sm ${cls[status] || 'bg-white/[0.03] text-white/80 border-line'}`}>{status?.replace(/_/g, ' ')}</span>
   }
 
-  if (loading && !stats) return <div className="flex items-center justify-center h-screen bg-[#f8fafc]"><div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div></div>
+  if (loading && !stats) return <div className="flex items-center justify-center h-screen bg-transparent"><div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div></div>
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] relative font-sans text-slate-900 pb-20 overflow-x-hidden">
+    <div className="min-h-screen bg-transparent relative font-sans text-white pb-20 overflow-x-hidden">
       <DashboardStyles />
       
       {/* --- LIQUID BACKGROUNDS --- */}
       <LiquidBlob className="top-[-5%] left-[-10%] w-[400px] h-[400px] md:w-[600px] md:h-[600px]" color="bg-blue-200" />
       <LiquidBlob className="bottom-[10%] right-[-5%] w-[350px] h-[350px] md:w-[500px] md:h-[500px]" color="bg-orange-200" />
-      <div className="absolute inset-0 bg-white/30 backdrop-blur-[2px] pointer-events-none" />
+      <div className="absolute inset-0 bg-surface-2 backdrop-blur-[2px] pointer-events-none" />
       
       <div className="max-w-[1600px] mx-auto px-6 py-12 relative z-10 space-y-10">
         {/* Header Navigation */}
         <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6">
           <div>
-            <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-md border border-white/50 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 shadow-sm mb-4">
+            <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-surface-2 backdrop-blur-md border border-line text-[10px] font-black uppercase tracking-[0.3em] text-mute shadow-sm mb-4">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
               Auth: {currentUser?.name}
             </div>
-            <h1 className="text-4xl md:text-5xl font-black text-[#0f172a] tracking-tighter uppercase leading-none mb-2">{t('admin.title')}</h1>
-            <p className="text-slate-500 font-bold text-sm tracking-wide uppercase">Global Terminal • System Live</p>
+            <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase leading-none mb-2">{t('admin.title')}</h1>
+            <p className="text-mute font-bold text-sm tracking-wide uppercase">Global Terminal • System Live</p>
           </div>
-          <div className="flex bg-white/60 backdrop-blur-2xl p-2 rounded-[2rem] border border-white/50 shadow-sm overflow-x-auto no-scrollbar">
+          <div className="flex bg-surface-2 backdrop-blur-2xl p-2 rounded-[2rem] border border-line shadow-sm overflow-x-auto no-scrollbar">
             {['overview', 'users', 'orders', 'payments', 'revenue', 'tickets', 'aml', 'exchange', 'settings', 'auditLogs', 'errorLogs'].map((tab) => (
               <button key={tab} onClick={() => { setActiveTab(tab); if(tab === 'errorLogs') fetchErrorLogs(); if(tab === 'auditLogs') fetchAuditLogs(); if(tab === 'aml') fetchAmlFlags(amlStatusFilter); }}
-                className={`relative px-6 py-3 rounded-[1.5rem] font-black text-xs uppercase tracking-widest whitespace-nowrap transition-all ${activeTab === tab ? 'bg-[#0f172a] text-white shadow-xl glass-sheen' : 'text-slate-500 hover:text-[#0f172a] hover:bg-white/50'}`}>
+                className={`relative px-6 py-3 rounded-[1.5rem] font-black text-xs uppercase tracking-widest whitespace-nowrap transition-all ${activeTab === tab ? 'bg-surface text-white shadow-xl glass-sheen' : 'text-mute hover:text-white hover:bg-surface-2'}`}>
                 {tab.replace(/([A-Z])/g, ' $1')}
                 {tab === 'errorLogs' && errorLogStats && parseInt(errorLogStats.last_24h) > 0 && (
                   <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full animate-pulse border-2 border-white"></span>
@@ -619,10 +619,10 @@ export const AdminDashboard = () => {
             {/* Top Row: Revenue + Key Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               {/* Revenue Card — Large Dark Glass */}
-              <div className="relative group overflow-hidden rounded-[2.5rem] bg-[#0f172a] p-10 text-white shadow-2xl flex flex-col justify-between transition-all hover:scale-[1.01] transform lg:rotate-1 hover:rotate-0 duration-700 md:col-span-2 md:row-span-2 glass-sheen min-h-[320px]">
+              <div className="relative group overflow-hidden rounded-[2.5rem] bg-surface p-10 text-white shadow-2xl flex flex-col justify-between transition-all hover:scale-[1.01] transform lg:rotate-1 hover:rotate-0 duration-700 md:col-span-2 md:row-span-2 glass-sheen min-h-[320px]">
                 
                 <div className="relative z-10">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Global Revenue (Completed)</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-dim">Global Revenue (Completed)</span>
                   <h3 className="text-5xl lg:text-7xl font-black tracking-tighter mt-2 leading-none">KES {(stats?.revenue?.total_revenue || 0).toLocaleString()}</h3>
                   <p className="text-xs mt-3 font-bold text-orange-400 uppercase tracking-widest">{stats?.revenue?.total_transactions || 0} secure transactions</p>
                 </div>
@@ -637,43 +637,43 @@ export const AdminDashboard = () => {
               <GlassCard className="flex flex-col justify-center p-8 group hover:-translate-y-2 transition-all duration-500">
                 <div className="flex items-center justify-between mb-4">
                   <UserPlus className="text-emerald-500" size={32}/>
-                  <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-full text-[9px] font-black uppercase tracking-widest">Today</span>
+                  <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 rounded-full text-[9px] font-black uppercase tracking-widest">Today</span>
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">New Users</span>
-                <h3 className="text-4xl font-black text-[#0f172a] tracking-tighter">{stats?.users?.new_today || 0}</h3>
-                <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-wider">{stats?.users?.total || 0} total users</p>
+                <span className="text-[10px] font-black uppercase tracking-widest text-dim mb-1">New Users</span>
+                <h3 className="text-4xl font-black text-white tracking-tighter">{stats?.users?.new_today || 0}</h3>
+                <p className="text-[10px] font-bold text-dim mt-2 uppercase tracking-wider">{stats?.users?.total || 0} total users</p>
               </GlassCard>
 
               {/* New Orders Today */}
-              <GlassCard className="flex flex-col justify-center p-8 border-orange-200/50 bg-orange-50/30 group hover:-translate-y-2 transition-all duration-500">
+              <GlassCard className="flex flex-col justify-center p-8 border-ember-500/25/50 bg-ember-500/10/30 group hover:-translate-y-2 transition-all duration-500">
                 <div className="flex items-center justify-between mb-4">
-                  <ShoppingCart className="text-orange-700" size={32}/>
-                  <span className="px-2.5 py-1 bg-orange-50 text-orange-600 border border-orange-200 rounded-full text-[9px] font-black uppercase tracking-widest">Today</span>
+                  <ShoppingCart className="text-ember-400" size={32}/>
+                  <span className="px-2.5 py-1 bg-ember-500/10 text-ember-400 border border-ember-500/25 rounded-full text-[9px] font-black uppercase tracking-widest">Today</span>
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-orange-600/60 mb-1">New Orders</span>
-                <h3 className="text-4xl font-black text-[#0f172a] tracking-tighter">{stats?.orders?.new_today || 0}</h3>
-                <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-wider">{stats?.orders?.total_orders || 0} total orders</p>
+                <span className="text-[10px] font-black uppercase tracking-widest text-ember-400/60 mb-1">New Orders</span>
+                <h3 className="text-4xl font-black text-white tracking-tighter">{stats?.orders?.new_today || 0}</h3>
+                <p className="text-[10px] font-bold text-dim mt-2 uppercase tracking-wider">{stats?.orders?.total_orders || 0} total orders</p>
               </GlassCard>
 
               {/* Active Orders */}
               <GlassCard className="flex flex-col justify-center p-8 group hover:-translate-y-2 transition-all duration-500">
                 <div className="flex items-center justify-between mb-4">
                   <Zap className="text-blue-500" size={32}/>
-                  <span className="px-2.5 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-full text-[9px] font-black uppercase tracking-widest animate-pulse">Live</span>
+                  <span className="px-2.5 py-1 bg-blue-500/10 text-blue-300 border border-blue-500/20 rounded-full text-[9px] font-black uppercase tracking-widest animate-pulse">Live</span>
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Active Orders</span>
-                <h3 className="text-4xl font-black text-[#0f172a] tracking-tighter">{stats?.orders?.active_orders || 0}</h3>
-                <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-wider">In pipeline now</p>
+                <span className="text-[10px] font-black uppercase tracking-widest text-dim mb-1">Active Orders</span>
+                <h3 className="text-4xl font-black text-white tracking-tighter">{stats?.orders?.active_orders || 0}</h3>
+                <p className="text-[10px] font-bold text-dim mt-2 uppercase tracking-wider">In pipeline now</p>
               </GlassCard>
 
               {/* Total Users */}
               <GlassCard className="flex flex-col justify-center p-8 group hover:-translate-y-2 transition-all duration-500">
                 <Users className="text-indigo-500 mb-4" size={32}/>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Users</span>
-                <h3 className="text-4xl font-black text-[#0f172a] tracking-tighter">{stats?.users?.total || 0}</h3>
+                <span className="text-[10px] font-black uppercase tracking-widest text-dim mb-1">Total Users</span>
+                <h3 className="text-4xl font-black text-white tracking-tighter">{stats?.users?.total || 0}</h3>
                 <div className="flex gap-3 mt-2">
-                  <span className="text-[9px] font-black text-slate-400 uppercase">{stats?.users?.customers || 0} customers</span>
-                  <span className="text-[9px] font-black text-orange-700 uppercase">{stats?.users?.admins || 0} admins</span>
+                  <span className="text-[9px] font-black text-dim uppercase">{stats?.users?.customers || 0} customers</span>
+                  <span className="text-[9px] font-black text-ember-400 uppercase">{stats?.users?.admins || 0} admins</span>
                 </div>
               </GlassCard>
             </div>
@@ -682,26 +682,26 @@ export const AdminDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Order Status Breakdown */}
               <GlassCard className="md:col-span-2 p-8">
-                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2"><BarChart3 size={14} className="text-orange-700" /> Orders by Status</h4>
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-dim mb-6 flex items-center gap-2"><BarChart3 size={14} className="text-ember-400" /> Orders by Status</h4>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {(stats?.order_statuses || []).map(s => {
                     const statusColors = {
-                      pending: { bg: 'bg-amber-50/80', text: 'text-amber-700', border: 'border-amber-200/50', icon: <Clock size={18} className="text-amber-500" /> },
-                      received_at_warehouse: { bg: 'bg-blue-50/80', text: 'text-blue-700', border: 'border-blue-200/50', icon: <Box size={18} className="text-blue-500" /> },
-                      consolidating: { bg: 'bg-purple-50/80', text: 'text-purple-700', border: 'border-purple-200/50', icon: <Package size={18} className="text-purple-500" /> },
-                      in_transit: { bg: 'bg-indigo-50/80', text: 'text-indigo-700', border: 'border-indigo-200/50', icon: <ArrowUpRight size={18} className="text-indigo-500" /> },
-                      customs: { bg: 'bg-yellow-50/80', text: 'text-yellow-700', border: 'border-yellow-200/50', icon: <Globe size={18} className="text-yellow-600" /> },
+                      pending: { bg: 'bg-amber-500/10/80', text: 'text-amber-300', border: 'border-amber-500/20/50', icon: <Clock size={18} className="text-amber-500" /> },
+                      received_at_warehouse: { bg: 'bg-blue-500/10/80', text: 'text-blue-300', border: 'border-blue-500/20/50', icon: <Box size={18} className="text-blue-500" /> },
+                      consolidating: { bg: 'bg-purple-500/10/80', text: 'text-purple-300', border: 'border-purple-500/20/50', icon: <Package size={18} className="text-purple-500" /> },
+                      in_transit: { bg: 'bg-indigo-500/10/80', text: 'text-indigo-300', border: 'border-indigo-500/20/50', icon: <ArrowUpRight size={18} className="text-indigo-500" /> },
+                      customs: { bg: 'bg-yellow-500/10/80', text: 'text-yellow-300', border: 'border-yellow-500/20/50', icon: <Globe size={18} className="text-yellow-600" /> },
                       out_for_delivery: { bg: 'bg-teal-50/80', text: 'text-teal-700', border: 'border-teal-200/50', icon: <TrendingUp size={18} className="text-teal-500" /> },
-                      delivered: { bg: 'bg-emerald-50/80', text: 'text-emerald-700', border: 'border-emerald-200/50', icon: <CheckCircle size={18} className="text-emerald-500" /> },
-                      cancelled: { bg: 'bg-red-50/80', text: 'text-red-700', border: 'border-red-200/50', icon: <XCircle size={18} className="text-red-500" /> },
+                      delivered: { bg: 'bg-emerald-500/10/80', text: 'text-emerald-300', border: 'border-emerald-500/20/50', icon: <CheckCircle size={18} className="text-emerald-500" /> },
+                      cancelled: { bg: 'bg-red-500/10/80', text: 'text-red-300', border: 'border-red-500/20/50', icon: <XCircle size={18} className="text-red-500" /> },
                     }
-                    const c = statusColors[s.status] || { bg: 'bg-slate-50/80', text: 'text-slate-700', border: 'border-slate-200/50', icon: <Package size={18} className="text-slate-400" /> }
+                    const c = statusColors[s.status] || { bg: 'bg-white/[0.03]/80', text: 'text-white/80', border: 'border-line/50', icon: <Package size={18} className="text-dim" /> }
                     return (
                       <div key={s.status} className={`relative overflow-hidden rounded-2xl ${c.bg} backdrop-blur-md border ${c.border} p-4 hover:scale-[1.02] transition-all duration-300 group/card`}>
                         <div className="absolute inset-0 bg-gradient-to-tr from-white/30 to-transparent pointer-events-none" />
                         <div className="relative z-10">
                           <div className="flex items-center justify-between mb-2">{c.icon}<span className={`text-2xl font-black ${c.text} tracking-tighter`}>{parseInt(s.count) || 0}</span></div>
-                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">{s.status?.replace(/_/g, ' ')}</p>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-mute">{s.status?.replace(/_/g, ' ')}</p>
                         </div>
                       </div>
                     )
@@ -715,7 +715,7 @@ export const AdminDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Daily Orders Trend */}
               <GlassCard className="md:col-span-2 p-8">
-                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2"><TrendingUp size={14} className="text-green-500" /> Orders Trend (14 Days)</h4>
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-dim mb-6 flex items-center gap-2"><TrendingUp size={14} className="text-green-500" /> Orders Trend (14 Days)</h4>
                 <div className="h-48">
                   <Suspense fallback={<ChartFallback />}>
                     <OrdersTrendAreaChart data={stats?.daily_orders} />
@@ -726,32 +726,32 @@ export const AdminDashboard = () => {
               {/* Quick Stats Stack */}
               <div className="space-y-4">
                 <GlassCard className="p-6 flex items-center gap-4 group hover:-translate-y-1 transition-all duration-300">
-                  <div className="p-3 bg-green-50/80 rounded-2xl border border-green-200/50"><DollarSign size={20} className="text-green-600" /></div>
+                  <div className="p-3 bg-emerald-500/10/80 rounded-2xl border border-emerald-500/20/50"><DollarSign size={20} className="text-emerald-300" /></div>
                   <div>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Deposits</p>
-                    <p className="text-xl font-black text-[#0f172a] tracking-tighter">KES {(parseFloat(stats?.revenue?.deposits) || 0).toLocaleString()}</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-dim">Deposits</p>
+                    <p className="text-xl font-black text-white tracking-tighter">KES {(parseFloat(stats?.revenue?.deposits) || 0).toLocaleString()}</p>
                   </div>
                 </GlassCard>
                 <GlassCard className="p-6 flex items-center gap-4 group hover:-translate-y-1 transition-all duration-300">
-                  <div className="p-3 bg-blue-50/80 rounded-2xl border border-blue-200/50"><CreditCard size={20} className="text-blue-600" /></div>
+                  <div className="p-3 bg-blue-500/10/80 rounded-2xl border border-blue-500/20/50"><CreditCard size={20} className="text-blue-300" /></div>
                   <div>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Payments</p>
-                    <p className="text-xl font-black text-[#0f172a] tracking-tighter">KES {(parseFloat(stats?.revenue?.payments) || 0).toLocaleString()}</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-dim">Payments</p>
+                    <p className="text-xl font-black text-white tracking-tighter">KES {(parseFloat(stats?.revenue?.payments) || 0).toLocaleString()}</p>
                   </div>
                 </GlassCard>
                 <GlassCard className="p-6 flex items-center gap-4 group hover:-translate-y-1 transition-all duration-300">
-                  <div className="p-3 bg-purple-50/80 rounded-2xl border border-purple-200/50"><Users size={20} className="text-purple-600" /></div>
+                  <div className="p-3 bg-purple-500/10/80 rounded-2xl border border-purple-500/20/50"><Users size={20} className="text-purple-600" /></div>
                   <div>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Referrals</p>
-                    <p className="text-xl font-black text-[#0f172a] tracking-tighter">{parseInt(stats?.referrals?.completed_referrals) || 0} / {parseInt(stats?.referrals?.total_referrals) || 0}</p>
-                    <p className="text-[9px] font-bold text-orange-700">KES {(parseFloat(stats?.referrals?.total_rewards_paid) || 0).toLocaleString()} paid</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-dim">Referrals</p>
+                    <p className="text-xl font-black text-white tracking-tighter">{parseInt(stats?.referrals?.completed_referrals) || 0} / {parseInt(stats?.referrals?.total_referrals) || 0}</p>
+                    <p className="text-[9px] font-bold text-ember-400">KES {(parseFloat(stats?.referrals?.total_rewards_paid) || 0).toLocaleString()} paid</p>
                   </div>
                 </GlassCard>
                 <GlassCard className="p-6 flex items-center gap-4 group hover:-translate-y-1 transition-all duration-300">
-                  <div className="p-3 bg-amber-50/80 rounded-2xl border border-amber-200/50"><Package size={20} className="text-amber-600" /></div>
+                  <div className="p-3 bg-amber-500/10/80 rounded-2xl border border-amber-500/20/50"><Package size={20} className="text-amber-600" /></div>
                   <div>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Pending Orders</p>
-                    <p className="text-xl font-black text-[#0f172a] tracking-tighter">{parseInt(stats?.orders?.pending) || 0}</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-dim">Pending Orders</p>
+                    <p className="text-xl font-black text-white tracking-tighter">{parseInt(stats?.orders?.pending) || 0}</p>
                   </div>
                 </GlassCard>
               </div>
@@ -763,7 +763,7 @@ export const AdminDashboard = () => {
         {activeTab === 'users' && (
           <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <h2 className="text-3xl font-black text-[#0f172a] uppercase tracking-tighter leading-none">User Directory</h2>
+              <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">User Directory</h2>
               <div className="flex flex-wrap gap-2">
                 <a
                   href="/admin/customer-consolidations"
@@ -777,7 +777,7 @@ export const AdminDashboard = () => {
             </div>
             <div className={tableWrapper}>
               <table className="w-full text-left">
-                <thead className="bg-[#0f172a]/5">
+                <thead className="bg-surface/5">
                   <tr>
                     <th className={thClass}>User Entity</th>
                     <th className={thClass}>Credentials</th>
@@ -785,14 +785,14 @@ export const AdminDashboard = () => {
                     <th className={thClass + " text-right"}>Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/50">
+                <tbody className="divide-y divide-white/10">
                   {users.map(u => (
-                    <tr key={u.id} className="hover:bg-white/40 transition-colors">
-                      <td className={tdClass}><p className="font-black text-[#0f172a]">{u.name}</p><p className="text-[10px] font-mono text-orange-700 font-bold mt-1">{u.warehouse_id}</p></td>
-                      <td className={tdClass}><p className="font-bold text-slate-700">{u.email}</p><p className="text-xs text-slate-400 font-medium mt-1">{u.phone}</p></td>
-                      <td className={tdClass}><span className={`inline-flex px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm border ${u.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>{u.is_active ? 'Active' : 'Disabled'}</span></td>
+                    <tr key={u.id} className="hover:bg-surface-2 transition-colors">
+                      <td className={tdClass}><p className="font-black text-white">{u.name}</p><p className="text-[10px] font-mono text-ember-400 font-bold mt-1">{u.warehouse_id}</p></td>
+                      <td className={tdClass}><p className="font-bold text-white/80">{u.email}</p><p className="text-xs text-dim font-medium mt-1">{u.phone}</p></td>
+                      <td className={tdClass}><span className={`inline-flex px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm border ${u.is_active ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' : 'bg-red-500/10 text-red-300 border-red-500/20'}`}>{u.is_active ? 'Active' : 'Disabled'}</span></td>
                       <td className={tdClass + " text-right"}>
-                        <button onClick={() => handleOpenUserDetail(u)} className="p-2 hover:bg-blue-100 text-blue-600 bg-white rounded-xl transition-all inline-flex shadow-sm"><Eye size={16}/></button>
+                        <button onClick={() => handleOpenUserDetail(u)} className="p-2 hover:bg-blue-500/15 text-blue-300 bg-surface rounded-xl transition-all inline-flex shadow-sm"><Eye size={16}/></button>
                       </td>
                     </tr>
                   ))}
@@ -806,15 +806,15 @@ export const AdminDashboard = () => {
         {activeTab === 'orders' && (
           <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <h2 className="text-3xl font-black text-[#0f172a] uppercase tracking-tighter leading-none">Shipment Terminal</h2>
+              <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">Shipment Terminal</h2>
               <div className="flex gap-3">
                 <button onClick={() => setShowCreateOrderForm(true)} className={btnPrimary}><Plus size={16}/> Create Order</button>
               </div>
             </div>
 
             {selectedOrders.length > 0 && (
-              <GlassCard className="!p-4 flex flex-col md:flex-row items-center gap-4 bg-blue-50/40 border-blue-200/50">
-                <span className="font-black text-blue-800 text-sm tracking-wide uppercase">{selectedOrders.length} Selected</span>
+              <GlassCard className="!p-4 flex flex-col md:flex-row items-center gap-4 bg-blue-500/10/40 border-blue-500/20/50">
+                <span className="font-black text-blue-300 text-sm tracking-wide uppercase">{selectedOrders.length} Selected</span>
                 <select value={newStatus} onChange={e => setNewStatus(e.target.value)} className={inputClass + " !w-auto !py-3 !text-sm"}>
                   <option value="">Update Status…</option>
                   <option value="pending">Pending</option>
@@ -832,7 +832,7 @@ export const AdminDashboard = () => {
 
             <div className={tableWrapper}>
               <table className="w-full text-left">
-                <thead className="bg-[#0f172a]/5">
+                <thead className="bg-surface/5">
                   <tr>
                     <th className={thClass}><input type="checkbox" onChange={e => e.target.checked ? setSelectedOrders(orders.map(o=>o.id)) : setSelectedOrders([])} className="w-4 h-4 rounded accent-[#0f172a]" /></th>
                     <th className={thClass}>Dispatch ID</th>
@@ -842,32 +842,32 @@ export const AdminDashboard = () => {
                     <th className={thClass + " text-right"}>Operations</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/50">
+                <tbody className="divide-y divide-white/10">
                   {orders.map(o => {
                     const dims = o.dimensions_json
                     return (
-                    <tr key={o.id} className="hover:bg-white/40 transition-colors group">
+                    <tr key={o.id} className="hover:bg-surface-2 transition-colors group">
                       <td className={tdClass}><input type="checkbox" checked={selectedOrders.includes(o.id)} onChange={() => handleToggleOrderSelection(o.id)} className="w-4 h-4 rounded accent-[#0f172a]" /></td>
-                      <td className={tdClass}><p className="font-black text-[#0f172a]">{o.tracking_number}</p></td>
-                      <td className={tdClass}><p className="font-bold text-slate-800">{o.name || o.email}</p><p className="text-xs text-slate-500 font-medium max-w-[200px] truncate mt-1">{o.retailer}: {o.description}</p></td>
+                      <td className={tdClass}><p className="font-black text-white">{o.tracking_number}</p></td>
+                      <td className={tdClass}><p className="font-bold text-white">{o.name || o.email}</p><p className="text-xs text-mute font-medium max-w-[200px] truncate mt-1">{o.retailer}: {o.description}</p></td>
                       <td className={tdClass}>
                         {o.weight_kg ? (
                           <div>
-                            <p className="font-black text-[#0f172a]">{o.weight_kg} kg</p>
-                            {dims && <p className="text-[10px] text-slate-400 font-bold mt-1">{dims.length}×{dims.width}×{dims.height} cm</p>}
+                            <p className="font-black text-white">{o.weight_kg} kg</p>
+                            {dims && <p className="text-[10px] text-dim font-bold mt-1">{dims.length}×{dims.width}×{dims.height} cm</p>}
                           </div>
                         ) : (
-                          <span className="px-2 py-1 bg-amber-50 text-amber-600 border border-amber-200 rounded-full text-[9px] font-black uppercase tracking-widest">Pending</span>
+                          <span className="px-2 py-1 bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded-full text-[9px] font-black uppercase tracking-widest">Pending</span>
                         )}
                       </td>
                       <td className={tdClass}>{statusBadge(o.status)}</td>
                       <td className={tdClass + " text-right"}>
                         <div className="flex justify-end gap-2">
-                          <button onClick={() => handleOpenEditOrder(o)} className="p-2 bg-white hover:bg-blue-100 text-blue-600 border border-blue-100 rounded-xl shadow-sm transition-colors" title="Edit Order"><Pencil size={16}/></button>
-                          <button onClick={() => { setPaymentModal({orderId: o.id, trackingNumber: o.tracking_number}); setPaymentAmount(String(o.estimated_cost||'')) }} className="p-2 bg-white hover:bg-green-100 text-green-600 border border-green-100 rounded-xl shadow-sm transition-colors" title="Request Payment"><DollarSign size={16}/></button>
-                          <button onClick={() => { setReminderModal({orderId: o.id, trackingNumber: o.tracking_number}); setReminderAmount(String(o.estimated_cost||'')) }} className="p-2 bg-white hover:bg-orange-100 text-orange-700 border border-orange-100 rounded-xl shadow-sm transition-colors" title="Payment Reminder"><Bell size={16}/></button>
-                          <button onClick={() => { setCancelModal({orderId: o.id, trackingNumber: o.tracking_number}) }} className="p-2 bg-white hover:bg-amber-100 text-amber-600 border border-amber-100 rounded-xl shadow-sm transition-colors" title="Cancel"><XCircle size={16}/></button>
-                          <button onClick={() => handleDeleteOrder(o.id, o.tracking_number)} className="p-2 bg-white hover:bg-red-100 text-red-600 border border-red-100 rounded-xl shadow-sm transition-colors" title="Delete"><Trash2 size={16}/></button>
+                          <button onClick={() => handleOpenEditOrder(o)} className="p-2 bg-surface hover:bg-blue-500/15 text-blue-300 border border-blue-100 rounded-xl shadow-sm transition-colors" title="Edit Order"><Pencil size={16}/></button>
+                          <button onClick={() => { setPaymentModal({orderId: o.id, trackingNumber: o.tracking_number}); setPaymentAmount(String(o.estimated_cost||'')) }} className="p-2 bg-surface hover:bg-emerald-500/15 text-emerald-300 border border-green-100 rounded-xl shadow-sm transition-colors" title="Request Payment"><DollarSign size={16}/></button>
+                          <button onClick={() => { setReminderModal({orderId: o.id, trackingNumber: o.tracking_number}); setReminderAmount(String(o.estimated_cost||'')) }} className="p-2 bg-surface hover:bg-ember-500/15 text-ember-400 border border-ember-500/20 rounded-xl shadow-sm transition-colors" title="Payment Reminder"><Bell size={16}/></button>
+                          <button onClick={() => { setCancelModal({orderId: o.id, trackingNumber: o.tracking_number}) }} className="p-2 bg-surface hover:bg-amber-500/15 text-amber-600 border border-amber-100 rounded-xl shadow-sm transition-colors" title="Cancel"><XCircle size={16}/></button>
+                          <button onClick={() => handleDeleteOrder(o.id, o.tracking_number)} className="p-2 bg-surface hover:bg-red-500/15 text-red-300 border border-red-100 rounded-xl shadow-sm transition-colors" title="Delete"><Trash2 size={16}/></button>
                         </div>
                       </td>
                     </tr>
@@ -882,12 +882,12 @@ export const AdminDashboard = () => {
         {/* --- PAYMENTS --- */}
         {activeTab === 'payments' && (
           <div className="space-y-6 animate-in fade-in duration-500">
-            <h2 className="text-3xl font-black text-[#0f172a] uppercase tracking-tighter leading-none">M-Pesa Verification Queue</h2>
+            <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">M-Pesa Verification Queue</h2>
             <div className="grid gap-6">
               {pendingPayments.length === 0 ? (
                 <GlassCard className="text-center py-24 flex flex-col items-center justify-center">
-                  <CreditCard className="text-slate-300 mb-6" size={56} />
-                  <p className="font-black text-slate-400 uppercase text-xs tracking-widest">No pending transactions</p>
+                  <CreditCard className="text-mute mb-6" size={56} />
+                  <p className="font-black text-dim uppercase text-xs tracking-widest">No pending transactions</p>
                 </GlassCard>
               ) : pendingPayments.map(p => {
                 // PaymentDto field names from server PR #61 (migration 028).
@@ -899,15 +899,15 @@ export const AdminDashboard = () => {
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div>
                       <div className="flex items-center gap-4 mb-2">
-                        <span className="font-black text-3xl text-green-600 tracking-tighter">KES {Number(dueKes||0).toLocaleString()}</span>
-                        <span className="px-3 py-1.5 bg-orange-50 text-orange-600 border border-orange-200 rounded-full font-mono text-[10px] font-black uppercase tracking-widest shadow-sm">{p.mpesa_reference || '—'}</span>
+                        <span className="font-black text-3xl text-emerald-300 tracking-tighter">KES {Number(dueKes||0).toLocaleString()}</span>
+                        <span className="px-3 py-1.5 bg-ember-500/10 text-ember-400 border border-ember-500/25 rounded-full font-mono text-[10px] font-black uppercase tracking-widest shadow-sm">{p.mpesa_reference || '—'}</span>
                         {claimedKes != null && (
-                          <span className={`px-3 py-1.5 rounded-full font-mono text-[10px] font-black uppercase tracking-widest shadow-sm border ${mismatch ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                          <span className={`px-3 py-1.5 rounded-full font-mono text-[10px] font-black uppercase tracking-widest shadow-sm border ${mismatch ? 'bg-red-500/10 text-red-300 border-red-500/20' : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'}`}>
                             Customer claimed KES {Number(claimedKes).toLocaleString()}
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-slate-500 font-bold">
+                      <p className="text-sm text-mute font-bold">
                         {p.user_name || p.user_email || p.user_id} • {new Date(p.created_at).toLocaleDateString()} • {p.target_kind}
                       </p>
                     </div>
@@ -922,19 +922,19 @@ export const AdminDashboard = () => {
                       >
                         <CheckCircle size={16}/> {mismatch ? 'Verify w/ override' : 'Verify'}
                       </button>
-                      <button onClick={() => handleRejectPayment(p.id)} disabled={approvingPayment===p.id} className="bg-red-50 text-red-600 border border-red-200 px-8 py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest hover:bg-red-100 transition-colors shadow-sm">Reject</button>
+                      <button onClick={() => handleRejectPayment(p.id)} disabled={approvingPayment===p.id} className="bg-red-500/10 text-red-300 border border-red-500/20 px-8 py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest hover:bg-red-500/15 transition-colors shadow-sm">Reject</button>
                     </div>
                   </div>
 
                   {/* Full M-Pesa Message — Always Visible */}
-                  <div className="relative overflow-hidden rounded-2xl bg-slate-900/5 backdrop-blur-md border border-white/50 p-6 shadow-inner">
-                    <div className="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent pointer-events-none" />
+                  <div className="relative overflow-hidden rounded-2xl bg-slate-900/5 backdrop-blur-md border border-line p-6 shadow-inner">
+                    <div className="absolute inset-0 hidden" />
                     <div className="relative z-10">
                       <div className="flex items-center gap-2 mb-3">
                         <MessageSquare size={14} className="text-blue-500" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">Full M-Pesa SMS</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-blue-300">Full M-Pesa SMS</span>
                       </div>
-                      <div className="font-mono text-sm text-slate-700 whitespace-pre-wrap leading-relaxed bg-white/40 p-4 rounded-xl border border-white/50">
+                      <div className="font-mono text-sm text-white/80 whitespace-pre-wrap leading-relaxed bg-surface-2 p-4 rounded-xl border border-line">
                         {p.mpesa_message_raw || 'No message logged.'}
                       </div>
                     </div>
@@ -942,7 +942,7 @@ export const AdminDashboard = () => {
 
                   {p.mpesa_phone && (
                     <div className="flex flex-wrap gap-3">
-                      <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500">Phone: {p.mpesa_phone}</span>
+                      <span className="px-3 py-1.5 bg-white/[0.03] border border-line rounded-full text-[10px] font-black uppercase tracking-widest text-mute">Phone: {p.mpesa_phone}</span>
                     </div>
                   )}
                 </GlassCard>
@@ -956,10 +956,10 @@ export const AdminDashboard = () => {
         {activeTab === 'revenue' && (
           <div className="space-y-8 animate-in fade-in duration-500">
             <div className="rounded-3xl">
-              <div className="h-full w-full bg-white border border-gray-100 shadow-card rounded-3xl p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8">
+              <div className="h-full w-full bg-surface border border-line shadow-card rounded-3xl p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8">
                 <div>
-                  <h2 className="text-3xl md:text-4xl font-black text-[#0f172a] uppercase tracking-tighter leading-none mb-2">Revenue Reporting</h2>
-                  <p className="text-sm font-bold text-slate-500">Extract and analyze financial throughput.</p>
+                  <h2 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-none mb-2">Revenue Reporting</h2>
+                  <p className="text-sm font-bold text-mute">Extract and analyze financial throughput.</p>
                 </div>
                 <button onClick={async () => {
                   try {
@@ -970,28 +970,28 @@ export const AdminDashboard = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <GlassCard className="p-8 border-green-200/50 bg-green-50/30">
-                <p className="text-[10px] font-black uppercase tracking-widest text-green-700/60 mb-3">Total Deposits</p>
-                <h3 className="text-4xl md:text-5xl font-black text-green-700 tracking-tighter">KES {(stats?.revenue?.deposits||0).toLocaleString()}</h3>
+              <GlassCard className="p-8 border-emerald-500/20/50 bg-emerald-500/10/30">
+                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-300/60 mb-3">Total Deposits</p>
+                <h3 className="text-4xl md:text-5xl font-black text-emerald-300 tracking-tighter">KES {(stats?.revenue?.deposits||0).toLocaleString()}</h3>
               </GlassCard>
-              <GlassCard className="p-8 border-blue-200/50 bg-blue-50/30">
-                <p className="text-[10px] font-black uppercase tracking-widest text-blue-700/60 mb-3">Total Payments</p>
-                <h3 className="text-4xl md:text-5xl font-black text-blue-700 tracking-tighter">KES {(stats?.revenue?.payments||0).toLocaleString()}</h3>
+              <GlassCard className="p-8 border-blue-500/20/50 bg-blue-500/10/30">
+                <p className="text-[10px] font-black uppercase tracking-widest text-blue-300/60 mb-3">Total Payments</p>
+                <h3 className="text-4xl md:text-5xl font-black text-blue-300 tracking-tighter">KES {(stats?.revenue?.payments||0).toLocaleString()}</h3>
               </GlassCard>
-              <GlassCard className="p-8 border-orange-200/50 bg-orange-50/30">
-                <p className="text-[10px] font-black uppercase tracking-widest text-orange-700/60 mb-3">Net Revenue</p>
-                <h3 className="text-4xl md:text-5xl font-black text-orange-600 tracking-tighter">KES {(stats?.revenue?.total_revenue||0).toLocaleString()}</h3>
+              <GlassCard className="p-8 border-ember-500/25/50 bg-ember-500/10/30">
+                <p className="text-[10px] font-black uppercase tracking-widest text-ember-400/60 mb-3">Net Revenue</p>
+                <h3 className="text-4xl md:text-5xl font-black text-ember-400 tracking-tighter">KES {(stats?.revenue?.total_revenue||0).toLocaleString()}</h3>
               </GlassCard>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
-              <GlassCard className="p-8 border-indigo-200/50 bg-indigo-50/30">
-                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-700/60 mb-3">Paid via card (Stripe)</p>
-                <h3 className="text-4xl md:text-5xl font-black text-indigo-700 tracking-tighter">KES {(stats?.revenue?.paid_via_card||0).toLocaleString()}</h3>
+              <GlassCard className="p-8 border-indigo-500/20/50 bg-indigo-500/10/30">
+                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-300/60 mb-3">Paid via card (Stripe)</p>
+                <h3 className="text-4xl md:text-5xl font-black text-indigo-300 tracking-tighter">KES {(stats?.revenue?.paid_via_card||0).toLocaleString()}</h3>
               </GlassCard>
-              <GlassCard className="p-8 border-emerald-200/50 bg-emerald-50/30">
-                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700/60 mb-3">Paid via M-Pesa</p>
-                <h3 className="text-4xl md:text-5xl font-black text-emerald-700 tracking-tighter">KES {(stats?.revenue?.paid_via_mpesa||0).toLocaleString()}</h3>
+              <GlassCard className="p-8 border-emerald-500/20/50 bg-emerald-500/10/30">
+                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-300/60 mb-3">Paid via M-Pesa</p>
+                <h3 className="text-4xl md:text-5xl font-black text-emerald-300 tracking-tighter">KES {(stats?.revenue?.paid_via_mpesa||0).toLocaleString()}</h3>
               </GlassCard>
             </div>
           </div>
@@ -1000,19 +1000,19 @@ export const AdminDashboard = () => {
         {/* --- TICKETS --- */}
         {activeTab === 'tickets' && (
           <div className="space-y-6 animate-in fade-in duration-500">
-             <h2 className="text-3xl font-black text-[#0f172a] uppercase tracking-tighter leading-none">Support & Comms</h2>
+             <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">Support & Comms</h2>
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[700px]">
                {/* List */}
                <GlassCard className="flex flex-col overflow-hidden !p-0">
-                 <div className="p-6 border-b border-white/50 bg-white/30 backdrop-blur-md">
-                   <h3 className="font-black text-xs uppercase tracking-widest text-slate-500">Active Threads</h3>
+                 <div className="p-6 border-b border-line bg-surface-2 backdrop-blur-md">
+                   <h3 className="font-black text-xs uppercase tracking-widest text-mute">Active Threads</h3>
                  </div>
                  <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
                    {tickets.map(t => (
-                     <div key={t.id} onClick={() => openTicket(t)} className={`p-5 rounded-3xl cursor-pointer transition-all border ${selectedTicket?.id === t.id ? 'bg-white border-orange-300 shadow-xl' : 'bg-white/40 border-white/50 hover:bg-white/60'}`}>
-                       <h4 className="font-black text-sm text-[#0f172a] mb-2 truncate">{t.subject}</h4>
+                     <div key={t.id} onClick={() => openTicket(t)} className={`p-5 rounded-3xl cursor-pointer transition-all border ${selectedTicket?.id === t.id ? 'bg-surface border-orange-300 shadow-xl' : 'bg-surface-2 border-line hover:bg-surface-2'}`}>
+                       <h4 className="font-black text-sm text-white mb-2 truncate">{t.subject}</h4>
                        <div className="flex justify-between items-center">
-                         <span className="text-[10px] font-bold text-slate-500 truncate max-w-[120px]">{t.email}</span>
+                         <span className="text-[10px] font-bold text-mute truncate max-w-[120px]">{t.email}</span>
                          <span className={`text-[9px] font-black uppercase tracking-widest ${t.status === 'open' ? 'text-red-500' : 'text-green-500'}`}>{t.status}</span>
                        </div>
                      </div>
@@ -1023,26 +1023,26 @@ export const AdminDashboard = () => {
                <GlassCard className="lg:col-span-2 flex flex-col !p-0 overflow-hidden">
                   {selectedTicket ? (
                     <>
-                      <div className="p-8 border-b border-white/50 bg-white/30 backdrop-blur-md">
-                        <h3 className="text-2xl font-black text-[#0f172a] uppercase tracking-tighter mb-1">{selectedTicket.subject}</h3>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ticket ID: {selectedTicket.id}</p>
+                      <div className="p-8 border-b border-line bg-surface-2 backdrop-blur-md">
+                        <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-1">{selectedTicket.subject}</h3>
+                        <p className="text-[10px] font-black text-dim uppercase tracking-widest">Ticket ID: {selectedTicket.id}</p>
                       </div>
                       <div className="flex-1 overflow-y-auto p-8 space-y-6 no-scrollbar bg-slate-900/5">
                         {ticketMessages.map((m, i) => (
                           <div key={m.id || i} className={`flex ${m.role === 'admin' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[75%] p-5 rounded-[2rem] shadow-sm ${m.role === 'admin' ? 'bg-[#0f172a] text-white rounded-br-sm' : 'bg-white border border-white/50 text-slate-800 rounded-bl-sm'}`}>
+                            <div className={`max-w-[75%] p-5 rounded-[2rem] shadow-sm ${m.role === 'admin' ? 'bg-surface text-white rounded-br-sm' : 'bg-surface border border-line text-white rounded-bl-sm'}`}>
                               <p className="text-sm font-medium leading-relaxed">{m.message}</p>
                               <p className="text-[9px] opacity-60 mt-3 font-black uppercase tracking-widest">{new Date(m.created_at).toLocaleString()}</p>
                             </div>
                           </div>
                         ))}
                       </div>
-                      <form onSubmit={sendAdminReply} className="p-6 border-t border-white/50 bg-white/30 backdrop-blur-md flex gap-4">
+                      <form onSubmit={sendAdminReply} className="p-6 border-t border-line bg-surface-2 backdrop-blur-md flex gap-4">
                         <input value={adminReply} onChange={e => setAdminReply(e.target.value)} placeholder="Type resolution..." className={inputClass + " !rounded-full !py-4"} />
                         <button disabled={sendingReply || !adminReply.trim()} className="glass-sheen bg-orange-500 hover:bg-orange-600 text-white w-14 h-14 rounded-full flex items-center justify-center shrink-0 disabled:opacity-50 transition-transform hover:-translate-y-1 shadow-lg"><Send size={20}/></button>
                       </form>
                     </>
-                  ) : <div className="flex-1 flex flex-col items-center justify-center text-slate-300"><MessageSquare size={56} className="mb-6 opacity-50"/><p className="font-black uppercase tracking-widest text-[10px]">Select a thread to view</p></div>}
+                  ) : <div className="flex-1 flex flex-col items-center justify-center text-mute"><MessageSquare size={56} className="mb-6 opacity-50"/><p className="font-black uppercase tracking-widest text-[10px]">Select a thread to view</p></div>}
                </GlassCard>
              </div>
           </div>
@@ -1053,24 +1053,24 @@ export const AdminDashboard = () => {
           <div className="max-w-2xl mx-auto animate-in fade-in duration-500">
             {/* Border Gradient Wrap */}
             <div className="rounded-3xl">
-              <div className="h-full w-full bg-white border border-gray-100 shadow-card rounded-3xl p-10 md:p-14 space-y-10">
+              <div className="h-full w-full bg-surface border border-line shadow-card rounded-3xl p-10 md:p-14 space-y-10">
                 <div className="flex flex-col md:flex-row items-center md:items-start gap-6 text-center md:text-left">
-                  <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
-                    <Globe size={32} className="text-orange-700" />
+                  <div className="w-16 h-16 bg-ember-500/15 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
+                    <Globe size={32} className="text-ember-400" />
                   </div>
                   <div>
-                    <h3 className="text-3xl font-black text-[#0f172a] tracking-tighter uppercase leading-none mb-2">Currency Engine</h3>
-                    <p className="text-sm font-bold text-slate-500">Set platform-wide conversion rates globally.</p>
+                    <h3 className="text-3xl font-black text-white tracking-tighter uppercase leading-none mb-2">Currency Engine</h3>
+                    <p className="text-sm font-bold text-mute">Set platform-wide conversion rates globally.</p>
                   </div>
                 </div>
                 <form onSubmit={handleSaveRates} className="space-y-6">
                   {Object.keys(exchangeRates).map(pair => (
                     <div key={pair} className="relative group/input">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-2 block">{pair.replace('_', ' to ')}</label>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-mute mb-2 ml-2 block">{pair.replace('_', ' to ')}</label>
                       <input type="number" step="0.01" value={exchangeRates[pair]} onChange={(e) => setExchangeRates({...exchangeRates, [pair]: e.target.value})} className={inputClass}/>
                     </div>
                   ))}
-                  <button type="submit" disabled={savingRates} className="glass-sheen bg-[#0f172a] hover:bg-slate-800 text-white w-full py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl transition-all hover:-translate-y-1 disabled:opacity-50 mt-4">
+                  <button type="submit" disabled={savingRates} className="glass-sheen bg-surface hover:bg-slate-800 text-white w-full py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl transition-all hover:-translate-y-1 disabled:opacity-50 mt-4">
                     {savingRates ? 'Updating Engine...' : 'Sync Global Rates'}
                   </button>
                 </form>
@@ -1083,8 +1083,8 @@ export const AdminDashboard = () => {
         {activeTab === 'settings' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-500">
             <GlassCard className="p-10">
-               <h3 className="text-2xl font-black text-[#0f172a] uppercase tracking-tighter mb-8 flex items-center gap-4">
-                 <div className="p-3 bg-blue-100 text-blue-600 rounded-xl"><Lock size={20}/></div>
+               <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-8 flex items-center gap-4">
+                 <div className="p-3 bg-blue-500/15 text-blue-300 rounded-xl"><Lock size={20}/></div>
                  Admin Security
                </h3>
                <form onSubmit={handlePasswordChange} className="space-y-5">
@@ -1095,11 +1095,11 @@ export const AdminDashboard = () => {
                </form>
             </GlassCard>
             <GlassCard className="p-10">
-               <h3 className="text-2xl font-black text-[#0f172a] uppercase tracking-tighter mb-6 flex items-center gap-4">
-                 <div className="p-3 bg-orange-100 text-orange-700 rounded-xl"><Mail size={20}/></div>
+               <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-6 flex items-center gap-4">
+                 <div className="p-3 bg-ember-500/15 text-ember-400 rounded-xl"><Mail size={20}/></div>
                  SMTP Diagnostics
                </h3>
-               <p className="text-sm text-slate-500 font-bold mb-8 leading-relaxed">Test the Gmail OAuth2 integration to ensure automated receipts and reset links are dispatched correctly.</p>
+               <p className="text-sm text-mute font-bold mb-8 leading-relaxed">Test the Gmail OAuth2 integration to ensure automated receipts and reset links are dispatched correctly.</p>
                <div className="space-y-5">
                  <input type="email" placeholder="Recipient Email" value={testEmail} onChange={e => setTestEmail(e.target.value)} className={inputClass} />
                  <button onClick={async () => {
@@ -1111,8 +1111,8 @@ export const AdminDashboard = () => {
             
             {/* ADDED SHIPPING RATES PANEL HERE */}
             <GlassCard className="p-10 md:col-span-2">
-               <h3 className="text-2xl font-black text-[#0f172a] uppercase tracking-tighter mb-6 flex items-center gap-4">
-                 <div className="p-3 bg-green-100 text-green-600 rounded-xl"><Package size={20}/></div>
+               <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-6 flex items-center gap-4">
+                 <div className="p-3 bg-emerald-500/15 text-emerald-300 rounded-xl"><Package size={20}/></div>
                  Global Shipping Rates
                </h3>
                <ShippingRatesPanel />
@@ -1124,7 +1124,7 @@ export const AdminDashboard = () => {
         {activeTab === 'auditLogs' && (
           <div className="space-y-8 animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <h2 className="text-3xl font-black text-[#0f172a] uppercase tracking-tighter leading-none">Privileged Action Feed</h2>
+              <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">Privileged Action Feed</h2>
               <button onClick={() => fetchAuditLogs(1)} disabled={loadingAuditLogs} className={btnOutline + " !py-2.5 !px-5"}>
                 {loadingAuditLogs ? 'Refreshing…' : 'Refresh'}
               </button>
@@ -1132,7 +1132,7 @@ export const AdminDashboard = () => {
 
             <div className={tableWrapper}>
               <table className="w-full text-left">
-                <thead className="bg-[#0f172a]/5">
+                <thead className="bg-surface/5">
                   <tr>
                     <th className={thClass}>Action</th>
                     <th className={thClass}>Admin</th>
@@ -1140,29 +1140,29 @@ export const AdminDashboard = () => {
                     <th className={thClass}>Time</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/50">
+                <tbody className="divide-y divide-white/10">
                   {auditLogs.length === 0 && !loadingAuditLogs && (
-                    <tr><td colSpan="4" className={tdClass + " text-center font-bold text-slate-400"}>No audit entries on this page.</td></tr>
+                    <tr><td colSpan="4" className={tdClass + " text-center font-bold text-dim"}>No audit entries on this page.</td></tr>
                   )}
                   {auditLogs.map(log => (
                     <React.Fragment key={log.id}>
-                      <tr onClick={() => setExpandedAudit(expandedAudit === log.id ? null : log.id)} className="hover:bg-blue-50/40 cursor-pointer transition-colors">
+                      <tr onClick={() => setExpandedAudit(expandedAudit === log.id ? null : log.id)} className="hover:bg-blue-500/10/40 cursor-pointer transition-colors">
                         <td className={tdClass}>
-                          <span className="inline-flex px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm border bg-blue-50 text-blue-700 border-blue-200">{log.action}</span>
+                          <span className="inline-flex px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm border bg-blue-500/10 text-blue-300 border-blue-500/20">{log.action}</span>
                         </td>
-                        <td className={tdClass + " font-bold text-slate-700"}>
+                        <td className={tdClass + " font-bold text-white/80"}>
                           {log.admin_name || log.admin_email || '—'}
                         </td>
-                        <td className={tdClass + " font-mono text-[10px] text-slate-600 truncate max-w-md"}>
+                        <td className={tdClass + " font-mono text-[10px] text-mute truncate max-w-md"}>
                           {typeof log.details === 'string' ? log.details : JSON.stringify(log.details || {})}
                         </td>
-                        <td className={tdClass + " text-[10px] font-black uppercase tracking-widest text-slate-400"}>
+                        <td className={tdClass + " text-[10px] font-black uppercase tracking-widest text-dim"}>
                           {new Date(log.created_at).toLocaleString()}
                         </td>
                       </tr>
                       {expandedAudit === log.id && (
                         <tr>
-                          <td colSpan="4" className="bg-[#0f172a] text-blue-300 p-8 font-mono text-[10px] sm:text-xs whitespace-pre-wrap shadow-inner border-y border-white/20">
+                          <td colSpan="4" className="bg-surface text-blue-300 p-8 font-mono text-[10px] sm:text-xs whitespace-pre-wrap shadow-inner border-y border-line">
                             {JSON.stringify(log.details || {}, null, 2)}
                           </td>
                         </tr>
@@ -1171,9 +1171,9 @@ export const AdminDashboard = () => {
                   ))}
                 </tbody>
               </table>
-              <div className="p-6 flex gap-3 justify-end bg-white/30 backdrop-blur-md border-t border-white/50">
+              <div className="p-6 flex gap-3 justify-end bg-surface-2 backdrop-blur-md border-t border-line">
                 <button onClick={() => fetchAuditLogs(auditLogPage - 1)} disabled={auditLogPage <= 1 || loadingAuditLogs} className={btnOutline + " !py-2.5 !px-5"}>Prev</button>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 self-center">Page {auditLogPage} / {auditLogTotalPages || 1}</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-dim self-center">Page {auditLogPage} / {auditLogTotalPages || 1}</span>
                 <button onClick={() => fetchAuditLogs(auditLogPage + 1)} disabled={auditLogPage >= auditLogTotalPages || loadingAuditLogs} className={btnOutline + " !py-2.5 !px-5"}>Next</button>
               </div>
             </div>
@@ -1184,12 +1184,12 @@ export const AdminDashboard = () => {
         {activeTab === 'aml' && (
           <div className="space-y-8 animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <h2 className="text-3xl font-black text-[#0f172a] uppercase tracking-tighter leading-none">AML Risk Queue</h2>
+              <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">AML Risk Queue</h2>
               <div className="flex gap-2">
                 {['open','cleared','escalated'].map(s => (
                   <button key={s}
                     onClick={() => { setAmlStatusFilter(s); fetchAmlFlags(s) }}
-                    className={`px-5 py-2.5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest transition-all ${amlStatusFilter === s ? 'bg-[#0f172a] text-white shadow-lg' : 'bg-white/60 text-slate-500 hover:text-[#0f172a] border border-white/50'}`}>
+                    className={`px-5 py-2.5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest transition-all ${amlStatusFilter === s ? 'bg-surface text-white shadow-lg' : 'bg-surface-2 text-mute hover:text-white border border-line'}`}>
                     {s}
                   </button>
                 ))}
@@ -1198,7 +1198,7 @@ export const AdminDashboard = () => {
 
             <div className={tableWrapper}>
               <table className="w-full text-left">
-                <thead className="bg-[#0f172a]/5">
+                <thead className="bg-surface/5">
                   <tr>
                     <th className={thClass}>User</th>
                     <th className={thClass}>Reason</th>
@@ -1207,38 +1207,38 @@ export const AdminDashboard = () => {
                     <th className={thClass}>Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/50">
+                <tbody className="divide-y divide-white/10">
                   {amlFlags.length === 0 && !loadingAml && (
-                    <tr><td colSpan="5" className={tdClass + " text-center font-bold text-slate-400"}>
+                    <tr><td colSpan="5" className={tdClass + " text-center font-bold text-dim"}>
                       No {amlStatusFilter} flags.
                     </td></tr>
                   )}
                   {amlFlags.map(f => (
-                    <tr key={f.id} className="hover:bg-amber-50/40 transition-colors">
+                    <tr key={f.id} className="hover:bg-amber-500/10/40 transition-colors">
                       <td className={tdClass}>
-                        <p className="font-black text-slate-800">{f.user_name || '—'}</p>
-                        <p className="text-[10px] font-bold text-slate-500 mt-1">{f.user_email || f.user_id}</p>
-                        {f.parcel_id && <p className="text-[10px] font-mono text-amber-700 mt-1">parcel · {f.parcel_id.slice(0,8)}</p>}
+                        <p className="font-black text-white">{f.user_name || '—'}</p>
+                        <p className="text-[10px] font-bold text-mute mt-1">{f.user_email || f.user_id}</p>
+                        {f.parcel_id && <p className="text-[10px] font-mono text-amber-300 mt-1">parcel · {f.parcel_id.slice(0,8)}</p>}
                       </td>
-                      <td className={tdClass + " font-bold text-slate-700"}>{f.reason}</td>
-                      <td className={tdClass + " text-xs text-slate-600 max-w-xs"}>{f.notes || '—'}</td>
-                      <td className={tdClass + " text-[10px] font-black uppercase tracking-widest text-slate-400"}>
+                      <td className={tdClass + " font-bold text-white/80"}>{f.reason}</td>
+                      <td className={tdClass + " text-xs text-mute max-w-xs"}>{f.notes || '—'}</td>
+                      <td className={tdClass + " text-[10px] font-black uppercase tracking-widest text-dim"}>
                         {new Date(f.created_at).toLocaleString()}
                       </td>
                       <td className={tdClass}>
                         {f.status === 'open' ? (
                           <div className="flex gap-2">
                             <button onClick={() => handleResolveAml(f.id, 'cleared')} disabled={resolvingAml === f.id}
-                              className="bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 px-4 py-2 rounded-[1rem] font-black text-[10px] uppercase tracking-widest transition-colors shadow-sm">
+                              className="bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 px-4 py-2 rounded-[1rem] font-black text-[10px] uppercase tracking-widest transition-colors shadow-sm">
                               Clear
                             </button>
                             <button onClick={() => handleResolveAml(f.id, 'escalated')} disabled={resolvingAml === f.id}
-                              className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-4 py-2 rounded-[1rem] font-black text-[10px] uppercase tracking-widest transition-colors shadow-sm">
+                              className="bg-red-500/10 hover:bg-red-500/15 text-red-300 border border-red-500/20 px-4 py-2 rounded-[1rem] font-black text-[10px] uppercase tracking-widest transition-colors shadow-sm">
                               Escalate
                             </button>
                           </div>
                         ) : (
-                          <span className={`inline-flex px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm border ${f.status==='escalated' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                          <span className={`inline-flex px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm border ${f.status==='escalated' ? 'bg-red-500/10 text-red-300 border-red-500/20' : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'}`}>
                             {f.status}
                           </span>
                         )}
@@ -1255,22 +1255,22 @@ export const AdminDashboard = () => {
         {activeTab === 'errorLogs' && (
           <div className="space-y-8 animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <h2 className="text-3xl font-black text-[#0f172a] uppercase tracking-tighter leading-none">System Diagnostics</h2>
-              <button onClick={() => handleClearErrorLogs(30)} className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-6 py-3 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest transition-colors shadow-sm">
+              <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">System Diagnostics</h2>
+              <button onClick={() => handleClearErrorLogs(30)} className="bg-red-500/10 hover:bg-red-500/15 text-red-300 border border-red-500/20 px-6 py-3 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest transition-colors shadow-sm">
                 Clear 30d+
               </button>
             </div>
             
-            <GlassCard className="!p-6 flex flex-col md:flex-row gap-4 bg-white/30">
+            <GlassCard className="!p-6 flex flex-col md:flex-row gap-4 bg-surface-2">
               <select value={errorLogFilter.level} onChange={e=>setErrorLogFilter(p=>({...p,level:e.target.value}))} className={inputClass + " md:max-w-[200px]"}>
                 <option value="">All Levels</option><option value="error">Error</option><option value="warn">Warn</option><option value="fatal">Fatal</option>
               </select>
-              <button onClick={()=>fetchErrorLogs(1, errorLogFilter)} className="bg-[#0f172a] hover:bg-slate-800 text-white px-8 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-md">Apply Filter</button>
+              <button onClick={()=>fetchErrorLogs(1, errorLogFilter)} className="bg-surface hover:bg-slate-800 text-white px-8 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-md">Apply Filter</button>
             </GlassCard>
 
             <div className={tableWrapper}>
               <table className="w-full text-left">
-                <thead className="bg-[#0f172a]/5">
+                <thead className="bg-surface/5">
                   <tr>
                     <th className={thClass}>Level</th>
                     <th className={thClass}>Source</th>
@@ -1278,18 +1278,18 @@ export const AdminDashboard = () => {
                     <th className={thClass}>Time</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/50">
+                <tbody className="divide-y divide-white/10">
                   {errorLogs.map(log => (
                     <React.Fragment key={log.id}>
-                      <tr onClick={() => setExpandedError(expandedError === log.id ? null : log.id)} className="hover:bg-red-50/40 cursor-pointer transition-colors">
-                        <td className={tdClass}><span className={`inline-flex px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm border ${log.level==='fatal' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{log.level}</span></td>
+                      <tr onClick={() => setExpandedError(expandedError === log.id ? null : log.id)} className="hover:bg-red-500/10/40 cursor-pointer transition-colors">
+                        <td className={tdClass}><span className={`inline-flex px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm border ${log.level==='fatal' ? 'bg-red-500/10 text-red-300 border-red-500/20' : 'bg-amber-500/10 text-amber-300 border-amber-500/20'}`}>{log.level}</span></td>
                         <td className={tdClass + " font-mono text-[10px] font-bold"}>{log.source}</td>
-                        <td className={tdClass + " font-bold text-slate-800 truncate max-w-xs"}>{log.message}</td>
-                        <td className={tdClass + " text-[10px] font-black uppercase tracking-widest text-slate-400"}>{new Date(log.created_at).toLocaleString()}</td>
+                        <td className={tdClass + " font-bold text-white truncate max-w-xs"}>{log.message}</td>
+                        <td className={tdClass + " text-[10px] font-black uppercase tracking-widest text-dim"}>{new Date(log.created_at).toLocaleString()}</td>
                       </tr>
                       {expandedError === log.id && (
                         <tr>
-                          <td colSpan="4" className="bg-[#0f172a] text-green-400 p-8 font-mono text-[10px] sm:text-xs whitespace-pre-wrap shadow-inner border-y border-white/20">
+                          <td colSpan="4" className="bg-surface text-green-400 p-8 font-mono text-[10px] sm:text-xs whitespace-pre-wrap shadow-inner border-y border-line">
                             {log.stack || log.message}
                           </td>
                         </tr>
@@ -1298,7 +1298,7 @@ export const AdminDashboard = () => {
                   ))}
                 </tbody>
               </table>
-              <div className="p-6 flex gap-3 justify-end bg-white/30 backdrop-blur-md border-t border-white/50">
+              <div className="p-6 flex gap-3 justify-end bg-surface-2 backdrop-blur-md border-t border-line">
                 <button onClick={()=>fetchErrorLogs(errorLogPage-1)} disabled={errorLogPage<=1} className={btnOutline + " !py-2.5 !px-5"}>Prev</button>
                 <button onClick={()=>fetchErrorLogs(errorLogPage+1)} disabled={errorLogPage>=errorLogTotalPages} className={btnOutline + " !py-2.5 !px-5"}>Next</button>
               </div>
@@ -1310,41 +1310,41 @@ export const AdminDashboard = () => {
         
         {/* Create Order for Client Modal */}
         {showCreateOrderForm && (
-          <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm z-[100] flex justify-end">
-            <div className="bg-white w-full max-w-2xl h-full overflow-y-auto shadow-float relative p-10 md:p-14 animate-fade-in border-l border-gray-100">
-               <button onClick={() => setShowCreateOrderForm(false)} aria-label="Close" className="absolute top-10 right-10 w-10 h-10 bg-white rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 shadow-sm transition-colors"><X size={20}/></button>
+          <div className="fixed inset-0 bg-surface/80 backdrop-blur-sm z-[100] flex justify-end">
+            <div className="bg-surface w-full max-w-2xl h-full overflow-y-auto shadow-float relative p-10 md:p-14 animate-fade-in border-l border-line">
+               <button onClick={() => setShowCreateOrderForm(false)} aria-label="Close" className="absolute top-10 right-10 w-10 h-10 bg-surface rounded-full flex items-center justify-center text-mute hover:text-red-500 shadow-sm transition-colors"><X size={20}/></button>
                
                <div className="mb-10">
-                 <h3 className="text-3xl md:text-4xl font-black text-[#0f172a] uppercase tracking-tighter leading-none mb-2">Dispatch Order</h3>
-                 <p className="text-slate-500 font-bold text-sm">Create a secure manifest on behalf of a client.</p>
+                 <h3 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-none mb-2">Dispatch Order</h3>
+                 <p className="text-mute font-bold text-sm">Create a secure manifest on behalf of a client.</p>
                </div>
                
                <form onSubmit={handleCreateOrderForClient} className="space-y-8">
                  <div>
-                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Locate Client</label>
+                   <label className="text-[10px] font-black uppercase tracking-widest text-dim ml-2 mb-2 block">Locate Client</label>
                    <input type="text" value={customerSearch} onChange={e=>handleSearchCustomers(e.target.value)} placeholder="Search by name/email" className={inputClass}/>
                    {customerResults.length > 0 && (
-                     <div className="mt-2 bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
+                     <div className="mt-2 bg-surface rounded-2xl shadow-lg border border-line overflow-hidden">
                        {customerResults.map(c => (
-                         <div key={c.id} onClick={()=>{setSelectedCustomer(c); setCustomerSearch(c.email); setCustomerResults([])}} className="p-4 hover:bg-orange-50 cursor-pointer border-b last:border-0 transition-colors flex justify-between items-center">
-                           <span className="font-black text-slate-800 text-sm">{c.name}</span>
-                           <span className="text-xs font-bold text-slate-500">{c.email}</span>
+                         <div key={c.id} onClick={()=>{setSelectedCustomer(c); setCustomerSearch(c.email); setCustomerResults([])}} className="p-4 hover:bg-ember-500/10 cursor-pointer border-b last:border-0 transition-colors flex justify-between items-center">
+                           <span className="font-black text-white text-sm">{c.name}</span>
+                           <span className="text-xs font-bold text-mute">{c.email}</span>
                          </div>
                        ))}
                      </div>
                    )}
                  </div>
                  <div>
-                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Retailer</label>
+                   <label className="text-[10px] font-black uppercase tracking-widest text-dim ml-2 mb-2 block">Retailer</label>
                    <input placeholder="e.g. Amazon" className={inputClass} value={createOrderForm.retailer} onChange={e=>setCreateOrderForm(p=>({...p,retailer:e.target.value}))} required />
                  </div>
                  <div>
-                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Manifest Description</label>
+                   <label className="text-[10px] font-black uppercase tracking-widest text-dim ml-2 mb-2 block">Manifest Description</label>
                    <textarea placeholder="Item details..." className={inputClass + " resize-none"} rows={3} value={createOrderForm.description} onChange={e=>setCreateOrderForm(p=>({...p,description:e.target.value}))} required />
                  </div>
                  
                  <div>
-                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Electronics Handling</label>
+                   <label className="text-[10px] font-black uppercase tracking-widest text-dim ml-2 mb-2 block">Electronics Handling</label>
                    <select className={inputClass} value={createOrderForm.electronics_item} onChange={e=>setCreateOrderForm(p=>({...p,electronics_item:e.target.value}))}>
                      <option value="">No electronics (Standard)</option>
                      <option value="phone">Phone (+£75 handling)</option>
@@ -1354,7 +1354,7 @@ export const AdminDashboard = () => {
                  </div>
                  
                  <div>
-                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Dead Weight (KG)</label>
+                   <label className="text-[10px] font-black uppercase tracking-widest text-dim ml-2 mb-2 block">Dead Weight (KG)</label>
                    <input type="number" step="0.1" placeholder="0.0" className={inputClass} value={createOrderForm.weight_kg} onChange={e=>setCreateOrderForm(p=>({...p,weight_kg:e.target.value}))} required />
                  </div>
                  
@@ -1366,40 +1366,40 @@ export const AdminDashboard = () => {
 
         {/* User Details Side Panel */}
         {selectedUser && selectedUserData && (
-          <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm z-[100] flex justify-end">
-            <div className="bg-white w-full max-w-3xl h-full overflow-y-auto shadow-float relative p-10 md:p-14 animate-fade-in border-l border-gray-100">
-              <button onClick={() => setSelectedUser(null)} aria-label="Close" className="absolute top-10 right-10 w-10 h-10 bg-white rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 shadow-sm transition-colors"><X size={20}/></button>
+          <div className="fixed inset-0 bg-surface/80 backdrop-blur-sm z-[100] flex justify-end">
+            <div className="bg-surface w-full max-w-3xl h-full overflow-y-auto shadow-float relative p-10 md:p-14 animate-fade-in border-l border-line">
+              <button onClick={() => setSelectedUser(null)} aria-label="Close" className="absolute top-10 right-10 w-10 h-10 bg-surface rounded-full flex items-center justify-center text-mute hover:text-red-500 shadow-sm transition-colors"><X size={20}/></button>
               
               <div className="mb-10">
-                <h3 className="text-4xl md:text-5xl font-black text-[#0f172a] tracking-tighter uppercase leading-none mb-3">{selectedUser.name}</h3>
+                <h3 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase leading-none mb-3">{selectedUser.name}</h3>
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="px-3 py-1.5 bg-orange-100 text-orange-600 rounded-lg font-mono text-[10px] font-black uppercase tracking-widest shadow-sm">{selectedUser.warehouse_id}</span>
-                  <span className="text-sm font-bold text-slate-500">{selectedUser.email}</span>
+                  <span className="px-3 py-1.5 bg-ember-500/15 text-ember-400 rounded-lg font-mono text-[10px] font-black uppercase tracking-widest shadow-sm">{selectedUser.warehouse_id}</span>
+                  <span className="text-sm font-bold text-mute">{selectedUser.email}</span>
                 </div>
-                <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-500 font-mono">
-                  <span className="font-black text-slate-700 uppercase tracking-widest text-[9px]">Warehouse Address · </span>
-                  Thapsus Cargo, [Warehouse Name], Nairobi, Kenya — Ref: <span className="text-orange-600 font-black">{selectedUser.warehouse_id}</span>
+                <div className="mt-3 p-3 bg-white/[0.03] border border-line rounded-xl text-[11px] text-mute font-mono">
+                  <span className="font-black text-white/80 uppercase tracking-widest text-[9px]">Warehouse Address · </span>
+                  Thapsus Cargo, [Warehouse Name], Nairobi, Kenya — Ref: <span className="text-ember-400 font-black">{selectedUser.warehouse_id}</span>
                 </div>
               </div>
               
               <div className="grid grid-cols-1 gap-6 mb-12">
-                <GlassCard className="p-8 border-blue-200/50 bg-blue-50/50 shadow-none">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-blue-700/60 mb-2">Active Orders</p>
-                  <p className="text-3xl md:text-4xl font-black text-blue-700 tracking-tighter">{selectedUserData.user?.orders?.length || 0}</p>
+                <GlassCard className="p-8 border-blue-500/20/50 bg-blue-500/10/50 shadow-none">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-blue-300/60 mb-2">Active Orders</p>
+                  <p className="text-3xl md:text-4xl font-black text-blue-300 tracking-tighter">{selectedUserData.user?.orders?.length || 0}</p>
                 </GlassCard>
               </div>
               
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Administrative Protocols</h4>
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-dim mb-4">Administrative Protocols</h4>
               <div className="flex flex-wrap gap-4 mb-12">
-                <button onClick={() => handleResetUserPassword(selectedUser.id, selectedUser.name, selectedUser.email)} className={btnOutline + " !bg-white"}><Key size={16}/> Push Reset Link</button>
+                <button onClick={() => handleResetUserPassword(selectedUser.id, selectedUser.name, selectedUser.email)} className={btnOutline + " !bg-surface"}><Key size={16}/> Push Reset Link</button>
                 <button onClick={() => setShowUserOrderForm(!showUserOrderForm)} className={btnPrimary}><Package size={16}/> Drop Order</button>
                 
                 {selectedUser.id !== currentUser?.id && (
                   <>
-                    <button onClick={() => handleToggleUserActive(selectedUser)} className={btnOutline + (selectedUser.is_active ? " !border-amber-500 !text-amber-600 hover:!bg-amber-50 bg-white" : " !border-green-500 !text-green-600 hover:!bg-green-50 bg-white")}>
+                    <button onClick={() => handleToggleUserActive(selectedUser)} className={btnOutline + (selectedUser.is_active ? " !border-amber-500 !text-amber-600 hover:!bg-amber-500/10 bg-surface" : " !border-green-500 !text-emerald-300 hover:!bg-emerald-500/10 bg-surface")}>
                       <RefreshCw size={16}/> {selectedUser.is_active ? 'Deactivate' : 'Reactivate'}
                     </button>
-                    <button onClick={() => handleDeleteUser(selectedUser)} className={btnOutline + " !border-red-500 !text-red-600 hover:!bg-red-50 bg-white"}>
+                    <button onClick={() => handleDeleteUser(selectedUser)} className={btnOutline + " !border-red-500 !text-red-300 hover:!bg-red-500/10 bg-surface"}>
                       <Trash2 size={16}/> Delete Account
                     </button>
                   </>
@@ -1407,12 +1407,12 @@ export const AdminDashboard = () => {
               </div>
 
               {/* ── Delivery Address & Admin Notes ──────────────────────── */}
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Delivery &amp; Notes</h4>
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-dim mb-4">Delivery &amp; Notes</h4>
               <form onSubmit={handleSaveDeliveryInfo} className="mb-12 space-y-4">
                 <div>
-                  <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Kenya Delivery Address</label>
+                  <label className="text-[9px] font-black uppercase tracking-widest text-mute mb-1 block">Kenya Delivery Address</label>
                   <textarea
-                    className={inputClass + " resize-none !bg-white"}
+                    className={inputClass + " resize-none !bg-surface"}
                     rows="3"
                     placeholder="Enter the customer's delivery address in Kenya…"
                     value={deliveryForm.delivery_address}
@@ -1420,9 +1420,9 @@ export const AdminDashboard = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Admin Notes</label>
+                  <label className="text-[9px] font-black uppercase tracking-widest text-mute mb-1 block">Admin Notes</label>
                   <textarea
-                    className={inputClass + " resize-none !bg-white"}
+                    className={inputClass + " resize-none !bg-surface"}
                     rows="3"
                     placeholder="Internal notes about this customer (not visible to them)…"
                     value={deliveryForm.admin_notes}
@@ -1434,9 +1434,9 @@ export const AdminDashboard = () => {
                 </button>
               </form>
 
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Shipment History</h4>
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-dim mb-4">Shipment History</h4>
               <div className="space-y-3 mb-12">
-                {selectedUserData.user?.orders?.length === 0 ? <p className="text-sm font-bold text-slate-400">No shipments found.</p> : null}
+                {selectedUserData.user?.orders?.length === 0 ? <p className="text-sm font-bold text-dim">No shipments found.</p> : null}
                 {selectedUserData.user?.orders?.map((o) => {
                   const breakdown = o.cost_breakdown;
                   const baseShipping =
@@ -1455,17 +1455,17 @@ export const AdminDashboard = () => {
                   const total = (o.actual_cost ?? totalBase) + (customsDuty ?? 0);
 
                   return (
-                    <div key={o.id} className="p-5 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                    <div key={o.id} className="p-5 bg-surface border border-line rounded-2xl shadow-sm">
                       <div className="flex justify-between items-center">
                         <div>
-                          <p className="font-black text-[#0f172a] text-sm">{o.tracking_number}</p>
-                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                          <p className="font-black text-white text-sm">{o.tracking_number}</p>
+                          <p className="text-[10px] font-bold text-mute uppercase tracking-widest mt-1">
                             £{total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </p>
                         </div>
                         {statusBadge(o.status)}
                       </div>
-                      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-slate-600 font-mono">
+                      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-mute font-mono">
                         {baseShipping > 0 && (
                           <div>Shipping: £{baseShipping.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                         )}
@@ -1478,12 +1478,12 @@ export const AdminDashboard = () => {
                         {customsDuty > 0 && (
                           <div>Customs: £{customsDuty.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                         )}
-                        <div className="col-span-2 font-bold text-slate-800">
+                        <div className="col-span-2 font-bold text-white">
                           Total: £{total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                       </div>
                       {o.order_notes && (
-                        <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-200/60 rounded-xl text-[10px] text-amber-800 font-semibold">
+                        <div className="mt-3 px-3 py-2 bg-amber-500/10 border border-amber-500/20/60 rounded-xl text-[10px] text-amber-300 font-semibold">
                           📝 {o.order_notes}
                         </div>
                       )}
@@ -1492,28 +1492,28 @@ export const AdminDashboard = () => {
                 })}
               </div>
 
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Payment History</h4>
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-dim mb-4">Payment History</h4>
               <div className="space-y-3 mb-12">
                 {(!selectedUserData.recentTransactions || selectedUserData.recentTransactions.length === 0) ? (
-                  <p className="text-sm font-bold text-slate-400">No transactions found.</p>
+                  <p className="text-sm font-bold text-dim">No transactions found.</p>
                 ) : (
                   selectedUserData.recentTransactions.map(tx => {
                     const isCredit = ['deposit', 'refund', 'referral_credit'].includes(tx.type)
                     const typeLabels = { deposit: 'M-Pesa Deposit', payment: 'Order Payment', refund: 'Refund', referral_credit: 'Referral Bonus' }
                     return (
-                      <div key={tx.id} className="p-5 bg-white border border-slate-100 rounded-2xl flex justify-between items-center shadow-sm">
+                      <div key={tx.id} className="p-5 bg-surface border border-line rounded-2xl flex justify-between items-center shadow-sm">
                         <div>
-                          <p className="font-black text-sm text-[#0f172a]">{typeLabels[tx.type] || tx.type}</p>
-                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                          <p className="font-black text-sm text-white">{typeLabels[tx.type] || tx.type}</p>
+                          <p className="text-[10px] font-bold text-mute uppercase tracking-widest mt-1">
                             {tx.currency || 'KES'} • {new Date(tx.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                             {tx.payment_method ? ` • ${tx.payment_method}` : ''}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className={`font-black text-lg ${isCredit ? 'text-green-600' : 'text-red-500'}`}>
+                          <p className={`font-black text-lg ${isCredit ? 'text-emerald-300' : 'text-red-500'}`}>
                             {isCredit ? '+' : '-'}KES {Math.abs(tx.amount || 0).toLocaleString()}
                           </p>
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest border ${tx.status === 'completed' ? 'bg-green-50 text-green-700 border-green-200' : tx.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest border ${tx.status === 'completed' ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' : tx.status === 'pending' ? 'bg-amber-500/10 text-amber-300 border-amber-500/20' : 'bg-red-500/10 text-red-300 border-red-500/20'}`}>
                             {tx.status}
                           </span>
                         </div>
@@ -1523,18 +1523,18 @@ export const AdminDashboard = () => {
                 )}
               </div>
 
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Email Communications</h4>
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-dim mb-4">Email Communications</h4>
               <div className="space-y-3">
                 {emailLogs.length === 0 ? (
-                  <p className="text-sm text-slate-400 font-bold">No email logs found</p>
+                  <p className="text-sm text-dim font-bold">No email logs found</p>
                 ) : (
                   emailLogs.map(log => (
-                    <div key={log.id} className="p-5 bg-white border border-slate-100 rounded-2xl flex justify-between items-center shadow-sm">
+                    <div key={log.id} className="p-5 bg-surface border border-line rounded-2xl flex justify-between items-center shadow-sm">
                       <div>
-                        <p className="font-black text-sm text-[#0f172a]">{log.subject}</p>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{log.email_type?.replace(/_/g, ' ')} • {new Date(log.created_at).toLocaleDateString()}</p>
+                        <p className="font-black text-sm text-white">{log.subject}</p>
+                        <p className="text-[10px] font-bold text-mute uppercase tracking-widest mt-1">{log.email_type?.replace(/_/g, ' ')} • {new Date(log.created_at).toLocaleDateString()}</p>
                       </div>
-                      <span className={`inline-flex px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border shadow-sm ${log.status === 'sent' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                      <span className={`inline-flex px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border shadow-sm ${log.status === 'sent' ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' : 'bg-red-500/10 text-red-300 border-red-500/20'}`}>
                         {log.status}
                       </span>
                     </div>
@@ -1547,17 +1547,17 @@ export const AdminDashboard = () => {
 
         {/* Small Action Modals */}
         {paymentModal && (
-          <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+          <div className="fixed inset-0 bg-surface/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
             <GlassCard className="w-full max-w-lg p-10 relative">
-              <button onClick={() => setPaymentModal(null)} aria-label="Close" className="absolute top-6 right-6 w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
-              <h3 className="text-3xl font-black text-[#0f172a] uppercase tracking-tighter leading-none mb-8">Request Funds</h3>
+              <button onClick={() => setPaymentModal(null)} aria-label="Close" className="absolute top-6 right-6 w-8 h-8 bg-surface rounded-full flex items-center justify-center text-mute hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
+              <h3 className="text-3xl font-black text-white uppercase tracking-tighter leading-none mb-8">Request Funds</h3>
               <div className="space-y-6">
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-2 mb-2 block">Amount (KES)</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-mute ml-2 mb-2 block">Amount (KES)</label>
                   <input type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} className={inputClass} placeholder="0.00" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-2 mb-2 block">Notes to Client</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-mute ml-2 mb-2 block">Notes to Client</label>
                   <textarea value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} className={inputClass + " resize-none"} placeholder="Optional..." rows={3} />
                 </div>
                 <button onClick={handleRequestPayment} className={btnPrimary + " w-full !py-5"}>Dispatch Invoice</button>
@@ -1567,13 +1567,13 @@ export const AdminDashboard = () => {
         )}
 
         {reminderModal && (
-          <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+          <div className="fixed inset-0 bg-surface/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
             <GlassCard className="w-full max-w-lg p-10 relative">
-              <button onClick={() => setReminderModal(null)} aria-label="Close" className="absolute top-6 right-6 w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
-              <h3 className="text-3xl font-black text-[#0f172a] uppercase tracking-tighter leading-none mb-8">Payment Reminder</h3>
+              <button onClick={() => setReminderModal(null)} aria-label="Close" className="absolute top-6 right-6 w-8 h-8 bg-surface rounded-full flex items-center justify-center text-mute hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
+              <h3 className="text-3xl font-black text-white uppercase tracking-tighter leading-none mb-8">Payment Reminder</h3>
               <div className="space-y-6">
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-2 mb-2 block">Amount (KES)</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-mute ml-2 mb-2 block">Amount (KES)</label>
                   <input type="number" value={reminderAmount} onChange={(e) => setReminderAmount(e.target.value)} className={inputClass} placeholder="0.00" />
                 </div>
                 <button onClick={handleSendReminder} className="glass-sheen w-full bg-orange-500 hover:bg-orange-600 text-white py-5 rounded-[1.5rem] font-black uppercase tracking-widest text-xs transition-all shadow-xl hover:-translate-y-1">Send Notice</button>
@@ -1583,14 +1583,14 @@ export const AdminDashboard = () => {
         )}
 
         {cancelModal && (
-          <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-            <GlassCard className="w-full max-w-lg p-10 relative bg-red-50/80 border-red-200/50">
-              <button onClick={() => setCancelModal(null)} aria-label="Close" className="absolute top-6 right-6 w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
-              <h3 className="text-3xl font-black text-red-600 uppercase tracking-tighter leading-none mb-8">Halt Shipment</h3>
+          <div className="fixed inset-0 bg-surface/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+            <GlassCard className="w-full max-w-lg p-10 relative bg-red-500/10/80 border-red-500/20/50">
+              <button onClick={() => setCancelModal(null)} aria-label="Close" className="absolute top-6 right-6 w-8 h-8 bg-surface rounded-full flex items-center justify-center text-mute hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
+              <h3 className="text-3xl font-black text-red-300 uppercase tracking-tighter leading-none mb-8">Halt Shipment</h3>
               <div className="space-y-6">
                 <div>
                   <label className="text-[10px] font-black uppercase tracking-widest text-red-800 ml-2 mb-2 block">Reason for Cancellation</label>
-                  <textarea value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} className={inputClass + " !border-red-200 focus:!ring-red-500/20 focus:!border-red-500 resize-none"} placeholder="Will be visible to client..." rows={3} />
+                  <textarea value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} className={inputClass + " !border-red-500/20 focus:!ring-red-500/20 focus:!border-red-500 resize-none"} placeholder="Will be visible to client..." rows={3} />
                 </div>
                 <button onClick={handleCancelOrder} className="glass-sheen w-full bg-red-600 hover:bg-red-700 text-white py-5 rounded-[1.5rem] font-black uppercase tracking-widest text-xs transition-all shadow-xl hover:-translate-y-1">Terminate Order</button>
               </div>
@@ -1599,28 +1599,28 @@ export const AdminDashboard = () => {
         )}
         
         {showCreateUserForm && (
-          <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+          <div className="fixed inset-0 bg-surface/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
             <GlassCard className="w-full max-w-lg p-10 relative">
-              <button onClick={() => setShowCreateUserForm(false)} aria-label="Close" className="absolute top-6 right-6 w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
+              <button onClick={() => setShowCreateUserForm(false)} aria-label="Close" className="absolute top-6 right-6 w-8 h-8 bg-surface rounded-full flex items-center justify-center text-mute hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
               <div className="mb-10">
-                 <h3 className="text-3xl font-black text-[#0f172a] uppercase tracking-tighter leading-none mb-2">New Account</h3>
-                 <p className="text-slate-500 font-bold text-sm">Provision a new entity on the system.</p>
+                 <h3 className="text-3xl font-black text-white uppercase tracking-tighter leading-none mb-2">New Account</h3>
+                 <p className="text-mute font-bold text-sm">Provision a new entity on the system.</p>
               </div>
               <form onSubmit={handleCreateUser} className="space-y-5">
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-2 mb-2 block">Full Name</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-mute ml-2 mb-2 block">Full Name</label>
                   <input className={inputClass} value={createUserForm.name} onChange={e => setCreateUserForm({...createUserForm, name: e.target.value})} required />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-2 mb-2 block">Email Address</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-mute ml-2 mb-2 block">Email Address</label>
                   <input type="email" className={inputClass} value={createUserForm.email} onChange={e => setCreateUserForm({...createUserForm, email: e.target.value})} required />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-2 mb-2 block">Phone (+254...)</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-mute ml-2 mb-2 block">Phone (+254...)</label>
                   <input className={inputClass} value={createUserForm.phone} onChange={e => setCreateUserForm({...createUserForm, phone: e.target.value})} required />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-2 mb-2 block">Account Role</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-mute ml-2 mb-2 block">Account Role</label>
                   <select className={inputClass} value={createUserForm.role} onChange={e => setCreateUserForm({...createUserForm, role: e.target.value})}>
                     <option value="customer">Customer</option>
                     <option value="admin">Administrator</option>
@@ -1639,42 +1639,42 @@ export const AdminDashboard = () => {
               <GlassCard className="p-8 md:p-10">
                 <div className="flex items-center justify-between mb-8">
                   <div>
-                    <h3 className="text-2xl font-black text-[#0f172a] uppercase tracking-tighter">Edit Order</h3>
-                    <p className="text-sm font-bold text-orange-700 mt-1">{editOrderModal.tracking_number}</p>
+                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Edit Order</h3>
+                    <p className="text-sm font-bold text-ember-400 mt-1">{editOrderModal.tracking_number}</p>
                   </div>
-                  <button onClick={() => setEditOrderModal(null)} className="p-2 hover:bg-red-100 text-red-500 rounded-xl transition-colors"><X size={20}/></button>
+                  <button onClick={() => setEditOrderModal(null)} className="p-2 hover:bg-red-500/15 text-red-500 rounded-xl transition-colors"><X size={20}/></button>
                 </div>
 
                 <form onSubmit={handleSaveEditOrder} className="space-y-6">
                   {/* Weight & Dimensions Section */}
-                  <div className="relative overflow-hidden rounded-2xl bg-blue-50/60 backdrop-blur-md border border-blue-200/40 p-5">
+                  <div className="relative overflow-hidden rounded-2xl bg-blue-500/10/60 backdrop-blur-md border border-blue-500/20/40 p-5">
                     <div className="absolute inset-0 bg-gradient-to-tr from-blue-100/20 to-transparent pointer-events-none" />
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-4 relative z-10 flex items-center gap-2"><Scale size={14}/> Weight & Dimensions</h4>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-300 mb-4 relative z-10 flex items-center gap-2"><Scale size={14}/> Weight & Dimensions</h4>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
                       <div>
-                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Weight (kg)</label>
+                        <label className="text-[9px] font-black uppercase tracking-widest text-mute mb-1 block">Weight (kg)</label>
                         <input type="number" step="0.01" min="0" className={inputClass} placeholder="0.00" value={editOrderForm.weight_kg} onChange={e => setEditOrderForm({...editOrderForm, weight_kg: e.target.value})} />
                       </div>
                       <div>
-                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Length (cm)</label>
+                        <label className="text-[9px] font-black uppercase tracking-widest text-mute mb-1 block">Length (cm)</label>
                         <input type="number" step="0.1" min="0" className={inputClass} placeholder="0" value={editOrderForm.length} onChange={e => setEditOrderForm({...editOrderForm, length: e.target.value})} />
                       </div>
                       <div>
-                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Width (cm)</label>
+                        <label className="text-[9px] font-black uppercase tracking-widest text-mute mb-1 block">Width (cm)</label>
                         <input type="number" step="0.1" min="0" className={inputClass} placeholder="0" value={editOrderForm.width} onChange={e => setEditOrderForm({...editOrderForm, width: e.target.value})} />
                       </div>
                       <div>
-                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Height (cm)</label>
+                        <label className="text-[9px] font-black uppercase tracking-widest text-mute mb-1 block">Height (cm)</label>
                         <input type="number" step="0.1" min="0" className={inputClass} placeholder="0" value={editOrderForm.height} onChange={e => setEditOrderForm({...editOrderForm, height: e.target.value})} />
                       </div>
                     </div>
                   </div>
 
                   {/* Electronics & Special Handling */}
-                  <div className="relative overflow-hidden rounded-2xl bg-orange-50/60 backdrop-blur-md border border-orange-200/40 p-5">
+                  <div className="relative overflow-hidden rounded-2xl bg-ember-500/10/60 backdrop-blur-md border border-ember-500/25/40 p-5">
                     <div className="absolute inset-0 bg-gradient-to-tr from-orange-100/20 to-transparent pointer-events-none" />
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-orange-600 mb-1 relative z-10 flex items-center gap-2">⚡ Electronics &amp; Special Handling</h4>
-                    <p className="text-[10px] text-orange-700/80 font-semibold mb-4 relative z-10">Adds a handling fee on top of the standard shipping rate. Also enforces a 1 kg minimum weight.</p>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-ember-400 mb-1 relative z-10 flex items-center gap-2">⚡ Electronics &amp; Special Handling</h4>
+                    <p className="text-[10px] text-ember-400/80 font-semibold mb-4 relative z-10">Adds a handling fee on top of the standard shipping rate. Also enforces a 1 kg minimum weight.</p>
                     <select
                       className={inputClass + " relative z-10"}
                       value={editOrderForm.electronics_item}
@@ -1686,7 +1686,7 @@ export const AdminDashboard = () => {
                       <option value="tv_monitor">TV / Screen / Monitor — £65 handling fee</option>
                     </select>
                     {editOrderForm.electronics_item && (
-                      <p className="mt-3 text-[10px] font-black text-orange-600 relative z-10">
+                      <p className="mt-3 text-[10px] font-black text-ember-400 relative z-10">
                         ⚠ Estimated cost will be recalculated to include the handling fee.
                       </p>
                     )}
@@ -1695,7 +1695,7 @@ export const AdminDashboard = () => {
                   {/* Status & Costs */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Status</label>
+                      <label className="text-[9px] font-black uppercase tracking-widest text-mute mb-1 block">Status</label>
                       <select className={inputClass} value={editOrderForm.status} onChange={e => setEditOrderForm({...editOrderForm, status: e.target.value})}>
                         <option value="pending">Pending</option>
                         <option value="received_at_warehouse">Received at Warehouse</option>
@@ -1708,33 +1708,33 @@ export const AdminDashboard = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Actual Cost (£)</label>
+                      <label className="text-[9px] font-black uppercase tracking-widest text-mute mb-1 block">Actual Cost (£)</label>
                       <input type="number" step="0.01" min="0" className={inputClass} placeholder="0.00" value={editOrderForm.actual_cost} onChange={e => setEditOrderForm({...editOrderForm, actual_cost: e.target.value})} />
                     </div>
                     <div>
-                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Customs Duty (£)</label>
+                      <label className="text-[9px] font-black uppercase tracking-widest text-mute mb-1 block">Customs Duty (£)</label>
                       <input type="number" step="0.01" min="0" className={inputClass} placeholder="0.00" value={editOrderForm.customs_duty} onChange={e => setEditOrderForm({...editOrderForm, customs_duty: e.target.value})} />
                     </div>
                   </div>
 
                   {/* Description */}
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Description</label>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-mute mb-1 block">Description</label>
                     <textarea className={inputClass + " resize-none"} rows="3" value={editOrderForm.description} onChange={e => setEditOrderForm({...editOrderForm, description: e.target.value})} />
                   </div>
 
                   {/* Order Notes */}
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Order Notes (admin only)</label>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-mute mb-1 block">Order Notes (admin only)</label>
                     <textarea className={inputClass + " resize-none"} rows="2" placeholder="Internal notes about this order…" value={editOrderForm.order_notes} onChange={e => setEditOrderForm({...editOrderForm, order_notes: e.target.value})} />
                   </div>
 
                   {/* Current Info Display */}
                   <div className="flex flex-wrap gap-3 text-[10px] font-black uppercase tracking-widest">
-                    <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-slate-500">Est. Cost: £{(editOrderModal.estimated_cost || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    <span className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-slate-500">Speed: {editOrderModal.shipping_speed}</span>
+                    <span className="px-3 py-1.5 bg-white/[0.03] border border-line rounded-full text-mute">Est. Cost: £{(editOrderModal.estimated_cost || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="px-3 py-1.5 bg-white/[0.03] border border-line rounded-full text-mute">Speed: {editOrderModal.shipping_speed}</span>
                     {editOrderModal.electronics_item && (
-                      <span className="px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-full text-orange-600">
+                      <span className="px-3 py-1.5 bg-ember-500/10 border border-ember-500/25 rounded-full text-ember-400">
                         ⚡ {editOrderModal.electronics_item === 'phone' ? 'Phone' : editOrderModal.electronics_item === 'laptop' ? 'Laptop' : 'TV/Monitor'}
                       </span>
                     )}
@@ -1758,14 +1758,14 @@ export const AdminDashboard = () => {
         {mismatchOverride && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="w-full max-w-md">
-              <GlassCard className="bg-white p-8">
+              <GlassCard className="bg-surface p-8">
                 <div className="flex items-start gap-3 mb-4">
-                  <div className="p-3 rounded-2xl bg-amber-50 text-amber-600">
+                  <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-600">
                     <AlertTriangle size={20} />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-black text-[#0f172a] tracking-tight">Amount mismatch</h3>
-                    <p className="text-sm text-slate-500 font-bold mt-1">Customer's M-Pesa SMS is short of the invoice. Approving requires a written reason.</p>
+                    <h3 className="text-2xl font-black text-white tracking-tight">Amount mismatch</h3>
+                    <p className="text-sm text-mute font-bold mt-1">Customer's M-Pesa SMS is short of the invoice. Approving requires a written reason.</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 mb-6">
@@ -1773,12 +1773,12 @@ export const AdminDashboard = () => {
                     <p className="text-[9px] font-black uppercase tracking-widest text-rose-600">Customer claimed</p>
                     <p className="text-2xl font-black text-rose-700 mt-1 tracking-tighter">KES {mismatchOverride.amountClaimedKes.toLocaleString()}</p>
                   </div>
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Invoice due</p>
-                    <p className="text-2xl font-black text-slate-700 mt-1 tracking-tighter">KES {mismatchOverride.amountDueKes.toLocaleString()}</p>
+                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-line">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-mute">Invoice due</p>
+                    <p className="text-2xl font-black text-white/80 mt-1 tracking-tighter">KES {mismatchOverride.amountDueKes.toLocaleString()}</p>
                   </div>
                 </div>
-                <label className="block mb-1 text-[9px] font-black uppercase tracking-widest text-slate-500">Reason (min 10 chars)</label>
+                <label className="block mb-1 text-[9px] font-black uppercase tracking-widest text-mute">Reason (min 10 chars)</label>
                 <textarea
                   value={mismatchOverride.reasonText}
                   onChange={e => setMismatchOverride({ ...mismatchOverride, reasonText: e.target.value })}
@@ -1786,7 +1786,7 @@ export const AdminDashboard = () => {
                   placeholder="e.g. Customer forwarded the second receipt offline; total clears amount."
                   className={inputClass + " resize-none"}
                 />
-                <p className={`mt-1 text-[10px] font-bold ${mismatchOverride.reasonText.trim().length >= 10 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                <p className={`mt-1 text-[10px] font-bold ${mismatchOverride.reasonText.trim().length >= 10 ? 'text-emerald-600' : 'text-dim'}`}>
                   {mismatchOverride.reasonText.trim().length}/10 chars minimum
                 </p>
                 <div className="flex gap-3 mt-6">
@@ -1797,7 +1797,7 @@ export const AdminDashboard = () => {
                   >
                     Approve with override
                   </button>
-                  <button onClick={() => setMismatchOverride(null)} className="flex-1 bg-slate-50 border border-slate-200 text-slate-700 px-6 py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest hover:bg-slate-100">
+                  <button onClick={() => setMismatchOverride(null)} className="flex-1 bg-white/[0.03] border border-line text-white/80 px-6 py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest hover:bg-white/[0.05]">
                     Cancel
                   </button>
                 </div>

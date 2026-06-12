@@ -158,13 +158,13 @@ export const RiderPwa = () => {
   }
 
   return (
-    <div className="relative min-h-screen bg-slate-100">
+    <div className="relative min-h-screen bg-white/[0.05]">
       <GlassStyles />
       <div className="max-w-md mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-4">
           <PageHeading title="Today's runs" subtitle="Tap a stop to deliver" />
           <button onClick={refresh}
-            className="p-2 rounded-full bg-white shadow text-[#1e3a5f]"><RefreshCw size={16}/></button>
+            className="p-2 rounded-full bg-surface shadow text-white"><RefreshCw size={16}/></button>
         </div>
 
         {/* Audit W4A.4 — Web Outbox indicator. Hidden when nothing is
@@ -176,13 +176,13 @@ export const RiderPwa = () => {
         </div>
 
         {runs.length === 0 ? (
-          <GlassCard className="p-6 text-center text-slate-500 bg-white">No runs assigned today.</GlassCard>
+          <GlassCard className="p-6 text-center text-mute bg-surface">No runs assigned today.</GlassCard>
         ) : (
           runs.map(run => (
-            <GlassCard key={run.id} className="p-4 mb-4 bg-white">
+            <GlassCard key={run.id} className="p-4 mb-4 bg-surface">
               <div className="flex justify-between items-center mb-2">
-                <p className="text-sm font-black text-[#1e3a5f] uppercase">{run.zone}</p>
-                <p className="text-xs text-slate-500">{run.completed_stops}/{run.total_stops}</p>
+                <p className="text-sm font-black text-white uppercase">{run.zone}</p>
+                <p className="text-xs text-mute">{run.completed_stops}/{run.total_stops}</p>
               </div>
               <div className="space-y-2">
                 {run.parcels?.map(p => (
@@ -191,15 +191,15 @@ export const RiderPwa = () => {
                     onClick={() => setActive({ run_id: run.id, parcel: p })}
                     className={`w-full flex items-start justify-between gap-3 p-3 rounded-xl border-2 text-left
                       ${p.has_pod
-                        ? 'border-emerald-200 bg-emerald-50/60 opacity-60'
-                        : 'border-slate-200 hover:border-orange-400'}`}>
+                        ? 'border-emerald-500/20 bg-emerald-500/10/60 opacity-60'
+                        : 'border-line hover:border-orange-400'}`}>
                     <div>
-                      <p className="font-mono text-xs text-slate-500">{p.tracking_number}</p>
-                      <p className="font-semibold text-slate-800">{p.name}</p>
-                      <p className="text-xs text-slate-500 inline-flex items-center gap-1">
+                      <p className="font-mono text-xs text-mute">{p.tracking_number}</p>
+                      <p className="font-semibold text-white">{p.name}</p>
+                      <p className="text-xs text-mute inline-flex items-center gap-1">
                         <MapPin size={11}/> {p.delivery_address_override || p.delivery_address || 'No address'}
                       </p>
-                      <p className="text-xs text-slate-500 inline-flex items-center gap-1">
+                      <p className="text-xs text-mute inline-flex items-center gap-1">
                         <Phone size={11}/> {p.phone}
                       </p>
                     </div>
@@ -217,17 +217,17 @@ export const RiderPwa = () => {
       {/* POD capture sheet */}
       {active && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-end md:items-center justify-center p-0 md:p-4">
-          <GlassCard className="bg-white w-full md:max-w-md p-6 rounded-t-3xl md:rounded-3xl max-h-[92vh] overflow-y-auto">
-            <h3 className="text-lg font-black text-[#1e3a5f]">Capture POD</h3>
-            <p className="text-xs text-slate-500 mb-4">{active.parcel.tracking_number} · {active.parcel.name}</p>
+          <GlassCard className="bg-surface w-full md:max-w-md p-6 rounded-t-3xl md:rounded-3xl max-h-[92vh] overflow-y-auto">
+            <h3 className="text-lg font-black text-white">Capture POD</h3>
+            <p className="text-xs text-mute mb-4">{active.parcel.tracking_number} · {active.parcel.name}</p>
 
             <div className="space-y-3">
               <input value={recipientName} onChange={e => setRecipientName(e.target.value)}
                 placeholder="Recipient name"
-                className="w-full px-3 py-3 rounded-xl border border-slate-200" />
+                className="w-full px-3 py-3 rounded-xl border border-line" />
 
               <div>
-                <p className="text-xs text-slate-500 mb-2 font-bold uppercase tracking-wider">4-digit OTP</p>
+                <p className="text-xs text-mute mb-2 font-bold uppercase tracking-wider">4-digit OTP</p>
                 <div className="grid grid-cols-4 gap-2">
                   {[0,1,2,3].map(i => (
                     <input key={i}
@@ -241,14 +241,14 @@ export const RiderPwa = () => {
                         setOtp(next.join(''))
                         if (e.target.value && e.target.nextSibling) e.target.nextSibling.focus?.()
                       }}
-                      className="text-center text-2xl font-black py-3 rounded-xl border border-slate-200" />
+                      className="text-center text-2xl font-black py-3 rounded-xl border border-line" />
                   ))}
                 </div>
-                <p className="text-xs text-slate-500 text-center mt-1">Recipient was sent a 4-digit code via WhatsApp.</p>
+                <p className="text-xs text-mute text-center mt-1">Recipient was sent a 4-digit code via WhatsApp.</p>
               </div>
 
               <div>
-                <p className="text-xs text-slate-500 mb-2 font-bold uppercase tracking-wider">Delivery photo</p>
+                <p className="text-xs text-mute mb-2 font-bold uppercase tracking-wider">Delivery photo</p>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -260,7 +260,7 @@ export const RiderPwa = () => {
                 {photoPreview ? (
                   <div className="relative">
                     <img src={photoPreview} alt="Delivery preview"
-                      className="w-full h-44 object-cover rounded-xl border border-slate-200" />
+                      className="w-full h-44 object-cover rounded-xl border border-line" />
                     {photoUploading && (
                       <div className="absolute inset-0 bg-black/40 rounded-xl flex items-center justify-center text-white text-xs gap-2">
                         <Loader2 size={16} className="animate-spin"/> Uploading…
@@ -275,7 +275,7 @@ export const RiderPwa = () => {
                 ) : (
                   <button onClick={onPickPhoto}
                     disabled={photoUploading}
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-slate-300 text-slate-600 hover:border-orange-400 hover:text-orange-600">
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-slate-300 text-mute hover:border-orange-400 hover:text-ember-400">
                     {photoUploading
                       ? <><Loader2 size={16} className="animate-spin"/> Uploading…</>
                       : <><Camera size={16}/> Take photo</>}
@@ -283,12 +283,12 @@ export const RiderPwa = () => {
                 )}
                 {photoPath && !photoUploading && (
                   <button onClick={onPickPhoto}
-                    className="block mx-auto mt-2 text-xs text-orange-600 font-bold hover:underline">
+                    className="block mx-auto mt-2 text-xs text-ember-400 font-bold hover:underline">
                     Re-take
                   </button>
                 )}
                 {photoError && (
-                  <p className="text-xs text-red-600 mt-2">{photoError}</p>
+                  <p className="text-xs text-red-300 mt-2">{photoError}</p>
                 )}
               </div>
             </div>
@@ -296,7 +296,7 @@ export const RiderPwa = () => {
             <div className="grid grid-cols-2 gap-3 mt-5">
               <button onClick={onFailed}
                 disabled={submitting}
-                className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-100 text-red-700 font-bold disabled:opacity-50">
+                className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-500/15 text-red-300 font-bold disabled:opacity-50">
                 <XCircle size={16}/> Failed
               </button>
               <button onClick={onDelivered}
@@ -309,7 +309,7 @@ export const RiderPwa = () => {
             </div>
             <button onClick={resetSheet}
               disabled={submitting}
-              className="block mx-auto mt-3 text-xs text-slate-500 hover:underline disabled:opacity-50">Close</button>
+              className="block mx-auto mt-3 text-xs text-mute hover:underline disabled:opacity-50">Close</button>
           </GlassCard>
         </div>
       )}
