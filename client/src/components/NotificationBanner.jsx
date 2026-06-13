@@ -21,7 +21,7 @@
  *   absent      → show after a brief paint delay
  *
  * Design: Thapsus Cargo liquid-glass system
- *   bg-white/50 backdrop-blur-2xl · border-white/50 · animate-morph blobs
+ *   bg-surface-2 backdrop-blur-2xl · border-line · animate-morph blobs
  *   glass-sheen CTA · #0f172a / orange-500 brand palette
  */
 import React, { useState, useEffect } from 'react';
@@ -91,12 +91,12 @@ function BannerShell({ leaving, onClose, children }) {
   return (
     <>
       <style>{STYLES}</style>
-      <div className="fixed bottom-6 right-6 left-6 md:left-auto md:max-w-sm z-[9999] pointer-events-none">
+      <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:bottom-6 right-4 left-4 md:left-auto md:right-6 md:max-w-sm z-[55] pointer-events-none">
         <div className={`pointer-events-auto ${leaving ? 'nb-slide-down' : 'nb-slide-up'}`}>
-          <div className="relative overflow-hidden rounded-[2rem] bg-white/50 backdrop-blur-2xl border border-white/50 shadow-[0_24px_64px_-12px_rgba(15,23,42,0.18)]">
+          <div className="relative overflow-hidden rounded-[2rem] bg-surface-2 backdrop-blur-2xl border border-line shadow-[0_24px_64px_-12px_rgba(15,23,42,0.18)]">
             {/* Liquid blobs */}
-            <div className="absolute top-[-30%] right-[-20%] w-48 h-48 bg-orange-300/40 blur-[60px] rounded-full nb-morph pointer-events-none" />
-            <div className="absolute bottom-[-20%] left-[-10%] w-36 h-36 bg-blue-300/30 blur-[50px] rounded-full nb-morph pointer-events-none" style={{ animationDelay: '4s' }} />
+            <div className="absolute top-[-30%] right-[-20%] w-48 h-48 bg-ember-500/20 blur-[60px] rounded-full nb-morph pointer-events-none" />
+            <div className="absolute bottom-[-20%] left-[-10%] w-36 h-36 bg-ember-500/10 blur-[50px] rounded-full nb-morph pointer-events-none" style={{ animationDelay: '4s' }} />
             {/* Crystal overlay */}
             <div className="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent pointer-events-none" />
 
@@ -105,7 +105,7 @@ function BannerShell({ leaving, onClose, children }) {
               <button
                 onClick={onClose}
                 aria-label="Dismiss"
-                className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-xl bg-slate-100/70 hover:bg-slate-200/80 text-slate-400 hover:text-slate-600 transition-all"
+                className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-dim hover:text-mute transition-all"
               >
                 <X size={14} />
               </button>
@@ -142,22 +142,22 @@ function PermissionBanner({ onDismiss }) {
     <BannerShell leaving={leaving} onClose={() => dismiss(false)}>
       {/* Icon + eyebrow */}
       <div className="flex items-center gap-3 mb-4">
-        <div className="relative w-11 h-11 bg-[#0f172a] rounded-2xl flex items-center justify-center shadow-lg shrink-0">
+        <div className="relative w-11 h-11 bg-ember-gradient rounded-2xl flex items-center justify-center shadow-lg shrink-0">
           <Bell size={20} className="text-white" />
-          <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-orange-500 rounded-full border-2 border-white">
-            <span className="absolute inset-0 bg-orange-400 rounded-full animate-ping opacity-75" />
+          <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-ember-500 rounded-full border-2 border-line">
+            <span className="absolute inset-0 bg-ember-400 rounded-full animate-ping opacity-75" />
           </span>
         </div>
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/70 backdrop-blur-md border border-white/60 text-[9px] font-black uppercase tracking-[0.25em] text-slate-500">
-          <Zap size={9} className="text-orange-700" />
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-2 backdrop-blur-md border border-line text-[9px] font-black uppercase tracking-[0.25em] text-mute">
+          <Zap size={9} className="text-ember-400" />
           Live Shipment Alerts
         </div>
       </div>
 
-      <h3 className="text-xl font-black text-[#0f172a] tracking-tighter leading-tight mb-1.5">
+      <h3 className="text-xl font-black text-white tracking-tighter leading-tight mb-1.5">
         Never Miss a<br />Status Update.
       </h3>
-      <p className="text-sm font-medium text-slate-500 leading-relaxed mb-5">
+      <p className="text-sm font-medium text-mute leading-relaxed mb-5">
         Get instant alerts when your package moves — from warehouse receipt right to your door.
       </p>
 
@@ -165,21 +165,21 @@ function PermissionBanner({ onDismiss }) {
         <button
           onClick={handleAllow}
           disabled={loading}
-          className="nb-sheen w-full bg-[#0f172a] hover:bg-slate-800 disabled:opacity-60 text-white py-3.5 rounded-[1.25rem] font-black text-xs uppercase tracking-widest transition-all shadow-lg hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2"
+          className="nb-sheen w-full bg-ember-gradient hover:brightness-110 disabled:opacity-60 text-white py-3.5 rounded-[1.25rem] font-black text-xs uppercase tracking-widest transition-all shadow-lg hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2"
         >
           <Bell size={14} />
           {loading ? 'Requesting…' : 'Allow Notifications'}
         </button>
         <button
           onClick={() => dismiss(false)}
-          className="w-full py-3 rounded-[1.25rem] font-black text-xs uppercase tracking-widest text-slate-400 hover:text-slate-600 hover:bg-slate-100/60 transition-all flex items-center justify-center gap-2"
+          className="w-full py-3 rounded-[1.25rem] font-black text-xs uppercase tracking-widest text-dim hover:text-mute hover:bg-white/[0.06] transition-all flex items-center justify-center gap-2"
         >
           <BellOff size={13} />
           Not Right Now
         </button>
       </div>
 
-      <p className="mt-4 text-center text-[9px] text-slate-300 font-bold">
+      <p className="mt-4 text-center text-[9px] text-dim font-bold">
         You can change this anytime in your browser settings.
       </p>
     </BannerShell>
@@ -208,22 +208,22 @@ function IOSInstallBanner({ onDismiss }) {
     <BannerShell leaving={leaving} onClose={() => dismiss(false)}>
       {/* Icon + eyebrow */}
       <div className="flex items-center gap-3 mb-4">
-        <div className="relative w-11 h-11 bg-[#0f172a] rounded-2xl flex items-center justify-center shadow-lg shrink-0">
+        <div className="relative w-11 h-11 bg-ember-gradient rounded-2xl flex items-center justify-center shadow-lg shrink-0">
           <Smartphone size={20} className="text-white" />
-          <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-orange-500 rounded-full border-2 border-white">
-            <span className="absolute inset-0 bg-orange-400 rounded-full animate-ping opacity-75" />
+          <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-ember-500 rounded-full border-2 border-line">
+            <span className="absolute inset-0 bg-ember-400 rounded-full animate-ping opacity-75" />
           </span>
         </div>
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/70 backdrop-blur-md border border-white/60 text-[9px] font-black uppercase tracking-[0.25em] text-slate-500">
-          <Zap size={9} className="text-orange-700" />
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-2 backdrop-blur-md border border-line text-[9px] font-black uppercase tracking-[0.25em] text-mute">
+          <Zap size={9} className="text-ember-400" />
           Enable Notifications
         </div>
       </div>
 
-      <h3 className="text-xl font-black text-[#0f172a] tracking-tighter leading-tight mb-1.5">
+      <h3 className="text-xl font-black text-white tracking-tighter leading-tight mb-1.5">
         Install for<br />Live Tracking Alerts.
       </h3>
-      <p className="text-sm font-medium text-slate-500 leading-relaxed mb-5">
+      <p className="text-sm font-medium text-mute leading-relaxed mb-5">
         iOS requires the app to be on your Home Screen to send notifications. It only takes a few seconds.
       </p>
 
@@ -231,17 +231,17 @@ function IOSInstallBanner({ onDismiss }) {
       <div className="space-y-3 mb-5">
         {steps.map(({ icon: Icon, text }, i) => (
           <div key={i} className="flex items-start gap-3">
-            <div className="shrink-0 w-7 h-7 rounded-xl bg-[#0f172a]/8 border border-slate-200/70 flex items-center justify-center">
-              <Icon size={13} className="text-slate-500" />
+            <div className="shrink-0 w-7 h-7 rounded-xl bg-white/[0.06] border border-line flex items-center justify-center">
+              <Icon size={13} className="text-mute" />
             </div>
-            <p className="text-xs font-bold text-slate-600 leading-relaxed pt-0.5">{text}</p>
+            <p className="text-xs font-bold text-mute leading-relaxed pt-0.5">{text}</p>
           </div>
         ))}
       </div>
 
       {/* The downward-pointing arrow cue toward Safari's toolbar */}
-      <div className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl bg-orange-50/80 border border-orange-100 mb-4">
-        <Share size={14} className="text-orange-700 shrink-0" />
+      <div className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl bg-ember-500/10 border border-ember-500/20 mb-4">
+        <Share size={14} className="text-ember-400 shrink-0" />
         <span className="text-xs font-black text-orange-600 uppercase tracking-wider">
           Look for the Share icon below ↓
         </span>
@@ -249,7 +249,7 @@ function IOSInstallBanner({ onDismiss }) {
 
       <button
         onClick={() => dismiss(true)}
-        className="w-full py-3 rounded-[1.25rem] font-black text-xs uppercase tracking-widest text-slate-400 hover:text-slate-600 hover:bg-slate-100/60 transition-all"
+        className="w-full py-3 rounded-[1.25rem] font-black text-xs uppercase tracking-widest text-dim hover:text-mute hover:bg-white/[0.06] transition-all"
       >
         Maybe Later
       </button>

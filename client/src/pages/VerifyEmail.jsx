@@ -2,24 +2,12 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
+import { PillLabel } from '../components/ui'
 
 /**
  * /verify-email?token=<hex>
- *
- * Lands here when the user opens the link from sendEmailVerificationEmail.
- * Posts the token to /api/auth/verify-email via the auth context; on
- * success the server returns the same auth bundle login does and we
- * route the now-signed-in user straight to /dashboard. The mobile apps
- * land back into the app via Universal / App Links — this page is the
- * web fallback (and also the destination for desktop browsers).
- *
- * Three render states:
- *   - verifying — the activation request is in flight
- *   - verified  — server accepted the token; show a confirmation +
- *                  auto-redirect to /dashboard after a short beat so
- *                  the success state is legible
- *   - failed    — token missing / expired / already used; show the
- *                  copy from the server and a link back to /login
+ * Posts the token via AuthContext.verifyEmail; on success bounces to
+ * /login?verified=1 after a short beat. States: verifying | verified | failed.
  */
 export const VerifyEmail = () => {
   const navigate = useNavigate()
@@ -27,7 +15,7 @@ export const VerifyEmail = () => {
   const { verifyEmail } = useAuth()
   const token = search.get('token')
 
-  const [state, setState] = useState('verifying') // 'verifying' | 'verified' | 'failed'
+  const [state, setState] = useState('verifying')
   const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
@@ -42,20 +30,10 @@ export const VerifyEmail = () => {
         await verifyEmail(token)
         if (cancelled) return
         setState('verified')
-        // Bounce to /login (not /dashboard) — verifying via a link is a
-        // confirmation step, not an auth event. The customer may have
-        // tapped the link from a shared / mobile inbox on a device they
-        // don't normally sign in from, so we ask for a deliberate sign-in
-        // rather than silently establishing a session here. Short beat
-        // first so the success state registers visually.
-        setTimeout(() => {
-          if (!cancelled) navigate('/login?verified=1', { replace: true })
-        }, 1200)
+        setTimeout(() => { if (!cancelled) navigate('/login?verified=1', { replace: true }) }, 1200)
       } catch (err) {
         if (cancelled) return
-        const msg = err?.response?.data?.message
-          || err.message
-          || 'This verification link is invalid or has expired.'
+        const msg = err?.response?.data?.message || err.message || 'This verification link is invalid or has expired.'
         setErrorMessage(msg)
         setState('failed')
       }
@@ -65,50 +43,44 @@ export const VerifyEmail = () => {
   }, [token, verifyEmail, navigate])
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center px-4 py-12 font-sans text-slate-900">
-      <div className="w-full max-w-md">
-        <div className="rounded-[24px] p-[1px] bg-gradient-to-br from-blue-300/60 via-white/20 to-orange-300/60 shadow-2xl">
-          <div className="bg-white/80 backdrop-blur-3xl rounded-[23px] p-8 sm:p-10 text-center">
-            <h1 className="text-3xl md:text-4xl font-black text-[#0f172a] tracking-tight mb-2 uppercase">
-              <span>Thapsus</span>
-              <span className="text-orange-700">Cargo</span>
-            </h1>
+    <div className="relative min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12 overflow-hidden">
+      <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[40rem] h-[40rem] bg-ember-radial blur-2xl pointer-events-none" />
 
-            {state === 'verifying' && (
-              <>
-                <div className="flex justify-center my-8">
-                  <Loader2 className="animate-spin text-orange-600" size={48} />
-                </div>
-                <p className="text-slate-600 font-semibold">Activating your account…</p>
-              </>
-            )}
+      <div className="w-full max-w-md relative z-10 animate-slide-up">
+        <div className="glow-card p-8 md:p-10 text-center">
+          <div className="flex justify-center mb-6"><PillLabel>Email verification</PillLabel></div>
 
-            {state === 'verified' && (
-              <>
-                <div className="flex justify-center my-8">
-                  <CheckCircle2 className="text-green-600" size={56} />
-                </div>
-                <h2 className="text-xl font-black text-slate-900 mb-2">Email verified</h2>
-                <p className="text-slate-600">Your account is now active. Redirecting you to sign in…</p>
-              </>
-            )}
+          {state === 'verifying' && (
+            <>
+              <div className="flex justify-center my-8"><Loader2 className="animate-spin text-ember-500" size={48} /></div>
+              <p className="text-mute font-medium">Activating your account…</p>
+            </>
+          )}
 
-            {state === 'failed' && (
-              <>
-                <div className="flex justify-center my-8">
-                  <AlertCircle className="text-red-600" size={56} />
-                </div>
-                <h2 className="text-xl font-black text-slate-900 mb-2">Couldn't verify your email</h2>
-                <p className="text-slate-600 mb-6">{errorMessage}</p>
-                <Link
-                  to="/login"
-                  className="inline-block px-6 py-3 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-sm transition-colors"
-                >
-                  Back to sign in
-                </Link>
-              </>
-            )}
-          </div>
+          {state === 'verified' && (
+            <>
+              <div className="flex justify-center my-8">
+                <span className="w-20 h-20 rounded-full bg-emerald-500/10 border border-emerald-500/20 grid place-items-center">
+                  <CheckCircle2 className="text-emerald-400" size={44} />
+                </span>
+              </div>
+              <h1 className="text-xl font-bold text-white mb-2">Email verified</h1>
+              <p className="text-mute">Your account is now active. Redirecting you to sign in…</p>
+            </>
+          )}
+
+          {state === 'failed' && (
+            <>
+              <div className="flex justify-center my-8">
+                <span className="w-20 h-20 rounded-full bg-red-500/10 border border-red-500/20 grid place-items-center">
+                  <AlertCircle className="text-red-400" size={44} />
+                </span>
+              </div>
+              <h1 className="text-xl font-bold text-white mb-2">Couldn't verify your email</h1>
+              <p className="text-mute mb-6">{errorMessage}</p>
+              <Link to="/login" className="btn-primary glass-sheen">Back to sign in</Link>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -249,12 +249,12 @@ function costBreakdownTable(order, gbpToKes = null) {
         ${insurance_fee ? `<tr><td style="padding:8px 12px; border-bottom:1px solid #e5e7eb;">Insurance Fee</td><td style="padding:8px 12px; text-align:right; border-bottom:1px solid #e5e7eb;">${insurance_fee}</td></tr>` : ''}
         ${customs_duty  ? `<tr><td style="padding:8px 12px; border-bottom:1px solid #e5e7eb;">Customs Duty</td><td style="padding:8px 12px; text-align:right; border-bottom:1px solid #e5e7eb;">${customs_duty}</td></tr>`  : ''}
         <tr style="background:#eff6ff;">
-          <td style="padding:10px 12px; font-weight:700; color:#1e3a5f;">Total</td>
-          <td style="padding:10px 12px; text-align:right; font-weight:700; color:#1e3a5f;">${symbol} ${total_cost}</td>
+          <td style="padding:10px 12px; font-weight:700; color:#0e1012;">Total</td>
+          <td style="padding:10px 12px; text-align:right; font-weight:700; color:#0e1012;">${symbol} ${total_cost}</td>
         </tr>
       </tbody>
     </table>
-    ${!is_actual_cost ? `<p style="font-size:12px; color:#f97316; margin-top:4px;">* Estimated cost — final amount confirmed once your parcel is weighed.</p>` : ''}
+    ${!is_actual_cost ? `<p style="font-size:12px; color:#f26418; margin-top:4px;">* Estimated cost — final amount confirmed once your parcel is weighed.</p>` : ''}
   `;
 }
 
@@ -273,9 +273,9 @@ function emailFooter() {
 function emailHeader() {
   return `
     <tr>
-      <td style="background-color:#1e3a5f;padding:32px 40px;text-align:center;">
-        <h1 style="margin:0;color:#ffffff;font-size:28px;font-weight:bold;">
-          Thapsus<span style="color:#f97316;">Cargo</span>
+      <td style="background-color:#0e1012;padding:30px 40px;text-align:center;border-bottom:3px solid #f26418;">
+        <h1 style="margin:0;color:#ffffff;font-size:26px;font-weight:bold;letter-spacing:-0.5px;">
+          Thapsus<span style="color:#f26418;">Cargo</span>
         </h1>
       </td>
     </tr>`;
@@ -306,7 +306,7 @@ function emailLayout(bodyHtml) {
 
 async function sendEmailVerificationEmail(toEmail, toName, verifyLink) {
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Activate your account</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">Activate your account</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 24px;color:#4b5563;font-size:16px;line-height:1.6;">
       Welcome to Thapsus Cargo. Tap the button below to confirm your email
@@ -314,7 +314,7 @@ async function sendEmailVerificationEmail(toEmail, toName, verifyLink) {
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
       <tr>
-        <td style="background-color:#f97316;border-radius:8px;">
+        <td style="background-color:#f26418;border-radius:8px;">
           <a href="${verifyLink}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">Activate my account</a>
         </td>
       </tr>
@@ -335,7 +335,7 @@ async function sendEmailVerificationEmail(toEmail, toName, verifyLink) {
 
 async function sendPasswordResetEmail(toEmail, toName, resetLink) {
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Password Reset Request</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">Password Reset Request</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 24px;color:#4b5563;font-size:16px;line-height:1.6;">
       We received a request to reset the password for your Thapsus Cargo account.
@@ -343,7 +343,7 @@ async function sendPasswordResetEmail(toEmail, toName, resetLink) {
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
       <tr>
-        <td style="background-color:#f97316;border-radius:8px;">
+        <td style="background-color:#f26418;border-radius:8px;">
           <a href="${resetLink}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">Reset My Password</a>
         </td>
       </tr>
@@ -361,7 +361,7 @@ async function sendPasswordResetEmail(toEmail, toName, resetLink) {
 
 async function sendAdminPasswordResetEmail(toEmail, toName, resetLink) {
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Your Password Has Been Reset</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">Your Password Has Been Reset</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       A Thapsus Cargo administrator has initiated a password reset for your account.
@@ -372,7 +372,7 @@ async function sendAdminPasswordResetEmail(toEmail, toName, resetLink) {
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
       <tr>
-        <td style="background-color:#f97316;border-radius:8px;">
+        <td style="background-color:#f26418;border-radius:8px;">
           <a href="${resetLink}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">Set New Password</a>
         </td>
       </tr>
@@ -390,19 +390,19 @@ async function sendAdminPasswordResetEmail(toEmail, toName, resetLink) {
 
 async function sendPaymentRequestEmail(toEmail, toName, trackingNumber, amount, notes, paymentLink, order, gbpToKes = null) {
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment Request</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">Payment Request</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       A payment is due for your order <strong>${trackingNumber}</strong>.
     </p>
 
-    ${order ? costBreakdownTable(order, gbpToKes) : `<p style="font-size:16px;font-weight:bold;color:#1e3a5f;">Amount Due: KES ${amount?.toLocaleString?.() ?? amount}</p>`}
+    ${order ? costBreakdownTable(order, gbpToKes) : `<p style="font-size:16px;font-weight:bold;color:#0e1012;">Amount Due: KES ${amount?.toLocaleString?.() ?? amount}</p>`}
 
-    ${notes ? `<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;background-color:#f9fafb;padding:12px 16px;border-left:4px solid #f97316;border-radius:4px;"><em>${notes}</em></p>` : ''}
+    ${notes ? `<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;background-color:#f9fafb;padding:12px 16px;border-left:4px solid #f26418;border-radius:4px;"><em>${notes}</em></p>` : ''}
 
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
       <tr>
-        <td style="background-color:#f97316;border-radius:8px;">
+        <td style="background-color:#f26418;border-radius:8px;">
           <a href="${paymentLink}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">Pay Now</a>
         </td>
       </tr>
@@ -421,19 +421,19 @@ async function sendPaymentRequestEmail(toEmail, toName, trackingNumber, amount, 
 
 async function sendPaymentReminderEmail(toEmail, toName, trackingNumber, amount, notes, paymentLink, order, gbpToKes = null) {
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment Reminder</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">Payment Reminder</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       This is a friendly reminder that a payment is outstanding for your order <strong>${trackingNumber}</strong>.
     </p>
 
-    ${order ? costBreakdownTable(order, gbpToKes) : `<p style="font-size:16px;font-weight:bold;color:#1e3a5f;">Amount Due: KES ${amount?.toLocaleString?.() ?? amount}</p>`}
+    ${order ? costBreakdownTable(order, gbpToKes) : `<p style="font-size:16px;font-weight:bold;color:#0e1012;">Amount Due: KES ${amount?.toLocaleString?.() ?? amount}</p>`}
 
     ${notes ? `<div style="margin:0 0 24px;background-color:#fef9c3;padding:12px 16px;border-left:4px solid #f59e0b;border-radius:4px;"><p style="margin:0;color:#92400e;font-size:14px;line-height:1.6;"><strong>Note from admin:</strong> ${notes}</p></div>` : ''}
 
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
       <tr>
-        <td style="background-color:#f97316;border-radius:8px;">
+        <td style="background-color:#f26418;border-radius:8px;">
           <a href="${paymentLink}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">Pay Now</a>
         </td>
       </tr>
@@ -454,7 +454,7 @@ async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, 
   const speedLabel    = shippingSpeed === 'express' ? 'Express' : 'Economy';
 
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Your Order Has Been Created</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">Your Order Has Been Created</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 24px;color:#4b5563;font-size:16px;line-height:1.6;">
       Thapsus Cargo has created a new order on your behalf. Here are the details:
@@ -463,7 +463,7 @@ async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, 
       <tbody>
         <tr style="border-bottom:1px solid #e5e7eb;">
           <td style="padding:10px 12px;color:#6b7280;font-weight:600;width:40%;">Tracking Number</td>
-          <td style="padding:10px 12px;color:#1e3a5f;font-weight:700;">${trackingNumber}</td>
+          <td style="padding:10px 12px;color:#0e1012;font-weight:700;">${trackingNumber}</td>
         </tr>
         <tr style="border-bottom:1px solid #e5e7eb;background:#f9fafb;">
           <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Retailer</td>
@@ -495,7 +495,7 @@ async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, 
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
       <tr>
-        <td style="background-color:#1e3a5f;border-radius:8px;">
+        <td style="background-color:#0e1012;border-radius:8px;">
           <a href="${ordersLink}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">View My Orders</a>
         </td>
       </tr>
@@ -518,7 +518,7 @@ async function sendOrderCreatedEmail(toEmail, toName, trackingNumber, retailer, 
 async function sendWelcomeAccountEmail(toEmail, toName, warehouseId, role, setupLink) {
   const roleLabel = role === 'admin' ? 'Administrator' : 'Customer';
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Welcome to Thapsus Cargo!</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">Welcome to Thapsus Cargo!</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       Your <strong>${roleLabel}</strong> account has been created by a Thapsus Cargo administrator.
@@ -533,7 +533,7 @@ async function sendWelcomeAccountEmail(toEmail, toName, warehouseId, role, setup
         </tr>
         <tr style="background:#f9fafb;">
           <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Warehouse ID</td>
-          <td style="padding:10px 12px;color:#1e3a5f;font-weight:700;">${warehouseId}</td>
+          <td style="padding:10px 12px;color:#0e1012;font-weight:700;">${warehouseId}</td>
         </tr>
       </tbody>
     </table>
@@ -542,7 +542,7 @@ async function sendWelcomeAccountEmail(toEmail, toName, warehouseId, role, setup
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
       <tr>
-        <td style="background-color:#f97316;border-radius:8px;">
+        <td style="background-color:#f26418;border-radius:8px;">
           <a href="${setupLink}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">Activate My Account</a>
         </td>
       </tr>
@@ -569,7 +569,7 @@ async function sendPaymentReceiptEmail(toEmail, toName, trackingNumber, amount, 
     : new Date().toLocaleString('en-GB',        { dateStyle: 'long', timeStyle: 'short' });
 
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment Received ✓</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">Payment Received ✓</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 24px;color:#4b5563;font-size:16px;line-height:1.6;">
       We have successfully received your payment. Below is your receipt:
@@ -578,7 +578,7 @@ async function sendPaymentReceiptEmail(toEmail, toName, trackingNumber, amount, 
       <tbody>
         <tr style="border-bottom:1px solid #e5e7eb;">
           <td style="padding:10px 12px;color:#6b7280;font-weight:600;width:45%;">Tracking Number</td>
-          <td style="padding:10px 12px;color:#1e3a5f;font-weight:700;">${trackingNumber}</td>
+          <td style="padding:10px 12px;color:#0e1012;font-weight:700;">${trackingNumber}</td>
         </tr>
         <tr style="border-bottom:1px solid #e5e7eb;background:#f9fafb;">
           <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Amount Paid</td>
@@ -624,7 +624,7 @@ async function sendOrderUpdatedEmail(
   const speedLabel    = shippingSpeed === 'express' ? 'Express' : 'Economy';
 
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Your Order Has Been Updated</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">Your Order Has Been Updated</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 24px;color:#4b5563;font-size:16px;line-height:1.6;">
       An administrator has updated the details and pricing for your order <strong>${trackingNumber}</strong>.
@@ -634,7 +634,7 @@ async function sendOrderUpdatedEmail(
       <tbody>
         <tr style="border-bottom:1px solid #e5e7eb;">
           <td style="padding:10px 12px;color:#6b7280;font-weight:600;width:40%;">Tracking Number</td>
-          <td style="padding:10px 12px;color:#1e3a5f;font-weight:700;">${trackingNumber}</td>
+          <td style="padding:10px 12px;color:#0e1012;font-weight:700;">${trackingNumber}</td>
         </tr>
         <tr style="border-bottom:1px solid #e5e7eb;background:#f9fafb;">
           <td style="padding:10px 12px;color:#6b7280;font-weight:600;">Retailer</td>
@@ -651,7 +651,7 @@ async function sendOrderUpdatedEmail(
       </tbody>
     </table>
 
-    <h3 style="margin:0 0 8px;color:#1e3a5f;font-size:16px;font-weight:700;">Updated Cost Breakdown</h3>
+    <h3 style="margin:0 0 8px;color:#0e1012;font-size:16px;font-weight:700;">Updated Cost Breakdown</h3>
     ${costBreakdownTable(order, gbpToKes)}
 
     <p style="margin:16px 0 24px;color:#4b5563;font-size:14px;line-height:1.6;">
@@ -660,7 +660,7 @@ async function sendOrderUpdatedEmail(
 
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
       <tr>
-        <td style="background-color:#1e3a5f;border-radius:8px;">
+        <td style="background-color:#0e1012;border-radius:8px;">
           <a href="${ordersLink}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">View My Order</a>
         </td>
       </tr>
@@ -695,7 +695,7 @@ async function sendTicketCreatedEmail(toEmail, ticket) {
   const ticketLink   = `${adminUrl}/admin#tickets`;
 
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">New support ticket</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">New support ticket</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       A customer just raised a ticket. Priority: <strong>${priority}</strong>.
     </p>
@@ -707,7 +707,7 @@ async function sendTicketCreatedEmail(toEmail, ticket) {
     </table>
     <p style="margin:0 0 16px;color:#4b5563;font-size:14px;line-height:1.6;white-space:pre-wrap;">${safeDesc}</p>
     <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
-      <tr><td style="background-color:#f97316;border-radius:8px;">
+      <tr><td style="background-color:#f26418;border-radius:8px;">
         <a href="${ticketLink}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">Open ticket</a>
       </td></tr>
     </table>`;
@@ -734,7 +734,7 @@ async function sendTicketReplyEmail(toEmail, toName, ticket, replyMessage) {
   const ticketsUrl  = `${process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk'}/support`;
 
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">We replied to your ticket</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">We replied to your ticket</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       Our team posted an update on your support ticket <strong>${safeSubject}</strong>.
@@ -743,7 +743,7 @@ async function sendTicketReplyEmail(toEmail, toName, ticket, replyMessage) {
       <tr><td style="padding:14px 16px;color:#374151;font-size:15px;line-height:1.6;white-space:pre-wrap;">${safeReply}</td></tr>
     </table>
     <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
-      <tr><td style="background-color:#f97316;border-radius:8px;">
+      <tr><td style="background-color:#f26418;border-radius:8px;">
         <a href="${ticketsUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">View ticket</a>
       </td></tr>
     </table>
@@ -794,7 +794,7 @@ async function sendStatusUpdateEmail(toEmail, toName, trackingNumber, newStatus)
   }[newStatus] || `Status updated to ${label}.`;
 
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">${label}</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">${label}</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">${blurb}</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 24px;font-size:15px;">
@@ -804,7 +804,7 @@ async function sendStatusUpdateEmail(toEmail, toName, trackingNumber, newStatus)
       </tbody>
     </table>
     <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
-      <tr><td style="background-color:#f97316;border-radius:8px;">
+      <tr><td style="background-color:#f26418;border-radius:8px;">
         <a href="${trackUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">Track parcel</a>
       </td></tr>
     </table>`;
@@ -830,14 +830,14 @@ async function sendStatusUpdateEmail(toEmail, toName, trackingNumber, newStatus)
 async function sendDeliveryOtpEmail(toEmail, toName, trackingNumber, otp) {
   const trackUrl = `${process.env.APP_URL || 'https://www.thapsus.uk'}/track/${encodeURIComponent(trackingNumber)}`;
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Out for delivery</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">Out for delivery</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       Your parcel <strong>${trackingNumber}</strong> is on its way. Share the code below
       with the rider when they arrive — they need it to confirm delivery.
     </p>
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 24px;">
-      <tr><td align="center" style="background:#1e3a5f;border-radius:12px;padding:24px;">
+      <tr><td align="center" style="background:#0e1012;border-radius:12px;padding:24px;">
         <p style="margin:0 0 6px;color:#94a3b8;font-size:13px;letter-spacing:1px;text-transform:uppercase;">Delivery OTP</p>
         <p style="margin:0;color:#ffffff;font-size:40px;font-weight:bold;letter-spacing:8px;font-family:monospace;">${otp}</p>
       </td></tr>
@@ -846,7 +846,7 @@ async function sendDeliveryOtpEmail(toEmail, toName, trackingNumber, otp) {
       Don't share this code with anyone except the rider on arrival. The code expires once delivery is confirmed.
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
-      <tr><td style="background-color:#f97316;border-radius:8px;">
+      <tr><td style="background-color:#f26418;border-radius:8px;">
         <a href="${trackUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">Track parcel</a>
       </td></tr>
     </table>`;
@@ -865,13 +865,13 @@ async function sendDeliveryOtpEmail(toEmail, toName, trackingNumber, otp) {
 async function sendDeliveredEmail(toEmail, toName, trackingNumber) {
   const trackUrl = `${process.env.APP_URL || 'https://www.thapsus.uk'}/track/${encodeURIComponent(trackingNumber)}`;
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Delivered ✓</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">Delivered ✓</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       Your parcel <strong>${trackingNumber}</strong> has been delivered. Thank you for shipping with us!
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
-      <tr><td style="background-color:#f97316;border-radius:8px;">
+      <tr><td style="background-color:#f26418;border-radius:8px;">
         <a href="${trackUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">View receipt</a>
       </td></tr>
     </table>`;
@@ -891,7 +891,7 @@ async function sendDeliveryAttemptedEmail(toEmail, toName, trackingNumber, reaso
   const trackUrl = `${process.env.APP_URL || 'https://www.thapsus.uk'}/track/${encodeURIComponent(trackingNumber)}`;
   const reasonText = reason || 'Recipient unavailable';
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Delivery attempted</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">Delivery attempted</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       We tried to deliver parcel <strong>${trackingNumber}</strong> but couldn't complete it. Reason given: <em>${reasonText}</em>.
@@ -900,7 +900,7 @@ async function sendDeliveryAttemptedEmail(toEmail, toName, trackingNumber, reaso
       We'll attempt re-delivery on the next run. If you'd like to reach us about this delivery, reply to this email or open a ticket from the app.
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
-      <tr><td style="background-color:#f97316;border-radius:8px;">
+      <tr><td style="background-color:#f26418;border-radius:8px;">
         <a href="${trackUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">Track parcel</a>
       </td></tr>
     </table>`;
@@ -929,14 +929,14 @@ async function sendInvoiceReadyEmail(toEmail, toName, customerConsolidationId, a
   const ordersUrl = `${process.env.APP_URL || 'https://www.thapsus.uk'}/orders`;
   const formattedAmount = Number(amount || 0).toLocaleString();
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Your invoice is ready</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">Your invoice is ready</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       We've consolidated your parcels and prepared a single invoice covering
       shipping for everything in this batch.
     </p>
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 24px;">
-      <tr><td align="center" style="background:#1e3a5f;border-radius:12px;padding:24px;">
+      <tr><td align="center" style="background:#0e1012;border-radius:12px;padding:24px;">
         <p style="margin:0 0 6px;color:#94a3b8;font-size:13px;letter-spacing:1px;text-transform:uppercase;">Amount due</p>
         <p style="margin:0;color:#ffffff;font-size:32px;font-weight:bold;">${currency} ${formattedAmount}</p>
       </td></tr>
@@ -946,7 +946,7 @@ async function sendInvoiceReadyEmail(toEmail, toName, customerConsolidationId, a
       your parcels will be batched onto the next outgoing shipment.
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
-      <tr><td style="background-color:#f97316;border-radius:8px;">
+      <tr><td style="background-color:#f26418;border-radius:8px;">
         <a href="${ordersUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">View invoice</a>
       </td></tr>
     </table>`;
@@ -969,7 +969,7 @@ async function sendInvoicePaidEmail(toEmail, toName, customerConsolidationId, am
   const ordersUrl = `${process.env.APP_URL || 'https://www.thapsus.uk'}/orders`;
   const formattedAmount = Number(amount || 0).toLocaleString();
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment received ✓</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">Payment received ✓</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       Thanks — we've received <strong>${currency} ${formattedAmount}</strong> for
@@ -977,7 +977,7 @@ async function sendInvoicePaidEmail(toEmail, toName, customerConsolidationId, am
       shipment, and you'll get a fresh email once they're on their way.
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
-      <tr><td style="background-color:#f97316;border-radius:8px;">
+      <tr><td style="background-color:#f26418;border-radius:8px;">
         <a href="${ordersUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">View receipt</a>
       </td></tr>
     </table>`;
@@ -1001,14 +1001,14 @@ async function sendInvoicePaidEmail(toEmail, toName, customerConsolidationId, am
 async function sendNpsInvitationEmail(toEmail, toName, trackingNumber, surveyLink) {
   const link = surveyLink || `${process.env.APP_URL || 'https://www.thapsus.uk'}/nps?tn=${encodeURIComponent(trackingNumber)}`;
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">How did we do?</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">How did we do?</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       Now that parcel <strong>${trackingNumber}</strong> has been delivered, we'd love to know how it went.
       One question, takes about ten seconds.
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
-      <tr><td style="background-color:#f97316;border-radius:8px;">
+      <tr><td style="background-color:#f26418;border-radius:8px;">
         <a href="${link}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">Rate this delivery</a>
       </td></tr>
     </table>`;
@@ -1035,13 +1035,13 @@ async function sendBuyForMeQuoteEmail(toEmail, toName, orderId, itemName, estima
   const gbp = Number(estimateGbp || 0).toFixed(2);
   const total = (Number(estimateGbp || 0) * (1 + Number(markupPct || 0) / 100)).toFixed(2);
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Your quote is ready</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">Your quote is ready</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       We've reviewed your Buy-for-me request for <strong>${itemName}</strong> and prepared a quote.
     </p>
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 24px;">
-      <tr><td align="center" style="background:#1e3a5f;border-radius:12px;padding:24px;">
+      <tr><td align="center" style="background:#0e1012;border-radius:12px;padding:24px;">
         <p style="margin:0 0 6px;color:#94a3b8;font-size:13px;letter-spacing:1px;text-transform:uppercase;">Quoted total (incl. ${Number(markupPct || 0)}% service)</p>
         <p style="margin:0;color:#ffffff;font-size:32px;font-weight:bold;">£ ${total}</p>
         <p style="margin:6px 0 0;color:#94a3b8;font-size:12px;">Item cost: £${gbp}</p>
@@ -1052,7 +1052,7 @@ async function sendBuyForMeQuoteEmail(toEmail, toName, orderId, itemName, estima
       We hold quotes for 7 days.
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
-      <tr><td style="background-color:#f97316;border-radius:8px;">
+      <tr><td style="background-color:#f26418;border-radius:8px;">
         <a href="${ordersUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">Review quote</a>
       </td></tr>
     </table>`;
@@ -1077,16 +1077,16 @@ async function sendBuyForMeAdminNewRequestEmail(toEmail, toName, bfmId, ownerLab
   const adminUrl = `${process.env.APP_URL || 'https://www.thapsus.uk'}/admin?tab=buy-for-me`;
   const safeNotes = (notes || '').toString().slice(0, 280);
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">New Buy-for-me request</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">New Buy-for-me request</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'admin'},</p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       ${ownerLabel}${ownerEmail ? ` (${ownerEmail})` : ''} just opened a concierge request.
     </p>
     <table cellpadding="0" cellspacing="0" style="width:100%;margin:16px 0 24px;background:#f8fafc;border-radius:12px;padding:16px;">
-      <tr><td style="color:#1e3a5f;font-size:14px;line-height:1.6;">
+      <tr><td style="color:#0e1012;font-size:14px;line-height:1.6;">
         <strong>Item:</strong> ${itemName || '—'}<br/>
         <strong>Qty:</strong> ${qty || 1}<br/>
-        <strong>Retailer URL:</strong> ${retailerUrl ? `<a href="${retailerUrl}" target="_blank" style="color:#f97316;">${retailerUrl}</a>` : '—'}<br/>
+        <strong>Retailer URL:</strong> ${retailerUrl ? `<a href="${retailerUrl}" target="_blank" style="color:#f26418;">${retailerUrl}</a>` : '—'}<br/>
         ${safeNotes ? `<strong>Notes:</strong> ${safeNotes}<br/>` : ''}
         <strong>BFM ID:</strong> ${bfmId}
       </td></tr>
@@ -1095,7 +1095,7 @@ async function sendBuyForMeAdminNewRequestEmail(toEmail, toName, bfmId, ownerLab
       Open the admin queue to quote it.
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
-      <tr><td style="background-color:#1e3a5f;border-radius:8px;">
+      <tr><td style="background-color:#0e1012;border-radius:8px;">
         <a href="${adminUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">Open admin queue</a>
       </td></tr>
     </table>`;
@@ -1164,7 +1164,7 @@ async function sendUnifiedPaymentReceiptEmail(toEmail, toName, opts) {
     : '';
 
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Payment received ✓</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">Payment received ✓</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 24px;color:#4b5563;font-size:16px;line-height:1.6;">
       Thanks — we've received your payment. Here is your receipt for your records.
@@ -1173,7 +1173,7 @@ async function sendUnifiedPaymentReceiptEmail(toEmail, toName, opts) {
       <tbody>
         <tr style="border-bottom:1px solid #e5e7eb;">
           <td style="padding:10px 12px;color:#6b7280;font-weight:600;width:45%;">Receipt no.</td>
-          <td style="padding:10px 12px;color:#1e3a5f;font-weight:700;font-family:monospace;">${paymentId}</td>
+          <td style="padding:10px 12px;color:#0e1012;font-weight:700;font-family:monospace;">${paymentId}</td>
         </tr>
         <tr style="border-bottom:1px solid #e5e7eb;background:#f9fafb;">
           <td style="padding:10px 12px;color:#6b7280;font-weight:600;">For</td>
@@ -1193,8 +1193,8 @@ async function sendUnifiedPaymentReceiptEmail(toEmail, toName, opts) {
         </tr>
         ${creditRow}
         <tr style="background:#eff6ff;">
-          <td style="padding:12px;color:#1e3a5f;font-weight:700;">Amount paid</td>
-          <td style="padding:12px;color:#1e3a5f;font-weight:700;">KES ${fmtKes(amountDueKes)}</td>
+          <td style="padding:12px;color:#0e1012;font-weight:700;">Amount paid</td>
+          <td style="padding:12px;color:#0e1012;font-weight:700;">KES ${fmtKes(amountDueKes)}</td>
         </tr>
         ${gbpRow}
         <tr style="background:#f9fafb;">
@@ -1208,7 +1208,7 @@ async function sendUnifiedPaymentReceiptEmail(toEmail, toName, opts) {
       <p style="margin:4px 0 0;color:#166534;font-size:14px;">Your order is now in our queue. You'll receive separate emails as it progresses.</p>
     </div>
     <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
-      <tr><td style="background-color:#f97316;border-radius:8px;">
+      <tr><td style="background-color:#f26418;border-radius:8px;">
         <a href="${ordersUrl}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">View my orders</a>
       </td></tr>
     </table>`;
@@ -1321,24 +1321,24 @@ async function sendAccountDeletionRequestedEmail({ toEmail, toName, scheduledDel
   const greeting = toName ? `Hi ${toName.split(' ')[0]},` : 'Hi,';
   const formattedDate = new Date(scheduledDeletionAt).toUTCString();
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:22px;">Account deletion confirmed</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">Account deletion confirmed</h2>
     <p style="margin:0 0 12px;color:#4b5563;font-size:16px;line-height:1.6;">${greeting}</p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       We've received your request to delete your Thapsus Cargo account. As a safety net, deletion is held for 14 days from today — your account will be permanently deleted on:
     </p>
-    <p style="margin:0 0 24px;color:#1e3a5f;font-size:18px;font-weight:bold;text-align:center;">
+    <p style="margin:0 0 24px;color:#0e1012;font-size:18px;font-weight:bold;text-align:center;">
       ${formattedDate}
     </p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       Changed your mind? Open the app and tap "Cancel deletion" on the Data rights screen any time before that date and the request will be voided.
     </p>
-    <h3 style="margin:24px 0 8px;color:#1e3a5f;font-size:18px;">Your data, as HTML</h3>
+    <h3 style="margin:24px 0 8px;color:#0e1012;font-size:18px;">Your data, as HTML</h3>
     <p style="margin:0 0 16px;color:#4b5563;font-size:15px;line-height:1.6;">
       We've packaged everything we hold against your account as a single HTML file you can open in any browser. The link below stays live for 30 days from today.
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
       <tr>
-        <td style="background-color:#f97316;border-radius:8px;">
+        <td style="background-color:#f26418;border-radius:8px;">
           <a href="${exportUrl}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">Download my data</a>
         </td>
       </tr>

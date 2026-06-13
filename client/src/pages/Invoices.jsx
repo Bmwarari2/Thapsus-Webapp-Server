@@ -61,35 +61,35 @@ export const Invoices = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 pb-24">
+    <div className="min-h-screen bg-transparent font-sans text-white pb-24">
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-12">
 
         <div className="mb-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-50 border border-orange-200 text-[10px] font-black uppercase tracking-[0.3em] text-orange-700 mb-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-ember-500/10 border border-ember-500/25 text-[10px] font-black uppercase tracking-[0.3em] text-ember-400 mb-4">
             <FileText size={12} /> Activity
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-[#0f172a] tracking-tighter uppercase leading-none mb-3">
+          <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase leading-none mb-3">
             Invoices
           </h1>
-          <p className="text-slate-500 font-bold leading-relaxed text-sm md:text-base max-w-2xl">
+          <p className="text-mute font-bold leading-relaxed text-sm md:text-base max-w-2xl">
             Active charges to clear, plus everything you've already paid.
           </p>
         </div>
 
         {loading && (
           <div className="flex items-center justify-center py-20">
-            <Loader2 size={32} className="animate-spin text-orange-500" />
+            <Loader2 size={32} className="animate-spin text-ember-400" />
           </div>
         )}
 
         {!loading && error && (
-          <div className="rounded-2xl bg-red-50 border border-red-200 text-red-700 p-5 font-bold text-sm">{error}</div>
+          <div className="rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 p-5 font-bold text-sm">{error}</div>
         )}
 
         {!loading && !error && active.length === 0 && past.length === 0 && (
-          <div className="rounded-3xl bg-white border border-slate-200 p-8 md:p-10 text-center shadow-sm">
-            <p className="font-black text-lg text-[#0f172a] mb-2">No invoices yet</p>
-            <p className="text-sm text-slate-500 font-bold leading-relaxed max-w-md mx-auto">
+          <div className="rounded-3xl bg-surface border border-line p-8 md:p-10 text-center shadow-sm">
+            <p className="font-black text-lg text-white mb-2">No invoices yet</p>
+            <p className="text-sm text-mute font-bold leading-relaxed max-w-md mx-auto">
               Once admin issues an invoice for one of your consolidations or a standalone charge, it'll appear here.
             </p>
           </div>
@@ -145,8 +145,8 @@ export const Invoices = () => {
 
 function SectionHeader({ eyebrow, title, subtitle, tone = 'neutral' }) {
   const pill = tone === 'action'
-    ? 'bg-orange-50 text-orange-700 border-orange-200'
-    : 'bg-slate-100 text-slate-600 border-slate-200'
+    ? 'bg-ember-500/10 text-ember-400 border-ember-500/25'
+    : 'bg-white/[0.05] text-mute border-line'
   return (
     <div>
       <div className="flex items-center justify-between gap-4 mb-2">
@@ -154,20 +154,20 @@ function SectionHeader({ eyebrow, title, subtitle, tone = 'neutral' }) {
           {eyebrow}
         </span>
       </div>
-      <h2 className="text-2xl md:text-3xl font-black text-[#0f172a] tracking-tighter uppercase">{title}</h2>
-      <p className="text-xs md:text-sm text-slate-500 font-bold mt-1">{subtitle}</p>
+      <h2 className="text-2xl md:text-3xl font-black text-white tracking-tighter uppercase">{title}</h2>
+      <p className="text-xs md:text-sm text-mute font-bold mt-1">{subtitle}</p>
     </div>
   )
 }
 
 function ActiveInvoiceCard({ cc, onPay }) {
   return (
-    <div className="rounded-3xl bg-white border-2 border-orange-200 p-5 md:p-6 shadow-sm">
+    <div className="rounded-3xl bg-surface border-2 border-ember-500/25 p-5 md:p-6 shadow-sm">
       <div className="flex items-start justify-between gap-4 mb-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-widest text-orange-700 mb-1">Invoiced</p>
-          <p className="font-black text-2xl text-[#0f172a] tracking-tighter font-mono">{fmtAmount(cc)}</p>
-          <p className="text-xs text-slate-500 font-bold mt-1">
+          <p className="text-[10px] font-black uppercase tracking-widest text-ember-400 mb-1">Invoiced</p>
+          <p className="font-black text-2xl text-white tracking-tighter font-mono">{fmtAmount(cc)}</p>
+          <p className="text-xs text-mute font-bold mt-1">
             {cc.parcel_count || 0} parcel{cc.parcel_count === 1 ? '' : 's'} · issued {fmtDate(cc.created_at)}
           </p>
         </div>
@@ -179,7 +179,7 @@ function ActiveInvoiceCard({ cc, onPay }) {
         </button>
       </div>
       {cc.notes && (
-        <p className="text-xs text-slate-600 font-medium italic mt-2 pt-3 border-t border-slate-100">{cc.notes}</p>
+        <p className="text-xs text-mute font-medium italic mt-2 pt-3 border-t border-line">{cc.notes}</p>
       )}
     </div>
   )
@@ -188,20 +188,20 @@ function ActiveInvoiceCard({ cc, onPay }) {
 function PastInvoiceCard({ cc }) {
   const isShipped = cc.status === 'shipped'
   return (
-    <div className="rounded-3xl bg-white border border-slate-200 p-5 md:p-6">
+    <div className="rounded-3xl bg-surface border border-line p-5 md:p-6">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isShipped ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'}`}>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isShipped ? 'bg-blue-500/10 text-blue-300' : 'bg-emerald-500/10 text-emerald-300'}`}>
             {isShipped ? <Plane size={18} /> : <CheckCircle2 size={18} />}
           </div>
           <div className="min-w-0">
-            <p className="font-black text-base text-[#0f172a] truncate">{fmtAmount(cc)}</p>
-            <p className="text-xs text-slate-500 font-bold mt-0.5">
+            <p className="font-black text-base text-white truncate">{fmtAmount(cc)}</p>
+            <p className="text-xs text-mute font-bold mt-0.5">
               {cc.parcel_count || 0} parcel{cc.parcel_count === 1 ? '' : 's'} · {isShipped ? 'attached to shipping' : `paid ${fmtDate(cc.invoice_paid_at || cc.updated_at)}`}
             </p>
           </div>
         </div>
-        <span className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${isShipped ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+        <span className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${isShipped ? 'bg-blue-500/10 text-blue-300 border-blue-500/20' : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'}`}>
           {isShipped ? <Plane size={10} /> : <CheckCircle2 size={10} />}
           {cc.status}
         </span>

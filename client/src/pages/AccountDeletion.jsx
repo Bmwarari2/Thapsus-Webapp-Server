@@ -83,28 +83,28 @@ export const AccountDeletion = () => {
   const status = !request ? 'idle' : request.status
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 pb-24">
+    <div className="min-h-screen bg-transparent font-sans text-white pb-24">
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-12">
         <div className="mb-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-[10px] font-black uppercase tracking-[0.3em] text-red-700 mb-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20 text-[10px] font-black uppercase tracking-[0.3em] text-red-300 mb-4">
             <ShieldAlert size={12} /> Account closure
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-[#0f172a] tracking-tighter uppercase leading-none mb-4">
+          <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase leading-none mb-4">
             Delete my account
           </h1>
-          <p className="text-slate-500 font-bold leading-relaxed text-sm md:text-base max-w-2xl">
+          <p className="text-mute font-bold leading-relaxed text-sm md:text-base max-w-2xl">
             Closing your account starts a 14-day cooldown. We'll email you a copy of everything we hold on you as a single HTML file — keep it for your records.
           </p>
         </div>
 
         {loading && (
           <div className="flex items-center justify-center py-20">
-            <Loader2 size={32} className="animate-spin text-orange-500" />
+            <Loader2 size={32} className="animate-spin text-ember-400" />
           </div>
         )}
 
         {!loading && error && (
-          <div className="flex gap-3 p-5 rounded-2xl bg-red-50 border border-red-200 text-red-700">
+          <div className="flex gap-3 p-5 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300">
             <AlertTriangle size={22} className="flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-black text-sm uppercase tracking-widest">Couldn't load</p>
@@ -167,15 +167,15 @@ function ActiveView({ request, onCancel, onRefreshExport, actionInFlight }) {
   const days = request.days_remaining ?? 0
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl p-6 md:p-8 bg-amber-50 border-2 border-amber-300">
+      <div className="rounded-3xl p-6 md:p-8 bg-amber-500/10 border-2 border-amber-300">
         <div className="flex items-center gap-3 mb-2">
-          <Clock size={22} className="text-amber-700" />
-          <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Cooldown active</p>
+          <Clock size={22} className="text-amber-300" />
+          <p className="text-[10px] font-black uppercase tracking-widest text-amber-300">Cooldown active</p>
         </div>
-        <p className="text-4xl md:text-5xl font-black text-[#0f172a] tracking-tighter mb-2">
+        <p className="text-4xl md:text-5xl font-black text-white tracking-tighter mb-2">
           {days} {days === 1 ? 'day' : 'days'} remaining
         </p>
-        <p className="text-sm text-slate-600 font-bold leading-relaxed">
+        <p className="text-sm text-mute font-bold leading-relaxed">
           Your account will be permanently deleted on{' '}
           <strong>{fmtDate(request.scheduled_deletion_at)}</strong>. Cancel any time before then to keep your account.
         </p>
@@ -193,19 +193,19 @@ function ActiveView({ request, onCancel, onRefreshExport, actionInFlight }) {
               href={request.export_signed_url}
               target="_blank"
               rel="noreferrer"
-              className="flex-1 py-3.5 rounded-2xl bg-[#0f172a] hover:bg-slate-800 text-white font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition"
+              className="flex-1 py-3.5 rounded-2xl bg-surface hover:bg-slate-800 text-white font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition"
             >
               <Download size={16} /> Download HTML export
             </a>
           ) : (
-            <p className="flex-1 text-xs text-slate-500 font-bold py-3.5">
+            <p className="flex-1 text-xs text-mute font-bold py-3.5">
               Export wasn't generated — refresh the link below.
             </p>
           )}
           <button
             onClick={onRefreshExport}
             disabled={actionInFlight}
-            className="py-3.5 px-5 rounded-2xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition disabled:opacity-50"
+            className="py-3.5 px-5 rounded-2xl bg-surface hover:bg-white/[0.05] border border-line text-white/80 font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition disabled:opacity-50"
           >
             {actionInFlight ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
             Refresh link
@@ -228,16 +228,16 @@ function ActiveView({ request, onCancel, onRefreshExport, actionInFlight }) {
 function CancelledView({ request, onRestart }) {
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl p-6 md:p-8 bg-slate-100 border border-slate-200">
+      <div className="rounded-3xl p-6 md:p-8 bg-white/[0.05] border border-line">
         <div className="flex items-center gap-3 mb-3">
-          <X size={22} className="text-slate-500" />
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Previous request cancelled</p>
+          <X size={22} className="text-mute" />
+          <p className="text-[10px] font-black uppercase tracking-widest text-mute">Previous request cancelled</p>
         </div>
-        <p className="text-sm text-slate-700 font-bold leading-relaxed">
+        <p className="text-sm text-white/80 font-bold leading-relaxed">
           You cancelled a deletion request on <strong>{fmtDate(request.cancelled_at)}</strong>. Your account is active and unchanged.
         </p>
         {request.cancel_reason && (
-          <p className="text-xs text-slate-500 font-bold mt-2 italic">"{request.cancel_reason}"</p>
+          <p className="text-xs text-mute font-bold mt-2 italic">"{request.cancel_reason}"</p>
         )}
       </div>
 
@@ -253,12 +253,12 @@ function CancelledView({ request, onRestart }) {
 
 function CompletedView() {
   return (
-    <div className="rounded-3xl p-8 md:p-10 bg-green-50 border-2 border-green-300 text-center">
-      <CheckCircle2 size={48} className="text-green-600 mx-auto mb-4" />
-      <p className="text-2xl md:text-3xl font-black text-[#0f172a] tracking-tighter uppercase mb-3">
+    <div className="rounded-3xl p-8 md:p-10 bg-emerald-500/10 border-2 border-green-300 text-center">
+      <CheckCircle2 size={48} className="text-emerald-300 mx-auto mb-4" />
+      <p className="text-2xl md:text-3xl font-black text-white tracking-tighter uppercase mb-3">
         Account deleted
       </p>
-      <p className="text-sm text-slate-600 font-bold leading-relaxed max-w-md mx-auto">
+      <p className="text-sm text-mute font-bold leading-relaxed max-w-md mx-auto">
         Your account and personal data have been removed. If you signed in to see this page, you'll be signed out shortly.
       </p>
     </div>
@@ -269,10 +269,10 @@ function CompletedView() {
 
 function Card({ title, icon, children }) {
   return (
-    <div className="rounded-3xl bg-white border border-slate-200 p-6 md:p-8 shadow-sm">
+    <div className="rounded-3xl bg-surface border border-line p-6 md:p-8 shadow-sm">
       <div className="flex items-center gap-3 mb-4">
-        <div className="p-2.5 bg-orange-100 text-orange-700 rounded-xl">{icon}</div>
-        <h3 className="text-base md:text-lg font-black text-[#0f172a] uppercase tracking-tight">{title}</h3>
+        <div className="p-2.5 bg-ember-500/15 text-ember-400 rounded-xl">{icon}</div>
+        <h3 className="text-base md:text-lg font-black text-white uppercase tracking-tight">{title}</h3>
       </div>
       <ul className="space-y-2.5">{children}</ul>
     </div>
@@ -281,7 +281,7 @@ function Card({ title, icon, children }) {
 
 function Bullet({ children }) {
   return (
-    <li className="flex gap-3 text-sm text-slate-700 leading-relaxed">
+    <li className="flex gap-3 text-sm text-white/80 leading-relaxed">
       <span className="mt-2 w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" />
       <span>{children}</span>
     </li>
@@ -291,22 +291,22 @@ function Bullet({ children }) {
 function ConfirmModal({ inFlight, onConfirm, onCancel }) {
   return (
     <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm grid place-items-center p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
+      <div className="bg-surface rounded-3xl shadow-2xl w-full max-w-md">
         <div className="p-6">
-          <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center mb-5 mx-auto">
-            <AlertTriangle size={28} className="text-red-600" />
+          <div className="w-14 h-14 bg-red-500/15 rounded-2xl flex items-center justify-center mb-5 mx-auto">
+            <AlertTriangle size={28} className="text-red-300" />
           </div>
-          <h2 className="text-2xl font-black text-[#0f172a] tracking-tight text-center mb-3">
+          <h2 className="text-2xl font-black text-white tracking-tight text-center mb-3">
             Are you sure?
           </h2>
-          <p className="text-sm text-slate-600 leading-relaxed text-center mb-6">
+          <p className="text-sm text-mute leading-relaxed text-center mb-6">
             You're about to start a <strong>14-day cooldown</strong>. We'll email you a copy of your data immediately. You can cancel at any time before the deletion runs.
           </p>
           <div className="flex gap-3">
             <button
               onClick={onCancel}
               disabled={inFlight}
-              className="flex-1 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 font-black uppercase tracking-widest text-xs transition"
+              className="flex-1 py-3.5 rounded-2xl bg-white/[0.05] hover:bg-slate-200 disabled:opacity-50 text-white/80 font-black uppercase tracking-widest text-xs transition"
             >
               Back
             </button>

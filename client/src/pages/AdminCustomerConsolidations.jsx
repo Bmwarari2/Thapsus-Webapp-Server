@@ -169,24 +169,24 @@ export const AdminCustomerConsolidations = () => {
   // Stage A: invoice step after a successful create.
   if (createdId) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
+      <div className="min-h-screen bg-white/[0.03] p-6">
         <div className="max-w-2xl mx-auto">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          <h1 className="text-2xl font-bold text-white mb-2">
             Customer consolidation created
           </h1>
-          <p className="text-sm text-gray-600 mb-6 font-mono">{createdId}</p>
+          <p className="text-sm text-mute mb-6 font-mono">{createdId}</p>
 
-          <form onSubmit={onSetInvoice} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-4">
+          <form onSubmit={onSetInvoice} className="bg-surface rounded-2xl shadow-sm border border-line p-6 space-y-4">
             {suggestionLoading && (
-              <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500">
+              <div className="rounded-lg bg-white/[0.03] px-3 py-2 text-sm text-mute">
                 Computing suggested total…
               </div>
             )}
             {suggestion && (
-              <div className="rounded-lg bg-orange-50 border border-orange-200 px-3 py-3">
+              <div className="rounded-lg bg-ember-500/10 border border-ember-500/25 px-3 py-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-semibold text-orange-700 uppercase tracking-wider">
+                    <p className="text-xs font-semibold text-ember-400 uppercase tracking-wider">
                       Suggested
                     </p>
                     <p className="text-lg font-bold text-orange-900">
@@ -201,14 +201,14 @@ export const AdminCustomerConsolidations = () => {
                     Use
                   </button>
                 </div>
-                <p className="mt-2 text-xs text-orange-700/80">
+                <p className="mt-2 text-xs text-ember-400/80">
                   (chargeable kg × shipping rate) + customs duty across {suggestion.breakdown?.length || 0} parcel{(suggestion.breakdown?.length || 0) === 1 ? '' : 's'}.
                   Confirm before issuing.
                 </p>
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-white/80 mb-1">
                 Invoice amount (KES)
               </label>
               <input
@@ -217,10 +217,10 @@ export const AdminCustomerConsolidations = () => {
                 placeholder="5000"
                 value={invoiceAmount}
                 onChange={(e) => setInvoiceAmount(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-ember-500"
                 autoFocus
               />
-              <p className="mt-2 text-xs text-gray-500">
+              <p className="mt-2 text-xs text-mute">
                 The customer will receive an "Invoice ready" email and an
                 in-app notification with this amount. Their iOS Orders tab
                 flips to "Pay now" in real time.
@@ -230,7 +230,7 @@ export const AdminCustomerConsolidations = () => {
               <button
                 type="button"
                 onClick={reset}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+                className="px-4 py-2 text-sm font-medium text-white/80 hover:text-white"
               >
                 Skip — invoice later
               </button>
@@ -252,46 +252,46 @@ export const AdminCustomerConsolidations = () => {
   if (selectedCustomer) {
     const selectedCount = selectedParcelIds.size
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
+      <div className="min-h-screen bg-white/[0.03] p-6">
         <div className="max-w-3xl mx-auto">
           <button
             type="button"
             onClick={reset}
-            className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-4"
+            className="flex items-center gap-2 text-sm text-mute hover:text-white mb-4"
           >
             <ArrowLeft className="w-4 h-4" /> Pick a different customer
           </button>
 
           <div className="flex items-center gap-3 mb-6">
-            <UserCheck className="w-6 h-6 text-orange-500" />
+            <UserCheck className="w-6 h-6 text-ember-400" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900">
+              <h1 className="text-xl font-bold text-white">
                 {selectedCustomer.name || selectedCustomer.email}
               </h1>
-              <p className="text-sm text-gray-500">{selectedCustomer.email}</p>
+              <p className="text-sm text-mute">{selectedCustomer.email}</p>
             </div>
           </div>
 
-          <form onSubmit={onSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-200">
-            <div className="p-6 border-b border-gray-100">
+          <form onSubmit={onSubmit} className="bg-surface rounded-2xl shadow-sm border border-line">
+            <div className="p-6 border-b border-line">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-gray-900">
+                <h2 className="font-semibold text-white">
                   Eligible parcels
                 </h2>
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-mute">
                   {selectedCount} of {parcels.length} selected
                 </span>
               </div>
 
               {parcelsLoading ? (
-                <p className="text-sm text-gray-500">Loading…</p>
+                <p className="text-sm text-mute">Loading…</p>
               ) : parcels.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center">
-                  <PackageIcon className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-                  <p className="text-sm text-gray-600">
+                  <PackageIcon className="w-8 h-8 mx-auto text-dim mb-2" />
+                  <p className="text-sm text-mute">
                     No parcels at "received at warehouse" for this user.
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-mute mt-1">
                     Once an operator receives a parcel, it'll show up here.
                   </p>
                 </div>
@@ -303,7 +303,7 @@ export const AdminCustomerConsolidations = () => {
                       <li
                         key={p.id}
                         className={`flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition ${
-                          checked ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300'
+                          checked ? 'border-orange-500 bg-ember-500/10' : 'border-line hover:border-gray-300'
                         }`}
                         onClick={() => toggleParcel(p.id)}
                       >
@@ -311,22 +311,22 @@ export const AdminCustomerConsolidations = () => {
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleParcel(p.id)}
-                          className="mt-1 w-4 h-4 text-orange-500 rounded border-gray-300 focus:ring-orange-500"
+                          className="mt-1 w-4 h-4 text-ember-400 rounded border-gray-300 focus:ring-orange-500"
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
-                            <p className="text-sm font-mono text-gray-700">
+                            <p className="text-sm font-mono text-white/80">
                               {p.tracking_number || p.id}
                             </p>
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-mute">
                               {p.market} · {p.shipping_speed || 'economy'}
                             </span>
                           </div>
-                          <p className="text-sm text-gray-700 mt-1">
+                          <p className="text-sm text-white/80 mt-1">
                             {p.retailer || '—'}
                           </p>
                           {p.weight_kg ? (
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-xs text-mute mt-1">
                               {p.weight_kg} kg
                             </p>
                           ) : null}
@@ -338,8 +338,8 @@ export const AdminCustomerConsolidations = () => {
               )}
             </div>
 
-            <div className="p-6 border-b border-gray-100">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            <div className="p-6 border-b border-line">
+              <label className="block text-sm font-medium text-white/80 mb-1">
                 Notes (optional)
               </label>
               <textarea
@@ -347,7 +347,7 @@ export const AdminCustomerConsolidations = () => {
                 placeholder="Anything ops should know about this group"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-ember-500"
               />
             </div>
 
@@ -355,7 +355,7 @@ export const AdminCustomerConsolidations = () => {
               <button
                 type="button"
                 onClick={reset}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+                className="px-4 py-2 text-sm font-medium text-white/80 hover:text-white"
               >
                 Cancel
               </button>
@@ -375,16 +375,16 @@ export const AdminCustomerConsolidations = () => {
 
   // Stage C: customer search.
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-white/[0.03] p-6">
       <div className="max-w-2xl mx-auto">
-        <Link to="/admin" className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-4">
+        <Link to="/admin" className="flex items-center gap-2 text-sm text-mute hover:text-white mb-4">
           <ArrowLeft className="w-4 h-4" /> Back to admin
         </Link>
 
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+        <h1 className="text-2xl font-bold text-white mb-2">
           Create customer consolidation
         </h1>
-        <p className="text-sm text-gray-600 mb-6">
+        <p className="text-sm text-mute mb-6">
           Group several of a customer's received parcels under a single shipping
           invoice. The customer pays once and the batch is forwarded to the
           shipping partner together.
@@ -392,13 +392,13 @@ export const AdminCustomerConsolidations = () => {
 
         <form onSubmit={onSearch} className="flex gap-2 mb-4">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-dim" />
             <input
               type="text"
               placeholder="Search by name or email"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 pl-9 pr-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              className="w-full rounded-lg border border-gray-300 pl-9 pr-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-ember-500"
             />
           </div>
           <button
@@ -411,18 +411,18 @@ export const AdminCustomerConsolidations = () => {
         </form>
 
         {results.length > 0 && (
-          <ul className="bg-white rounded-2xl shadow-sm border border-gray-200 divide-y divide-gray-100">
+          <ul className="bg-surface rounded-2xl shadow-sm border border-line divide-y divide-white/10">
             {results.map((c) => (
               <li
                 key={c.id}
-                className="flex items-center justify-between p-4 hover:bg-gray-50 cursor-pointer"
+                className="flex items-center justify-between p-4 hover:bg-white/[0.03] cursor-pointer"
                 onClick={() => pickCustomer(c)}
               >
                 <div>
-                  <p className="font-medium text-gray-900">{c.name || c.email}</p>
-                  <p className="text-sm text-gray-500">{c.email}</p>
+                  <p className="font-medium text-white">{c.name || c.email}</p>
+                  <p className="text-sm text-mute">{c.email}</p>
                 </div>
-                <span className="text-xs text-gray-400 font-mono">
+                <span className="text-xs text-dim font-mono">
                   {c.warehouse_id}
                 </span>
               </li>
@@ -431,7 +431,7 @@ export const AdminCustomerConsolidations = () => {
         )}
 
         {results.length === 0 && searchQuery && !searching && (
-          <p className="text-sm text-gray-500 text-center py-8">
+          <p className="text-sm text-mute text-center py-8">
             No matching customers — try a different name or email.
           </p>
         )}

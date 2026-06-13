@@ -31,7 +31,7 @@ export const OpsConsolidations = () => {
   }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-orange-50 via-white to-blue-50">
+    <div className="relative min-h-screen bg-white/[0.03]">
       <GlassStyles />
       <LiquidBlob className="top-[-15%] right-[-15%] w-[40rem] h-[40rem]" color="bg-orange-200" />
 
@@ -47,8 +47,8 @@ export const OpsConsolidations = () => {
 
         {list.length === 0 ? (
           <GlassCard className="p-10 text-center">
-            <Boxes size={40} className="mx-auto text-slate-400 mb-3" />
-            <p className="text-slate-600">No consolidations yet. Create one to start booking parcels onto a weekly flight.</p>
+            <Boxes size={40} className="mx-auto text-dim mb-3" />
+            <p className="text-mute">No consolidations yet. Create one to start booking parcels onto a weekly flight.</p>
           </GlassCard>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -58,8 +58,8 @@ export const OpsConsolidations = () => {
                 <GlassCard className="p-5 hover:shadow-lg transition-shadow">
                   <div className="flex justify-between items-start gap-3">
                     <div>
-                      <p className="text-xs text-slate-500">Week of</p>
-                      <p className="text-lg font-black text-[#1e3a5f]">
+                      <p className="text-xs text-mute">Week of</p>
+                      <p className="text-lg font-black text-white">
                         {c.week_start ? new Date(c.week_start).toLocaleDateString() : '—'}
                       </p>
                     </div>
@@ -70,10 +70,10 @@ export const OpsConsolidations = () => {
                     <Stat label="Total kg" value={Number(c.total_kg || 0).toFixed(1)} />
                     <Stat label="AWB" value={c.master_awb_no || '—'} small />
                   </div>
-                  <div className="text-xs text-slate-500 mt-4">
+                  <div className="text-xs text-mute mt-4">
                     Cut-off: {c.cutoff_at ? new Date(c.cutoff_at).toLocaleString() : '—'}
                   </div>
-                  <div className="flex items-center text-xs font-bold text-orange-700 mt-2">
+                  <div className="flex items-center text-xs font-bold text-ember-400 mt-2">
                     Open <ArrowRight size={14} className="ml-1 group-hover:translate-x-1 transition-transform"/>
                   </div>
                 </GlassCard>
@@ -85,8 +85,8 @@ export const OpsConsolidations = () => {
 
       {creating && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <GlassCard className="bg-white max-w-md w-full p-6">
-            <h3 className="text-xl font-black text-[#1e3a5f] mb-4">Create consolidation</h3>
+          <GlassCard className="bg-surface max-w-md w-full p-6">
+            <h3 className="text-xl font-black text-white mb-4">Create consolidation</h3>
             <div className="space-y-3">
               <Field label="Week start (Monday)" type="date"
                      value={form.week_start} onChange={(v) => setForm({ ...form, week_start: v })}/>
@@ -98,7 +98,7 @@ export const OpsConsolidations = () => {
             </div>
             <div className="flex gap-3 justify-end mt-6">
               <button onClick={() => setCreating(false)}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-sm font-bold">Cancel</button>
+                className="px-4 py-2 rounded-xl bg-white/[0.05] hover:bg-slate-200 text-sm font-bold">Cancel</button>
               <button onClick={onCreate}
                 className="px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm">Create</button>
             </div>
@@ -189,12 +189,12 @@ export const OpsConsolidationDetail = () => {
 
   const c = data.consolidation
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-orange-50 via-white to-blue-50">
+    <div className="relative min-h-screen bg-white/[0.03]">
       <GlassStyles />
       <LiquidBlob className="top-[-15%] left-[-15%] w-[40rem] h-[40rem]" color="bg-blue-200"  />
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 py-10 space-y-6">
-        <Link to="/ops/consolidations" className="text-sm text-orange-700 font-bold">← Back to consolidations</Link>
+        <Link to="/ops/consolidations" className="text-sm text-ember-400 font-bold">← Back to consolidations</Link>
 
         <PageHeading icon={Plane}
           title={`Consolidation ${c.id}`}
@@ -230,11 +230,11 @@ export const OpsConsolidationDetail = () => {
 
           <div className="flex flex-wrap gap-3 mt-5">
             <button onClick={onManifest}
-              className="inline-flex items-center gap-2 bg-[#1e3a5f] text-white px-4 py-2 rounded-xl text-sm font-bold">
+              className="inline-flex items-center gap-2 bg-ember-gradient text-white px-4 py-2 rounded-xl text-sm font-bold">
               <FileText size={14}/> Download JSON
             </button>
             <button onClick={() => setPrintingManifest({ consolidation: c, parcels })}
-              className="inline-flex items-center gap-2 bg-white text-[#1e3a5f] ring-1 ring-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl text-sm font-bold">
+              className="inline-flex items-center gap-2 bg-surface text-white ring-1 ring-slate-200 hover:bg-white/[0.03] px-4 py-2 rounded-xl text-sm font-bold">
               <Printer size={14}/> Print manifest
             </button>
             <button onClick={() => onUpdate({ status: 'in_transit' })}
@@ -246,13 +246,13 @@ export const OpsConsolidationDetail = () => {
 
         {/* Booked parcels */}
         <GlassCard className="p-6">
-          <h3 className="text-lg font-black text-[#1e3a5f] mb-4">Booked parcels ({parcels.length})</h3>
+          <h3 className="text-lg font-black text-white mb-4">Booked parcels ({parcels.length})</h3>
           {parcels.length === 0 ? (
-            <p className="text-slate-500 text-sm">No parcels assigned yet — pick from the list below.</p>
+            <p className="text-mute text-sm">No parcels assigned yet — pick from the list below.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="text-[10px] uppercase text-slate-500 border-b">
+                <thead className="text-[10px] uppercase text-mute border-b">
                   <tr>
                     <th className="text-left py-2 px-2">Tracking</th>
                     <th className="text-left py-2 px-2">Customer</th>
@@ -263,7 +263,7 @@ export const OpsConsolidationDetail = () => {
                 </thead>
                 <tbody>
                   {parcels.map(p => (
-                    <tr key={p.id} className="border-b border-slate-100">
+                    <tr key={p.id} className="border-b border-line">
                       <td className="py-2 px-2 font-mono text-xs">{p.tracking_number}</td>
                       <td className="py-2 px-2">{p.name}</td>
                       <td className="py-2 px-2 max-w-xs truncate">{p.retailer}</td>
@@ -281,17 +281,17 @@ export const OpsConsolidationDetail = () => {
 
         {/* Available to add */}
         <GlassCard className="p-6">
-          <h3 className="text-lg font-black text-[#1e3a5f] mb-4">Available parcels (received, not yet assigned)</h3>
+          <h3 className="text-lg font-black text-white mb-4">Available parcels (received, not yet assigned)</h3>
           {available.length === 0 ? (
-            <p className="text-slate-500 text-sm">No received parcels are awaiting assignment.</p>
+            <p className="text-mute text-sm">No received parcels are awaiting assignment.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {available.map(p => (
-                <div key={p.id} className="flex justify-between items-center bg-white/70 px-4 py-3 rounded-xl border border-slate-200">
+                <div key={p.id} className="flex justify-between items-center bg-surface-2 px-4 py-3 rounded-xl border border-line">
                   <div>
-                    <p className="font-mono text-xs text-slate-500">{p.tracking_number}</p>
-                    <p className="font-semibold text-slate-700">{p.name}</p>
-                    <p className="text-xs text-slate-500 truncate">{p.description}</p>
+                    <p className="font-mono text-xs text-mute">{p.tracking_number}</p>
+                    <p className="font-semibold text-white/80">{p.name}</p>
+                    <p className="text-xs text-mute truncate">{p.description}</p>
                   </div>
                   <button onClick={() => onAssign(p.id)}
                     className="text-xs px-3 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-bold">
@@ -310,7 +310,7 @@ export const OpsConsolidationDetail = () => {
           printer set to thermal-label paper, the table just spans
           multiple pages and the thead repeats per
           `display: table-header-group` inside PrintableManifest. */}
-      <div className="hidden print:block fixed inset-0 bg-white">
+      <div className="hidden print:block fixed inset-0 bg-surface">
         {printingManifest && (
           <PrintableManifest
             consolidation={printingManifest.consolidation}
@@ -332,8 +332,8 @@ export const OpsConsolidationDetail = () => {
 
 const Stat = ({ label, value, small }) => (
   <div>
-    <p className="text-[10px] uppercase tracking-widest text-slate-500 font-black">{label}</p>
-    <p className={`mt-1 text-[#1e3a5f] font-black ${small ? 'text-sm' : 'text-2xl'}`}>{value}</p>
+    <p className="text-[10px] uppercase tracking-widest text-mute font-black">{label}</p>
+    <p className={`mt-1 text-white font-black ${small ? 'text-sm' : 'text-2xl'}`}>{value}</p>
   </div>
 )
 
@@ -343,17 +343,17 @@ const Field = ({ label, value, onChange, type = 'text', options, debounce }) => 
   const commit = (v) => { onChange(v) }
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-widest text-slate-500 font-black mb-1">{label}</span>
+      <span className="block text-[10px] uppercase tracking-widest text-mute font-black mb-1">{label}</span>
       {type === 'select' ? (
         <select value={local} onChange={(e) => { setLocal(e.target.value); commit(e.target.value) }}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white/80">
+                className="w-full px-3 py-2 rounded-xl border border-line bg-surface-2">
           {options?.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
         </select>
       ) : (
         <input type={type} value={local}
                onChange={(e) => setLocal(e.target.value)}
                onBlur={() => debounce && local !== value && commit(local)}
-               className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+               className="w-full px-3 py-2 rounded-xl border border-line bg-surface-2 focus:outline-none focus:ring-2 focus:ring-orange-400" />
       )}
     </label>
   )

@@ -10,7 +10,7 @@ import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '..
 export const OpsSettings = () => {
   const [tab, setTab] = useState('model')
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-orange-50 via-white to-blue-50">
+    <div className="relative min-h-screen bg-white/[0.03]">
       <GlassStyles />
       <LiquidBlob className="top-[-15%] right-[-15%] w-[40rem] h-[40rem]" color="bg-blue-200" />
 
@@ -41,8 +41,8 @@ export const OpsSettings = () => {
 const Tab = ({ active, label, icon, onClick }) => (
   <button onClick={onClick}
     className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold border-2 transition-all
-      ${active ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
-               : 'bg-white/70 text-[#1e3a5f] border-slate-200 hover:border-slate-300'}`}>
+      ${active ? 'bg-ember-gradient text-white border-[#1e3a5f]'
+               : 'bg-surface-2 text-white border-line hover:border-slate-300'}`}>
     {icon} {label}
   </button>
 )
@@ -73,23 +73,23 @@ const TiersTab = () => {
   return (
     <>
       <GlassCard className="p-5 mb-5">
-        <h3 className="text-lg font-black text-[#1e3a5f] mb-3">Add new tier</h3>
+        <h3 className="text-lg font-black text-white mb-3">Add new tier</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
           <select value={draft.channel}
             onChange={e => setDraft({ ...draft, channel: e.target.value })}
-            className="px-3 py-2 rounded-xl border border-slate-200">
+            className="px-3 py-2 rounded-xl border border-line">
             <option value="UK_air">UK air</option>
             <option value="UK_sea">UK sea</option>
           </select>
           <input type="number" step="0.1" placeholder="Min kg" value={draft.min_kg}
             onChange={e => setDraft({ ...draft, min_kg: e.target.value })}
-            className="px-3 py-2 rounded-xl border border-slate-200" />
+            className="px-3 py-2 rounded-xl border border-line" />
           <input type="number" step="0.1" placeholder="Max kg" value={draft.max_kg}
             onChange={e => setDraft({ ...draft, max_kg: e.target.value })}
-            className="px-3 py-2 rounded-xl border border-slate-200" />
+            className="px-3 py-2 rounded-xl border border-line" />
           <input type="number" step="0.01" placeholder="£/kg" value={draft.gbp_per_kg}
             onChange={e => setDraft({ ...draft, gbp_per_kg: e.target.value })}
-            className="px-3 py-2 rounded-xl border border-slate-200" />
+            className="px-3 py-2 rounded-xl border border-line" />
           <button onClick={onAdd}
             className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold">
             <Plus size={14}/> Add
@@ -99,7 +99,7 @@ const TiersTab = () => {
 
       <GlassCard className="p-5">
         <table className="min-w-full text-sm">
-          <thead className="text-[10px] uppercase text-slate-500">
+          <thead className="text-[10px] uppercase text-mute">
             <tr>
               <th className="text-left py-2">Channel</th>
               <th className="text-right py-2">Min kg</th>
@@ -123,14 +123,14 @@ const TierRow = ({ t, onSave }) => {
   const [val, setVal] = useState(t.gbp_per_kg)
   useEffect(() => setVal(t.gbp_per_kg), [t.gbp_per_kg])
   return (
-    <tr className="border-t border-slate-100">
+    <tr className="border-t border-line">
       <td className="py-2">{t.channel}</td>
       <td className="py-2 text-right">{t.min_kg}</td>
       <td className="py-2 text-right">{t.max_kg}</td>
       <td className="py-2 text-right">
         <input type="number" step="0.01" value={val}
           onChange={e => setVal(e.target.value)}
-          className="w-24 px-2 py-1 rounded border border-slate-200 text-right" />
+          className="w-24 px-2 py-1 rounded border border-line text-right" />
       </td>
       <td className="py-2 text-right">
         <button onClick={() => onSave(t.id, val)}
@@ -155,7 +155,7 @@ const FeesTab = () => {
   return (
     <GlassCard className="p-5">
       <table className="min-w-full text-sm">
-        <thead className="text-[10px] uppercase text-slate-500">
+        <thead className="text-[10px] uppercase text-mute">
           <tr>
             <th className="text-left py-2">Code</th>
             <th className="text-left py-2">Label</th>
@@ -177,14 +177,14 @@ const FeeRow = ({ f, onSave }) => {
   const [val, setVal] = useState(f.amount)
   useEffect(() => setVal(f.amount), [f.amount])
   return (
-    <tr className="border-t border-slate-100">
+    <tr className="border-t border-line">
       <td className="py-2 font-mono text-xs">{f.code}</td>
       <td className="py-2">{f.label}</td>
       <td className="py-2">{f.currency}</td>
       <td className="py-2 text-right">
         <input type="number" step="0.01" value={val}
           onChange={e => setVal(e.target.value)}
-          className="w-24 px-2 py-1 rounded border border-slate-200 text-right" />
+          className="w-24 px-2 py-1 rounded border border-line text-right" />
       </td>
       <td className="py-2 text-right">{f.is_percentage ? 'Yes' : 'No'}</td>
       <td className="py-2 text-right">
@@ -217,24 +217,24 @@ const PromosTab = () => {
   return (
     <>
       <GlassCard className="p-5 mb-5">
-        <h3 className="text-lg font-black text-[#1e3a5f] mb-3">Create promo code</h3>
+        <h3 className="text-lg font-black text-white mb-3">Create promo code</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
           <input value={draft.code} placeholder="CODE"
             onChange={e => setDraft({ ...draft, code: e.target.value.toUpperCase() })}
-            className="px-3 py-2 rounded-xl border border-slate-200" />
+            className="px-3 py-2 rounded-xl border border-line" />
           <select value={draft.type}
             onChange={e => setDraft({ ...draft, type: e.target.value })}
-            className="px-3 py-2 rounded-xl border border-slate-200">
+            className="px-3 py-2 rounded-xl border border-line">
             <option value="percent_off">% off</option>
             <option value="fixed_off">£ off</option>
             <option value="flat_gbp_per_kg">Flat £/kg</option>
           </select>
           <input type="number" placeholder="Value" value={draft.value}
             onChange={e => setDraft({ ...draft, value: e.target.value })}
-            className="px-3 py-2 rounded-xl border border-slate-200" />
+            className="px-3 py-2 rounded-xl border border-line" />
           <input placeholder="Description" value={draft.description}
             onChange={e => setDraft({ ...draft, description: e.target.value })}
-            className="px-3 py-2 rounded-xl border border-slate-200 md:col-span-1" />
+            className="px-3 py-2 rounded-xl border border-line md:col-span-1" />
           <button onClick={onAdd}
             className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold">
             <Plus size={14}/> Add
@@ -244,7 +244,7 @@ const PromosTab = () => {
 
       <GlassCard className="p-5">
         <table className="min-w-full text-sm">
-          <thead className="text-[10px] uppercase text-slate-500">
+          <thead className="text-[10px] uppercase text-mute">
             <tr>
               <th className="text-left py-2">Code</th>
               <th className="text-left py-2">Type</th>
@@ -255,7 +255,7 @@ const PromosTab = () => {
           </thead>
           <tbody>
             {promos.map(p => (
-              <tr key={p.id} className="border-t border-slate-100">
+              <tr key={p.id} className="border-t border-line">
                 <td className="py-2 font-mono">{p.code}</td>
                 <td className="py-2">{p.type}</td>
                 <td className="py-2 text-right">{p.value}</td>
@@ -313,26 +313,26 @@ const PricingModelTab = () => {
 
   return (
     <GlassCard className="p-5">
-      <p className="text-sm text-slate-600 mb-4">
-        Quote formula: <code className="px-1 py-0.5 rounded bg-slate-100 text-xs">total = (shipping + handling + special + customs) × (1 + card_pct)</code>
+      <p className="text-sm text-mute mb-4">
+        Quote formula: <code className="px-1 py-0.5 rounded bg-white/[0.05] text-xs">total = (shipping + handling + special + customs) × (1 + card_pct)</code>
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {Object.entries(KNOB_META).map(([key, meta]) => (
-          <div key={key} className="rounded-xl border border-slate-200 p-4 bg-white/50">
-            <label className="block text-sm font-bold text-[#1e3a5f] mb-1">{meta.label}</label>
+          <div key={key} className="rounded-xl border border-line p-4 bg-surface-2">
+            <label className="block text-sm font-bold text-white mb-1">{meta.label}</label>
             <div className="flex items-center gap-2">
               <input
                 type="number"
                 step={meta.step}
                 value={draft[key] ?? ''}
                 onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
-                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 font-mono"
+                className="flex-1 px-3 py-2 rounded-lg border border-line font-mono"
               />
               {meta.isPercent && draft[key] !== '' && Number.isFinite(Number(draft[key])) && (
-                <span className="text-xs text-slate-500 font-mono">= {(Number(draft[key]) * 100).toFixed(2)}%</span>
+                <span className="text-xs text-mute font-mono">= {(Number(draft[key]) * 100).toFixed(2)}%</span>
               )}
             </div>
-            <p className="text-xs text-slate-500 mt-2">{meta.help}</p>
+            <p className="text-xs text-mute mt-2">{meta.help}</p>
           </div>
         ))}
       </div>
@@ -386,11 +386,11 @@ const CustomsTiersTab = () => {
 
   return (
     <GlassCard className="p-5">
-      <p className="text-sm text-slate-600 mb-3">
-        Edit per-tier rates. Values are fractions — <code className="px-1 bg-slate-100 rounded text-xs">0.25</code> means 25%.
+      <p className="text-sm text-mute mb-3">
+        Edit per-tier rates. Values are fractions — <code className="px-1 bg-white/[0.05] rounded text-xs">0.25</code> means 25%.
       </p>
       <table className="min-w-full text-sm">
-        <thead className="text-[10px] uppercase text-slate-500">
+        <thead className="text-[10px] uppercase text-mute">
           <tr>
             <th className="text-left py-2">Tier</th>
             {PCT_FIELDS.map((f) => <th key={f.k} className="text-right py-2">{f.label}</th>)}
@@ -422,16 +422,16 @@ const CustomsTierRow = ({ t, onSave }) => {
   }, [t.key])
 
   return (
-    <tr className="border-t border-slate-100">
+    <tr className="border-t border-line">
       <td className="py-2">
-        <div className="font-bold text-[#1e3a5f]">{t.label}</div>
-        <div className="font-mono text-[10px] text-slate-500">{t.key}</div>
+        <div className="font-bold text-white">{t.label}</div>
+        <div className="font-mono text-[10px] text-mute">{t.key}</div>
       </td>
       {PCT_FIELDS.map((f) => (
         <td key={f.k} className="py-2 text-right">
           <input type="number" step="0.001" value={draft[f.k]}
             onChange={(e) => setDraft({ ...draft, [f.k]: e.target.value })}
-            className="w-24 px-2 py-1 rounded border border-slate-200 text-right font-mono" />
+            className="w-24 px-2 py-1 rounded border border-line text-right font-mono" />
         </td>
       ))}
       <td className="py-2 text-right">
@@ -488,34 +488,34 @@ const HsCodesTab = () => {
   return (
     <>
       <GlassCard className="p-5 mb-5">
-        <h3 className="text-lg font-black text-[#1e3a5f] mb-3">Add HS prefix → tier</h3>
+        <h3 className="text-lg font-black text-white mb-3">Add HS prefix → tier</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
           <input placeholder="HS prefix (e.g. 8517)"
             value={draft.hs_prefix}
             onChange={(e) => setDraft({ ...draft, hs_prefix: e.target.value })}
-            className="px-3 py-2 rounded-xl border border-slate-200 font-mono" />
+            className="px-3 py-2 rounded-xl border border-line font-mono" />
           <select value={draft.tier_key}
             onChange={(e) => setDraft({ ...draft, tier_key: e.target.value })}
-            className="px-3 py-2 rounded-xl border border-slate-200">
+            className="px-3 py-2 rounded-xl border border-line">
             <option value="">— pick tier —</option>
             {tiers.map((k) => <option key={k} value={k}>{k}</option>)}
           </select>
           <input placeholder="Notes (optional)" value={draft.notes}
             onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
-            className="md:col-span-2 px-3 py-2 rounded-xl border border-slate-200" />
+            className="md:col-span-2 px-3 py-2 rounded-xl border border-line" />
           <button onClick={onAdd}
             className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold">
             <Plus size={14}/> Add
           </button>
         </div>
-        <p className="text-xs text-slate-500 mt-2">
-          Longest prefix wins on per-item resolution. Items whose hs_code matches no prefix fall back to <code className="px-1 bg-slate-100 rounded">general</code>.
+        <p className="text-xs text-mute mt-2">
+          Longest prefix wins on per-item resolution. Items whose hs_code matches no prefix fall back to <code className="px-1 bg-white/[0.05] rounded">general</code>.
         </p>
       </GlassCard>
 
       <GlassCard className="p-5">
         <table className="min-w-full text-sm">
-          <thead className="text-[10px] uppercase text-slate-500">
+          <thead className="text-[10px] uppercase text-mute">
             <tr>
               <th className="text-left py-2">HS prefix</th>
               <th className="text-left py-2">Tier</th>
@@ -525,20 +525,20 @@ const HsCodesTab = () => {
           </thead>
           <tbody>
             {mapping.map((m) => (
-              <tr key={m.hs_prefix} className="border-t border-slate-100">
+              <tr key={m.hs_prefix} className="border-t border-line">
                 <td className="py-2 font-mono">{m.hs_prefix}</td>
                 <td className="py-2">{m.tier_key}</td>
-                <td className="py-2 text-slate-500 text-xs">{m.notes || ''}</td>
+                <td className="py-2 text-mute text-xs">{m.notes || ''}</td>
                 <td className="py-2 text-right">
                   <button onClick={() => onRemove(m.hs_prefix)}
-                    className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-red-50 hover:bg-red-100 text-red-700">
+                    className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/15 text-red-300">
                     <Trash2 size={12}/> Remove
                   </button>
                 </td>
               </tr>
             ))}
             {mapping.length === 0 && (
-              <tr><td colSpan="4" className="py-4 text-center text-slate-400 text-sm">No HS prefixes yet</td></tr>
+              <tr><td colSpan="4" className="py-4 text-center text-dim text-sm">No HS prefixes yet</td></tr>
             )}
           </tbody>
         </table>

@@ -107,17 +107,17 @@ export function Notifications() {
   const onLoadMore = () => fetchPage(offset, false)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/40 px-4 sm:px-8 py-12">
+    <div className="min-h-screen bg-white/[0.03] px-4 sm:px-8 py-12">
       <div className="max-w-3xl mx-auto">
-        <Link to="/dashboard" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[#0f172a] mb-6">
+        <Link to="/dashboard" className="inline-flex items-center gap-2 text-sm font-semibold text-mute hover:text-white mb-6">
           <ArrowLeft size={16} /> Back to dashboard
         </Link>
 
         <div className="flex items-start justify-between gap-4 mb-8">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-orange-600 mb-3">Inbox</p>
-            <h1 className="text-4xl sm:text-5xl font-black text-[#0f172a] tracking-tighter mb-2">Notifications</h1>
-            <p className="text-slate-500 text-sm">
+            <p className="text-[10px] font-black uppercase tracking-widest text-ember-400 mb-3">Inbox</p>
+            <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tighter mb-2">Notifications</h1>
+            <p className="text-mute text-sm">
               {unread > 0
                 ? `${unread} unread message${unread === 1 ? '' : 's'}.`
                 : 'Everything from your orders, payments, and deliveries.'}
@@ -128,7 +128,7 @@ export function Notifications() {
             type="button"
             onClick={onMarkAll}
             disabled={markingAll || unread === 0}
-            className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white ring-1 ring-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-surface ring-1 ring-slate-200 text-sm font-semibold text-white/80 hover:bg-white/[0.03] disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {markingAll ? <Loader2 size={14} className="animate-spin" /> : <CheckCheck size={14} />}
             Mark all read
@@ -136,16 +136,16 @@ export function Notifications() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-24 text-slate-400 gap-2">
+          <div className="flex items-center justify-center py-24 text-dim gap-2">
             <Loader2 size={18} className="animate-spin" /> Loading notifications…
           </div>
         ) : items.length === 0 ? (
-          <div className="rounded-2xl bg-white ring-1 ring-slate-200 px-6 py-16 text-center">
-            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
+          <div className="rounded-2xl bg-surface ring-1 ring-slate-200 px-6 py-16 text-center">
+            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-white/[0.03] flex items-center justify-center text-dim">
               <BellOff size={20} />
             </div>
-            <p className="text-base font-bold text-slate-700">No notifications yet</p>
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-base font-bold text-white/80">No notifications yet</p>
+            <p className="text-sm text-mute mt-1">
               Updates about your orders, deliveries, and payments will appear here.
             </p>
           </div>
@@ -161,25 +161,25 @@ export function Notifications() {
                     className={[
                       'w-full text-left flex items-start gap-4 px-4 sm:px-5 py-4 rounded-2xl ring-1 transition',
                       n.is_read
-                        ? 'bg-white ring-slate-200 hover:bg-slate-50'
-                        : 'bg-orange-50/60 ring-orange-200 hover:bg-orange-50',
+                        ? 'bg-surface ring-slate-200 hover:bg-white/[0.03]'
+                        : 'bg-ember-500/10 ring-orange-200 hover:bg-ember-500/10',
                     ].join(' ')}
                     aria-label={n.is_read ? n.message : `${n.message} (unread)`}
                   >
                     <span className={[
                       'shrink-0 w-9 h-9 rounded-xl flex items-center justify-center',
-                      n.is_read ? 'bg-slate-100 text-slate-500' : 'bg-orange-100 text-orange-600',
+                      n.is_read ? 'bg-white/[0.05] text-mute' : 'bg-ember-500/15 text-ember-400',
                     ].join(' ')}>
                       <Icon size={16} />
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className={[
                         'text-sm leading-relaxed',
-                        n.is_read ? 'text-slate-700' : 'text-slate-900 font-semibold',
+                        n.is_read ? 'text-white/80' : 'text-white font-semibold',
                       ].join(' ')}>
                         {n.message}
                       </p>
-                      <p className="text-xs text-slate-400 mt-1">{fmtRelative(n.created_at)}</p>
+                      <p className="text-xs text-dim mt-1">{fmtRelative(n.created_at)}</p>
                     </div>
                     {!n.is_read && (
                       <span className="shrink-0 mt-1.5 w-2 h-2 rounded-full bg-orange-500" aria-hidden="true" />
@@ -197,7 +197,7 @@ export function Notifications() {
               type="button"
               onClick={onLoadMore}
               disabled={loadingMore}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white ring-1 ring-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface ring-1 ring-slate-200 text-sm font-semibold text-white/80 hover:bg-white/[0.03] disabled:opacity-50"
             >
               {loadingMore ? <Loader2 size={14} className="animate-spin" /> : null}
               Load older

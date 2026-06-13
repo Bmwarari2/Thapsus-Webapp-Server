@@ -19,7 +19,7 @@ export const SupportChatWidget = () => {
     <button
       type="button"
       onClick={handleOpenSupport}
-      className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-orange-500 text-white shadow-lg hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
+      className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:bottom-6 right-4 lg:right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-ember-gradient text-white shadow-ember hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-ember-500 focus:ring-offset-2 focus:ring-offset-ink transition"
       aria-label="Open support chat"
     >
       <MessageCircle size={24} />

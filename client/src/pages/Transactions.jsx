@@ -20,12 +20,12 @@ const fmtDate = (iso) => {
 }
 
 const STATUS_STYLE = {
-  paid:            { label: 'Paid',            klass: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
-  pending:         { label: 'Pending',         klass: 'bg-amber-50  text-amber-700  ring-amber-100' },
-  awaiting_review: { label: 'Awaiting review', klass: 'bg-amber-50  text-amber-700  ring-amber-100' },
+  paid:            { label: 'Paid',            klass: 'bg-emerald-500/10 text-emerald-300 ring-emerald-100' },
+  pending:         { label: 'Pending',         klass: 'bg-amber-500/10  text-amber-300  ring-amber-100' },
+  awaiting_review: { label: 'Awaiting review', klass: 'bg-amber-500/10  text-amber-300  ring-amber-100' },
   failed:          { label: 'Failed',          klass: 'bg-rose-50   text-rose-700   ring-rose-100' },
   rejected:        { label: 'Rejected',        klass: 'bg-rose-50   text-rose-700   ring-rose-100' },
-  cancelled:       { label: 'Cancelled',       klass: 'bg-slate-100 text-slate-600  ring-slate-200' },
+  cancelled:       { label: 'Cancelled',       klass: 'bg-white/[0.05] text-mute  ring-slate-200' },
 }
 
 const TARGET_LABEL = {
@@ -38,18 +38,18 @@ export function Transactions() {
   const [tab, setTab] = useState('payments') // 'payments' | 'credit'
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/40 px-4 sm:px-8 py-12">
+    <div className="min-h-screen bg-white/[0.03] px-4 sm:px-8 py-12">
       <div className="max-w-3xl mx-auto">
-        <Link to="/credit" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[#0f172a] mb-6">
+        <Link to="/credit" className="inline-flex items-center gap-2 text-sm font-semibold text-mute hover:text-white mb-6">
           <ArrowLeft size={16} /> Back to credit
         </Link>
-        <p className="text-[10px] font-black uppercase tracking-widest text-orange-600 mb-3">History</p>
-        <h1 className="text-4xl sm:text-5xl font-black text-[#0f172a] tracking-tighter mb-2">Transactions</h1>
-        <p className="text-slate-500 text-sm mb-8">
+        <p className="text-[10px] font-black uppercase tracking-widest text-ember-400 mb-3">History</p>
+        <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tighter mb-2">Transactions</h1>
+        <p className="text-mute text-sm mb-8">
           Every card or M-Pesa payment, plus your credit activity.
         </p>
 
-        <div className="inline-flex p-1 rounded-full bg-slate-100 mb-8">
+        <div className="inline-flex p-1 rounded-full bg-white/[0.05] mb-8">
           <TabButton active={tab === 'payments'} onClick={() => setTab('payments')}>Payments</TabButton>
           <TabButton active={tab === 'credit'}   onClick={() => setTab('credit')}>Credit</TabButton>
         </div>
@@ -65,7 +65,7 @@ function TabButton({ active, onClick, children }) {
     <button
       onClick={onClick}
       className={`px-5 py-2 text-xs font-bold uppercase tracking-wider rounded-full transition-colors ${
-        active ? 'bg-white text-[#0f172a] shadow-sm' : 'text-slate-500 hover:text-[#0f172a]'
+        active ? 'bg-surface text-white shadow-sm' : 'text-mute hover:text-white'
       }`}
     >
       {children}
@@ -116,7 +116,7 @@ function PaymentsList() {
         <button
           onClick={() => load(false)}
           disabled={loading}
-          className="mt-6 w-full rounded-2xl bg-white border border-slate-200 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          className="mt-6 w-full rounded-2xl bg-surface border border-line py-3 text-sm font-bold text-mute hover:bg-white/[0.03] disabled:opacity-50"
         >
           {loading ? 'Loading…' : 'Load more'}
         </button>
@@ -126,35 +126,35 @@ function PaymentsList() {
 }
 
 function PaymentRow({ p }) {
-  const styled  = STATUS_STYLE[p.status] ?? { label: p.status, klass: 'bg-slate-100 text-slate-600 ring-slate-200' }
+  const styled  = STATUS_STYLE[p.status] ?? { label: p.status, klass: 'bg-white/[0.05] text-mute ring-slate-200' }
   const targetTitle = TARGET_LABEL[p.target_kind] || p.target_kind
   const Icon = p.method === 'stripe' ? CreditCard : Smartphone
   const methodLabel = p.method === 'stripe' ? 'Card' : 'M-Pesa'
   const reference = p.method === 'stripe' ? p.stripe_payment_intent_id : p.mpesa_reference
 
   return (
-    <li className="bg-white/70 backdrop-blur rounded-3xl border border-slate-200 shadow-sm p-5 flex gap-4">
-      <div className="p-3 rounded-2xl bg-slate-50 text-[#0f172a] flex-shrink-0">
+    <li className="bg-surface-2 backdrop-blur rounded-3xl border border-line shadow-sm p-5 flex gap-4">
+      <div className="p-3 rounded-2xl bg-white/[0.03] text-white flex-shrink-0">
         <Icon size={20} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+            <p className="text-[10px] font-black uppercase tracking-widest text-dim">
               {targetTitle} · {methodLabel}
             </p>
-            <p className="font-bold text-[#0f172a] truncate">
+            <p className="font-bold text-white truncate">
               {p.target_label || p.target_id}
             </p>
           </div>
           <div className="text-right">
-            <p className="font-black text-[#0f172a] tracking-tight">KES {fmtKes(p.amount_due_kes)}</p>
+            <p className="font-black text-white tracking-tight">KES {fmtKes(p.amount_due_kes)}</p>
             <span className={`mt-1 inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 ${styled.klass}`}>
               {styled.label}
             </span>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-mute">
           <span>{fmtDate(p.paid_at || p.created_at)}</span>
           {p.amount_credit_kes > 0 && (
             <span className="text-emerald-600 font-semibold">
@@ -166,7 +166,7 @@ function PaymentRow({ p }) {
           )}
           {reference && <span className="font-mono truncate">{reference}</span>}
           {p.attempts_count > 1 && (
-            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-wider">
+            <span className="px-2 py-0.5 rounded-full bg-white/[0.05] text-mute text-[10px] font-bold uppercase tracking-wider">
               +{p.attempts_count - 1} earlier attempt{p.attempts_count - 1 === 1 ? '' : 's'}
             </span>
           )}
@@ -223,7 +223,7 @@ function CreditList() {
         <button
           onClick={() => load(false)}
           disabled={loading}
-          className="mt-6 w-full rounded-2xl bg-white border border-slate-200 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          className="mt-6 w-full rounded-2xl bg-surface border border-line py-3 text-sm font-bold text-mute hover:bg-white/[0.03] disabled:opacity-50"
         >
           {loading ? 'Loading…' : 'Load more'}
         </button>
@@ -249,19 +249,19 @@ function CreditRow({ e }) {
   }[e.reason] || e.reason
 
   return (
-    <li className="bg-white/70 backdrop-blur rounded-3xl border border-slate-200 shadow-sm p-5 flex gap-4">
-      <div className={`p-3 rounded-2xl flex-shrink-0 ${positive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-700'}`}>
+    <li className="bg-surface-2 backdrop-blur rounded-3xl border border-line shadow-sm p-5 flex gap-4">
+      <div className={`p-3 rounded-2xl flex-shrink-0 ${positive ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/[0.03] text-white/80'}`}>
         <Icon size={20} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-3">
-          <p className="font-bold text-[#0f172a]">{reasonLabel}</p>
-          <p className={`font-black tracking-tight ${positive ? 'text-emerald-600' : 'text-[#0f172a]'}`}>
+          <p className="font-bold text-white">{reasonLabel}</p>
+          <p className={`font-black tracking-tight ${positive ? 'text-emerald-600' : 'text-white'}`}>
             {positive ? '+' : '−'} KES {fmtKes(Math.abs(e.delta_kes))}
           </p>
         </div>
-        {e.note && <p className="mt-1 text-xs text-slate-500">{e.note}</p>}
-        <p className="mt-2 text-xs text-slate-400">{fmtDate(e.created_at)}</p>
+        {e.note && <p className="mt-1 text-xs text-mute">{e.note}</p>}
+        <p className="mt-2 text-xs text-dim">{fmtDate(e.created_at)}</p>
       </div>
     </li>
   )
@@ -269,10 +269,10 @@ function CreditRow({ e }) {
 
 function EmptyState({ icon, title, body }) {
   return (
-    <div className="bg-white/70 backdrop-blur rounded-[2.5rem] border border-slate-200 shadow-sm p-12 text-center">
-      <div className="inline-flex p-4 rounded-2xl bg-slate-50 text-slate-500 mb-4">{icon}</div>
-      <h3 className="text-lg font-black text-[#0f172a]">{title}</h3>
-      <p className="mt-1 text-sm text-slate-500">{body}</p>
+    <div className="bg-surface-2 backdrop-blur rounded-[2.5rem] border border-line shadow-sm p-12 text-center">
+      <div className="inline-flex p-4 rounded-2xl bg-white/[0.03] text-mute mb-4">{icon}</div>
+      <h3 className="text-lg font-black text-white">{title}</h3>
+      <p className="mt-1 text-sm text-mute">{body}</p>
     </div>
   )
 }
@@ -281,7 +281,7 @@ function LoadingSkeleton() {
   return (
     <ul className="space-y-3">
       {[0, 1, 2].map(i => (
-        <li key={i} className="bg-white/70 backdrop-blur rounded-3xl border border-slate-200 shadow-sm p-5 h-24 animate-pulse" />
+        <li key={i} className="bg-surface-2 backdrop-blur rounded-3xl border border-line shadow-sm p-5 h-24 animate-pulse" />
       ))}
     </ul>
   )

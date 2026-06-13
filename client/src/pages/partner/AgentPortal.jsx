@@ -53,7 +53,7 @@ export const AgentPortal = () => {
   }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-orange-50 via-white to-blue-50">
+    <div className="relative min-h-screen bg-white/[0.03]">
       <GlassStyles />
       <LiquidBlob className="top-[-15%] right-[-15%] w-[40rem] h-[40rem]" color="bg-blue-200" />
 
@@ -63,17 +63,17 @@ export const AgentPortal = () => {
 
         {!active ? (
           <>
-            <h3 className="text-lg font-black text-[#1e3a5f] mb-3">Assigned consolidations</h3>
+            <h3 className="text-lg font-black text-white mb-3">Assigned consolidations</h3>
             {consolidations.length === 0 ? (
-              <GlassCard className="p-8 text-center text-slate-500">No consolidations assigned to you yet.</GlassCard>
+              <GlassCard className="p-8 text-center text-mute">No consolidations assigned to you yet.</GlassCard>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {consolidations.map(c => (
                   <GlassCard key={c.id} className="p-5 cursor-pointer hover:shadow-lg" onClick={() => onOpen(c)}>
                     <div className="flex justify-between items-start gap-3 mb-3">
                       <div>
-                        <p className="text-xs text-slate-500">Week of</p>
-                        <p className="text-lg font-black text-[#1e3a5f]">
+                        <p className="text-xs text-mute">Week of</p>
+                        <p className="text-lg font-black text-white">
                           {new Date(c.week_start).toLocaleDateString()}
                         </p>
                       </div>
@@ -92,13 +92,13 @@ export const AgentPortal = () => {
         ) : (
           <>
             <button onClick={() => { setActive(null); setParcels([]); setEdit({}) }}
-              className="text-sm text-orange-700 font-bold mb-4">← Back to assigned consolidations</button>
+              className="text-sm text-ember-400 font-bold mb-4">← Back to assigned consolidations</button>
 
             <GlassCard className="p-5 md:p-6 mb-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-lg font-black text-[#1e3a5f]">Consolidation {active.id}</h3>
-                  <p className="text-xs text-slate-500">
+                  <h3 className="text-lg font-black text-white">Consolidation {active.id}</h3>
+                  <p className="text-xs text-mute">
                     AWB <span className="font-mono">{active.master_awb_no || '—'}</span> ·
                     {' '}{active.total_parcels} parcels ·
                     {' '}{Number(active.total_kg || 0).toFixed(1)} kg
@@ -108,7 +108,7 @@ export const AgentPortal = () => {
               </div>
             </GlassCard>
 
-            <h3 className="text-lg font-black text-[#1e3a5f] mb-3">Per-parcel customs entries</h3>
+            <h3 className="text-lg font-black text-white mb-3">Per-parcel customs entries</h3>
             <div className="space-y-3">
               {parcels.map(p => {
                 const e = edit[p.id] || {}
@@ -117,9 +117,9 @@ export const AgentPortal = () => {
                   <GlassCard key={p.id} className="p-5">
                     <div className="flex flex-wrap justify-between gap-2 mb-3">
                       <div>
-                        <p className="font-mono text-xs text-slate-500">{p.tracking_number}</p>
-                        <p className="font-semibold text-slate-800">{p.consignee_name}</p>
-                        <p className="text-xs text-slate-500">£{p.declared_value || 0} declared · {p.weight_kg || '—'} kg</p>
+                        <p className="font-mono text-xs text-mute">{p.tracking_number}</p>
+                        <p className="font-semibold text-white">{p.consignee_name}</p>
+                        <p className="text-xs text-mute">£{p.declared_value || 0} declared · {p.weight_kg || '—'} kg</p>
                       </div>
                       <StatusBadge status={p.entry_status || 'draft'}/>
                     </div>
@@ -159,11 +159,11 @@ const Field = ({ label, type = 'text', defaultValue = '', onCommit }) => {
   useEffect(() => { setVal(defaultValue || '') }, [defaultValue])
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-widest text-slate-500 font-black mb-1">{label}</span>
+      <span className="block text-[10px] uppercase tracking-widest text-mute font-black mb-1">{label}</span>
       <input type={type} value={val}
              onChange={e => setVal(e.target.value)}
              onBlur={() => onCommit(val)}
-             className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white/80 text-sm" />
+             className="w-full px-3 py-2 rounded-lg border border-line bg-surface-2 text-sm" />
     </label>
   )
 }
@@ -189,27 +189,27 @@ export const AgentInvoices = () => {
   }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-orange-50 via-white to-blue-50">
+    <div className="relative min-h-screen bg-white/[0.03]">
       <GlassStyles />
       <div className="relative z-10 max-w-5xl mx-auto px-4 md:px-8 py-10">
         <PageHeading icon={Receipt} title="My invoices"
           subtitle="Submit and track invoices to Thapsus" />
 
         <GlassCard className="p-5 md:p-6 mb-6">
-          <h3 className="text-lg font-black text-[#1e3a5f] mb-3">Submit a new invoice</h3>
+          <h3 className="text-lg font-black text-white mb-3">Submit a new invoice</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input placeholder="Consolidation ID (optional)" value={draft.consolidation_id}
               onChange={e => setDraft({ ...draft, consolidation_id: e.target.value })}
-              className="px-3 py-2 rounded-xl border border-slate-200 bg-white/80" />
+              className="px-3 py-2 rounded-xl border border-line bg-surface-2" />
             <input placeholder="Invoice no." value={draft.invoice_no}
               onChange={e => setDraft({ ...draft, invoice_no: e.target.value })}
-              className="px-3 py-2 rounded-xl border border-slate-200 bg-white/80" />
+              className="px-3 py-2 rounded-xl border border-line bg-surface-2" />
             <input placeholder="Amount KES" type="number" value={draft.amount_kes}
               onChange={e => setDraft({ ...draft, amount_kes: e.target.value })}
-              className="px-3 py-2 rounded-xl border border-slate-200 bg-white/80" />
+              className="px-3 py-2 rounded-xl border border-line bg-surface-2" />
             <input placeholder="Notes" value={draft.notes}
               onChange={e => setDraft({ ...draft, notes: e.target.value })}
-              className="px-3 py-2 rounded-xl border border-slate-200 bg-white/80" />
+              className="px-3 py-2 rounded-xl border border-line bg-surface-2" />
           </div>
           <button onClick={onSubmit}
             className="mt-3 px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm">
@@ -218,9 +218,9 @@ export const AgentInvoices = () => {
         </GlassCard>
 
         <GlassCard className="p-5">
-          <h3 className="text-lg font-black text-[#1e3a5f] mb-3">My submitted invoices</h3>
+          <h3 className="text-lg font-black text-white mb-3">My submitted invoices</h3>
           <table className="min-w-full text-sm">
-            <thead className="text-[10px] uppercase text-slate-500">
+            <thead className="text-[10px] uppercase text-mute">
               <tr>
                 <th className="text-left py-2">Invoice</th>
                 <th className="text-left py-2">Consolidation</th>
@@ -230,7 +230,7 @@ export const AgentInvoices = () => {
             </thead>
             <tbody>
               {invoices.map(i => (
-                <tr key={i.id} className="border-t border-slate-100">
+                <tr key={i.id} className="border-t border-line">
                   <td className="py-2 font-mono text-xs">{i.invoice_no || i.id}</td>
                   <td className="py-2 text-xs">{i.consolidation_id || '—'}</td>
                   <td className="py-2 text-right font-bold">{(i.amount_kes || 0).toLocaleString()}</td>

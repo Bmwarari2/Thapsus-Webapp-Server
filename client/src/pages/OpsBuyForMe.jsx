@@ -57,7 +57,7 @@ export const OpsBuyForMe = () => {
   }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-orange-50 via-white to-blue-50">
+    <div className="relative min-h-screen bg-white/[0.03]">
       <GlassStyles />
       <LiquidBlob className="top-[-15%] right-[-15%] w-[40rem] h-[40rem]" color="bg-orange-200" />
 
@@ -67,15 +67,15 @@ export const OpsBuyForMe = () => {
             title="Buy-for-me queue"
             subtitle="Quote concierge requests · accepts pay from wallet" />
           <button onClick={refresh}
-            className="inline-flex items-center gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold px-4 py-2 rounded-xl text-sm">
+            className="inline-flex items-center gap-2 bg-surface border border-line text-white/80 hover:bg-white/[0.03] font-semibold px-4 py-2 rounded-xl text-sm">
             <RefreshCw size={14}/> Refresh
           </button>
         </div>
 
         {loading ? (
-          <GlassCard className="p-8 text-center text-slate-500">Loading…</GlassCard>
+          <GlassCard className="p-8 text-center text-mute">Loading…</GlassCard>
         ) : orders.length === 0 ? (
-          <GlassCard className="p-10 text-center text-slate-500">
+          <GlassCard className="p-10 text-center text-mute">
             No pending requests.
           </GlassCard>
         ) : (
@@ -85,24 +85,24 @@ export const OpsBuyForMe = () => {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs text-slate-500">{o.id}</span>
+                      <span className="font-mono text-xs text-mute">{o.id}</span>
                       <StatusBadge status={o.status}/>
                     </div>
-                    <p className="font-bold text-slate-800 mt-1">{o.item_name}</p>
+                    <p className="font-bold text-white mt-1">{o.item_name}</p>
                     <a href={o.retailer_url} target="_blank" rel="noreferrer"
-                       className="text-xs text-orange-700 inline-flex items-center gap-1 hover:underline">
+                       className="text-xs text-ember-400 inline-flex items-center gap-1 hover:underline">
                       <ExternalLink size={11}/> {o.retailer_url}
                     </a>
-                    <div className="text-xs text-slate-500 mt-1">
+                    <div className="text-xs text-mute mt-1">
                       {o.size && <>Size: {o.size} · </>}
                       Qty: {o.qty}
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">
+                    <p className="text-xs text-mute mt-1">
                       <strong>{o.name || o.email}</strong>
                       {o.email && o.name ? ` · ${o.email}` : null}
                     </p>
                     {o.notes && (
-                      <p className="text-xs text-slate-600 mt-1 italic">"{o.notes}"</p>
+                      <p className="text-xs text-mute mt-1 italic">"{o.notes}"</p>
                     )}
                     {o.status === 'rejected' && o.customer_decision_reason && (
                       <p className="text-xs text-rose-700 italic mt-1">
@@ -110,7 +110,7 @@ export const OpsBuyForMe = () => {
                       </p>
                     )}
                     {o.status === 'paid' && o.parcel_tracking_number && (
-                      <p className="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 ring-1 ring-emerald-200 text-emerald-800 text-xs font-semibold">
+                      <p className="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/10 ring-1 ring-emerald-200 text-emerald-800 text-xs font-semibold">
                         <span>📦</span> Pre-registered as <span className="font-mono font-bold">{o.parcel_tracking_number}</span>
                       </p>
                     )}
@@ -118,12 +118,12 @@ export const OpsBuyForMe = () => {
 
                   <div className="flex flex-col items-end gap-2">
                     {o.estimate_gbp != null && (
-                      <p className="text-sm font-bold text-[#1e3a5f]">
+                      <p className="text-sm font-bold text-white">
                         £{Number(o.estimate_gbp).toFixed(2)} · {Number(o.markup_pct || 0)}%
                       </p>
                     )}
                     <button onClick={() => openQuote(o)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#1e3a5f] hover:bg-[#142640] text-white text-sm font-bold">
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-ember-gradient hover:bg-[#142640] text-white text-sm font-bold">
                       <Send size={14}/> {o.status === 'rejected' ? 'Re-quote' : (o.status === 'quoted' ? 'Edit quote' : 'Send quote')}
                     </button>
                   </div>
@@ -137,8 +137,8 @@ export const OpsBuyForMe = () => {
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4">
           <GlassCard className="p-6 w-full max-w-lg">
-            <h4 className="text-lg font-black text-[#1e3a5f] mb-1">Send quote</h4>
-            <p className="text-xs text-slate-500 mb-4">
+            <h4 className="text-lg font-black text-white mb-1">Send quote</h4>
+            <p className="text-xs text-mute mb-4">
               {editing.item_name} · {editing.email}
             </p>
             <div className="grid grid-cols-2 gap-3">
@@ -149,17 +149,17 @@ export const OpsBuyForMe = () => {
                 onChange={(v) => setDraft({ ...draft, markup_pct: v })} />
               <div className="col-span-2">
                 <label className="block">
-                  <span className="block text-[10px] uppercase tracking-widest text-slate-500 font-black mb-1">Notes for customer</span>
+                  <span className="block text-[10px] uppercase tracking-widest text-mute font-black mb-1">Notes for customer</span>
                   <textarea rows={3} value={draft.notes}
                     onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
                     placeholder="e.g. We can buy from a cheaper UK retailer if you'd prefer."
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                    className="w-full px-3 py-2 rounded-xl border border-line bg-surface-2 focus:outline-none focus:ring-2 focus:ring-orange-400" />
                 </label>
               </div>
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={() => setEditing(null)}
-                className="px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-700 text-sm font-semibold">
+                className="px-4 py-2 rounded-lg bg-surface border border-line text-white/80 text-sm font-semibold">
                 Cancel
               </button>
               <button onClick={onSubmitQuote}
@@ -176,9 +176,9 @@ export const OpsBuyForMe = () => {
 
 const Field = ({ label, value, onChange, placeholder, type = 'text' }) => (
   <label className="block">
-    <span className="block text-[10px] uppercase tracking-widest text-slate-500 font-black mb-1">{label}</span>
+    <span className="block text-[10px] uppercase tracking-widest text-mute font-black mb-1">{label}</span>
     <input value={value} type={type} placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+      className="w-full px-3 py-2 rounded-xl border border-line bg-surface-2 focus:outline-none focus:ring-2 focus:ring-orange-400" />
   </label>
 )

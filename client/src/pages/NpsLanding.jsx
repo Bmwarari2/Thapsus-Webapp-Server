@@ -88,66 +88,53 @@ export const NpsLanding = () => {
 
   if (authLoading || !resolved) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <p className="text-slate-500 text-sm">Loading…</p>
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <div className="spinner w-8 h-8" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-blue-50 p-4">
-      <div className="bg-white rounded-3xl shadow-xl max-w-md w-full p-6 md:p-8">
+    <div className="relative min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12 overflow-hidden">
+      <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[40rem] h-[40rem] bg-ember-radial blur-2xl pointer-events-none" />
+      <div className="glow-card max-w-md w-full p-7 md:p-8 relative z-10 animate-slide-up">
         {done ? (
           <div className="text-center">
-            <h2 className="text-2xl font-black text-[#1e3a5f]">Thanks for the feedback</h2>
-            <p className="text-sm text-slate-500 mt-2">It helps us get better.</p>
-            <button onClick={() => navigate('/dashboard')}
-              className="mt-6 px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm">
-              Back to dashboard
-            </button>
+            <h2 className="text-2xl font-bold text-white">Thanks for the feedback</h2>
+            <p className="text-sm text-mute mt-2">It helps us get better.</p>
+            <button onClick={() => navigate('/dashboard')} className="btn-primary glass-sheen mt-6">Back to dashboard</button>
           </div>
         ) : resolveError ? (
           <div className="text-center">
-            <h2 className="text-2xl font-black text-[#1e3a5f]">Hmm.</h2>
-            <p className="text-sm text-slate-500 mt-2">{resolveError}</p>
-            <button onClick={() => navigate('/dashboard')}
-              className="mt-6 px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm">
-              Back to dashboard
-            </button>
+            <h2 className="text-2xl font-bold text-white">Hmm.</h2>
+            <p className="text-sm text-mute mt-2">{resolveError}</p>
+            <button onClick={() => navigate('/dashboard')} className="btn-primary glass-sheen mt-6">Back to dashboard</button>
           </div>
         ) : (
           <>
-            <h2 className="text-2xl font-black text-[#1e3a5f]">How was your delivery?</h2>
-            <p className="text-xs text-slate-500 mt-1">
-              Parcel <span className="font-mono">{trackingNumber}</span> · 0 means terrible, 10 means amazing.
+            <h2 className="text-2xl font-bold text-white">How was your delivery?</h2>
+            <p className="text-xs text-mute mt-1.5">
+              Parcel <span className="font-mono text-white/80">{trackingNumber}</span> · 0 means terrible, 10 means amazing.
             </p>
 
             <div className="mt-5 grid grid-cols-11 gap-1.5">
               {Array.from({ length: 11 }).map((_, i) => (
-                <button key={i}
-                  onClick={() => setScore(i)}
-                  disabled={submitting}
-                  className={`aspect-square rounded-lg text-sm font-bold border-2 transition-colors
+                <button key={i} onClick={() => setScore(i)} disabled={submitting}
+                  className={`aspect-square rounded-lg text-sm font-bold border transition-colors
                     ${score === i
-                      ? 'border-orange-500 bg-orange-500 text-white'
-                      : 'border-slate-200 text-slate-700 hover:border-orange-300'}`}>
+                      ? 'border-transparent bg-ember-gradient text-white'
+                      : 'border-line text-white/70 hover:border-ember-500/50 hover:text-white'}`}>
                   {i}
                 </button>
               ))}
             </div>
 
-            <textarea value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Anything we should know? (optional)"
-              disabled={submitting}
-              rows={3}
-              maxLength={500}
-              className="mt-4 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            <textarea value={comment} onChange={(e) => setComment(e.target.value)}
+              placeholder="Anything we should know? (optional)" disabled={submitting} rows={3} maxLength={500}
+              className="form-textarea mt-4" />
 
-            <button onClick={onSubmit}
-              disabled={submitting || score == null}
-              className="mt-5 w-full px-5 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white font-bold text-sm inline-flex items-center justify-center gap-2">
-              <Star size={14}/> {submitting ? 'Sending…' : 'Send feedback'}
+            <button onClick={onSubmit} disabled={submitting || score == null} className="btn-primary glass-sheen w-full btn-lg mt-5">
+              <Star size={15} /> {submitting ? 'Sending…' : 'Send feedback'}
             </button>
           </>
         )}

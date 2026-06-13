@@ -97,7 +97,7 @@ export const BuyForMe = () => {
   }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-orange-50 via-white to-blue-50">
+    <div className="relative min-h-screen bg-white/[0.03]">
       <GlassStyles />
       <LiquidBlob className="top-[-15%] right-[-15%] w-[40rem] h-[40rem]" color="bg-orange-200" />
 
@@ -107,16 +107,16 @@ export const BuyForMe = () => {
           subtitle="Don't have a UK card? Paste the link — we'll buy and ship for you." />
 
         <GlassCard className="p-6 mb-8">
-          <h3 className="text-lg font-black text-[#1e3a5f] mb-4">New concierge order</h3>
+          <h3 className="text-lg font-black text-white mb-4">New concierge order</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="md:col-span-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
+              <label className="block text-xs font-bold uppercase tracking-wider text-mute mb-1">
                 Retailer
               </label>
               <select
                 value={draft.retailer_id || ''}
                 onChange={(e) => setDraft({ ...draft, retailer_id: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white/80 text-sm text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-orange-300"
+                className="w-full px-3 py-2.5 rounded-xl border border-line bg-surface-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-300"
               >
                 <option value="">— Choose a retailer —</option>
                 {Object.entries(retailerGroups).map(([country, rs]) => (
@@ -154,23 +154,23 @@ export const BuyForMe = () => {
           </button>
         </GlassCard>
 
-        <h3 className="text-lg font-black text-[#1e3a5f] mb-3">My concierge orders</h3>
+        <h3 className="text-lg font-black text-white mb-3">My concierge orders</h3>
         {orders.length === 0 ? (
-          <GlassCard className="p-8 text-center text-slate-500">No concierge orders yet.</GlassCard>
+          <GlassCard className="p-8 text-center text-mute">No concierge orders yet.</GlassCard>
         ) : (
           <div className="space-y-3">
             {orders.map(o => (
               <GlassCard key={o.id} className="p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-mono text-xs text-slate-500">{o.id}</p>
-                    <p className="font-semibold text-slate-800 truncate">{o.item_name}</p>
+                    <p className="font-mono text-xs text-mute">{o.id}</p>
+                    <p className="font-semibold text-white truncate">{o.item_name}</p>
                     <a href={o.retailer_url} target="_blank" rel="noreferrer"
-                       className="text-xs text-orange-700 inline-flex items-center gap-1 hover:underline">
+                       className="text-xs text-ember-400 inline-flex items-center gap-1 hover:underline">
                       <ExternalLink size={11}/> {o.retailer_url}
                     </a>
-                    {o.size && <p className="text-xs text-slate-500">Size: {o.size}</p>}
-                    <p className="text-xs text-slate-500">Qty: {o.qty}</p>
+                    {o.size && <p className="text-xs text-mute">Size: {o.size}</p>}
+                    <p className="text-xs text-mute">Qty: {o.qty}</p>
                     {o.status === 'rejected' && o.customer_decision_reason && (
                       <p className="mt-2 text-xs text-rose-700 italic">
                         Your reason: "{o.customer_decision_reason}"
@@ -181,11 +181,11 @@ export const BuyForMe = () => {
                     <StatusBadge status={o.status}/>
                     {o.estimate_gbp != null && (
                       <>
-                        <p className="mt-2 text-sm font-bold text-[#1e3a5f]">
+                        <p className="mt-2 text-sm font-bold text-white">
                           £{Number(o.estimate_gbp).toFixed(2)}
                         </p>
                         {o.markup_pct != null && (
-                          <p className="text-[10px] text-slate-500">
+                          <p className="text-[10px] text-mute">
                             +{Number(o.markup_pct)}% service
                           </p>
                         )}
@@ -201,7 +201,7 @@ export const BuyForMe = () => {
                       <Check size={14}/> Accept &amp; buy
                     </button>
                     <button onClick={() => { setRejectingFor(o.id); setRejectReason('') }}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-white border border-rose-300 text-rose-700 hover:bg-rose-50 text-sm font-bold">
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-surface border border-rose-300 text-rose-700 hover:bg-rose-50 text-sm font-bold">
                       <X size={14}/> Reject
                     </button>
                   </div>
@@ -215,17 +215,17 @@ export const BuyForMe = () => {
       {rejectingFor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4">
           <GlassCard className="p-6 w-full max-w-md">
-            <h4 className="text-lg font-black text-[#1e3a5f] mb-1">Reject quote</h4>
-            <p className="text-sm text-slate-500 mb-3">
+            <h4 className="text-lg font-black text-white mb-1">Reject quote</h4>
+            <p className="text-sm text-mute mb-3">
               Tell us why so we can re-quote with a better option.
             </p>
             <textarea rows={4} value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               placeholder="e.g. Out of budget, found cheaper, wrong size…"
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+              className="w-full px-3 py-2 rounded-xl border border-line bg-surface-2 focus:outline-none focus:ring-2 focus:ring-orange-400" />
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={() => { setRejectingFor(null); setRejectReason('') }}
-                className="px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-700 text-sm font-semibold">
+                className="px-4 py-2 rounded-lg bg-surface border border-line text-white/80 text-sm font-semibold">
                 Cancel
               </button>
               <button onClick={onSubmitReject}
@@ -259,9 +259,9 @@ export const BuyForMe = () => {
 
 const Field = ({ label, value, onChange, placeholder, type = 'text' }) => (
   <label className="block">
-    <span className="block text-[10px] uppercase tracking-widest text-slate-500 font-black mb-1">{label}</span>
+    <span className="block text-[10px] uppercase tracking-widest text-mute font-black mb-1">{label}</span>
     <input value={value} type={type} placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+      className="w-full px-3 py-2 rounded-xl border border-line bg-surface-2 focus:outline-none focus:ring-2 focus:ring-orange-400" />
   </label>
 )
