@@ -1361,6 +1361,109 @@ async function sendAccountDeletionRequestedEmail({ toEmail, toName, scheduledDel
 
 // ── Exports ────────────────────────────────────────────────────────────────────
 
+/**
+ * Customer confirmation that we received their Buy-for-me request. Fired on
+ * create so they know it's in the queue (the quote email follows later).
+ */
+async function sendBuyForMeRequestReceivedEmail(toEmail, toName, orderId, itemName) {
+  const url = `${process.env.APP_URL || 'https://www.thapsus.uk'}/buy-for-me`;
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">We've got your request</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      Thanks — your Buy-for-me request for <strong>${itemName}</strong> is in our queue.
+      We'll review it and send you a quote, usually within 24 hours.
+    </p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:13px;line-height:1.6;">
+      Tip: requests for <strong>UK versions</strong> of stores (e.g. amazon.co.uk) are quickest to fulfil.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
+      <tr><td style="background-color:#f26418;border-radius:8px;">
+        <a href="${url}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">View request</a>
+      </td></tr>
+    </table>`;
+  const subject = `Request received · ${itemName}`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'bfm_received', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'bfm_received', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
+/** Customer notice that staff declined a Buy-for-me request, with the reason. */
+async function sendBuyForMeDeclinedEmail(toEmail, toName, orderId, itemName, reason) {
+  const url = `${process.env.APP_URL || 'https://www.thapsus.uk'}/buy-for-me`;
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">Update on your request</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      We're sorry — we're unable to proceed with your Buy-for-me request for <strong>${itemName}</strong>.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="width:100%;margin:16px 0 24px;background:#fef2f2;border-radius:12px;">
+      <tr><td style="padding:16px;color:#7f1d1d;font-size:14px;line-height:1.6;">
+        <strong>Reason:</strong> ${(reason || '').toString().slice(0, 500)}
+      </td></tr>
+    </table>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:14px;line-height:1.6;">
+      Feel free to start a new request with a different item or retailer.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
+      <tr><td style="background-color:#0e1012;border-radius:8px;">
+        <a href="${url}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">Open Shop</a>
+      </td></tr>
+    </table>`;
+  const subject = `Update · ${itemName}`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'bfm_declined', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'bfm_declined', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
+/**
+ * Customer notice that we've suggested an alternative product (the original
+ * was unavailable). They can accept / decline / counter in the app.
+ */
+async function sendBuyForMeAlternativeEmail(toEmail, toName, orderId, itemName, alternativeUrl, alternativeNote) {
+  const url = `${process.env.APP_URL || 'https://www.thapsus.uk'}/buy-for-me`;
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">We found an alternative</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      The item you requested (<strong>${itemName}</strong>) wasn't available, so we've suggested
+      an alternative for you to review.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="width:100%;margin:16px 0 24px;background:#f8fafc;border-radius:12px;">
+      <tr><td style="padding:16px;color:#0e1012;font-size:14px;line-height:1.6;">
+        ${alternativeNote ? `<strong>Note:</strong> ${(alternativeNote || '').toString().slice(0, 400)}<br/>` : ''}
+        ${alternativeUrl ? `<strong>Alternative:</strong> <a href="${alternativeUrl}" target="_blank" style="color:#f26418;">${alternativeUrl}</a>` : ''}
+      </td></tr>
+    </table>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:14px;line-height:1.6;">
+      Open the Shop tab to <strong>accept</strong>, <strong>decline</strong>, or <strong>suggest your own link</strong>.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
+      <tr><td style="background-color:#f26418;border-radius:8px;">
+        <a href="${url}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">Review alternative</a>
+      </td></tr>
+    </table>`;
+  const subject = `Alternative suggested · ${itemName}`;
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'bfm_alternative', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'bfm_alternative', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
 export {
   sendEmailVerificationEmail,
   sendPasswordResetEmail,
@@ -1382,6 +1485,9 @@ export {
   sendInvoicePaidEmail,
   sendBuyForMeQuoteEmail,
   sendBuyForMeAdminNewRequestEmail,
+  sendBuyForMeRequestReceivedEmail,
+  sendBuyForMeDeclinedEmail,
+  sendBuyForMeAlternativeEmail,
   sendUnifiedPaymentReceiptEmail,
   sendDsarExportEmail,
   sendAccountDeletionRequestedEmail,
@@ -1409,6 +1515,9 @@ export default {
   sendInvoicePaidEmail,
   sendBuyForMeQuoteEmail,
   sendBuyForMeAdminNewRequestEmail,
+  sendBuyForMeRequestReceivedEmail,
+  sendBuyForMeDeclinedEmail,
+  sendBuyForMeAlternativeEmail,
   sendUnifiedPaymentReceiptEmail,
   sendDsarExportEmail,
   sendAccountDeletionRequestedEmail,

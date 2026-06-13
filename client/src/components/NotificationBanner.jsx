@@ -27,6 +27,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, X, BellOff, Zap, Share, Plus, Smartphone } from 'lucide-react';
 import { useNotificationPermission, isNotificationSupported } from '../hooks/useNotificationPermission';
+import { enablePush } from '../lib/push';
 import { useAuth } from '../context/AuthContext';
 
 const STORAGE_KEY = 'tc_notif_state';
@@ -134,6 +135,9 @@ function PermissionBanner({ onDismiss }) {
   async function handleAllow() {
     setLoading(true);
     const result = await requestPermission();
+    // On grant, also register the Web Push subscription so notifications reach
+    // a closed PWA — not just open tabs. Best-effort; ignore the result.
+    if (result === 'granted') { try { await enablePush(); } catch { /* noop */ } }
     setLoading(false);
     dismiss(result === 'denied');
   }
@@ -287,10 +291,11 @@ export function NotificationBanner() {
     }
   }, [user, permission]);
 
-  // If permission was granted elsewhere, persist and hide
+  // If permission was granted elsewhere, persist, register push, and hide.
   useEffect(() => {
     if (permission === 'granted') {
       localStorage.setItem(STORAGE_KEY, 'granted');
+      enablePush().catch(() => {});
       setMode(null);
     }
   }, [permission]);

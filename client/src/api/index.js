@@ -499,6 +499,12 @@ export const buyForMeApi = {
   cancel:    (id)           => api.post(`/buy-for-me/${id}/cancel`),
   // Operator/admin: decline a request with a reason (shown to the customer).
   adminReject: (id, reason) => api.post(`/buy-for-me/${id}/admin-reject`, { reason }),
+  // Operator/admin: offer an alternative product when the item is unavailable.
+  suggestAlternative: (id, data) => api.post(`/buy-for-me/${id}/suggest-alternative`, data),
+  // Customer responses to an alternative offer.
+  alternativeAccept:  (id)         => api.post(`/buy-for-me/${id}/alternative/accept`),
+  alternativeDecline: (id, reason) => api.post(`/buy-for-me/${id}/alternative/decline`, { reason }),
+  alternativeCounter: (id, retailer_url) => api.post(`/buy-for-me/${id}/alternative/counter`, { retailer_url }),
   /** Admin: create a BFM on behalf of a customer (e.g. WhatsApp order).
    *  Optionally pre-quote in the same call so the customer can pay
    *  immediately without waiting for an operator round-trip. */
@@ -577,6 +583,18 @@ export const customerConsolidationsApi = {
     api.post(`/customer-consolidations/attach-to-shipping/${shippingId}`, {
       customer_consolidation_ids: customerConsolidationIds,
     }),
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WEB PUSH  →  /api/push/*
+// ─────────────────────────────────────────────────────────────────────────────
+export const pushApi = {
+  /** VAPID public key + whether push is configured server-side. */
+  publicKey:   ()    => api.get('/push/public-key'),
+  /** Store a PushSubscription (JSON from PushManager.subscribe). */
+  subscribe:   (sub) => api.post('/push/subscribe', sub),
+  /** Remove a subscription by endpoint. */
+  unsubscribe: (endpoint) => api.post('/push/unsubscribe', { endpoint }),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

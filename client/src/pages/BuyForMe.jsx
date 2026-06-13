@@ -1,11 +1,14 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { ShoppingBag, Plus, Check, X } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { ShoppingBag, Plus, Check, X, RefreshCw, Link2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { buyForMeApi, retailersApi } from '../api'
 import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '../components/GlassUI'
 import { PayInvoiceModal } from '../components/PayInvoiceModal'
 import { RetailerLink } from '../components/RetailerLink'
+import { UkStoresMarquee } from '../components/UkStoresMarquee'
 import { useAsyncGuard } from '../hooks/useAsyncGuard'
+import { useBuyForMeUpdates } from '../hooks/useRealtimeUpdates'
 
 const OTHER_RETAILER_ID = '__other__'
 
@@ -32,9 +35,16 @@ export const BuyForMe = () => {
   // Pay modal — non-null = open. Holds the BFM order being paid for.
   const [payingFor, setPayingFor] = useState(null)
 
+  // Alternative-offer response state.
+  const [counterFor, setCounterFor] = useState(null) // order id awaiting a customer counter-link
+  const [counterUrl, setCounterUrl] = useState('')
+
   // Double-submit guards (rapid taps were creating duplicate requests).
   const [submitting, runSubmit] = useAsyncGuard()
   const [rejecting, runReject] = useAsyncGuard()
+  const [altBusy, runAlt] = useAsyncGuard()
+
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const refresh = () => buyForMeApi.mine().then(r => setOrders(r.data?.orders || []))
                                           .catch(() => toast.error('Failed to load orders'))
@@ -46,7 +56,47 @@ export const BuyForMe = () => {
       .catch(() => {/* picker is enhancement — fall back to URL field */})
   }, [])
 
+  // Live updates: quote ready, declined, alternative offered → refresh + toast.
+  useBuyForMeUpdates((payload) => {
+    if (!payload) return
+    refresh()
+    if (payload.action === 'quoted') toast.success('A quote is ready to review')
+    else if (payload.action === 'alternative_offered') toast('We suggested an alternative', { icon: '🔄' })
+    else if (payload.action === 'rejected') toast('A request was updated', { icon: 'ℹ️' })
+  })
+
+  // Deep link from the UK stores directory: /buy-for-me?store=<url> prefills
+  // the form with that retailer under "Other".
+  useEffect(() => {
+    const store = searchParams.get('store')
+    if (store) {
+      setDraft((d) => ({ ...d, retailer_id: OTHER_RETAILER_ID, retailer_url: store }))
+      const next = new URLSearchParams(searchParams); next.delete('store')
+      setSearchParams(next, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const isOtherPicked = draft.retailer_id === OTHER_RETAILER_ID
+
+  // ── Alternative-offer handlers ───────────────────────────────────────────
+  const onAcceptAlternative = (id) => runAlt(async () => {
+    try { await buyForMeApi.alternativeAccept(id); toast.success('Accepted — we\'ll quote it shortly'); refresh() }
+    catch (e) { toast.error(e.response?.data?.message || 'Failed to accept') }
+  })
+  const onDeclineAlternative = (id) => runAlt(async () => {
+    try { await buyForMeApi.alternativeDecline(id); toast.success('Alternative declined'); refresh() }
+    catch (e) { toast.error(e.response?.data?.message || 'Failed to decline') }
+  })
+  const onCounterAlternative = () => runAlt(async () => {
+    const url = counterUrl.trim()
+    if (!url) { toast.error('Paste a link'); return }
+    try {
+      await buyForMeApi.alternativeCounter(counterFor, url)
+      toast.success('Sent — we\'ll review your link')
+      setCounterFor(null); setCounterUrl(''); refresh()
+    } catch (e) { toast.error(e.response?.data?.message || 'Failed to send') }
+  })
 
   const onSubmit = () => {
     if (!draft.item_name) { toast.error('Item name is required'); return }
@@ -115,6 +165,18 @@ export const BuyForMe = () => {
         <PageHeading icon={ShoppingBag}
           title="Buy for me"
           subtitle="Don't have a UK card? Paste the link — we'll buy and ship for you." />
+
+        {/* UK stores marquee + reminder */}
+        <GlassCard className="p-5 mb-6">
+          <UkStoresMarquee />
+        </GlassCard>
+        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-ember-500/25 bg-ember-500/10 px-4 py-3">
+          <Link2 size={18} className="text-ember-400 mt-0.5 shrink-0" />
+          <p className="text-sm text-white/80 leading-relaxed">
+            <strong className="text-white">Use the UK version of a store</strong> — e.g. <span className="font-mono text-ember-300">amazon.co.uk</span>,
+            not amazon.com. UK links ship faster and avoid import surprises.
+          </p>
+        </div>
 
         <GlassCard className="p-6 mb-8">
           <h3 className="text-lg font-black text-white mb-4">New concierge order</h3>
@@ -218,6 +280,32 @@ export const BuyForMe = () => {
                     </button>
                   </div>
                 )}
+
+                {o.status === 'alternative_offered' && (
+                  <div className="mt-3 rounded-2xl border border-ember-500/25 bg-ember-500/5 p-4">
+                    <p className="text-xs font-black uppercase tracking-widest text-ember-300 mb-2">
+                      Alternative suggested
+                    </p>
+                    {o.alternative_note && (
+                      <p className="text-sm text-white/85 leading-relaxed mb-2">{o.alternative_note}</p>
+                    )}
+                    {o.alternative_url && <RetailerLink url={o.alternative_url} />}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button onClick={() => onAcceptAlternative(o.id)} disabled={altBusy}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold disabled:opacity-50">
+                        <Check size={14}/> Accept
+                      </button>
+                      <button onClick={() => onDeclineAlternative(o.id)} disabled={altBusy}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-surface border border-rose-400/40 text-rose-300 hover:bg-rose-500/10 text-sm font-bold disabled:opacity-50">
+                        <X size={14}/> Decline
+                      </button>
+                      <button onClick={() => { setCounterFor(o.id); setCounterUrl('') }} disabled={altBusy}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-surface border border-line text-white/80 hover:bg-white/[0.04] text-sm font-bold disabled:opacity-50">
+                        <Link2 size={14}/> Suggest my own
+                      </button>
+                    </div>
+                  </div>
+                )}
               </GlassCard>
             ))}
           </div>
@@ -243,6 +331,30 @@ export const BuyForMe = () => {
               <button onClick={onSubmitReject} disabled={rejecting}
                 className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed">
                 {rejecting ? 'Submitting…' : 'Submit reject'}
+              </button>
+            </div>
+          </GlassCard>
+        </div>
+      )}
+
+      {counterFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4">
+          <GlassCard className="p-6 w-full max-w-md">
+            <h4 className="text-lg font-black text-white mb-1">Suggest your own link</h4>
+            <p className="text-sm text-mute mb-3">
+              Paste a UK store link to the item you'd prefer — we'll review and quote it.
+            </p>
+            <input value={counterUrl} onChange={(e) => setCounterUrl(e.target.value)}
+              placeholder="https://www.amazon.co.uk/…"
+              className="w-full px-3 py-2.5 rounded-xl border border-line bg-surface-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => { setCounterFor(null); setCounterUrl('') }}
+                className="px-4 py-2 rounded-lg bg-surface border border-line text-white/80 text-sm font-semibold">
+                Cancel
+              </button>
+              <button onClick={onCounterAlternative} disabled={altBusy}
+                className="px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed">
+                {altBusy ? 'Sending…' : 'Send link'}
               </button>
             </div>
           </GlassCard>
