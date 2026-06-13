@@ -191,7 +191,7 @@ export const RiderPwa = () => {
                     onClick={() => setActive({ run_id: run.id, parcel: p })}
                     className={`w-full flex items-start justify-between gap-3 p-3 rounded-xl border-2 text-left
                       ${p.has_pod
-                        ? 'border-emerald-500/20 bg-emerald-500/10/60 opacity-60'
+                        ? 'border-emerald-500/20 bg-emerald-500/10 opacity-60'
                         : 'border-line hover:border-orange-400'}`}>
                     <div>
                       <p className="font-mono text-xs text-mute">{p.tracking_number}</p>

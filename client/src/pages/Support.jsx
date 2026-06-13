@@ -232,10 +232,10 @@ export const Support = () => {
                         <span
                           className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
                             ticket.status === 'open'
-                              ? 'bg-yellow-500/15/80 text-yellow-300 border-yellow-500/20'
+                              ? 'bg-yellow-500/15 text-yellow-300 border-yellow-500/20'
                               : ticket.status === 'in_progress'
-                                ? 'bg-blue-500/15/80 text-blue-300 border-blue-500/20'
-                                : 'bg-emerald-500/15/80 text-emerald-300 border-emerald-500/20'
+                                ? 'bg-blue-500/15 text-blue-300 border-blue-500/20'
+                                : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/20'
                           }`}
                         >
                           {ticket.status.replace(/_/g, ' ')}
@@ -256,8 +256,8 @@ export const Support = () => {
           <div className="lg:col-span-2">
             {showCreateForm ? (
               /* Create Ticket - Dark Glass Bento */
-              <div ref={createFormRef} className="group relative overflow-hidden bg-surface/90 backdrop-blur-2xl border border-line rounded-[24px] p-8 md:p-10 text-white shadow-2xl transition-transform duration-500 hover:-rotate-1 hover:scale-[1.02] transform perspective-1000 glass-sheen">
-                <div className="absolute -top-24 -right-24 w-64 h-64 bg-blue-500/30 rounded-full blur-[80px] pointer-events-none" />
+              <div ref={createFormRef} className="group relative overflow-hidden bg-surface border border-line rounded-3xl p-8 md:p-10 text-white shadow-card">
+                <div className="absolute -top-24 -right-24 w-64 h-64 bg-ember-500/20 rounded-full blur-[80px] pointer-events-none" />
                 
                 <h2 className="text-3xl font-black tracking-tighter leading-none mb-8 relative z-10">
                   {t('support.create')}
@@ -301,9 +301,8 @@ export const Support = () => {
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="group/btn relative overflow-hidden flex-1 bg-blue-500 hover:bg-blue-400 text-white py-4 rounded-xl font-black tracking-tight transition-all shadow-xl hover:shadow-2xl hover:-translate-y-0.5 glass-sheen disabled:opacity-50"
+                      className="btn-primary glass-sheen flex-1 py-4 disabled:opacity-50"
                     >
-                      <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover/btn:animate-[shimmer_1.5s_infinite]" />
                       <span className="relative z-10">{submitting ? t('common.loading') : t('support.submit')}</span>
                     </button>
                     <button
@@ -332,10 +331,10 @@ export const Support = () => {
                   <span
                     className={`inline-block px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest border backdrop-blur-sm shadow-sm ${
                       selectedTicket.status === 'open'
-                        ? 'bg-yellow-500/15/80 text-yellow-300 border-yellow-500/20'
+                        ? 'bg-yellow-500/15 text-yellow-300 border-yellow-500/20'
                         : selectedTicket.status === 'in_progress'
-                          ? 'bg-blue-500/15/80 text-blue-300 border-blue-500/20'
-                          : 'bg-emerald-500/15/80 text-emerald-300 border-emerald-500/20'
+                          ? 'bg-blue-500/15 text-blue-300 border-blue-500/20'
+                          : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/20'
                     }`}
                   >
                     {selectedTicket.status.replace(/_/g, ' ')}

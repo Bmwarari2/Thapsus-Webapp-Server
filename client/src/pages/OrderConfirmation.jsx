@@ -110,30 +110,30 @@ export const OrderConfirmation = () => {
           </div>
 
           {/* Price Breakdown - Crystal Borders with Tint */}
-          <div className="bg-ember-500/10/40 backdrop-blur-2xl border border-ember-500/25/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl p-6 relative overflow-hidden glass-sheen">
+          <div className="bg-ember-500/10 backdrop-blur-2xl border border-ember-500/25 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl p-6 relative overflow-hidden glass-sheen">
             <div className="flex items-center gap-3 mb-6">
-               <div className="p-2 bg-ember-500/15/50 rounded-lg shadow-sm">
+               <div className="p-2 bg-ember-500/15 rounded-lg shadow-sm">
                  <Truck className="text-ember-400" size={20} />
                </div>
               <h2 className="text-2xl font-black text-white tracking-tighter leading-none">Pricing</h2>
             </div>
             {pricing ? (
               <div className="space-y-4 text-sm font-medium">
-                <div className="flex justify-between items-center border-b border-ember-500/25/30 pb-2">
+                <div className="flex justify-between items-center border-b border-ember-500/25 pb-2">
                   <span className="text-mute">Base Shipping</span>
                   <span className="text-white">KES {pricing.breakdown?.base_shipping?.amount?.toLocaleString() ?? '—'}</span>
                 </div>
-                <div className="flex justify-between items-center border-b border-ember-500/25/30 pb-2">
+                <div className="flex justify-between items-center border-b border-ember-500/25 pb-2">
                   <span className="text-mute">Handling Fee</span>
                   <span className="text-white">KES {pricing.breakdown?.handling_fee?.amount?.toLocaleString() ?? '—'}</span>
                 </div>
                 {pricing.breakdown?.insurance?.included && (
-                  <div className="flex justify-between items-center border-b border-ember-500/25/30 pb-2">
+                  <div className="flex justify-between items-center border-b border-ember-500/25 pb-2">
                     <span className="text-mute">Insurance</span>
                     <span className="text-white">KES {pricing.breakdown?.insurance?.amount?.toLocaleString()}</span>
                   </div>
                 )}
-                <div className="flex justify-between items-center border-b border-ember-500/25/30 pb-2">
+                <div className="flex justify-between items-center border-b border-ember-500/25 pb-2">
                   <span className="text-mute">Customs (est.)</span>
                   <span className="text-white">KES {pricing.breakdown?.customs_estimate?.amount?.toLocaleString() ?? '—'}</span>
                 </div>
@@ -181,7 +181,7 @@ export const OrderConfirmation = () => {
                     {step.label}
                   </p>
                   {step.done && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 uppercase tracking-widest border border-emerald-500/20/50">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 uppercase tracking-widest border border-emerald-500/20">
                       Completed
                     </span>
                   )}
@@ -228,7 +228,7 @@ export const OrderConfirmation = () => {
           </Link>
           <Link
             to="/orders/new"
-            className="group relative overflow-hidden flex-1 flex items-center justify-center gap-2 bg-ember-500/10/40 backdrop-blur-xl border-2 border-ember-500/25 text-ember-400 hover:bg-ember-500/15/50 hover:border-orange-300 py-4 px-6 rounded-2xl font-black tracking-tight transition-all shadow-sm hover:shadow-md hover:-translate-y-1 glass-sheen"
+            className="group relative overflow-hidden flex-1 flex items-center justify-center gap-2 bg-ember-500/10 backdrop-blur-xl border-2 border-ember-500/25 text-ember-400 hover:bg-ember-500/15 hover:border-orange-300 py-4 px-6 rounded-2xl font-black tracking-tight transition-all shadow-sm hover:shadow-md hover:-translate-y-1 glass-sheen"
           >
              <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/50 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
             New Order

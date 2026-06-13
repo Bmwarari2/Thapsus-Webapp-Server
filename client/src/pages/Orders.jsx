@@ -249,7 +249,7 @@ export const Orders = () => {
                         <Link
                           to={`/orders/${order.id}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="text-ember-400 hover:text-ember-400 font-black tracking-tight flex items-center gap-1.5 transition-colors bg-ember-500/10 hover:bg-ember-500/15/50 px-3 py-1.5 rounded-lg w-fit border border-ember-500/25/50"
+                          className="text-ember-400 hover:text-ember-400 font-black tracking-tight flex items-center gap-1.5 transition-colors bg-ember-500/10 hover:bg-ember-500/15 px-3 py-1.5 rounded-lg w-fit border border-ember-500/25"
                         >
                           <Eye size={16} />
                           View

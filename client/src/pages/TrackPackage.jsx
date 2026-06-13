@@ -129,13 +129,14 @@ export const TrackPackage = () => {
         </Reveal>
 
         {/* Search */}
-        <form onSubmit={handleTrack} className="max-w-2xl mx-auto mb-12 relative">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-white/30" size={20} />
-          <input type="text" value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)}
-            placeholder={t('track.placeholder') || 'Enter tracking number…'}
-            className="form-input !rounded-full pl-14 pr-36 py-4 text-base" />
-          <button type="submit" disabled={loading}
-            className="absolute right-2 top-1/2 -translate-y-1/2 btn-primary glass-sheen min-w-[120px]">
+        <form onSubmit={handleTrack} className="max-w-2xl mx-auto mb-12 flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-white/30" size={20} />
+            <input type="text" value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)}
+              placeholder={t('track.placeholder') || 'Enter tracking number…'}
+              className="form-input !rounded-full pl-14 py-4 text-base w-full" />
+          </div>
+          <button type="submit" disabled={loading} className="btn-primary glass-sheen btn-lg shrink-0">
             {loading ? 'Locating…' : (t('track.search') || 'Track')}
           </button>
         </form>

@@ -121,7 +121,7 @@ export const AdminCreateBuyForMe = () => {
           subtitle="For customers who placed an order via WhatsApp / phone. Optionally pre-quote." />
 
         {recentlyCreated && (
-          <GlassCard className="p-4 mb-6 bg-emerald-500/10/70">
+          <GlassCard className="p-4 mb-6 bg-emerald-500/10">
             <p className="text-sm font-bold text-emerald-800">Order created ✓</p>
             <p className="text-xs text-emerald-300 mt-1">
               <span className="font-mono">{recentlyCreated.id}</span> · {recentlyCreated.item}
@@ -149,7 +149,7 @@ export const AdminCreateBuyForMe = () => {
               <button
                 key={u.id} type="button"
                 onClick={() => setUserId(u.id)}
-                className={`w-full text-left px-3 py-2 text-sm border-b border-line last:border-b-0 hover:bg-ember-500/10 ${userId === u.id ? 'bg-ember-500/15/70' : ''}`}
+                className={`w-full text-left px-3 py-2 text-sm border-b border-line last:border-b-0 hover:bg-ember-500/10 ${userId === u.id ? 'bg-ember-500/15' : ''}`}
               >
                 <p className="font-semibold text-white">{u.name || u.email}</p>
                 <p className="text-xs text-mute">{u.email}</p>

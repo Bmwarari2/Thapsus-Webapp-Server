@@ -92,16 +92,16 @@ export function CookieConsent() {
       role="dialog"
       aria-label="Cookie consent"
       aria-live="polite"
-      className="fixed bottom-0 left-0 right-0 z-[9999] bg-[#1e3a5f] text-white shadow-2xl"
+      className="fixed bottom-0 left-0 right-0 z-[9999] bg-surface/95 backdrop-blur-xl border-t border-line text-white shadow-card-hover safe-bottom"
     >
       <div className="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
         {/* Message */}
-        <p className="flex-1 text-sm leading-relaxed text-gray-200">
+        <p className="flex-1 text-sm leading-relaxed text-mute">
           We use cookies and similar technologies to analyse traffic and improve your experience,
           and to show you relevant advertising through Meta. By clicking{' '}
           <strong className="text-white">Accept</strong>, you consent to our use of analytics and
           advertising cookies. You can change your mind at any time.{' '}
-          <a href="/privacy" className="underline text-orange-400 hover:text-orange-300 transition-colors">
+          <a href="/privacy" className="underline text-ember-400 hover:text-ember-300 transition-colors">
             Privacy Policy
           </a>
           .
@@ -109,16 +109,10 @@ export function CookieConsent() {
 
         {/* Buttons */}
         <div className="flex items-center gap-3 shrink-0">
-          <button
-            onClick={handleReject}
-            className="px-4 py-2 text-sm rounded-lg border border-gray-400 text-gray-300 hover:border-white hover:text-white transition-colors whitespace-nowrap"
-          >
+          <button onClick={handleReject} className="btn-secondary btn-sm whitespace-nowrap">
             Reject Non-Essential
           </button>
-          <button
-            onClick={handleAccept}
-            className="px-5 py-2 text-sm rounded-lg bg-orange-700 hover:bg-orange-600 text-white font-semibold transition-colors whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300"
-          >
+          <button onClick={handleAccept} className="btn-primary glass-sheen btn-sm whitespace-nowrap">
             Accept All
           </button>
         </div>

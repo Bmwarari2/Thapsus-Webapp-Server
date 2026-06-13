@@ -141,7 +141,7 @@ export const NewOrder = () => {
             <GlassCard className="p-8 md:p-12 group hover:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] transition-shadow duration-700">
               
               {error && (
-                <div className="mb-8 p-4 bg-red-500/10/80 backdrop-blur-md border border-red-500/20/50 rounded-2xl flex items-start gap-3 shadow-sm animate-in fade-in zoom-in duration-300">
+                <div className="mb-8 p-4 bg-red-500/10 backdrop-blur-md border border-red-500/20 rounded-2xl flex items-start gap-3 shadow-sm animate-in fade-in zoom-in duration-300">
                   <AlertCircle className="text-red-300 flex-shrink-0 mt-0.5" size={20} />
                   <p className="text-red-300 text-sm font-bold">{error}</p>
                 </div>
@@ -178,7 +178,7 @@ export const NewOrder = () => {
                 </div>
 
                 {/* Info notice about weight/dimensions */}
-                <div className="relative overflow-hidden rounded-2xl bg-blue-500/10/60 backdrop-blur-md border border-blue-500/20/40 p-4 flex items-start gap-3">
+                <div className="relative overflow-hidden rounded-2xl bg-blue-500/10 backdrop-blur-md border border-blue-500/20 p-4 flex items-start gap-3">
                   <div className="absolute inset-0 bg-gradient-to-tr from-blue-100/20 to-transparent pointer-events-none" />
                   <AlertCircle className="text-blue-500 flex-shrink-0 mt-0.5 relative z-10" size={18} />
                   <p className="text-blue-300 text-sm font-bold relative z-10">Weight and dimensions will be measured by our warehouse team once your package arrives. You'll be notified with the final cost.</p>

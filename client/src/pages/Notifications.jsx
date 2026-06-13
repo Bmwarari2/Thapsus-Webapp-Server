@@ -162,7 +162,7 @@ export function Notifications() {
                       'w-full text-left flex items-start gap-4 px-4 sm:px-5 py-4 rounded-2xl ring-1 transition',
                       n.is_read
                         ? 'bg-surface ring-slate-200 hover:bg-white/[0.03]'
-                        : 'bg-ember-500/10/60 ring-orange-200 hover:bg-ember-500/10',
+                        : 'bg-ember-500/10 ring-orange-200 hover:bg-ember-500/10',
                     ].join(' ')}
                     aria-label={n.is_read ? n.message : `${n.message} (unread)`}
                   >

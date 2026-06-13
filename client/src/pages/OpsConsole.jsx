@@ -236,7 +236,7 @@ export const OpsConsole = () => {
                 </thead>
                 <tbody>
                   {parcels.map((p) => (
-                    <tr key={p.id} className="border-b border-line hover:bg-ember-500/10/30 transition-colors">
+                    <tr key={p.id} className="border-b border-line hover:bg-ember-500/10 transition-colors">
                       <td className="py-3 px-3 font-mono text-xs">{p.tracking_number}</td>
                       <td className="py-3 px-3">
                         <div className="font-semibold text-white/80">{p.name}</div>

@@ -151,7 +151,7 @@ function LinkCard({ rows }) {
         <React.Fragment key={r.to}>
           <Link
             to={r.to}
-            className="group flex items-center gap-4 p-4 md:p-5 hover:bg-ember-500/10/40 transition-colors"
+            className="group flex items-center gap-4 p-4 md:p-5 hover:bg-ember-500/10 transition-colors"
           >
             <div className="w-10 h-10 rounded-xl bg-white/[0.05] group-hover:bg-ember-500/15 flex items-center justify-center text-ember-400 transition-colors shrink-0">
               {r.icon}
@@ -178,7 +178,7 @@ function ExternalRow({ icon, title, href }) {
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="group flex items-center gap-4 p-4 md:p-5 hover:bg-ember-500/10/40 transition-colors"
+      className="group flex items-center gap-4 p-4 md:p-5 hover:bg-ember-500/10 transition-colors"
     >
       <div className="w-10 h-10 rounded-xl bg-white/[0.05] group-hover:bg-ember-500/15 flex items-center justify-center text-ember-400 transition-colors shrink-0">
         {icon}

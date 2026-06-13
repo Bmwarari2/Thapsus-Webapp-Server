@@ -88,7 +88,7 @@ export const AdminIssueInvoice = () => {
           subtitle="One-off charge to a customer (no parcels). They pay via card or M-Pesa." />
 
         {recentlyIssued && (
-          <GlassCard className="p-4 mb-6 bg-emerald-500/10/70">
+          <GlassCard className="p-4 mb-6 bg-emerald-500/10">
             <p className="text-sm font-bold text-emerald-800">Invoice issued ✓</p>
             <p className="text-xs text-emerald-300 mt-1">
               KES {recentlyIssued.amount.toLocaleString()} · {recentlyIssued.description}
@@ -117,7 +117,7 @@ export const AdminIssueInvoice = () => {
                   key={u.id}
                   type="button"
                   onClick={() => setUserId(u.id)}
-                  className={`w-full text-left px-3 py-2 text-sm border-b border-line last:border-b-0 hover:bg-ember-500/10 ${userId === u.id ? 'bg-ember-500/15/70' : ''}`}
+                  className={`w-full text-left px-3 py-2 text-sm border-b border-line last:border-b-0 hover:bg-ember-500/10 ${userId === u.id ? 'bg-ember-500/15' : ''}`}
                 >
                   <p className="font-semibold text-white">{u.name || u.email}</p>
                   <p className="text-xs text-mute">{u.email} {u.warehouse_id && <>· <span className="font-mono">{u.warehouse_id}</span></>}</p>

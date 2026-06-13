@@ -645,7 +645,7 @@ export const AdminDashboard = () => {
               </GlassCard>
 
               {/* New Orders Today */}
-              <GlassCard className="flex flex-col justify-center p-8 border-ember-500/25/50 bg-ember-500/10/30 group hover:-translate-y-2 transition-all duration-500">
+              <GlassCard className="flex flex-col justify-center p-8 border-ember-500/25 bg-ember-500/10 group hover:-translate-y-2 transition-all duration-500">
                 <div className="flex items-center justify-between mb-4">
                   <ShoppingCart className="text-ember-400" size={32}/>
                   <span className="px-2.5 py-1 bg-ember-500/10 text-ember-400 border border-ember-500/25 rounded-full text-[9px] font-black uppercase tracking-widest">Today</span>
@@ -686,14 +686,14 @@ export const AdminDashboard = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {(stats?.order_statuses || []).map(s => {
                     const statusColors = {
-                      pending: { bg: 'bg-amber-500/10/80', text: 'text-amber-300', border: 'border-amber-500/20/50', icon: <Clock size={18} className="text-amber-500" /> },
-                      received_at_warehouse: { bg: 'bg-blue-500/10/80', text: 'text-blue-300', border: 'border-blue-500/20/50', icon: <Box size={18} className="text-blue-500" /> },
-                      consolidating: { bg: 'bg-purple-500/10/80', text: 'text-purple-300', border: 'border-purple-500/20/50', icon: <Package size={18} className="text-purple-500" /> },
-                      in_transit: { bg: 'bg-indigo-500/10/80', text: 'text-indigo-300', border: 'border-indigo-500/20/50', icon: <ArrowUpRight size={18} className="text-indigo-500" /> },
-                      customs: { bg: 'bg-yellow-500/10/80', text: 'text-yellow-300', border: 'border-yellow-500/20/50', icon: <Globe size={18} className="text-yellow-600" /> },
+                      pending: { bg: 'bg-amber-500/10', text: 'text-amber-300', border: 'border-amber-500/20', icon: <Clock size={18} className="text-amber-500" /> },
+                      received_at_warehouse: { bg: 'bg-blue-500/10', text: 'text-blue-300', border: 'border-blue-500/20', icon: <Box size={18} className="text-blue-500" /> },
+                      consolidating: { bg: 'bg-purple-500/10', text: 'text-purple-300', border: 'border-purple-500/20', icon: <Package size={18} className="text-purple-500" /> },
+                      in_transit: { bg: 'bg-indigo-500/10', text: 'text-indigo-300', border: 'border-indigo-500/20', icon: <ArrowUpRight size={18} className="text-indigo-500" /> },
+                      customs: { bg: 'bg-yellow-500/10', text: 'text-yellow-300', border: 'border-yellow-500/20', icon: <Globe size={18} className="text-yellow-600" /> },
                       out_for_delivery: { bg: 'bg-teal-50/80', text: 'text-teal-700', border: 'border-teal-200/50', icon: <TrendingUp size={18} className="text-teal-500" /> },
-                      delivered: { bg: 'bg-emerald-500/10/80', text: 'text-emerald-300', border: 'border-emerald-500/20/50', icon: <CheckCircle size={18} className="text-emerald-500" /> },
-                      cancelled: { bg: 'bg-red-500/10/80', text: 'text-red-300', border: 'border-red-500/20/50', icon: <XCircle size={18} className="text-red-500" /> },
+                      delivered: { bg: 'bg-emerald-500/10', text: 'text-emerald-300', border: 'border-emerald-500/20', icon: <CheckCircle size={18} className="text-emerald-500" /> },
+                      cancelled: { bg: 'bg-red-500/10', text: 'text-red-300', border: 'border-red-500/20', icon: <XCircle size={18} className="text-red-500" /> },
                     }
                     const c = statusColors[s.status] || { bg: 'bg-white/[0.03]/80', text: 'text-white/80', border: 'border-line/50', icon: <Package size={18} className="text-dim" /> }
                     return (
@@ -726,21 +726,21 @@ export const AdminDashboard = () => {
               {/* Quick Stats Stack */}
               <div className="space-y-4">
                 <GlassCard className="p-6 flex items-center gap-4 group hover:-translate-y-1 transition-all duration-300">
-                  <div className="p-3 bg-emerald-500/10/80 rounded-2xl border border-emerald-500/20/50"><DollarSign size={20} className="text-emerald-300" /></div>
+                  <div className="p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20"><DollarSign size={20} className="text-emerald-300" /></div>
                   <div>
                     <p className="text-[9px] font-black uppercase tracking-widest text-dim">Deposits</p>
                     <p className="text-xl font-black text-white tracking-tighter">KES {(parseFloat(stats?.revenue?.deposits) || 0).toLocaleString()}</p>
                   </div>
                 </GlassCard>
                 <GlassCard className="p-6 flex items-center gap-4 group hover:-translate-y-1 transition-all duration-300">
-                  <div className="p-3 bg-blue-500/10/80 rounded-2xl border border-blue-500/20/50"><CreditCard size={20} className="text-blue-300" /></div>
+                  <div className="p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20"><CreditCard size={20} className="text-blue-300" /></div>
                   <div>
                     <p className="text-[9px] font-black uppercase tracking-widest text-dim">Payments</p>
                     <p className="text-xl font-black text-white tracking-tighter">KES {(parseFloat(stats?.revenue?.payments) || 0).toLocaleString()}</p>
                   </div>
                 </GlassCard>
                 <GlassCard className="p-6 flex items-center gap-4 group hover:-translate-y-1 transition-all duration-300">
-                  <div className="p-3 bg-purple-500/10/80 rounded-2xl border border-purple-500/20/50"><Users size={20} className="text-purple-600" /></div>
+                  <div className="p-3 bg-purple-500/10 rounded-2xl border border-purple-500/20"><Users size={20} className="text-purple-600" /></div>
                   <div>
                     <p className="text-[9px] font-black uppercase tracking-widest text-dim">Referrals</p>
                     <p className="text-xl font-black text-white tracking-tighter">{parseInt(stats?.referrals?.completed_referrals) || 0} / {parseInt(stats?.referrals?.total_referrals) || 0}</p>
@@ -748,7 +748,7 @@ export const AdminDashboard = () => {
                   </div>
                 </GlassCard>
                 <GlassCard className="p-6 flex items-center gap-4 group hover:-translate-y-1 transition-all duration-300">
-                  <div className="p-3 bg-amber-500/10/80 rounded-2xl border border-amber-500/20/50"><Package size={20} className="text-amber-600" /></div>
+                  <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20"><Package size={20} className="text-amber-600" /></div>
                   <div>
                     <p className="text-[9px] font-black uppercase tracking-widest text-dim">Pending Orders</p>
                     <p className="text-xl font-black text-white tracking-tighter">{parseInt(stats?.orders?.pending) || 0}</p>
@@ -813,7 +813,7 @@ export const AdminDashboard = () => {
             </div>
 
             {selectedOrders.length > 0 && (
-              <GlassCard className="!p-4 flex flex-col md:flex-row items-center gap-4 bg-blue-500/10/40 border-blue-500/20/50">
+              <GlassCard className="!p-4 flex flex-col md:flex-row items-center gap-4 bg-blue-500/10 border-blue-500/20">
                 <span className="font-black text-blue-300 text-sm tracking-wide uppercase">{selectedOrders.length} Selected</span>
                 <select value={newStatus} onChange={e => setNewStatus(e.target.value)} className={inputClass + " !w-auto !py-3 !text-sm"}>
                   <option value="">Update Status…</option>
@@ -970,26 +970,26 @@ export const AdminDashboard = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <GlassCard className="p-8 border-emerald-500/20/50 bg-emerald-500/10/30">
+              <GlassCard className="p-8 border-emerald-500/20 bg-emerald-500/10">
                 <p className="text-[10px] font-black uppercase tracking-widest text-emerald-300/60 mb-3">Total Deposits</p>
                 <h3 className="text-4xl md:text-5xl font-black text-emerald-300 tracking-tighter">KES {(stats?.revenue?.deposits||0).toLocaleString()}</h3>
               </GlassCard>
-              <GlassCard className="p-8 border-blue-500/20/50 bg-blue-500/10/30">
+              <GlassCard className="p-8 border-blue-500/20 bg-blue-500/10">
                 <p className="text-[10px] font-black uppercase tracking-widest text-blue-300/60 mb-3">Total Payments</p>
                 <h3 className="text-4xl md:text-5xl font-black text-blue-300 tracking-tighter">KES {(stats?.revenue?.payments||0).toLocaleString()}</h3>
               </GlassCard>
-              <GlassCard className="p-8 border-ember-500/25/50 bg-ember-500/10/30">
+              <GlassCard className="p-8 border-ember-500/25 bg-ember-500/10">
                 <p className="text-[10px] font-black uppercase tracking-widest text-ember-400/60 mb-3">Net Revenue</p>
                 <h3 className="text-4xl md:text-5xl font-black text-ember-400 tracking-tighter">KES {(stats?.revenue?.total_revenue||0).toLocaleString()}</h3>
               </GlassCard>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
-              <GlassCard className="p-8 border-indigo-500/20/50 bg-indigo-500/10/30">
+              <GlassCard className="p-8 border-indigo-500/20 bg-indigo-500/10">
                 <p className="text-[10px] font-black uppercase tracking-widest text-indigo-300/60 mb-3">Paid via card (Stripe)</p>
                 <h3 className="text-4xl md:text-5xl font-black text-indigo-300 tracking-tighter">KES {(stats?.revenue?.paid_via_card||0).toLocaleString()}</h3>
               </GlassCard>
-              <GlassCard className="p-8 border-emerald-500/20/50 bg-emerald-500/10/30">
+              <GlassCard className="p-8 border-emerald-500/20 bg-emerald-500/10">
                 <p className="text-[10px] font-black uppercase tracking-widest text-emerald-300/60 mb-3">Paid via M-Pesa</p>
                 <h3 className="text-4xl md:text-5xl font-black text-emerald-300 tracking-tighter">KES {(stats?.revenue?.paid_via_mpesa||0).toLocaleString()}</h3>
               </GlassCard>
@@ -1146,7 +1146,7 @@ export const AdminDashboard = () => {
                   )}
                   {auditLogs.map(log => (
                     <React.Fragment key={log.id}>
-                      <tr onClick={() => setExpandedAudit(expandedAudit === log.id ? null : log.id)} className="hover:bg-blue-500/10/40 cursor-pointer transition-colors">
+                      <tr onClick={() => setExpandedAudit(expandedAudit === log.id ? null : log.id)} className="hover:bg-blue-500/10 cursor-pointer transition-colors">
                         <td className={tdClass}>
                           <span className="inline-flex px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm border bg-blue-500/10 text-blue-300 border-blue-500/20">{log.action}</span>
                         </td>
@@ -1214,7 +1214,7 @@ export const AdminDashboard = () => {
                     </td></tr>
                   )}
                   {amlFlags.map(f => (
-                    <tr key={f.id} className="hover:bg-amber-500/10/40 transition-colors">
+                    <tr key={f.id} className="hover:bg-amber-500/10 transition-colors">
                       <td className={tdClass}>
                         <p className="font-black text-white">{f.user_name || '—'}</p>
                         <p className="text-[10px] font-bold text-mute mt-1">{f.user_email || f.user_id}</p>
@@ -1281,7 +1281,7 @@ export const AdminDashboard = () => {
                 <tbody className="divide-y divide-white/10">
                   {errorLogs.map(log => (
                     <React.Fragment key={log.id}>
-                      <tr onClick={() => setExpandedError(expandedError === log.id ? null : log.id)} className="hover:bg-red-500/10/40 cursor-pointer transition-colors">
+                      <tr onClick={() => setExpandedError(expandedError === log.id ? null : log.id)} className="hover:bg-red-500/10 cursor-pointer transition-colors">
                         <td className={tdClass}><span className={`inline-flex px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm border ${log.level==='fatal' ? 'bg-red-500/10 text-red-300 border-red-500/20' : 'bg-amber-500/10 text-amber-300 border-amber-500/20'}`}>{log.level}</span></td>
                         <td className={tdClass + " font-mono text-[10px] font-bold"}>{log.source}</td>
                         <td className={tdClass + " font-bold text-white truncate max-w-xs"}>{log.message}</td>
@@ -1383,7 +1383,7 @@ export const AdminDashboard = () => {
               </div>
               
               <div className="grid grid-cols-1 gap-6 mb-12">
-                <GlassCard className="p-8 border-blue-500/20/50 bg-blue-500/10/50 shadow-none">
+                <GlassCard className="p-8 border-blue-500/20 bg-blue-500/10 shadow-none">
                   <p className="text-[10px] font-black uppercase tracking-widest text-blue-300/60 mb-2">Active Orders</p>
                   <p className="text-3xl md:text-4xl font-black text-blue-300 tracking-tighter">{selectedUserData.user?.orders?.length || 0}</p>
                 </GlassCard>
@@ -1483,7 +1483,7 @@ export const AdminDashboard = () => {
                         </div>
                       </div>
                       {o.order_notes && (
-                        <div className="mt-3 px-3 py-2 bg-amber-500/10 border border-amber-500/20/60 rounded-xl text-[10px] text-amber-300 font-semibold">
+                        <div className="mt-3 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[10px] text-amber-300 font-semibold">
                           📝 {o.order_notes}
                         </div>
                       )}
@@ -1584,7 +1584,7 @@ export const AdminDashboard = () => {
 
         {cancelModal && (
           <div className="fixed inset-0 bg-surface/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-            <GlassCard className="w-full max-w-lg p-10 relative bg-red-500/10/80 border-red-500/20/50">
+            <GlassCard className="w-full max-w-lg p-10 relative bg-red-500/10 border-red-500/20">
               <button onClick={() => setCancelModal(null)} aria-label="Close" className="absolute top-6 right-6 w-8 h-8 bg-surface rounded-full flex items-center justify-center text-mute hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
               <h3 className="text-3xl font-black text-red-300 uppercase tracking-tighter leading-none mb-8">Halt Shipment</h3>
               <div className="space-y-6">
@@ -1647,7 +1647,7 @@ export const AdminDashboard = () => {
 
                 <form onSubmit={handleSaveEditOrder} className="space-y-6">
                   {/* Weight & Dimensions Section */}
-                  <div className="relative overflow-hidden rounded-2xl bg-blue-500/10/60 backdrop-blur-md border border-blue-500/20/40 p-5">
+                  <div className="relative overflow-hidden rounded-2xl bg-blue-500/10 backdrop-blur-md border border-blue-500/20 p-5">
                     <div className="absolute inset-0 bg-gradient-to-tr from-blue-100/20 to-transparent pointer-events-none" />
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-300 mb-4 relative z-10 flex items-center gap-2"><Scale size={14}/> Weight & Dimensions</h4>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
@@ -1671,7 +1671,7 @@ export const AdminDashboard = () => {
                   </div>
 
                   {/* Electronics & Special Handling */}
-                  <div className="relative overflow-hidden rounded-2xl bg-ember-500/10/60 backdrop-blur-md border border-ember-500/25/40 p-5">
+                  <div className="relative overflow-hidden rounded-2xl bg-ember-500/10 backdrop-blur-md border border-ember-500/25 p-5">
                     <div className="absolute inset-0 bg-gradient-to-tr from-orange-100/20 to-transparent pointer-events-none" />
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-ember-400 mb-1 relative z-10 flex items-center gap-2">⚡ Electronics &amp; Special Handling</h4>
                     <p className="text-[10px] text-ember-400/80 font-semibold mb-4 relative z-10">Adds a handling fee on top of the standard shipping rate. Also enforces a 1 kg minimum weight.</p>

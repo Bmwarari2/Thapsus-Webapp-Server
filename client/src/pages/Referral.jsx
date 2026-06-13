@@ -183,7 +183,7 @@ export const Referral = () => {
             <p className="text-5xl md:text-6xl font-black text-white tracking-tighter leading-none truncate">{stats.total_referrals || 0}</p>
           </GlassCard>
           
-          <GlassCard className="p-8 md:p-10 flex flex-col justify-center group hover:-translate-y-2 transition-all duration-500 border-yellow-500/20/50 bg-yellow-500/10/20">
+          <GlassCard className="p-8 md:p-10 flex flex-col justify-center group hover:-translate-y-2 transition-all duration-500 border-yellow-500/20 bg-yellow-500/10">
             <div className="flex items-center justify-between mb-6">
               <span className="text-[10px] md:text-xs font-black uppercase tracking-widest text-yellow-600/60">Awaiting Order</span>
               <Clock size={24} className="text-yellow-500" />
@@ -191,7 +191,7 @@ export const Referral = () => {
             <p className="text-5xl md:text-6xl font-black text-white tracking-tighter leading-none truncate">{stats.pending_referrals || 0}</p>
           </GlassCard>
 
-          <GlassCard className="p-8 md:p-10 flex flex-col justify-center group hover:-translate-y-2 transition-all duration-500 border-emerald-500/20/50 bg-emerald-500/10/20">
+          <GlassCard className="p-8 md:p-10 flex flex-col justify-center group hover:-translate-y-2 transition-all duration-500 border-emerald-500/20 bg-emerald-500/10">
             <div className="flex items-center justify-between mb-6">
               <span className="text-[10px] md:text-xs font-black uppercase tracking-widest text-emerald-300/60">Credited</span>
               <CheckCircle size={24} className="text-green-500" />
@@ -199,7 +199,7 @@ export const Referral = () => {
             <p className="text-5xl md:text-6xl font-black text-white tracking-tighter leading-none truncate">{stats.completed_referrals || 0}</p>
           </GlassCard>
 
-          <GlassCard className="p-8 md:p-10 flex flex-col justify-center group hover:-translate-y-2 transition-all duration-500 border-ember-500/25/50 bg-ember-500/10/20">
+          <GlassCard className="p-8 md:p-10 flex flex-col justify-center group hover:-translate-y-2 transition-all duration-500 border-ember-500/25 bg-ember-500/10">
             <div className="flex items-center justify-between mb-6">
               <span className="text-[10px] md:text-xs font-black uppercase tracking-widest text-ember-400/60">Total Earned</span>
               <Gift size={24} className="text-ember-400" />
