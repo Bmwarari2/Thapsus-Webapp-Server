@@ -6,9 +6,15 @@
  */
 import express from 'express';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
-import { sendBuyForMeQuoteEmail } from '../utils/email.js';
+import {
+  sendBuyForMeQuoteEmail,
+  sendBuyForMeRequestReceivedEmail,
+  sendBuyForMeDeclinedEmail,
+  sendBuyForMeAlternativeEmail,
+} from '../utils/email.js';
 import { notifyAdminsOfBuyForMe } from '../utils/buyForMeAdminNotify.js';
-import { pushToUser } from './events.js';
+import { pushToAdmins } from './events.js';
+import { notifyUser } from '../utils/realtimeNotify.js';
 
 const router = express.Router();
 
@@ -61,11 +67,17 @@ router.post('/', authMiddleware, async (req, res) => {
       const { rows: ownerRows } = await req.db.query(
         `SELECT id, email, name FROM users WHERE id = $1`, [req.user.id]
       );
+      const owner = ownerRows[0] || { id: req.user.id, email: null, name: null };
       await notifyAdminsOfBuyForMe(
         req.db, req,
         { id, item_name, retailer_url: resolvedUrl, qty: parseInt(qty, 10) || 1, notes: notes || null },
-        ownerRows[0] || { id: req.user.id, email: null, name: null }
+        owner
       );
+      // Confirmation email to the customer (best-effort).
+      if (owner.email) {
+        try { await sendBuyForMeRequestReceivedEmail(owner.email, owner.name, id, item_name); }
+        catch (mailErr) { console.error('BFM received email failed (non-fatal):', mailErr?.message); }
+      }
     } catch (notifyErr) {
       console.error('BFM admin notify failed (non-fatal):', notifyErr?.message);
     }
@@ -101,14 +113,15 @@ router.get('/queue', authMiddleware, requireRole('operator'), async (req, res) =
          FROM buy_for_me_orders b
          JOIN users u ON u.id = b.user_id
          LEFT JOIN orders o ON o.id = b.parcel_id
-        WHERE b.status IN ('pending_quote','quoted','paid','rejected')
+        WHERE b.status IN ('pending_quote','quoted','paid','rejected','alternative_offered')
         ORDER BY
           CASE b.status
-            WHEN 'paid'          THEN 0
-            WHEN 'pending_quote' THEN 1
-            WHEN 'rejected'      THEN 2
-            WHEN 'quoted'        THEN 3
-            ELSE 4
+            WHEN 'paid'                THEN 0
+            WHEN 'pending_quote'       THEN 1
+            WHEN 'alternative_offered' THEN 2
+            WHEN 'rejected'            THEN 3
+            WHEN 'quoted'              THEN 4
+            ELSE 5
           END,
           b.created_at ASC`
     );
@@ -356,6 +369,18 @@ router.post('/:id/quote', authMiddleware, requireRole('operator'), async (req, r
       console.error('BFM quote email failed (non-fatal):', mailErr.message);
     }
 
+    // Live update + push so the customer sees the quote without a refresh.
+    await notifyUser(req.db, updated.user_id, {
+      type: 'buy_for_me_update',
+      data: { action: 'quoted', orderId: updated.id },
+      push: {
+        title: '💬 Your quote is ready',
+        body: `${updated.item_name} — tap to review and accept.`,
+        url: '/buy-for-me',
+        tag: `bfm-${updated.id}`,
+      },
+    });
+
     res.json({ success: true });
   } catch (err) {
     console.error('POST /buy-for-me/:id/quote error:', err);
@@ -439,13 +464,15 @@ router.post('/:id/admin-reject', authMiddleware, requireRole('admin', 'operator'
       return res.status(400).json({ success: false, message: 'reason is required' });
     }
     const { rows } = await req.db.query(
-      `SELECT user_id, status FROM buy_for_me_orders WHERE id = $1`, [req.params.id]
+      `SELECT b.user_id, b.status, b.item_name, u.email, u.name
+         FROM buy_for_me_orders b JOIN users u ON u.id = b.user_id
+        WHERE b.id = $1`, [req.params.id]
     );
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Concierge order not found' });
     }
     const order = rows[0];
-    if (!['pending_quote', 'quoted'].includes(order.status)) {
+    if (!['pending_quote', 'quoted', 'alternative_offered'].includes(order.status)) {
       return res.status(409).json({
         success: false,
         message: `Cannot decline an order in status '${order.status}'`,
@@ -461,19 +488,179 @@ router.post('/:id/admin-reject', authMiddleware, requireRole('admin', 'operator'
       [req.params.id, reason]
     );
 
-    // Best-effort real-time nudge so the customer's BFM list reflects it.
-    try {
-      pushToUser(order.user_id, 'buy_for_me_update', {
-        action: 'rejected', orderId: req.params.id, reason,
-      });
-    } catch (pushErr) {
-      console.error('BFM admin-reject push failed (non-fatal):', pushErr?.message);
+    // Email the customer the reason (best-effort).
+    if (order.email) {
+      try { await sendBuyForMeDeclinedEmail(order.email, order.name, req.params.id, order.item_name, reason); }
+      catch (mailErr) { console.error('BFM decline email failed (non-fatal):', mailErr?.message); }
     }
+
+    // Live update + push so the customer's BFM list reflects it immediately.
+    await notifyUser(req.db, order.user_id, {
+      type: 'buy_for_me_update',
+      data: { action: 'rejected', orderId: req.params.id, reason },
+      push: {
+        title: 'Update on your request',
+        body: `${order.item_name} — we couldn't proceed. Tap for details.`,
+        url: '/buy-for-me',
+        tag: `bfm-${req.params.id}`,
+      },
+    });
 
     res.json({ success: true });
   } catch (err) {
     console.error('POST /buy-for-me/:id/admin-reject error:', err);
     res.status(500).json({ success: false, message: 'Failed to decline request' });
+  }
+});
+
+/**
+ * POST /api/buy-for-me/:id/suggest-alternative — operator/admin offers an
+ * alternative product when the requested one is unavailable. The customer can
+ * then accept (re-queues for a quote), decline, or counter with their own link.
+ */
+router.post('/:id/suggest-alternative', authMiddleware, requireRole('admin', 'operator'), async (req, res) => {
+  try {
+    const alternativeUrl  = (req.body?.alternative_url || '').trim();
+    const alternativeNote = (req.body?.alternative_note || '').trim();
+    if (!alternativeUrl && !alternativeNote) {
+      return res.status(400).json({ success: false, message: 'Provide an alternative link and/or note' });
+    }
+    const { rows } = await req.db.query(
+      `SELECT b.user_id, b.status, b.item_name, u.email, u.name
+         FROM buy_for_me_orders b JOIN users u ON u.id = b.user_id
+        WHERE b.id = $1`, [req.params.id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Concierge order not found' });
+    }
+    const order = rows[0];
+    if (!['pending_quote', 'quoted', 'alternative_offered'].includes(order.status)) {
+      return res.status(409).json({
+        success: false,
+        message: `Cannot suggest an alternative for an order in status '${order.status}'`,
+      });
+    }
+    await req.db.query(
+      `UPDATE buy_for_me_orders
+          SET status = 'alternative_offered',
+              alternative_url = $2,
+              alternative_note = $3,
+              updated_at = NOW()
+        WHERE id = $1`,
+      [req.params.id, alternativeUrl || null, alternativeNote || null]
+    );
+
+    if (order.email) {
+      try { await sendBuyForMeAlternativeEmail(order.email, order.name, req.params.id, order.item_name, alternativeUrl, alternativeNote); }
+      catch (mailErr) { console.error('BFM alternative email failed (non-fatal):', mailErr?.message); }
+    }
+    await notifyUser(req.db, order.user_id, {
+      type: 'buy_for_me_update',
+      data: { action: 'alternative_offered', orderId: req.params.id },
+      push: {
+        title: '🔄 We found an alternative',
+        body: `${order.item_name} wasn't available — tap to review our suggestion.`,
+        url: '/buy-for-me',
+        tag: `bfm-${req.params.id}`,
+      },
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('POST /buy-for-me/:id/suggest-alternative error:', err);
+    res.status(500).json({ success: false, message: 'Failed to suggest alternative' });
+  }
+});
+
+/**
+ * Customer responses to an alternative offer. All require the caller to own
+ * the order and the order to be in 'alternative_offered'.
+ *   accept  → re-queue the alternative URL for an operator quote
+ *   decline → mark rejected with a reason
+ *   counter → customer supplies their own link; re-queue that instead
+ */
+async function loadOwnedAlternative(req, res) {
+  const { rows } = await req.db.query(
+    `SELECT user_id, status, item_name, alternative_url FROM buy_for_me_orders WHERE id = $1`,
+    [req.params.id]
+  );
+  if (rows.length === 0) { res.status(404).json({ success: false, message: 'Concierge order not found' }); return null; }
+  const order = rows[0];
+  if (order.user_id !== req.user.id) { res.status(403).json({ success: false, message: 'Access denied' }); return null; }
+  if (order.status !== 'alternative_offered') {
+    res.status(409).json({ success: false, message: 'No alternative is pending on this order' }); return null;
+  }
+  return order;
+}
+
+router.post('/:id/alternative/accept', authMiddleware, async (req, res) => {
+  try {
+    const order = await loadOwnedAlternative(req, res);
+    if (!order) return;
+    // Swap in the alternative as the item to source and send it back to the
+    // operator queue for a fresh quote.
+    await req.db.query(
+      `UPDATE buy_for_me_orders
+          SET retailer_url = COALESCE($2, retailer_url),
+              status = 'pending_quote',
+              alternative_url = NULL,
+              alternative_note = NULL,
+              updated_at = NOW()
+        WHERE id = $1`,
+      [req.params.id, order.alternative_url]
+    );
+    pushToAdmins('admin_stats', { action: 'new_buy_for_me_request', orderId: req.params.id });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('POST /buy-for-me/:id/alternative/accept error:', err);
+    res.status(500).json({ success: false, message: 'Failed to accept alternative' });
+  }
+});
+
+router.post('/:id/alternative/decline', authMiddleware, async (req, res) => {
+  try {
+    const order = await loadOwnedAlternative(req, res);
+    if (!order) return;
+    const reason = (req.body?.reason || 'Declined the suggested alternative').toString().trim().slice(0, 500);
+    await req.db.query(
+      `UPDATE buy_for_me_orders
+          SET status = 'rejected',
+              customer_decision_reason = $2,
+              alternative_url = NULL,
+              alternative_note = NULL,
+              decided_at = NOW(),
+              updated_at = NOW()
+        WHERE id = $1`,
+      [req.params.id, reason]
+    );
+    pushToAdmins('admin_stats', { action: 'buy_for_me_alternative_declined', orderId: req.params.id });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('POST /buy-for-me/:id/alternative/decline error:', err);
+    res.status(500).json({ success: false, message: 'Failed to decline alternative' });
+  }
+});
+
+router.post('/:id/alternative/counter', authMiddleware, async (req, res) => {
+  try {
+    const order = await loadOwnedAlternative(req, res);
+    if (!order) return;
+    const url = (req.body?.retailer_url || '').trim();
+    if (!url) return res.status(400).json({ success: false, message: 'A link is required' });
+    await req.db.query(
+      `UPDATE buy_for_me_orders
+          SET retailer_url = $2,
+              status = 'pending_quote',
+              alternative_url = NULL,
+              alternative_note = NULL,
+              updated_at = NOW()
+        WHERE id = $1`,
+      [req.params.id, url]
+    );
+    pushToAdmins('admin_stats', { action: 'new_buy_for_me_request', orderId: req.params.id });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('POST /buy-for-me/:id/alternative/counter error:', err);
+    res.status(500).json({ success: false, message: 'Failed to send your link' });
   }
 });
 

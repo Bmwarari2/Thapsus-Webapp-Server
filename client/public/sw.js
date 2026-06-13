@@ -32,6 +32,8 @@ self.addEventListener('push', event => {
   const body    = payload.body    || 'Your shipment status has been updated.';
   const orderId = payload.orderId || null;
   const tag     = payload.tag     || (orderId ? `order-${orderId}` : 'thapsus-update');
+  // Prefer an explicit url from the payload; fall back to the order page.
+  const url     = payload.url || (orderId ? `/orders/${orderId}` : '/orders');
 
   event.waitUntil(
     self.registration.showNotification(title, {
@@ -39,7 +41,7 @@ self.addEventListener('push', event => {
       icon:  '/logo.png',
       badge: '/logo.png',
       tag,
-      data:  { url: orderId ? `/orders/${orderId}` : '/orders' },
+      data:  { url },
     })
   );
 });

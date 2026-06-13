@@ -23,6 +23,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
 import { sendInvoiceReadyEmail } from '../utils/email.js';
 import { pushToUser, pushToAdmins } from './events.js';
+import { sendWebPushToUser } from '../utils/webpush.js';
 import { calculateShippingCost } from '../utils/pricing.js';
 import { getGbpToKesRate, FxRateUnavailableError } from '../utils/fx.js';
 
@@ -81,6 +82,14 @@ async function notifyInvoice(client, customerConsolidation, kind) {
   } catch (err) {
     console.warn('[customer-consolidation] SSE push failed:', err.message);
   }
+
+  // Web Push to closed PWAs (best-effort).
+  sendWebPushToUser(client, owner.id, {
+    title: kind === 'invoiced' ? '🧾 New invoice' : '✅ Payment received',
+    body: message,
+    url: '/invoices',
+    tag: `invoice-${customerConsolidation.id}`,
+  }).catch(() => {});
 
   // Transactional email (fire-and-forget)
   const sendErr = (label) => (err) =>

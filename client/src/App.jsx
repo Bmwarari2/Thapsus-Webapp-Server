@@ -36,6 +36,7 @@ const Transactions      = lazy(() => import('./pages/Transactions').then(m => ({
 const ProhibitedItems   = lazy(() => import('./pages/ProhibitedItems').then(m => ({ default: m.ProhibitedItems })))
 const Support           = lazy(() => import('./pages/Support').then(m => ({ default: m.Support })))
 const TicketConversation = lazy(() => import('./pages/TicketConversation').then(m => ({ default: m.TicketConversation })))
+const UkStores          = lazy(() => import('./pages/UkStores').then(m => ({ default: m.UkStores })))
 const Notifications     = lazy(() => import('./pages/Notifications').then(m => ({ default: m.Notifications })))
 const WarehouseAddresses = lazy(() => import('./pages/WarehouseAddresses').then(m => ({ default: m.WarehouseAddresses })))
 const AdminDashboard    = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })))
@@ -128,6 +129,7 @@ function App() {
                 unauth visitors to /login?next=… then renders the survey. */}
             <Route path="/nps" element={<NpsLanding />} />
             <Route path="/faq" element={<FAQ />} />
+            <Route path="/uk-stores" element={<UkStores />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms"   element={<TermsOfService />} />
 

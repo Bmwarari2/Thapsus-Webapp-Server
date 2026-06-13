@@ -102,7 +102,8 @@ function connectSSE(token) {
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   });
 
-  ['order_update', 'ticket_update', 'notification', 'credit_update', 'admin_stats', 'package_update']
+  ['order_update', 'ticket_update', 'notification', 'credit_update', 'admin_stats',
+   'package_update', 'buy_for_me_update', 'invoice_update']
     .forEach(type => {
       source.addEventListener(type, e => {
         try {
@@ -187,4 +188,14 @@ export function usePackageUpdates(cb) {
   const { on } = useRealtimeUpdates();
   const ref = useRef(cb); ref.current = cb;
   useEffect(() => on('package_update',data => ref.current(data)), [on]);
+}
+export function useBuyForMeUpdates(cb) {
+  const { on } = useRealtimeUpdates();
+  const ref = useRef(cb); ref.current = cb;
+  useEffect(() => on('buy_for_me_update', data => ref.current(data)), [on]);
+}
+export function useInvoiceUpdates(cb) {
+  const { on } = useRealtimeUpdates();
+  const ref = useRef(cb); ref.current = cb;
+  useEffect(() => on('invoice_update', data => ref.current(data)), [on]);
 }

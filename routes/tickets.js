@@ -2,6 +2,7 @@ import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
 import { pushToUser, pushToAdmins } from './events.js';
+import { sendWebPushToUser } from '../utils/webpush.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { sendTicketCreatedEmail, sendTicketReplyEmail } from '../utils/email.js';
 import {
@@ -181,6 +182,14 @@ router.post('/:id/message', authMiddleware, async (req, res) => {
       // Admin replied — push to ticket owner
       pushToUser(ticket.user_id, 'ticket_update', payload);
 
+      // Web Push to a closed PWA (best-effort).
+      sendWebPushToUser(db, ticket.user_id, {
+        title: '💬 Support replied',
+        body: (message || 'You have a new reply').toString().slice(0, 120),
+        url: `/support/${id}`,
+        tag: `ticket-${id}`,
+      }).catch(() => {});
+
       // Also email the customer (non-blocking)
       try {
         const userRes = await db.query('SELECT email, name FROM users WHERE id = $1', [ticket.user_id]);
@@ -228,6 +237,14 @@ router.put('/:id/status', authMiddleware, isAdmin, async (req, res) => {
 
     // Notify the ticket owner in real time
     pushToUser(updated.user_id, 'ticket_update', { action: 'status_changed', ticket: updated });
+    if (status === 'closed' || admin_message) {
+      sendWebPushToUser(db, updated.user_id, {
+        title: status === 'closed' ? '✅ Ticket closed' : '💬 Ticket update',
+        body: (admin_message || `Your ticket "${updated.subject}" was ${status}.`).toString().slice(0, 120),
+        url: `/support/${id}`,
+        tag: `ticket-${id}`,
+      }).catch(() => {});
+    }
 
     res.json({ success: true, message: 'Ticket status updated successfully', ticket: updated });
   } catch (error) {

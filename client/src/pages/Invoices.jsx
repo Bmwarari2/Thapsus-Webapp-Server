@@ -9,6 +9,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { FileText, CheckCircle2, Plane, Clock, Loader2 } from 'lucide-react'
 import { customerInvoicesApi } from '../api'
 import { PayInvoiceModal } from '../components/PayInvoiceModal'
+import { useInvoiceUpdates } from '../hooks/useRealtimeUpdates'
 import toast from 'react-hot-toast'
 
 const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-GB', {
@@ -39,6 +40,12 @@ export const Invoices = () => {
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // Live refresh when an invoice is issued or marked paid.
+  useInvoiceUpdates((payload) => {
+    fetchData()
+    if (payload?.action === 'invoiced') toast.success('A new invoice is ready')
+  })
 
   // Active = invoiced & awaiting payment. Past = paid or shipped.
   // Pending (no invoice issued yet) doesn't surface here — there's

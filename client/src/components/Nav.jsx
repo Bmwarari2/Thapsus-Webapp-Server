@@ -5,7 +5,7 @@ import {
   Activity, Home as HomeIcon, Search, Calculator, LayoutDashboard, LogIn,
   Wallet as WalletIcon, FileText, ShieldAlert, Database, Receipt,
   Warehouse as WarehouseIcon, LifeBuoy, BookOpen, ScrollText, History,
-  Bell, Gift, User, ChevronDown, ArrowRight, Plus, MoreHorizontal,
+  Bell, Gift, User, ChevronDown, ArrowRight, Plus, MoreHorizontal, Store,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import brandMark1x from '../assets/brand-mark.webp'
@@ -58,6 +58,8 @@ function buildNav({ isAuthenticated, isAdmin, role }) {
     { key: 'shipping', label: 'Shipping', links: [
       { to: '/orders',     label: 'Parcel tracking',   icon: Receipt },
       { to: '/new-order',  label: 'New order',         icon: Plus },
+      { to: '/buy-for-me', label: 'Buy for me',        icon: ShoppingBag },
+      { to: '/uk-stores',  label: 'UK stores',         icon: Store },
       { to: '/warehouse',  label: 'Warehouse address', icon: WarehouseIcon },
       { to: '/ship-instructions', label: 'How to ship', icon: BookOpen },
       { to: '/pricing',    label: 'Pricing',           icon: Calculator },

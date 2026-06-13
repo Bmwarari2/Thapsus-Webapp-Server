@@ -6,6 +6,7 @@ import {
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
 import { ordersApi } from '../api'
+import { useOrderUpdates } from '../hooks/useRealtimeUpdates'
 import { SEO } from '../components/SEO'
 import { Link, useSearchParams, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
@@ -79,6 +80,18 @@ export const TrackPackage = () => {
   }, [])
 
   useEffect(() => { if (isAuthenticated) fetchMyOrders() }, [isAuthenticated])
+
+  // Live tracking: when a parcel status changes, refresh the open package and
+  // the user's order list without a manual re-track.
+  useOrderUpdates((payload) => {
+    if (payload?.action !== 'status_changed') return
+    if (isAuthenticated) fetchMyOrders()
+    const tnNow = (trackingNumber || '').trim()
+    const changed = payload.tracking_number || payload.order?.tracking_number
+    if (tnNow && changed && tnNow === changed) {
+      ordersApi.track(tnNow).then((res) => setPackage(res.data.tracking)).catch(() => {})
+    }
+  })
 
   const fetchMyOrders = async () => {
     try {
