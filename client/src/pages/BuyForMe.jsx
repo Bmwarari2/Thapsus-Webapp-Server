@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { buyForMeApi, retailersApi } from '../api'
 import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '../components/GlassUI'
 import { PayInvoiceModal } from '../components/PayInvoiceModal'
+import { useAsyncGuard } from '../hooks/useAsyncGuard'
 
 const OTHER_RETAILER_ID = '__other__'
 
@@ -30,6 +31,10 @@ export const BuyForMe = () => {
   // Pay modal — non-null = open. Holds the BFM order being paid for.
   const [payingFor, setPayingFor] = useState(null)
 
+  // Double-submit guards (rapid taps were creating duplicate requests).
+  const [submitting, runSubmit] = useAsyncGuard()
+  const [rejecting, runReject] = useAsyncGuard()
+
   const refresh = () => buyForMeApi.mine().then(r => setOrders(r.data?.orders || []))
                                           .catch(() => toast.error('Failed to load orders'))
 
@@ -42,26 +47,28 @@ export const BuyForMe = () => {
 
   const isOtherPicked = draft.retailer_id === OTHER_RETAILER_ID
 
-  const onSubmit = async () => {
+  const onSubmit = () => {
     if (!draft.item_name) { toast.error('Item name is required'); return }
     if (!draft.retailer_id) { toast.error('Pick a retailer (or "Other")'); return }
     const isOther = draft.retailer_id === OTHER_RETAILER_ID
     if (isOther && !draft.retailer_url) {
       toast.error('Paste the retailer URL for "Other"'); return
     }
-    try {
-      await buyForMeApi.create({
-        retailer_id:  isOther ? null : draft.retailer_id,
-        retailer_url: draft.retailer_url || null,
-        item_name:    draft.item_name,
-        size:         draft.size,
-        qty:          draft.qty,
-        notes:        draft.notes,
-      })
-      toast.success('Concierge request submitted — we will quote within 24h')
-      setDraft({ retailer_id: '', retailer_url: '', item_name: '', size: '', qty: 1, notes: '' })
-      refresh()
-    } catch { toast.error('Failed to submit') }
+    runSubmit(async () => {
+      try {
+        await buyForMeApi.create({
+          retailer_id:  isOther ? null : draft.retailer_id,
+          retailer_url: draft.retailer_url || null,
+          item_name:    draft.item_name,
+          size:         draft.size,
+          qty:          draft.qty,
+          notes:        draft.notes,
+        })
+        toast.success('Concierge request submitted — we will quote within 24h')
+        setDraft({ retailer_id: '', retailer_url: '', item_name: '', size: '', qty: 1, notes: '' })
+        refresh()
+      } catch { toast.error('Failed to submit') }
+    })
   }
 
   // Group retailers by country for the picker, in catalog sort order.
@@ -83,17 +90,19 @@ export const BuyForMe = () => {
   // Stripe or M-Pesa; on success the webhook flips the BFM row to 'paid'.
   const onAccept = (order) => setPayingFor(order)
 
-  const onSubmitReject = async () => {
+  const onSubmitReject = () => {
     const reason = rejectReason.trim()
     if (reason.length < 3) { toast.error('Tell us briefly why'); return }
-    try {
-      await buyForMeApi.reject(rejectingFor, reason)
-      toast.success('Quote rejected — thanks for the feedback')
-      setRejectingFor(null); setRejectReason('')
-      refresh()
-    } catch (e) {
-      toast.error(e.response?.data?.message || 'Failed to reject')
-    }
+    runReject(async () => {
+      try {
+        await buyForMeApi.reject(rejectingFor, reason)
+        toast.success('Quote rejected — thanks for the feedback')
+        setRejectingFor(null); setRejectReason('')
+        refresh()
+      } catch (e) {
+        toast.error(e.response?.data?.message || 'Failed to reject')
+      }
+    })
   }
 
   return (
@@ -148,9 +157,9 @@ export const BuyForMe = () => {
                      onChange={(v) => setDraft({ ...draft, notes: v })}/>
             </div>
           </div>
-          <button onClick={onSubmit}
-            className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm">
-            <Plus size={16}/> Request a quote
+          <button onClick={onSubmit} disabled={submitting}
+            className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+            <Plus size={16}/> {submitting ? 'Submitting…' : 'Request a quote'}
           </button>
         </GlassCard>
 
@@ -228,9 +237,9 @@ export const BuyForMe = () => {
                 className="px-4 py-2 rounded-lg bg-surface border border-line text-white/80 text-sm font-semibold">
                 Cancel
               </button>
-              <button onClick={onSubmitReject}
-                className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold">
-                Submit reject
+              <button onClick={onSubmitReject} disabled={rejecting}
+                className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed">
+                {rejecting ? 'Submitting…' : 'Submit reject'}
               </button>
             </div>
           </GlassCard>

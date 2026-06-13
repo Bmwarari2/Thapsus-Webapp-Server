@@ -7,11 +7,13 @@ import toast from 'react-hot-toast'
 import { consolidationsApi, opsApi } from '../api'
 import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '../components/GlassUI'
 import { PrintableManifest } from '../components/PrintableManifest'
+import { useAsyncGuard } from '../hooks/useAsyncGuard'
 
 export const OpsConsolidations = () => {
   const [list,    setList]    = useState([])
   const [creating, setCreating] = useState(false)
   const [form,    setForm]    = useState({ week_start: '', cutoff_at: '', departure_at: '', notes: '' })
+  const [savingNew, runCreate] = useAsyncGuard()
   const navigate = useNavigate()
 
   const fetchList = () => consolidationsApi.list().then(r => setList(r.data?.consolidations || []))
@@ -19,7 +21,7 @@ export const OpsConsolidations = () => {
 
   useEffect(() => { fetchList() }, [])
 
-  const onCreate = async () => {
+  const onCreate = () => runCreate(async () => {
     try {
       const res = await consolidationsApi.create(form)
       toast.success('Consolidation created')
@@ -28,7 +30,7 @@ export const OpsConsolidations = () => {
       fetchList()
       if (res.data?.consolidation_id) navigate(`/ops/consolidations/${res.data.consolidation_id}`)
     } catch { toast.error('Failed to create') }
-  }
+  })
 
   return (
     <div className="relative min-h-screen bg-white/[0.03]">
@@ -99,8 +101,8 @@ export const OpsConsolidations = () => {
             <div className="flex gap-3 justify-end mt-6">
               <button onClick={() => setCreating(false)}
                 className="px-4 py-2 rounded-xl bg-white/[0.05] hover:bg-slate-200 text-sm font-bold">Cancel</button>
-              <button onClick={onCreate}
-                className="px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm">Create</button>
+              <button onClick={onCreate} disabled={savingNew}
+                className="px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed">{savingNew ? 'Creating…' : 'Create'}</button>
             </div>
           </GlassCard>
         </div>
@@ -121,6 +123,8 @@ export const OpsConsolidationDetail = () => {
   // an effect fires window.print(). afterprint clears the state, so
   // the next print call re-mounts and refreshes the printedAt stamp.
   const [printingManifest, setPrintingManifest] = useState(null)
+  const [assigning, runAssign] = useAsyncGuard()
+  const [removing,  runRemove] = useAsyncGuard()
 
   useEffect(() => {
     if (!printingManifest) return
@@ -148,21 +152,21 @@ export const OpsConsolidationDetail = () => {
       .catch(() => {})
   }, [id])
 
-  const onAssign = async (parcelId) => {
+  const onAssign = (parcelId) => runAssign(async () => {
     try {
       await consolidationsApi.assignParcel(id, parcelId)
       toast.success('Assigned')
       refetch()
       setAvailable(av => av.filter(p => p.id !== parcelId))
     } catch { toast.error('Failed to assign') }
-  }
-  const onRemove = async (parcelId) => {
+  })
+  const onRemove = (parcelId) => runRemove(async () => {
     try {
       await consolidationsApi.removeParcel(id, parcelId)
       toast.success('Removed')
       refetch()
     } catch { toast.error('Failed to remove') }
-  }
+  })
 
   const onUpdate = async (patch) => {
     try {
@@ -269,7 +273,7 @@ export const OpsConsolidationDetail = () => {
                       <td className="py-2 px-2 max-w-xs truncate">{p.retailer}</td>
                       <td className="py-2 px-2 text-right">{p.chargeable_kg || p.weight_kg || '—'}</td>
                       <td className="py-2 px-2 text-right">
-                        <button onClick={() => onRemove(p.id)} className="text-xs text-red-500 hover:underline">Remove</button>
+                        <button onClick={() => onRemove(p.id)} disabled={removing} className="text-xs text-red-500 hover:underline disabled:opacity-50 disabled:cursor-not-allowed">Remove</button>
                       </td>
                     </tr>
                   ))}
@@ -293,8 +297,8 @@ export const OpsConsolidationDetail = () => {
                     <p className="font-semibold text-white/80">{p.name}</p>
                     <p className="text-xs text-mute truncate">{p.description}</p>
                   </div>
-                  <button onClick={() => onAssign(p.id)}
-                    className="text-xs px-3 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-bold">
+                  <button onClick={() => onAssign(p.id)} disabled={assigning}
+                    className="text-xs px-3 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-bold disabled:opacity-50 disabled:cursor-not-allowed">
                     Assign
                   </button>
                 </div>

@@ -17,11 +17,26 @@
     @apply bg-ink text-white font-sans;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     -webkit-tap-highlight-color: transparent;
-    /* Subtle ember aura anchored top-centre, fading into the void. */
+    /* Kills the 300ms double-tap-to-zoom gesture that left users on a
+       half-zoomed page (pairs with user-scalable=no in the viewport meta). */
+    touch-action: manipulation;
+  }
+
+  /* Subtle ember aura anchored top-centre, fading into the void.
+     Rendered as a fixed pseudo-element rather than `background-attachment:
+     fixed` on <body>: the latter triggers an iOS Safari bug where
+     position:fixed elements (our top/bottom nav) drift to mid-screen during
+     momentum scroll. A fixed, behind-everything layer gives the same look
+     without detaching the nav. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
     background-image:
       radial-gradient(80% 50% at 50% -8%, rgba(242,100,24,0.10) 0%, rgba(242,100,24,0) 60%),
       radial-gradient(60% 40% at 100% 0%, rgba(245,166,35,0.06) 0%, rgba(245,166,35,0) 55%);
-    background-attachment: fixed;
   }
 
   h1, h2, h3, h4, h5, h6 { @apply font-bold leading-tight tracking-tight text-white; }

@@ -5,10 +5,10 @@
     <link rel="icon" type="image/png" href="/logo.png" />
     <!-- iOS/iPadOS home screen icon — 180x180 covers all iPhone/iPad scaling needs -->
     <link rel="apple-touch-icon" sizes="180x180" href="/iOS-ipad.png" />
-    <!-- WCAG 1.4.4 (Resize Text): allow user-controlled zoom. Do NOT add
-         user-scalable=no or maximum-scale — those break the WCAG AA
-         resize requirement on iOS Safari. -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Lock zoom: prevents accidental pinch / double-tap zoom that left
+         users stranded on a half-zoomed page. (Trade-off: this opts out of
+         WCAG 1.4.4 user-zoom; revisit if an accessibility audit requires it.) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
     <!-- Preconnect to Google Fonts (eliminates ~200ms DNS+TLS per origin) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { ShoppingBag, ExternalLink, Send, RefreshCw } from 'lucide-react'
+import { ShoppingBag, ExternalLink, Copy, Check, Send, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { buyForMeApi } from '../api'
 import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '../components/GlassUI'
@@ -17,6 +17,7 @@ export const OpsBuyForMe = () => {
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(null) // order being quoted
   const [draft, setDraft]     = useState({ estimate_gbp: '', markup_pct: 10, notes: '' })
+  const [submitting, setSubmitting] = useState(false)
 
   const refresh = () => {
     setLoading(true)
@@ -38,11 +39,13 @@ export const OpsBuyForMe = () => {
   }
 
   const onSubmitQuote = async () => {
+    if (submitting) return
     const num = Number(draft.estimate_gbp)
     if (!Number.isFinite(num) || num <= 0) {
       toast.error('Enter a valid GBP estimate'); return
     }
     try {
+      setSubmitting(true)
       await buyForMeApi.quote(editing.id, {
         estimate_gbp: num,
         markup_pct:   Number(draft.markup_pct) || 10,
@@ -53,6 +56,8 @@ export const OpsBuyForMe = () => {
       refresh()
     } catch (e) {
       toast.error(e.response?.data?.message || 'Failed to send quote')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -89,10 +94,7 @@ export const OpsBuyForMe = () => {
                       <StatusBadge status={o.status}/>
                     </div>
                     <p className="font-bold text-white mt-1">{o.item_name}</p>
-                    <a href={o.retailer_url} target="_blank" rel="noreferrer"
-                       className="text-xs text-ember-400 inline-flex items-center gap-1 hover:underline">
-                      <ExternalLink size={11}/> {o.retailer_url}
-                    </a>
+                    {o.retailer_url && <RetailerLink url={o.retailer_url} />}
                     <div className="text-xs text-mute mt-1">
                       {o.size && <>Size: {o.size} · </>}
                       Qty: {o.qty}
@@ -162,14 +164,52 @@ export const OpsBuyForMe = () => {
                 className="px-4 py-2 rounded-lg bg-surface border border-line text-white/80 text-sm font-semibold">
                 Cancel
               </button>
-              <button onClick={onSubmitQuote}
-                className="px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold inline-flex items-center gap-1.5">
-                <Send size={14}/> Send &amp; email
+              <button onClick={onSubmitQuote} disabled={submitting}
+                className="px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                <Send size={14}/> {submitting ? 'Sending…' : 'Send & email'}
               </button>
             </div>
           </GlassCard>
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Retailer link rendered as two compact actions instead of a raw, wrapping
+ * URL — "Open" launches it in a new tab, "Copy" puts it on the clipboard so
+ * the operator can paste it into the retailer's site.
+ */
+const RetailerLink = ({ url }) => {
+  const [copied, setCopied] = useState(false)
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      toast.success('Link copied')
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      toast.error('Could not copy link')
+    }
+  }
+
+  let host = url
+  try { host = new URL(url).hostname.replace(/^www\./, '') } catch { /* leave raw */ }
+
+  return (
+    <div className="flex items-center gap-2 mt-1.5">
+      <span className="text-xs text-mute truncate max-w-[160px]" title={url}>{host}</span>
+      <a href={url} target="_blank" rel="noreferrer"
+        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface border border-line text-ember-400 hover:bg-white/[0.04] text-xs font-semibold transition-colors">
+        <ExternalLink size={12}/> Open
+      </a>
+      <button type="button" onClick={copy}
+        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface border border-line text-white/80 hover:bg-white/[0.04] text-xs font-semibold transition-colors">
+        {copied ? <Check size={12} className="text-emerald-400"/> : <Copy size={12}/>}
+        {copied ? 'Copied' : 'Copy'}
+      </button>
     </div>
   )
 }

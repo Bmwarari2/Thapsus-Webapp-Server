@@ -3,6 +3,7 @@ import { Truck, MapPin, Plus, Play, RefreshCw, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { lastMileApi } from '../api'
 import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '../components/GlassUI'
+import { useAsyncGuard } from '../hooks/useAsyncGuard'
 
 /**
  * /ops/dispatch — Nairobi rider board (Spec §4.6).
@@ -16,6 +17,8 @@ export const OpsDispatch = () => {
   const [zone,    setZone]    = useState('')
   const [date,    setDate]    = useState(new Date().toISOString().slice(0,10))
   const [riderId, setRiderId] = useState('')
+  const [creating, runCreate] = useAsyncGuard()
+  const [starting, runStart]  = useAsyncGuard()
 
   const refresh = () => lastMileApi.dispatch()
     .then(r => {
@@ -40,31 +43,35 @@ export const OpsDispatch = () => {
     setPicked(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])
   }
 
-  const onCreateRun = async () => {
+  const onCreateRun = () => {
     if (!zone || !date || picked.length === 0) {
       toast.error('Pick a zone, date and at least one parcel'); return
     }
-    try {
-      await lastMileApi.createRun({
-        rider_id: riderId || null, zone, run_date: date, parcel_ids: picked,
-      })
-      toast.success('Run created')
-      setPicked([])
-      refresh()
-    } catch { toast.error('Failed to create run') }
+    runCreate(async () => {
+      try {
+        await lastMileApi.createRun({
+          rider_id: riderId || null, zone, run_date: date, parcel_ids: picked,
+        })
+        toast.success('Run created')
+        setPicked([])
+        refresh()
+      } catch { toast.error('Failed to create run') }
+    })
   }
 
-  const onStartRun = async (run) => {
+  const onStartRun = (run) => {
     if (!run.rider_id) { toast.error('Assign a rider before starting'); return }
     if (!window.confirm(
       `Start run for ${run.zone}? This flips ${run.total_stops || 0} parcels to ` +
       `out_for_delivery and notifies recipients with a one-time delivery code.`
     )) return
-    try {
-      await lastMileApi.updateRun(run.id, { status: 'in_progress' })
-      toast.success('Run started — recipients notified')
-      refresh()
-    } catch { toast.error('Failed to start run') }
+    runStart(async () => {
+      try {
+        await lastMileApi.updateRun(run.id, { status: 'in_progress' })
+        toast.success('Run started — recipients notified')
+        refresh()
+      } catch { toast.error('Failed to start run') }
+    })
   }
 
   return (
@@ -94,9 +101,9 @@ export const OpsDispatch = () => {
                       ['', riders.length === 0 ? '— no riders provisioned —' : '— unassigned —'],
                       ...riders.map(r => [r.id, riderLabel(r)]),
                     ]} />
-            <button onClick={onCreateRun}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold">
-              <Plus size={16}/> Create run ({picked.length})
+            <button onClick={onCreateRun} disabled={creating}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold disabled:opacity-50 disabled:cursor-not-allowed">
+              <Plus size={16}/> {creating ? 'Creating…' : `Create run (${picked.length})`}
             </button>
           </div>
         </GlassCard>
@@ -156,10 +163,10 @@ export const OpsDispatch = () => {
                   {r.status === 'planned' && (
                     <button
                       onClick={() => onStartRun(r)}
-                      disabled={!r.rider_id}
+                      disabled={!r.rider_id || starting}
                       title={r.rider_id ? '' : 'Assign a rider first'}
                       className="mt-3 w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-bold">
-                      <Play size={14}/> Start run
+                      <Play size={14}/> {starting ? 'Starting…' : 'Start run'}
                     </button>
                   )}
                 </GlassCard>

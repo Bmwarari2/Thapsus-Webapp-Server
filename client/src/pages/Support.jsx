@@ -4,6 +4,7 @@ import { MessageSquare, Plus, ChevronRight } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { supportApi } from '../api'
 import { useTicketUpdates } from '../hooks/useRealtimeUpdates'
+import { useAsyncGuard } from '../hooks/useAsyncGuard'
 import toast from 'react-hot-toast'
 
 export const Support = () => {
@@ -16,7 +17,9 @@ export const Support = () => {
     subject: '',
     description: '',
   })
-  const [submitting, setSubmitting] = useState(false)
+  // Ref-based guard so a rapid double-tap can't create two tickets even
+  // before React re-renders the disabled button.
+  const [submitting, runSubmit] = useAsyncGuard()
 
   useEffect(() => {
     const fetchTickets = async () => {
@@ -51,7 +54,7 @@ export const Support = () => {
   // A ticket opens as its own page — an iMessage-style conversation thread.
   const openTicket = (id) => navigate(`/support/${id}`)
 
-  const handleCreateTicket = async (e) => {
+  const handleCreateTicket = (e) => {
     e.preventDefault()
 
     if (!formData.subject || !formData.description) {
@@ -59,25 +62,24 @@ export const Support = () => {
       return
     }
 
-    try {
-      setSubmitting(true)
-      const response = await supportApi.createTicket(
-        formData.subject,
-        formData.description
-      )
+    runSubmit(async () => {
+      try {
+        const response = await supportApi.createTicket(
+          formData.subject,
+          formData.description
+        )
 
-      const ticket = response.data.ticket
-      toast.success('Ticket created successfully!')
+        const ticket = response.data.ticket
+        toast.success('Ticket created successfully!')
 
-      setFormData({ subject: '', description: '' })
-      setShowCreateForm(false)
-      // Drop the customer straight into the new conversation.
-      if (ticket?.id) navigate(`/support/${ticket.id}`)
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to create ticket')
-    } finally {
-      setSubmitting(false)
-    }
+        setFormData({ subject: '', description: '' })
+        setShowCreateForm(false)
+        // Drop the customer straight into the new conversation.
+        if (ticket?.id) navigate(`/support/${ticket.id}`)
+      } catch (err) {
+        toast.error(err.response?.data?.message || 'Failed to create ticket')
+      }
+    })
   }
 
   if (loading) {
