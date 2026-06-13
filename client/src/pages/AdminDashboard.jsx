@@ -597,13 +597,13 @@ export const AdminDashboard = () => {
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
               Auth: {currentUser?.name}
             </div>
-            <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase leading-none mb-2">{t('admin.title')}</h1>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tighter uppercase leading-none mb-2">{t('admin.title')}</h1>
             <p className="text-mute font-bold text-sm tracking-wide uppercase">Global Terminal • System Live</p>
           </div>
           <div className="flex bg-surface-2 backdrop-blur-2xl p-2 rounded-[2rem] border border-line shadow-sm overflow-x-auto no-scrollbar">
             {['overview', 'users', 'orders', 'payments', 'revenue', 'tickets', 'aml', 'exchange', 'settings', 'auditLogs', 'errorLogs'].map((tab) => (
               <button key={tab} onClick={() => { setActiveTab(tab); if(tab === 'errorLogs') fetchErrorLogs(); if(tab === 'auditLogs') fetchAuditLogs(); if(tab === 'aml') fetchAmlFlags(amlStatusFilter); }}
-                className={`relative px-6 py-3 rounded-[1.5rem] font-black text-xs uppercase tracking-widest whitespace-nowrap transition-all ${activeTab === tab ? 'bg-surface text-white shadow-xl glass-sheen' : 'text-mute hover:text-white hover:bg-surface-2'}`}>
+                className={`relative px-4 md:px-6 py-2.5 md:py-3 rounded-[1.5rem] font-black text-[11px] md:text-xs uppercase tracking-widest whitespace-nowrap transition-all ${activeTab === tab ? 'bg-surface text-white shadow-xl glass-sheen' : 'text-mute hover:text-white hover:bg-surface-2'}`}>
                 {tab.replace(/([A-Z])/g, ' $1')}
                 {tab === 'errorLogs' && errorLogStats && parseInt(errorLogStats.last_24h) > 0 && (
                   <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full animate-pulse border-2 border-white"></span>
@@ -619,7 +619,7 @@ export const AdminDashboard = () => {
             {/* Top Row: Revenue + Key Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               {/* Revenue Card — Large Dark Glass */}
-              <div className="relative group overflow-hidden rounded-[2.5rem] bg-surface p-10 text-white shadow-2xl flex flex-col justify-between transition-all hover:scale-[1.01] transform lg:rotate-1 hover:rotate-0 duration-700 md:col-span-2 md:row-span-2 glass-sheen min-h-[320px]">
+              <div className="relative group overflow-hidden rounded-[2.5rem] bg-surface p-5 md:p-10 text-white shadow-2xl flex flex-col justify-between transition-all hover:scale-[1.01] duration-300 md:col-span-2 md:row-span-2 glass-sheen min-h-[300px]">
                 
                 <div className="relative z-10">
                   <span className="text-[10px] font-black uppercase tracking-widest text-dim">Global Revenue (Completed)</span>
@@ -1053,7 +1053,7 @@ export const AdminDashboard = () => {
           <div className="max-w-2xl mx-auto animate-in fade-in duration-500">
             {/* Border Gradient Wrap */}
             <div className="rounded-3xl">
-              <div className="h-full w-full bg-surface border border-line shadow-card rounded-3xl p-10 md:p-14 space-y-10">
+              <div className="h-full w-full bg-surface border border-line shadow-card rounded-3xl p-5 md:p-10 md:p-14 space-y-10">
                 <div className="flex flex-col md:flex-row items-center md:items-start gap-6 text-center md:text-left">
                   <div className="w-16 h-16 bg-ember-500/15 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
                     <Globe size={32} className="text-ember-400" />
@@ -1082,7 +1082,7 @@ export const AdminDashboard = () => {
         {/* --- SETTINGS --- */}
         {activeTab === 'settings' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-500">
-            <GlassCard className="p-10">
+            <GlassCard className="p-5 md:p-10">
                <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-8 flex items-center gap-4">
                  <div className="p-3 bg-blue-500/15 text-blue-300 rounded-xl"><Lock size={20}/></div>
                  Admin Security
@@ -1094,7 +1094,7 @@ export const AdminDashboard = () => {
                  <button type="submit" disabled={changingPassword} className={btnPrimary + " w-full !py-5 mt-4"}>Update Credentials</button>
                </form>
             </GlassCard>
-            <GlassCard className="p-10">
+            <GlassCard className="p-5 md:p-10">
                <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-6 flex items-center gap-4">
                  <div className="p-3 bg-ember-500/15 text-ember-400 rounded-xl"><Mail size={20}/></div>
                  SMTP Diagnostics
@@ -1110,7 +1110,7 @@ export const AdminDashboard = () => {
             </GlassCard>
             
             {/* ADDED SHIPPING RATES PANEL HERE */}
-            <GlassCard className="p-10 md:col-span-2">
+            <GlassCard className="p-5 md:p-10 md:col-span-2">
                <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-6 flex items-center gap-4">
                  <div className="p-3 bg-emerald-500/15 text-emerald-300 rounded-xl"><Package size={20}/></div>
                  Global Shipping Rates
@@ -1311,7 +1311,7 @@ export const AdminDashboard = () => {
         {/* Create Order for Client Modal */}
         {showCreateOrderForm && (
           <div className="fixed inset-0 bg-surface/80 backdrop-blur-sm z-[100] flex justify-end">
-            <div className="bg-surface w-full max-w-2xl h-full overflow-y-auto shadow-float relative p-10 md:p-14 animate-fade-in border-l border-line">
+            <div className="bg-surface w-full max-w-2xl h-full overflow-y-auto shadow-float relative p-5 md:p-10 md:p-14 animate-fade-in border-l border-line">
                <button onClick={() => setShowCreateOrderForm(false)} aria-label="Close" className="absolute top-10 right-10 w-10 h-10 bg-surface rounded-full flex items-center justify-center text-mute hover:text-red-500 shadow-sm transition-colors"><X size={20}/></button>
                
                <div className="mb-10">
@@ -1367,7 +1367,7 @@ export const AdminDashboard = () => {
         {/* User Details Side Panel */}
         {selectedUser && selectedUserData && (
           <div className="fixed inset-0 bg-surface/80 backdrop-blur-sm z-[100] flex justify-end">
-            <div className="bg-surface w-full max-w-3xl h-full overflow-y-auto shadow-float relative p-10 md:p-14 animate-fade-in border-l border-line">
+            <div className="bg-surface w-full max-w-3xl h-full overflow-y-auto shadow-float relative p-5 md:p-10 md:p-14 animate-fade-in border-l border-line">
               <button onClick={() => setSelectedUser(null)} aria-label="Close" className="absolute top-10 right-10 w-10 h-10 bg-surface rounded-full flex items-center justify-center text-mute hover:text-red-500 shadow-sm transition-colors"><X size={20}/></button>
               
               <div className="mb-10">
@@ -1548,7 +1548,7 @@ export const AdminDashboard = () => {
         {/* Small Action Modals */}
         {paymentModal && (
           <div className="fixed inset-0 bg-surface/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-            <GlassCard className="w-full max-w-lg p-10 relative">
+            <GlassCard className="w-full max-w-lg p-5 md:p-10 relative">
               <button onClick={() => setPaymentModal(null)} aria-label="Close" className="absolute top-6 right-6 w-8 h-8 bg-surface rounded-full flex items-center justify-center text-mute hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
               <h3 className="text-3xl font-black text-white uppercase tracking-tighter leading-none mb-8">Request Funds</h3>
               <div className="space-y-6">
@@ -1568,7 +1568,7 @@ export const AdminDashboard = () => {
 
         {reminderModal && (
           <div className="fixed inset-0 bg-surface/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-            <GlassCard className="w-full max-w-lg p-10 relative">
+            <GlassCard className="w-full max-w-lg p-5 md:p-10 relative">
               <button onClick={() => setReminderModal(null)} aria-label="Close" className="absolute top-6 right-6 w-8 h-8 bg-surface rounded-full flex items-center justify-center text-mute hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
               <h3 className="text-3xl font-black text-white uppercase tracking-tighter leading-none mb-8">Payment Reminder</h3>
               <div className="space-y-6">
@@ -1584,7 +1584,7 @@ export const AdminDashboard = () => {
 
         {cancelModal && (
           <div className="fixed inset-0 bg-surface/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-            <GlassCard className="w-full max-w-lg p-10 relative bg-red-500/10 border-red-500/20">
+            <GlassCard className="w-full max-w-lg p-5 md:p-10 relative bg-red-500/10 border-red-500/20">
               <button onClick={() => setCancelModal(null)} aria-label="Close" className="absolute top-6 right-6 w-8 h-8 bg-surface rounded-full flex items-center justify-center text-mute hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
               <h3 className="text-3xl font-black text-red-300 uppercase tracking-tighter leading-none mb-8">Halt Shipment</h3>
               <div className="space-y-6">
@@ -1600,7 +1600,7 @@ export const AdminDashboard = () => {
         
         {showCreateUserForm && (
           <div className="fixed inset-0 bg-surface/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-            <GlassCard className="w-full max-w-lg p-10 relative">
+            <GlassCard className="w-full max-w-lg p-5 md:p-10 relative">
               <button onClick={() => setShowCreateUserForm(false)} aria-label="Close" className="absolute top-6 right-6 w-8 h-8 bg-surface rounded-full flex items-center justify-center text-mute hover:text-red-500 transition-colors shadow-sm"><X size={16} /></button>
               <div className="mb-10">
                  <h3 className="text-3xl font-black text-white uppercase tracking-tighter leading-none mb-2">New Account</h3>

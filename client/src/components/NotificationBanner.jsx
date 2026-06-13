@@ -91,7 +91,7 @@ function BannerShell({ leaving, onClose, children }) {
   return (
     <>
       <style>{STYLES}</style>
-      <div className="fixed bottom-6 right-6 left-6 md:left-auto md:max-w-sm z-[9999] pointer-events-none">
+      <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:bottom-6 right-4 left-4 md:left-auto md:right-6 md:max-w-sm z-[55] pointer-events-none">
         <div className={`pointer-events-auto ${leaving ? 'nb-slide-down' : 'nb-slide-up'}`}>
           <div className="relative overflow-hidden rounded-[2rem] bg-surface-2 backdrop-blur-2xl border border-line shadow-[0_24px_64px_-12px_rgba(15,23,42,0.18)]">
             {/* Liquid blobs */}

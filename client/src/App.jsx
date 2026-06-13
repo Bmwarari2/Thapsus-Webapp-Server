@@ -98,7 +98,7 @@ function App() {
         className="shrink-0 h-[calc(env(safe-area-inset-top,0px)+4rem)]"
       />
 
-      <main className="relative flex-grow">
+      <main className="relative flex-grow pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pb-0">
         <ScrollToTop />
         <GoogleAnalytics />
         <MetaPixel />
