@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ChevronLeft, ArrowUp, MessageSquare, CheckCircle2, RotateCcw } from 'lucide-react'
+import { ChevronLeft, ArrowUp, MessageSquare, Lock, RotateCcw } from 'lucide-react'
 import { supportApi, adminApi } from '../api'
 import { useTicketUpdates } from '../hooks/useRealtimeUpdates'
 import toast from 'react-hot-toast'
@@ -52,6 +52,8 @@ export const TicketConversation = ({ mode = 'customer' }) => {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [statusBusy, setStatusBusy] = useState(false)
+  const [closeOpen, setCloseOpen] = useState(false) // admin close-with-reason modal
+  const [closeReason, setCloseReason] = useState('')
 
   const endRef = useRef(null)
   const inputRef = useRef(null)
@@ -110,7 +112,6 @@ export const TicketConversation = ({ mode = 'customer' }) => {
   }, [messages.length])
 
   const closed = ticket?.status === 'closed'
-  const resolvedish = ticket?.status === 'resolved' || ticket?.status === 'closed'
 
   const send = async (e) => {
     e?.preventDefault()
@@ -143,17 +144,38 @@ export const TicketConversation = ({ mode = 'customer' }) => {
     }
   }
 
-  // Admin-only: flip between resolved and reopened.
-  const toggleStatus = async () => {
+  // Admin-only: reopen a closed ticket (no reason needed).
+  const reopen = async () => {
     if (!ticket || statusBusy) return
-    const next = resolvedish ? 'open' : 'resolved'
     setStatusBusy(true)
     try {
-      await adminApi.updateTicketStatus(id, next)
-      setTicket((t) => ({ ...t, status: next }))
-      toast.success(next === 'resolved' ? 'Marked resolved' : 'Reopened')
+      await adminApi.updateTicketStatus(id, 'open')
+      setTicket((t) => ({ ...t, status: 'open' }))
+      toast.success('Reopened')
     } catch {
       toast.error('Failed to update status')
+    } finally {
+      setStatusBusy(false)
+    }
+  }
+
+  // Admin-only: close a ticket with a reason. The reason is posted into the
+  // thread (as an admin message) and emailed/pushed to the customer by the
+  // status endpoint, so they always know why it was closed.
+  const submitClose = async () => {
+    if (statusBusy) return
+    const reason = closeReason.trim()
+    if (reason.length < 3) { toast.error('Give a brief reason'); return }
+    setStatusBusy(true)
+    try {
+      await adminApi.updateTicketStatus(id, 'closed', reason)
+      setTicket((t) => ({ ...t, status: 'closed' }))
+      setCloseOpen(false)
+      setCloseReason('')
+      await load(false) // surface the reason message in the thread
+      toast.success('Ticket closed')
+    } catch {
+      toast.error('Failed to close ticket')
     } finally {
       setStatusBusy(false)
     }
@@ -221,20 +243,26 @@ export const TicketConversation = ({ mode = 'customer' }) => {
           )}
         </div>
 
-        {/* Status: admins can toggle; customers just see the badge. */}
+        {/* Status: admins can close (with a reason) or reopen; customers
+            just see the badge. */}
         {isAdmin ? (
-          <button
-            onClick={toggleStatus}
-            disabled={statusBusy}
-            className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all disabled:opacity-50 ${
-              resolvedish
-                ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25 hover:bg-emerald-500/25'
-                : 'bg-amber-500/15 text-amber-300 border-amber-500/25 hover:bg-amber-500/25'
-            }`}
-          >
-            {resolvedish ? <RotateCcw size={12} /> : <CheckCircle2 size={12} />}
-            {resolvedish ? 'Reopen' : 'Resolve'}
-          </button>
+          closed ? (
+            <button
+              onClick={reopen}
+              disabled={statusBusy}
+              className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all disabled:opacity-50 bg-emerald-500/15 text-emerald-300 border-emerald-500/25 hover:bg-emerald-500/25"
+            >
+              <RotateCcw size={12} /> Reopen
+            </button>
+          ) : (
+            <button
+              onClick={() => { setCloseReason(''); setCloseOpen(true) }}
+              disabled={statusBusy}
+              className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all disabled:opacity-50 bg-rose-500/15 text-rose-300 border-rose-500/25 hover:bg-rose-500/25"
+            >
+              <Lock size={12} /> Close
+            </button>
+          )
         ) : (
           <span
             className={`shrink-0 inline-block px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${
@@ -317,6 +345,41 @@ export const TicketConversation = ({ mode = 'customer' }) => {
             <ArrowUp size={20} strokeWidth={2.5} />
           </button>
         </form>
+      )}
+
+      {/* ── Admin: close-with-reason modal ────────────────────────────── */}
+      {closeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="w-full max-w-md rounded-3xl bg-[#1c1c1e] border border-white/10 p-6 shadow-2xl">
+            <h4 className="text-lg font-black text-white mb-1">Close ticket</h4>
+            <p className="text-xs text-white/50 mb-4">
+              The reason is added to the conversation and sent to the customer.
+            </p>
+            <textarea
+              autoFocus
+              rows={4}
+              value={closeReason}
+              onChange={(e) => setCloseReason(e.target.value)}
+              placeholder="e.g. Resolved — parcel delivered and confirmed by recipient."
+              className="w-full px-3 py-2.5 rounded-2xl border border-white/15 bg-[#0b0b0c] text-[15px] text-white placeholder-white/35 outline-none focus:border-[#0a84ff]/60 resize-none"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setCloseOpen(false)}
+                className="px-4 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-white/80 text-sm font-semibold hover:bg-white/[0.1] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitClose}
+                disabled={statusBusy}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Lock size={14} /> {statusBusy ? 'Closing…' : 'Close ticket'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

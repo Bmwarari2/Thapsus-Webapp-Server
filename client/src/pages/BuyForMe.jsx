@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { ShoppingBag, ExternalLink, Plus, Check, X } from 'lucide-react'
+import { ShoppingBag, Plus, Check, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { buyForMeApi, retailersApi } from '../api'
 import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '../components/GlassUI'
 import { PayInvoiceModal } from '../components/PayInvoiceModal'
+import { RetailerLink } from '../components/RetailerLink'
 import { useAsyncGuard } from '../hooks/useAsyncGuard'
 
 const OTHER_RETAILER_ID = '__other__'
@@ -174,14 +175,16 @@ export const BuyForMe = () => {
                   <div className="min-w-0">
                     <p className="font-mono text-xs text-mute">{o.id}</p>
                     <p className="font-semibold text-white truncate">{o.item_name}</p>
-                    <a href={o.retailer_url} target="_blank" rel="noreferrer"
-                       className="text-xs text-ember-400 inline-flex items-center gap-1 hover:underline">
-                      <ExternalLink size={11}/> {o.retailer_url}
-                    </a>
-                    {o.size && <p className="text-xs text-mute">Size: {o.size}</p>}
+                    {o.retailer_url && <RetailerLink url={o.retailer_url} />}
+                    {o.size && <p className="text-xs text-mute mt-1">Size: {o.size}</p>}
                     <p className="text-xs text-mute">Qty: {o.qty}</p>
+                    {o.status === 'rejected' && o.admin_decision_reason && (
+                      <p className="mt-2 text-xs text-rose-400 italic">
+                        Declined by Thapsus: "{o.admin_decision_reason}"
+                      </p>
+                    )}
                     {o.status === 'rejected' && o.customer_decision_reason && (
-                      <p className="mt-2 text-xs text-rose-700 italic">
+                      <p className="mt-2 text-xs text-rose-400 italic">
                         Your reason: "{o.customer_decision_reason}"
                       </p>
                     )}

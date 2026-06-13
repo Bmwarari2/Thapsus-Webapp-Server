@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { ShoppingBag, ExternalLink, Copy, Check, Send, RefreshCw } from 'lucide-react'
+import { ShoppingBag, Send, RefreshCw, Ban } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { buyForMeApi } from '../api'
 import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '../components/GlassUI'
+import { RetailerLink } from '../components/RetailerLink'
 
 /**
  * /ops/buy-for-me — operator concierge queue.
@@ -18,6 +19,9 @@ export const OpsBuyForMe = () => {
   const [editing, setEditing] = useState(null) // order being quoted
   const [draft, setDraft]     = useState({ estimate_gbp: '', markup_pct: 10, notes: '' })
   const [submitting, setSubmitting] = useState(false)
+  const [rejecting, setRejecting] = useState(null) // order being declined
+  const [rejectReason, setRejectReason] = useState('')
+  const [rejectBusy, setRejectBusy] = useState(false)
 
   const refresh = () => {
     setLoading(true)
@@ -58,6 +62,25 @@ export const OpsBuyForMe = () => {
       toast.error(e.response?.data?.message || 'Failed to send quote')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const openReject = (o) => { setRejecting(o); setRejectReason('') }
+
+  const onSubmitReject = async () => {
+    if (rejectBusy) return
+    const reason = rejectReason.trim()
+    if (reason.length < 3) { toast.error('Give a brief reason'); return }
+    try {
+      setRejectBusy(true)
+      await buyForMeApi.adminReject(rejecting.id, reason)
+      toast.success('Request declined · customer notified')
+      setRejecting(null)
+      refresh()
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to decline')
+    } finally {
+      setRejectBusy(false)
     }
   }
 
@@ -107,8 +130,13 @@ export const OpsBuyForMe = () => {
                       <p className="text-xs text-mute mt-1 italic">"{o.notes}"</p>
                     )}
                     {o.status === 'rejected' && o.customer_decision_reason && (
-                      <p className="text-xs text-rose-700 italic mt-1">
+                      <p className="text-xs text-rose-400 italic mt-1">
                         Customer rejected: "{o.customer_decision_reason}"
+                      </p>
+                    )}
+                    {o.status === 'rejected' && o.admin_decision_reason && (
+                      <p className="text-xs text-rose-400 italic mt-1">
+                        Declined by staff: "{o.admin_decision_reason}"
                       </p>
                     )}
                     {o.status === 'paid' && o.parcel_tracking_number && (
@@ -128,6 +156,12 @@ export const OpsBuyForMe = () => {
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-ember-gradient hover:bg-[#142640] text-white text-sm font-bold">
                       <Send size={14}/> {o.status === 'rejected' ? 'Re-quote' : (o.status === 'quoted' ? 'Edit quote' : 'Send quote')}
                     </button>
+                    {(o.status === 'pending_quote' || o.status === 'quoted') && (
+                      <button onClick={() => openReject(o)}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-surface border border-rose-500/40 text-rose-300 hover:bg-rose-500/10 text-sm font-bold">
+                        <Ban size={14}/> Decline
+                      </button>
+                    )}
                   </div>
                 </div>
               </GlassCard>
@@ -172,44 +206,34 @@ export const OpsBuyForMe = () => {
           </GlassCard>
         </div>
       )}
-    </div>
-  )
-}
 
-/**
- * Retailer link rendered as two compact actions instead of a raw, wrapping
- * URL — "Open" launches it in a new tab, "Copy" puts it on the clipboard so
- * the operator can paste it into the retailer's site.
- */
-const RetailerLink = ({ url }) => {
-  const [copied, setCopied] = useState(false)
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(url)
-      setCopied(true)
-      toast.success('Link copied')
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      toast.error('Could not copy link')
-    }
-  }
-
-  let host = url
-  try { host = new URL(url).hostname.replace(/^www\./, '') } catch { /* leave raw */ }
-
-  return (
-    <div className="flex items-center gap-2 mt-1.5">
-      <span className="text-xs text-mute truncate max-w-[160px]" title={url}>{host}</span>
-      <a href={url} target="_blank" rel="noreferrer"
-        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface border border-line text-ember-400 hover:bg-white/[0.04] text-xs font-semibold transition-colors">
-        <ExternalLink size={12}/> Open
-      </a>
-      <button type="button" onClick={copy}
-        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface border border-line text-white/80 hover:bg-white/[0.04] text-xs font-semibold transition-colors">
-        {copied ? <Check size={12} className="text-emerald-400"/> : <Copy size={12}/>}
-        {copied ? 'Copied' : 'Copy'}
-      </button>
+      {rejecting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4">
+          <GlassCard className="p-6 w-full max-w-md">
+            <h4 className="text-lg font-black text-white mb-1">Decline request</h4>
+            <p className="text-xs text-mute mb-4">
+              {rejecting.item_name} · {rejecting.email}
+            </p>
+            <label className="block">
+              <span className="block text-[10px] uppercase tracking-widest text-mute font-black mb-1">Reason (shown to customer)</span>
+              <textarea rows={4} value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="e.g. This item is on our prohibited list and can't be shipped."
+                className="w-full px-3 py-2 rounded-xl border border-line bg-surface-2 focus:outline-none focus:ring-2 focus:ring-rose-400" />
+            </label>
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setRejecting(null)}
+                className="px-4 py-2 rounded-lg bg-surface border border-line text-white/80 text-sm font-semibold">
+                Cancel
+              </button>
+              <button onClick={onSubmitReject} disabled={rejectBusy}
+                className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                <Ban size={14}/> {rejectBusy ? 'Declining…' : 'Decline & notify'}
+              </button>
+            </div>
+          </GlassCard>
+        </div>
+      )}
     </div>
   )
 }
