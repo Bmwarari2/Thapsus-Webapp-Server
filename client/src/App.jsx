@@ -35,6 +35,7 @@ const CreditCenter      = lazy(() => import('./pages/CreditCenter').then(m => ({
 const Transactions      = lazy(() => import('./pages/Transactions').then(m => ({ default: m.Transactions })))
 const ProhibitedItems   = lazy(() => import('./pages/ProhibitedItems').then(m => ({ default: m.ProhibitedItems })))
 const Support           = lazy(() => import('./pages/Support').then(m => ({ default: m.Support })))
+const TicketConversation = lazy(() => import('./pages/TicketConversation').then(m => ({ default: m.TicketConversation })))
 const Notifications     = lazy(() => import('./pages/Notifications').then(m => ({ default: m.Notifications })))
 const WarehouseAddresses = lazy(() => import('./pages/WarehouseAddresses').then(m => ({ default: m.WarehouseAddresses })))
 const AdminDashboard    = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })))
@@ -146,6 +147,7 @@ function App() {
             <Route path="/referral" element={<ProtectedRoute><Referral /></ProtectedRoute>} />
             <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
             <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
+            <Route path="/support/:id" element={<ProtectedRoute><TicketConversation mode="customer" /></ProtectedRoute>} />
             <Route path="/warehouse" element={<ProtectedRoute><WarehouseAddresses /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
             <Route path="/activity" element={<ProtectedRoute><Activity /></ProtectedRoute>} />
@@ -167,6 +169,7 @@ function App() {
 
             {/* Admin Routes */}
             <Route path="/admin" element={<ProtectedRoute adminOnly={true}><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/tickets/:id" element={<ProtectedRoute adminOnly={true}><TicketConversation mode="admin" /></ProtectedRoute>} />
             <Route path="/admin/customer-consolidations" element={<ProtectedRoute adminOnly={true}><AdminCustomerConsolidations /></ProtectedRoute>} />
             <Route path="/admin/issue-invoice" element={<ProtectedRoute adminOnly={true}><AdminIssueInvoice /></ProtectedRoute>} />
             <Route path="/admin/create-bfm" element={<ProtectedRoute adminOnly={true}><AdminCreateBuyForMe /></ProtectedRoute>} />

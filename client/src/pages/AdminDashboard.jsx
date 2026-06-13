@@ -7,9 +7,10 @@ import {
   CheckCircle, X, Box, Pencil, Scale, Ruler, ShoppingCart, Zap,
   ArrowUpRight, Clock
 } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
-import { adminApi, authApi, supportApi } from '../api'
+import { adminApi, authApi } from '../api'
 // Recharts moved into a lazy chunk (audit F-20) — see
 // client/src/components/admin/AdminCharts.jsx. Keeps ~225 KB of chart
 // vendor code out of the main admin entry bundle; it loads on first
@@ -71,8 +72,11 @@ const GlassCard = ({ children, className = "" }) => (
 export const AdminDashboard = () => {
   const { t } = useLanguage()
   const { user: currentUser } = useAuth()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('overview')
+  // Honour ?tab= so returning from a ticket conversation lands back on TIC.
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'overview')
   
   // Data States
   const [stats, setStats] = useState(null)
@@ -84,10 +88,6 @@ export const AdminDashboard = () => {
   const [errorLogStats, setErrorLogStats] = useState(null)
 
   // Interaction States
-  const [selectedTicket, setSelectedTicket] = useState(null)
-  const [ticketMessages, setTicketMessages] = useState([])
-  const [adminReply, setAdminReply] = useState('')
-  const [sendingReply, setSendingReply] = useState(false)
   const [selectedOrders, setSelectedOrders] = useState([])
   const [newStatus, setNewStatus] = useState('')
   const [customerSearch, setCustomerSearch] = useState('')
@@ -375,25 +375,8 @@ export const AdminDashboard = () => {
     } catch { setCustomerResults([]) }
   }
 
-  const openTicket = async (ticket) => {
-    try {
-      const res = await supportApi.getTicket(ticket.id)
-      setSelectedTicket({ ...res.data.ticket, customer_name: ticket.customer_name, customer_email: ticket.customer_email })
-      setTicketMessages(res.data.messages || [])
-    } catch (err) { toast.error('Failed to load ticket') }
-  }
-
-  const sendAdminReply = async (e) => {
-    e.preventDefault()
-    if (!adminReply.trim() || !selectedTicket) return
-    try {
-      setSendingReply(true)
-      await supportApi.replyToTicket(selectedTicket.id, adminReply)
-      const res = await supportApi.getTicket(selectedTicket.id)
-      setTicketMessages(res.data.messages || [])
-      setAdminReply('')
-    } catch (err) { toast.error('Failed to send reply') } finally { setSendingReply(false) }
-  }
+  // A ticket opens as its own iMessage-style conversation page.
+  const openTicket = (ticket) => navigate(`/admin/tickets/${ticket.id}`)
 
   const handleOpenUserDetail = async (u) => {
     setSelectedUser(u); setSelectedUserData(null); setEmailLogs([]); setLoadingUser(true); setShowUserOrderForm(false);
@@ -1001,64 +984,40 @@ export const AdminDashboard = () => {
         {activeTab === 'tickets' && (
           <div className="space-y-6 animate-in fade-in duration-500">
              <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">Support & Comms</h2>
-             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[700px]">
-               {/* List */}
-               <GlassCard className="flex flex-col overflow-hidden !p-0">
-                 <div className="p-6 border-b border-line bg-surface-2 backdrop-blur-md">
-                   <h3 className="font-black text-xs uppercase tracking-widest text-mute">Active Threads</h3>
-                 </div>
-                 <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
+             {/* Each thread opens as its own iMessage-style conversation page
+                 (/admin/tickets/:id) — replaces the old cramped split-pane that
+                 broke down on mobile. */}
+             <GlassCard className="flex flex-col overflow-hidden !p-0">
+               <div className="p-6 border-b border-line bg-surface-2 backdrop-blur-md">
+                 <h3 className="font-black text-xs uppercase tracking-widest text-mute">Active Threads</h3>
+               </div>
+               {tickets.length > 0 ? (
+                 <div className="divide-y divide-line">
                    {tickets.map(t => (
-                     <div key={t.id} onClick={() => openTicket(t)} className={`p-5 rounded-3xl cursor-pointer transition-all border ${selectedTicket?.id === t.id ? 'bg-surface border-orange-300 shadow-xl' : 'bg-surface-2 border-line hover:bg-surface-2'}`}>
-                       <h4 className="font-black text-sm text-white mb-2 truncate">{t.subject}</h4>
-                       <div className="flex justify-between items-center">
-                         <span className="text-[10px] font-bold text-mute truncate max-w-[120px]">{t.email}</span>
-                         <span className={`text-[9px] font-black uppercase tracking-widest ${t.status === 'open' ? 'text-red-500' : 'text-green-500'}`}>{t.status}</span>
+                     <button
+                       key={t.id}
+                       onClick={() => openTicket(t)}
+                       className="w-full text-left flex items-center gap-4 p-5 hover:bg-white/5 transition-colors"
+                     >
+                       <div className="shrink-0 w-11 h-11 rounded-full bg-gradient-to-br from-orange-500 to-ember-600 flex items-center justify-center text-white font-black text-xs shadow-inner">
+                         {(t.customer_name || t.customer_email || '?').trim().split(/\s+/).slice(0,2).map(w => w[0]?.toUpperCase() || '').join('') || '?'}
                        </div>
-                     </div>
+                       <div className="min-w-0 flex-1">
+                         <h4 className="font-black text-sm text-white truncate">{t.customer_name || t.customer_email || 'Customer'}</h4>
+                         <p className="text-xs font-medium text-mute truncate">{t.subject}</p>
+                       </div>
+                       <span className={`shrink-0 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${t.status === 'open' ? 'bg-amber-500/15 text-amber-300 border-amber-500/25' : t.status === 'in_progress' ? 'bg-blue-500/15 text-blue-300 border-blue-500/25' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25'}`}>{(t.status || 'open').replace(/_/g, ' ')}</span>
+                       <ChevronRight size={18} className="shrink-0 text-white/30" />
+                     </button>
                    ))}
                  </div>
-               </GlassCard>
-               {/* Chat Panel */}
-               <GlassCard className="lg:col-span-2 flex flex-col !p-0 overflow-hidden">
-                  {selectedTicket ? (
-                    <>
-                      <div className="p-8 border-b border-line bg-surface-2 backdrop-blur-md">
-                        <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-1">{selectedTicket.subject}</h3>
-                        <p className="text-[10px] font-black text-dim uppercase tracking-widest">Ticket ID: {selectedTicket.id}</p>
-                      </div>
-                      <div className="flex-1 overflow-y-auto p-8 space-y-2 no-scrollbar bg-slate-900/5">
-                        {/* Opening message lives on the ticket itself (tickets.description),
-                            not in ticket_messages — render it as the first received bubble
-                            so the admin always sees what the customer actually wrote. */}
-                        {selectedTicket.description && (
-                          <div className="flex justify-start">
-                            <div className="max-w-[75%] px-5 py-3 rounded-[1.4rem] rounded-bl-md shadow-sm bg-[#3b3b3d] text-white">
-                              <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap">{selectedTicket.description}</p>
-                              <p className="text-[9px] text-white/50 mt-2 font-black uppercase tracking-widest">{new Date(selectedTicket.created_at).toLocaleString()}</p>
-                            </div>
-                          </div>
-                        )}
-                        {ticketMessages.map((m, i) => {
-                          const isAdmin = m.role === 'admin'
-                          return (
-                            <div key={m.id || i} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
-                              <div className={`max-w-[75%] px-5 py-3 rounded-[1.4rem] shadow-sm ${isAdmin ? 'bg-[#0a84ff] text-white rounded-br-md' : 'bg-[#3b3b3d] text-white rounded-bl-md'}`}>
-                                <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap">{m.message}</p>
-                                <p className={`text-[9px] mt-2 font-black uppercase tracking-widest ${isAdmin ? 'text-white/60' : 'text-white/50'}`}>{new Date(m.created_at).toLocaleString()}</p>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                      <form onSubmit={sendAdminReply} className="p-6 border-t border-line bg-surface-2 backdrop-blur-md flex gap-4">
-                        <input value={adminReply} onChange={e => setAdminReply(e.target.value)} placeholder="Type resolution..." className={inputClass + " !rounded-full !py-4"} />
-                        <button disabled={sendingReply || !adminReply.trim()} className="glass-sheen bg-orange-500 hover:bg-orange-600 text-white w-14 h-14 rounded-full flex items-center justify-center shrink-0 disabled:opacity-50 transition-transform hover:-translate-y-1 shadow-lg"><Send size={20}/></button>
-                      </form>
-                    </>
-                  ) : <div className="flex-1 flex flex-col items-center justify-center text-mute"><MessageSquare size={56} className="mb-6 opacity-50"/><p className="font-black uppercase tracking-widest text-[10px]">Select a thread to view</p></div>}
-               </GlassCard>
-             </div>
+               ) : (
+                 <div className="flex flex-col items-center justify-center text-mute py-20">
+                   <MessageSquare size={48} className="mb-5 opacity-50" />
+                   <p className="font-black uppercase tracking-widest text-[10px]">No active threads</p>
+                 </div>
+               )}
+             </GlassCard>
           </div>
         )}
 

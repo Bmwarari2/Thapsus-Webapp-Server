@@ -3,6 +3,7 @@ import { ShieldCheck, Download, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { dsarApi } from '../api'
 import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '../components/GlassUI'
+import { useAsyncGuard } from '../hooks/useAsyncGuard'
 
 /**
  * /app/profile/dsar — GDPR data subject access requests (Spec §4.11).
@@ -11,20 +12,21 @@ export const DsarRequest = () => {
   const [requests, setRequests] = useState([])
   const [type, setType] = useState('export')
   const [notes, setNotes] = useState('')
+  const [submitting, runSubmit] = useAsyncGuard()
 
   const refresh = () => dsarApi.mine().then(r => setRequests(r.data?.requests || []))
                                        .catch(() => toast.error('Failed to load DSAR queue'))
 
   useEffect(() => { refresh() }, [])
 
-  const onSubmit = async () => {
+  const onSubmit = () => runSubmit(async () => {
     try {
       await dsarApi.create(type, notes)
       toast.success('DSAR submitted — you will hear from us within 30 days')
       setNotes('')
       refresh()
     } catch { toast.error('Failed to submit DSAR') }
-  }
+  })
 
   return (
     <div className="relative min-h-screen bg-white/[0.03]">
@@ -65,9 +67,9 @@ export const DsarRequest = () => {
           <textarea value={notes} onChange={e => setNotes(e.target.value)}
             placeholder="Anything you want us to know? (optional)"
             className="w-full px-3 py-2 rounded-xl border border-line bg-surface-2 text-sm" rows={3} />
-          <button onClick={onSubmit}
-            className="mt-3 px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm">
-            Submit request
+          <button onClick={onSubmit} disabled={submitting}
+            className="mt-3 px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+            {submitting ? 'Submitting…' : 'Submit request'}
           </button>
         </GlassCard>
 

@@ -8,6 +8,7 @@ import express from 'express';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
 import { sendBuyForMeQuoteEmail } from '../utils/email.js';
 import { notifyAdminsOfBuyForMe } from '../utils/buyForMeAdminNotify.js';
+import { pushToUser } from './events.js';
 
 const router = express.Router();
 
@@ -419,6 +420,60 @@ router.post('/:id/reject', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('POST /buy-for-me/:id/reject error:', err);
     res.status(500).json({ success: false, message: 'Failed to reject quote' });
+  }
+});
+
+/**
+ * POST /api/buy-for-me/:id/admin-reject — operator/admin declines a request.
+ *
+ * Distinct from the customer reject above: staff can decline a request the
+ * customer hasn't seen a quote for (e.g. prohibited item, can't be sourced).
+ * Reason is required and surfaced on the customer's order card. Allowed from
+ * any not-yet-paid state; paid/purchased orders must be cancelled/refunded
+ * through the payments flow instead.
+ */
+router.post('/:id/admin-reject', authMiddleware, requireRole('admin', 'operator'), async (req, res) => {
+  try {
+    const reason = (req.body?.reason || '').trim();
+    if (reason.length < 3) {
+      return res.status(400).json({ success: false, message: 'reason is required' });
+    }
+    const { rows } = await req.db.query(
+      `SELECT user_id, status FROM buy_for_me_orders WHERE id = $1`, [req.params.id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Concierge order not found' });
+    }
+    const order = rows[0];
+    if (!['pending_quote', 'quoted'].includes(order.status)) {
+      return res.status(409).json({
+        success: false,
+        message: `Cannot decline an order in status '${order.status}'`,
+      });
+    }
+    await req.db.query(
+      `UPDATE buy_for_me_orders
+          SET status = 'rejected',
+              admin_decision_reason = $2,
+              decided_at = NOW(),
+              updated_at = NOW()
+        WHERE id = $1`,
+      [req.params.id, reason]
+    );
+
+    // Best-effort real-time nudge so the customer's BFM list reflects it.
+    try {
+      pushToUser(order.user_id, 'buy_for_me_update', {
+        action: 'rejected', orderId: req.params.id, reason,
+      });
+    } catch (pushErr) {
+      console.error('BFM admin-reject push failed (non-fatal):', pushErr?.message);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('POST /buy-for-me/:id/admin-reject error:', err);
+    res.status(500).json({ success: false, message: 'Failed to decline request' });
   }
 });
 

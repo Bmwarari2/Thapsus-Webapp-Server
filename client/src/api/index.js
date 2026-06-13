@@ -497,6 +497,8 @@ export const buyForMeApi = {
   accept:    (id, reason)   => api.post(`/buy-for-me/${id}/accept`, { reason }),
   reject:    (id, reason)   => api.post(`/buy-for-me/${id}/reject`, { reason }),
   cancel:    (id)           => api.post(`/buy-for-me/${id}/cancel`),
+  // Operator/admin: decline a request with a reason (shown to the customer).
+  adminReject: (id, reason) => api.post(`/buy-for-me/${id}/admin-reject`, { reason }),
   /** Admin: create a BFM on behalf of a customer (e.g. WhatsApp order).
    *  Optionally pre-quote in the same call so the customer can pay
    *  immediately without waiting for an operator round-trip. */

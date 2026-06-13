@@ -3,6 +3,7 @@ import { Settings, Save, Plus, Tag, Percent, Banknote, Sliders, Globe, Hash, Tra
 import toast from 'react-hot-toast'
 import { pricingTiersApi, pricingApi } from '../api'
 import { GlassStyles, GlassCard, LiquidBlob, PageHeading, StatusBadge } from '../components/GlassUI'
+import { useAsyncGuard } from '../hooks/useAsyncGuard'
 
 /**
  * /ops/settings — admin pricing + fee + promotion editor (Spec §4.7).
@@ -50,6 +51,7 @@ const Tab = ({ active, label, icon, onClick }) => (
 const TiersTab = () => {
   const [tiers, setTiers] = useState([])
   const [draft, setDraft] = useState({ channel: 'UK_air', min_kg: 0, max_kg: 5, gbp_per_kg: 12 })
+  const [adding, runAdd] = useAsyncGuard()
 
   const refresh = () => pricingTiersApi.listTiers().then(r => setTiers(r.data?.tiers || []))
 
@@ -59,7 +61,7 @@ const TiersTab = () => {
     try { await pricingTiersApi.updateTier(id, { gbp_per_kg: +gbp_per_kg }); toast.success('Saved'); refresh() }
     catch { toast.error('Save failed') }
   }
-  const onAdd = async () => {
+  const onAdd = () => runAdd(async () => {
     try {
       await pricingTiersApi.createTier({
         ...draft,
@@ -68,7 +70,7 @@ const TiersTab = () => {
       toast.success('Tier added')
       refresh()
     } catch { toast.error('Failed to add tier') }
-  }
+  })
 
   return (
     <>
@@ -90,9 +92,9 @@ const TiersTab = () => {
           <input type="number" step="0.01" placeholder="£/kg" value={draft.gbp_per_kg}
             onChange={e => setDraft({ ...draft, gbp_per_kg: e.target.value })}
             className="px-3 py-2 rounded-xl border border-line" />
-          <button onClick={onAdd}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold">
-            <Plus size={14}/> Add
+          <button onClick={onAdd} disabled={adding}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed">
+            <Plus size={14}/> {adding ? 'Adding…' : 'Add'}
           </button>
         </div>
       </GlassCard>
@@ -200,18 +202,21 @@ const FeeRow = ({ f, onSave }) => {
 const PromosTab = () => {
   const [promos, setPromos] = useState([])
   const [draft, setDraft]   = useState({ code: '', type: 'percent_off', value: 5, description: '' })
+  const [adding, runAdd]    = useAsyncGuard()
 
   const refresh = () => pricingTiersApi.listPromotions().then(r => setPromos(r.data?.promotions || []))
   useEffect(() => { refresh() }, [])
 
-  const onAdd = async () => {
+  const onAdd = () => {
     if (!draft.code) { toast.error('Code required'); return }
-    try {
-      await pricingTiersApi.createPromotion({ ...draft, value: +draft.value })
-      setDraft({ code: '', type: 'percent_off', value: 5, description: '' })
-      refresh()
-      toast.success('Promo added')
-    } catch { toast.error('Failed to add promo') }
+    runAdd(async () => {
+      try {
+        await pricingTiersApi.createPromotion({ ...draft, value: +draft.value })
+        setDraft({ code: '', type: 'percent_off', value: 5, description: '' })
+        refresh()
+        toast.success('Promo added')
+      } catch { toast.error('Failed to add promo') }
+    })
   }
 
   return (
@@ -235,9 +240,9 @@ const PromosTab = () => {
           <input placeholder="Description" value={draft.description}
             onChange={e => setDraft({ ...draft, description: e.target.value })}
             className="px-3 py-2 rounded-xl border border-line md:col-span-1" />
-          <button onClick={onAdd}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold">
-            <Plus size={14}/> Add
+          <button onClick={onAdd} disabled={adding}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed">
+            <Plus size={14}/> {adding ? 'Adding…' : 'Add'}
           </button>
         </div>
       </GlassCard>
@@ -450,6 +455,7 @@ const HsCodesTab = () => {
   const [mapping, setMapping] = useState([])
   const [tiers,   setTiers]   = useState([])
   const [draft,   setDraft]   = useState({ hs_prefix: '', tier_key: '', notes: '' })
+  const [adding,  runAdd]     = useAsyncGuard()
 
   const refresh = async () => {
     try {
@@ -465,17 +471,19 @@ const HsCodesTab = () => {
   }
   useEffect(() => { refresh() }, [])
 
-  const onAdd = async () => {
+  const onAdd = () => {
     if (!/^[0-9]{2,10}$/.test(draft.hs_prefix)) { toast.error('HS prefix must be 2–10 digits'); return }
     if (!draft.tier_key) { toast.error('Pick a tier'); return }
-    try {
-      await pricingApi.updateHsCodes({ upsert: [{ ...draft }] })
-      setDraft({ hs_prefix: '', tier_key: '', notes: '' })
-      refresh()
-      toast.success('HS prefix added')
-    } catch (err) {
-      toast.error(err?.response?.data?.message || 'Failed to add HS prefix')
-    }
+    runAdd(async () => {
+      try {
+        await pricingApi.updateHsCodes({ upsert: [{ ...draft }] })
+        setDraft({ hs_prefix: '', tier_key: '', notes: '' })
+        refresh()
+        toast.success('HS prefix added')
+      } catch (err) {
+        toast.error(err?.response?.data?.message || 'Failed to add HS prefix')
+      }
+    })
   }
 
   const onRemove = async (hs_prefix) => {
@@ -503,9 +511,9 @@ const HsCodesTab = () => {
           <input placeholder="Notes (optional)" value={draft.notes}
             onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
             className="md:col-span-2 px-3 py-2 rounded-xl border border-line" />
-          <button onClick={onAdd}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold">
-            <Plus size={14}/> Add
+          <button onClick={onAdd} disabled={adding}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed">
+            <Plus size={14}/> {adding ? 'Adding…' : 'Add'}
           </button>
         </div>
         <p className="text-xs text-mute mt-2">

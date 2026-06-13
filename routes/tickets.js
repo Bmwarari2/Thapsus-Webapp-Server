@@ -105,8 +105,16 @@ router.get('/:id', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     const isAdminUser = req.user.role === 'admin';
 
+    // Admins get the customer's name/email joined in so the conversation
+    // view can render the contact header on a direct load (deep link /
+    // page refresh) without depending on the list payload.
     const ticketRes = isAdminUser
-      ? await db.query('SELECT * FROM tickets WHERE id = $1', [id])
+      ? await db.query(
+          `SELECT t.*, u.name AS customer_name, u.email AS customer_email
+           FROM tickets t LEFT JOIN users u ON t.user_id = u.id
+           WHERE t.id = $1`,
+          [id]
+        )
       : await db.query('SELECT * FROM tickets WHERE id = $1 AND user_id = $2', [id, userId]);
 
     if (!ticketRes.rows[0]) {
