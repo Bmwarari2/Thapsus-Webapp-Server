@@ -1027,15 +1027,29 @@ export const AdminDashboard = () => {
                         <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-1">{selectedTicket.subject}</h3>
                         <p className="text-[10px] font-black text-dim uppercase tracking-widest">Ticket ID: {selectedTicket.id}</p>
                       </div>
-                      <div className="flex-1 overflow-y-auto p-8 space-y-6 no-scrollbar bg-slate-900/5">
-                        {ticketMessages.map((m, i) => (
-                          <div key={m.id || i} className={`flex ${m.role === 'admin' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[75%] p-5 rounded-[2rem] shadow-sm ${m.role === 'admin' ? 'bg-surface text-white rounded-br-sm' : 'bg-surface border border-line text-white rounded-bl-sm'}`}>
-                              <p className="text-sm font-medium leading-relaxed">{m.message}</p>
-                              <p className="text-[9px] opacity-60 mt-3 font-black uppercase tracking-widest">{new Date(m.created_at).toLocaleString()}</p>
+                      <div className="flex-1 overflow-y-auto p-8 space-y-2 no-scrollbar bg-slate-900/5">
+                        {/* Opening message lives on the ticket itself (tickets.description),
+                            not in ticket_messages — render it as the first received bubble
+                            so the admin always sees what the customer actually wrote. */}
+                        {selectedTicket.description && (
+                          <div className="flex justify-start">
+                            <div className="max-w-[75%] px-5 py-3 rounded-[1.4rem] rounded-bl-md shadow-sm bg-[#3b3b3d] text-white">
+                              <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap">{selectedTicket.description}</p>
+                              <p className="text-[9px] text-white/50 mt-2 font-black uppercase tracking-widest">{new Date(selectedTicket.created_at).toLocaleString()}</p>
                             </div>
                           </div>
-                        ))}
+                        )}
+                        {ticketMessages.map((m, i) => {
+                          const isAdmin = m.role === 'admin'
+                          return (
+                            <div key={m.id || i} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
+                              <div className={`max-w-[75%] px-5 py-3 rounded-[1.4rem] shadow-sm ${isAdmin ? 'bg-[#0a84ff] text-white rounded-br-md' : 'bg-[#3b3b3d] text-white rounded-bl-md'}`}>
+                                <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap">{m.message}</p>
+                                <p className={`text-[9px] mt-2 font-black uppercase tracking-widest ${isAdmin ? 'text-white/60' : 'text-white/50'}`}>{new Date(m.created_at).toLocaleString()}</p>
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
                       <form onSubmit={sendAdminReply} className="p-6 border-t border-line bg-surface-2 backdrop-blur-md flex gap-4">
                         <input value={adminReply} onChange={e => setAdminReply(e.target.value)} placeholder="Type resolution..." className={inputClass + " !rounded-full !py-4"} />
