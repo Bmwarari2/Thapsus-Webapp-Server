@@ -67,27 +67,56 @@ router.post('/', authMiddleware, async (req, res) => {
     if (!['low','medium','high'].includes(ticketPriority))
       return res.status(400).json({ success: false, message: 'Invalid priority' });
 
+    // Idempotency (migration 055). The web outbox replays response-less write
+    // failures, so a ticket that committed but never returned its response
+    // would be POSTed again on reconnect. A client-minted key lets us coalesce
+    // that replay back to the original row instead of creating a duplicate
+    // (and firing a duplicate support email). Accept it from the body or the
+    // standard Idempotency-Key header; ignore anything malformed/oversized.
+    const rawKey = req.body?.idempotency_key || req.get('Idempotency-Key') || null;
+    const idempotencyKey = (typeof rawKey === 'string' && rawKey.trim())
+      ? rawKey.trim().slice(0, 200)
+      : null;
+
     const ticketId = uuidv4();
 
-    await db.query(
-      `INSERT INTO tickets (id, user_id, subject, description, status, priority, photo_url)
-       VALUES ($1,$2,$3,$4,'open',$5,$6)`,
-      [ticketId, userId, subject, description, ticketPriority, null]
+    // ON CONFLICT on the partial unique index (user_id, idempotency_key) makes
+    // the insert a no-op for a replay. RETURNING then comes back empty, which
+    // we use as the signal that this was a duplicate — so we skip the email
+    // and the admin push, and just hand back the ticket that already exists.
+    const insert = await db.query(
+      `INSERT INTO tickets (id, user_id, subject, description, status, priority, photo_url, idempotency_key)
+       VALUES ($1,$2,$3,$4,'open',$5,$6,$7)
+       ON CONFLICT (user_id, idempotency_key) WHERE idempotency_key IS NOT NULL
+       DO NOTHING
+       RETURNING *`,
+      [ticketId, userId, subject, description, ticketPriority, null, idempotencyKey]
     );
 
-    const ticket = (await db.query('SELECT * FROM tickets WHERE id = $1', [ticketId])).rows[0];
+    const isDuplicate = insert.rows.length === 0;
 
-    // Notify admins that a new ticket was raised
-    pushToAdmins('ticket_update', { action: 'created', ticket });
+    let ticket;
+    if (isDuplicate) {
+      // Replay: return the original ticket, don't re-notify.
+      ticket = (await db.query(
+        'SELECT * FROM tickets WHERE user_id = $1 AND idempotency_key = $2',
+        [userId, idempotencyKey]
+      )).rows[0];
+    } else {
+      ticket = insert.rows[0];
 
-    // Email notification to support inbox (non-blocking)
-    try {
-      const supportEmail = process.env.SUPPORT_EMAIL || process.env.SUPPORT_INBOX || process.env.GMAIL_SENDER_EMAIL;
-      if (supportEmail) {
-        await sendTicketCreatedEmail(supportEmail, ticket);
+      // Notify admins that a new ticket was raised
+      pushToAdmins('ticket_update', { action: 'created', ticket });
+
+      // Email notification to support inbox (non-blocking)
+      try {
+        const supportEmail = process.env.SUPPORT_EMAIL || process.env.SUPPORT_INBOX || process.env.GMAIL_SENDER_EMAIL;
+        if (supportEmail) {
+          await sendTicketCreatedEmail(supportEmail, ticket);
+        }
+      } catch (err) {
+        console.error('Ticket email notify failed', err);
       }
-    } catch (err) {
-      console.error('Ticket email notify failed', err);
     }
 
     res.status(201).json({ success: true, message: 'Ticket created successfully', ticket });

@@ -9,6 +9,23 @@
 import api from './client'
 
 // ─────────────────────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Mint a unique idempotency key for a write that might be replayed by the
+ * offline outbox. Prefers crypto.randomUUID; falls back for older/sandboxed
+ * environments where it may be unavailable.
+ */
+function newIdempotencyKey() {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID()
+    }
+  } catch (_) { /* fall through */ }
+  return `idk_${Date.now()}_${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // AUTH  (used by AuthContext, not imported directly in pages)
 // ─────────────────────────────────────────────────────────────────────────────
 export const authApi = {
@@ -372,18 +389,25 @@ export const supportApi = {
   /**
    * Create a new support ticket.
    * File attachment is optional – sent as multipart/form-data when present.
+   *
+   * A per-submission idempotency key rides along in the body. If the request
+   * fails without a response (timeout / dropped socket) the offline outbox
+   * replays it verbatim on reconnect — the key lets the server coalesce that
+   * replay to the original ticket instead of creating a duplicate.
    */
   createTicket: (subject, description, file = null) => {
+    const idempotencyKey = newIdempotencyKey()
     if (file) {
       const form = new FormData()
       form.append('subject', subject)
       form.append('description', description)
       form.append('photo', file)
+      form.append('idempotency_key', idempotencyKey)
       return api.post('/tickets', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
     }
-    return api.post('/tickets', { subject, description })
+    return api.post('/tickets', { subject, description, idempotency_key: idempotencyKey })
   },
 
   /** Reply to an existing ticket */
