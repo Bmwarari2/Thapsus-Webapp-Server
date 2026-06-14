@@ -1,6 +1,7 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
+import { idempotency } from '../middleware/idempotency.js';
 import { calculateShippingCost, loadPricingContext, HS_TIERS } from '../utils/pricing.js';
 import { pushToUser, pushToAdmins } from './events.js';
 import { logRouteError } from '../utils/errorLogger.js';
@@ -48,7 +49,7 @@ router.get('/', authMiddleware, async (req, res) => {
 });
 
 /** POST /api/orders */
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware, idempotency, async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;

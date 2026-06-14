@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { shouldQueue, outboxEnqueueFromError, outboxFlush } from '../lib/outbox'
+import { newIdempotencyKey } from '../lib/idempotencyKey'
 
 // In production (Railway) the frontend is served by the same Express process
 // that also handles /api — so we use a relative base URL ('/api') which avoids
@@ -68,10 +69,24 @@ export function isLoggedIn() {
   return !!storageGet('sc_token')
 }
 
-// ── Request interceptor: attach Bearer token ──────────────────────────────────
+// ── Request interceptor: attach Bearer token + idempotency key ────────────────
 api.interceptors.request.use((config) => {
   const token = storageGet('sc_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+
+  // Tag every replayable write with a stable Idempotency-Key so the server can
+  // coalesce a retry (outbox replay of a lost-response write, or a double
+  // submit) instead of duplicating side effects. The key is minted once on the
+  // original send; on an outbox replay it is restored via config.idempotencyKey
+  // (see outboxFlush) and passed through unchanged. GET/HEAD and auth routes
+  // are skipped — reads are idempotent and queueing auth would trap sign-in.
+  const method = String(config.method || '').toUpperCase()
+  const url = String(config.url || '')
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && !url.includes('/auth/')) {
+    const key = config.headers['Idempotency-Key'] || config.idempotencyKey || newIdempotencyKey()
+    config.idempotencyKey = key
+    config.headers['Idempotency-Key'] = key
+  }
   return config
 })
 

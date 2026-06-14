@@ -10,6 +10,7 @@ import express from 'express';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
+import { idempotency } from '../middleware/idempotency.js';
 import {
   createSignedUploadUrl,
   createSignedDownloadUrl,
@@ -342,6 +343,7 @@ router.post(
   '/runs',
   authMiddleware,
   requireRole('operator'),
+  idempotency,
   async (req, res) => {
     try {
       const { rider_id, zone, run_date, parcel_ids } = req.body;
@@ -957,6 +959,7 @@ router.post(
   '/rider/runs/:runId/pod',
   authMiddleware,
   requireRole('rider'),
+  idempotency,
   async (req, res) => {
     try {
       const { runId } = req.params;
@@ -1194,6 +1197,7 @@ router.post(
   '/rider/runs/:runId/fail',
   authMiddleware,
   requireRole('rider'),
+  idempotency,
   async (req, res) => {
     try {
       const { runId } = req.params;

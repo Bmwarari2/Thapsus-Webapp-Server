@@ -21,6 +21,7 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
+import { idempotency } from '../middleware/idempotency.js';
 import { sendInvoiceReadyEmail } from '../utils/email.js';
 import { pushToUser, pushToAdmins } from './events.js';
 import { sendWebPushToUser } from '../utils/webpush.js';
@@ -190,7 +191,7 @@ router.get('/me', authMiddleware, async (req, res) => {
  * Body: { user_id, amount_kes, description, currency?, notes? }
  * Returns: { success, customer_consolidation_id }
  */
-router.post('/standalone-invoice', authMiddleware, ALLOWED_ADMIN, async (req, res) => {
+router.post('/standalone-invoice', authMiddleware, ALLOWED_ADMIN, idempotency, async (req, res) => {
   try {
     const { user_id, amount_kes, description, currency, notes } = req.body || {};
     if (!user_id || typeof user_id !== 'string') {
@@ -262,7 +263,7 @@ router.post('/standalone-invoice', authMiddleware, ALLOWED_ADMIN, async (req, re
  * Body: { user_id, parcel_ids: string[], notes? }
  * Returns: { success, customer_consolidation_id }
  */
-router.post('/', authMiddleware, ALLOWED_ADMIN, async (req, res) => {
+router.post('/', authMiddleware, ALLOWED_ADMIN, idempotency, async (req, res) => {
   try {
     const { user_id, parcel_ids, notes } = req.body;
     if (!user_id) return res.status(400).json({ success: false, message: 'user_id is required' });

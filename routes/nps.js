@@ -3,11 +3,12 @@
  */
 import express from 'express';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
+import { idempotency } from '../middleware/idempotency.js';
 
 const router = express.Router();
 
 /** POST /api/nps — customer submits a score */
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware, idempotency, async (req, res) => {
   try {
     const { score, comment, parcel_id } = req.body;
     const s = parseInt(score, 10);
