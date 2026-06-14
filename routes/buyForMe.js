@@ -6,6 +6,7 @@
  */
 import express from 'express';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
+import { idempotency } from '../middleware/idempotency.js';
 import {
   sendBuyForMeQuoteEmail,
   sendBuyForMeRequestReceivedEmail,
@@ -27,7 +28,7 @@ const router = express.Router();
  * — `retailer_url` from the body wins if both are sent). When absent,
  * `retailer_url` is required (the "Other" path).
  */
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware, idempotency, async (req, res) => {
   try {
     const { retailer_id, retailer_url, item_name, size, qty, notes } = req.body;
     if (!item_name) {
@@ -215,7 +216,7 @@ router.post('/:id/cancel', authMiddleware, async (req, res) => {
  * customer can accept + pay straight away. Otherwise the row enters the
  * regular operator queue at status='pending_quote' for normal triage.
  */
-router.post('/admin-create', authMiddleware, requireRole('admin', 'operator'), async (req, res) => {
+router.post('/admin-create', authMiddleware, requireRole('admin', 'operator'), idempotency, async (req, res) => {
   try {
     const {
       user_id, retailer_id, retailer_url, item_name, size, qty, notes,

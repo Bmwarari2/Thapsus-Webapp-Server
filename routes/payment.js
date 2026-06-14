@@ -2,6 +2,7 @@ import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { logRouteError } from '../utils/errorLogger.js';
 import { getMpesaConfig } from '../utils/mpesaConfig.js';
+import { idempotency } from '../middleware/idempotency.js';
 
 const router = express.Router();
 
@@ -55,7 +56,7 @@ router.get('/:orderId', async (req, res) => {
  * Public endpoint. Accepts M-Pesa payment confirmation from customer.
  * Validates, extracts code, inserts transaction (pending), logs admin action, notifies admins.
  */
-router.post('/:orderId/confirm', async (req, res) => {
+router.post('/:orderId/confirm', idempotency, async (req, res) => {
   try {
     const db = req.db;
     const { orderId } = req.params;

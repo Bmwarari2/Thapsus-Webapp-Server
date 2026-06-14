@@ -1,6 +1,7 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
+import { idempotency } from '../middleware/idempotency.js';
 import { pushToUser, pushToAdmins } from './events.js';
 import { sendWebPushToUser } from '../utils/webpush.js';
 import { logRouteError } from '../utils/errorLogger.js';
@@ -171,7 +172,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 });
 
 /** POST /api/tickets/:id/message */
-router.post('/:id/message', authMiddleware, async (req, res) => {
+router.post('/:id/message', authMiddleware, idempotency, async (req, res) => {
   try {
     const db = req.db;
     const { id }     = req.params;

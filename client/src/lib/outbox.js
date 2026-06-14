@@ -66,7 +66,7 @@ function tx(mode = 'readonly') {
 }
 
 /** Append a mutation to the queue. Returns the assigned id. */
-export async function outboxEnqueue({ method, url, data = null, headers = null }) {
+export async function outboxEnqueue({ method, url, data = null, headers = null, idempotencyKey = null }) {
   if (!method || !url) {
     throw new Error('outboxEnqueue: method + url are required')
   }
@@ -78,6 +78,10 @@ export async function outboxEnqueue({ method, url, data = null, headers = null }
       url,
       data,
       headers: headers && Object.keys(headers).length ? headers : null,
+      // Persist the request's idempotency key so the replay carries the SAME
+      // key — that's what lets the server coalesce it to the original instead
+      // of creating a duplicate.
+      idempotencyKey: idempotencyKey || null,
       attempts: 0,
       lastError: null,
     })
@@ -174,6 +178,10 @@ export async function outboxFlush(api) {
         url: item.url,
         data: item.data,
         headers: item.headers || undefined,
+        // Restore the original idempotency key; the request interceptor reads
+        // config.idempotencyKey and re-attaches the Idempotency-Key header, so
+        // the server sees the same key as the original send and de-dupes.
+        idempotencyKey: item.idempotencyKey || undefined,
         _outboxReplay: true,
       })
       await outboxRemove(item.id)
@@ -226,6 +234,9 @@ export async function outboxEnqueueFromError(error) {
     url: cfg.url,
     data: cfg.data ? safeJsonParse(cfg.data) : null,
     headers: cfg.headers || null,
+    // Stashed on the config by the request interceptor — a clean string that
+    // survives the IndexedDB round-trip (unlike the AxiosHeaders object).
+    idempotencyKey: cfg.idempotencyKey || null,
   })
 }
 

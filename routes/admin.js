@@ -1,6 +1,7 @@
 import express from 'express';
 import crypto from 'crypto';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
+import { idempotency } from '../middleware/idempotency.js';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
 import { sendAdminPasswordResetEmail, sendPaymentRequestEmail, sendOrderCreatedEmail, sendWelcomeAccountEmail, sendPaymentReminderEmail, sendPaymentReceiptEmail, sendOrderUpdatedEmail, emailConfigStatus } from '../utils/email.js';
@@ -1094,7 +1095,7 @@ router.post('/exchange-rates/refresh', authMiddleware, isAdmin, async (req, res)
 });
 
 /** POST /api/admin/orders/create-for-client */
-router.post('/orders/create-for-client', authMiddleware, isAdmin, async (req, res) => {
+router.post('/orders/create-for-client', authMiddleware, isAdmin, idempotency, async (req, res) => {
   try {
     const db = req.db;
     const adminId = req.user.id;
@@ -1675,7 +1676,7 @@ router.get('/transactions/pending', authMiddleware, isAdmin, async (req, res) =>
 });
 
 /** POST /api/admin/transactions/:id/approve */
-router.post('/transactions/:id/approve', authMiddleware, isAdmin, async (req, res) => {
+router.post('/transactions/:id/approve', authMiddleware, isAdmin, idempotency, async (req, res) => {
   try {
     const db = req.db;
     const { id } = req.params;

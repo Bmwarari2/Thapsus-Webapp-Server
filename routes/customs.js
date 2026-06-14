@@ -7,6 +7,7 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
+import { idempotency } from '../middleware/idempotency.js';
 import { notifyParcelStatus } from '../utils/parcelStatusNotify.js';
 
 const router = express.Router();
@@ -426,6 +427,7 @@ router.post(
   '/agent-invoices',
   authMiddleware,
   requireRole('clearing_agent'),
+  idempotency,
   async (req, res) => {
     try {
       const { consolidation_id, invoice_no, amount_kes, doc_url, notes } = req.body;

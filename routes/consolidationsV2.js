@@ -9,6 +9,7 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
+import { idempotency } from '../middleware/idempotency.js';
 
 const router = express.Router();
 const ALLOWED_OPERATOR = requireRole('operator');
@@ -157,7 +158,7 @@ router.get('/', authMiddleware, ALLOWED_OPERATOR, async (req, res) => {
 });
 
 /** POST /api/consolidations  — create a new weekly flight unit */
-router.post('/', authMiddleware, ALLOWED_OPERATOR, async (req, res) => {
+router.post('/', authMiddleware, ALLOWED_OPERATOR, idempotency, async (req, res) => {
   try {
     const { week_start, cutoff_at, departure_at, notes } = req.body;
     if (!week_start || !cutoff_at) {
@@ -410,7 +411,7 @@ router.post('/:id/remove-parcel', authMiddleware, ALLOWED_OPERATOR, async (req, 
 });
 
 /** POST /api/consolidations/:id/pallets  — create a pallet */
-router.post('/:id/pallets', authMiddleware, ALLOWED_OPERATOR, async (req, res) => {
+router.post('/:id/pallets', authMiddleware, ALLOWED_OPERATOR, idempotency, async (req, res) => {
   try {
     const { id } = req.params;
     const { label, weight_kg, photo_url } = req.body;

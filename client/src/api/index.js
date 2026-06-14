@@ -7,23 +7,7 @@
  * res.data.orders  ← the data lives here
  */
 import api from './client'
-
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
-/**
- * Mint a unique idempotency key for a write that might be replayed by the
- * offline outbox. Prefers crypto.randomUUID; falls back for older/sandboxed
- * environments where it may be unavailable.
- */
-function newIdempotencyKey() {
-  try {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-      return crypto.randomUUID()
-    }
-  } catch (_) { /* fall through */ }
-  return `idk_${Date.now()}_${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
-}
+import { newIdempotencyKey } from '../lib/idempotencyKey'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AUTH  (used by AuthContext, not imported directly in pages)
