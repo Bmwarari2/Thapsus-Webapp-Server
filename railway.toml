@@ -2,7 +2,12 @@
   builder = "nixpacks"
   # --include=dev ensures Vite (a devDependency) is available during the client build step.
   # Without this flag Railway's production npm install omits devDeps and the build fails.
-  buildCommand = "npm install --include=dev && cd client && npm install --include=dev && npm run build && cd .."
+  # The trailing `node scripts/prerender-articles.mjs` generates the static
+  # /articles guide pages (full HTML + JSON-LD) into client/dist so crawlers
+  # and answer engines get fully-rendered content. Railway runs this
+  # buildCommand instead of package.json's `build` script, so the prerender
+  # step must be listed here explicitly.
+  buildCommand = "npm install --include=dev && cd client && npm install --include=dev && npm run build && cd .. && node scripts/prerender-articles.mjs"
 
 [deploy]
   startCommand = "node server.js"
