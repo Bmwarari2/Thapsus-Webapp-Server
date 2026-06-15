@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "cd client && npm install --include=dev && npm run build && cd ..",
+    "build": "cd client && npm install --include=dev && npm run build && cd .. && node scripts/prerender-articles.mjs",
     "preview": "vite preview",
     "start": "node server.js",
     "test": "vitest run",
