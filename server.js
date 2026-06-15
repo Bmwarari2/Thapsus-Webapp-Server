@@ -298,6 +298,23 @@ app.get('/sw.js', (req, res) => {
 // ── Sitemap & Robots (dynamic, before static so they take precedence) ────────
 app.use(sitemapRoutes);
 
+// ── Prerendered guide pages (SEO + AEO) ──────────────────────────────────────
+// The /articles hub is prerendered to static HTML at build time
+// (scripts/prerender-articles.mjs) so crawlers and answer engines receive the
+// full article content + JSON-LD without executing JS. We serve those files
+// explicitly here — ahead of express.static, whose default directory handling
+// would otherwise 301-redirect /articles/<slug> to a trailing slash. If a
+// prerender file is missing, we fall through to the SPA shell so the route
+// still works (client-rendered).
+const PRERENDER_ROOT = path.join(__dirname, 'client', 'dist', 'articles');
+app.get(/^\/articles(?:\/[a-zA-Z0-9-]+)?\/?$/, (req, res, next) => {
+  const slug = req.path.replace(/^\/articles\/?/, '').replace(/\/+$/, '');
+  const file = path.join(PRERENDER_ROOT, slug, 'index.html');
+  // Guard against path traversal — the resolved path must stay inside /articles.
+  if (!file.startsWith(PRERENDER_ROOT)) return next();
+  res.sendFile(file, (err) => { if (err) next(); });
+});
+
 // ── Long-cache hashed assets (audit F-22) ───────────────────────────────────
 // Vite hashes filenames in /assets/* — e.g., index-DYOGuuA_.css,
 // vendor-react-dom-BxKxlONR.js. The content for any given URL is
