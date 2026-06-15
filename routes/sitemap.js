@@ -4,10 +4,21 @@ const router = express.Router();
 
 // ─── Central route registry ─────────────────────────────────────────────────
 // Add new public pages here and the sitemap + robots.txt update automatically.
+// Article slugs are derived from the client data file so the sitemap stays in
+// sync automatically — add a guide in client/src/data/articles.js and it is
+// crawlable here with no further edits. The data module is pure ESM data
+// (no JSX / Vite-specific syntax) so Node can import it directly.
+import { articles } from '../client/src/data/articles.js';
+
+const ARTICLE_SLUGS = articles.map((a) => a.slug);
+
 const PUBLIC_ROUTES = [
   { path: '/',              changefreq: 'weekly',  priority: 1.0  },
   { path: '/pricing',       changefreq: 'weekly',  priority: 0.9  },
   { path: '/track',         changefreq: 'daily',   priority: 0.9  },
+  { path: '/articles',      changefreq: 'weekly',  priority: 0.8  },
+  { path: '/uk-stores',     changefreq: 'weekly',  priority: 0.7  },
+  { path: '/faq',           changefreq: 'monthly', priority: 0.6  },
   { path: '/exchange',      changefreq: 'daily',   priority: 0.7  },
   { path: '/prohibited',    changefreq: 'monthly', priority: 0.6  },
   { path: '/login',         changefreq: 'monthly', priority: 0.5  },
@@ -15,6 +26,10 @@ const PUBLIC_ROUTES = [
   { path: '/forgot-password', changefreq: 'yearly', priority: 0.3 },
   { path: '/privacy',       changefreq: 'yearly',  priority: 0.3  },
   { path: '/terms',         changefreq: 'yearly',  priority: 0.3  },
+  // Individual guide pages
+  ...ARTICLE_SLUGS.map((slug) => ({
+    path: `/articles/${slug}`, changefreq: 'monthly', priority: 0.7,
+  })),
 ];
 
 // Protected / admin paths that crawlers should NOT index
