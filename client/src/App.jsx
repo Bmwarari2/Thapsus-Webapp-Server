@@ -54,6 +54,8 @@ const PrivacyPolicy     = lazy(() => import('./pages/PrivacyPolicy').then(m => (
 const TermsOfService    = lazy(() => import('./pages/TermsOfService').then(m => ({ default: m.TermsOfService })))
 const ShipInstructions  = lazy(() => import('./pages/ShipInstructions').then(m => ({ default: m.ShipInstructions })))
 const FAQ               = lazy(() => import('./pages/FAQ').then(m => ({ default: m.FAQ })))
+const Articles          = lazy(() => import('./pages/Articles').then(m => ({ default: m.Articles })))
+const Article           = lazy(() => import('./pages/Article').then(m => ({ default: m.Article })))
 
 // ── Framework v2 pages ─────────────────────────────────────────────────────
 const OpsConsole          = lazy(() => import('./pages/OpsConsole').then(m => ({ default: m.OpsConsole })))
@@ -129,6 +131,8 @@ function App() {
                 unauth visitors to /login?next=… then renders the survey. */}
             <Route path="/nps" element={<NpsLanding />} />
             <Route path="/faq" element={<FAQ />} />
+            <Route path="/articles" element={<Articles />} />
+            <Route path="/articles/:slug" element={<Article />} />
             <Route path="/uk-stores" element={<UkStores />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms"   element={<TermsOfService />} />

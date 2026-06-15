@@ -43,6 +43,7 @@ export const Footer = () => {
               <li><a href="/" className="hover:text-ember-400 hover:translate-x-1 inline-block transition-transform duration-300">{t('nav.home')}</a></li>
               <li><a href="/pricing" className="hover:text-ember-400 hover:translate-x-1 inline-block transition-transform duration-300">{t('nav.pricing')}</a></li>
               <li><a href="/track" className="hover:text-ember-400 hover:translate-x-1 inline-block transition-transform duration-300">{t('nav.track')}</a></li>
+              <li><a href="/articles" className="hover:text-ember-400 hover:translate-x-1 inline-block transition-transform duration-300">Shipping guides</a></li>
               <li><a href="/support" className="hover:text-ember-400 hover:translate-x-1 inline-block transition-transform duration-300">{t('nav.support')}</a></li>
             </ul>
           </div>

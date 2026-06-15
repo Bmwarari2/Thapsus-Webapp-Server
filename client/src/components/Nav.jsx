@@ -6,6 +6,7 @@ import {
   Wallet as WalletIcon, FileText, ShieldAlert, Database, Receipt,
   Warehouse as WarehouseIcon, LifeBuoy, BookOpen, ScrollText, History,
   Bell, Gift, User, ChevronDown, ArrowRight, Plus, MoreHorizontal, Store,
+  Newspaper,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import brandMark1x from '../assets/brand-mark.webp'
@@ -36,6 +37,7 @@ function buildNav({ isAuthenticated, isAdmin, role }) {
           { to: '/',           label: 'Home',             icon: HomeIcon },
           { to: '/track',      label: 'Track a package',  icon: Search },
           { to: '/pricing',    label: 'Pricing',          icon: Calculator },
+          { to: '/articles',   label: 'Shipping guides',  icon: Newspaper },
           { to: '/faq',        label: 'FAQ',              icon: BookOpen },
           { to: '/prohibited', label: 'Prohibited items', icon: ShieldAlert },
         ]},
@@ -77,6 +79,7 @@ function buildNav({ isAuthenticated, isAdmin, role }) {
     ]},
     { key: 'help', label: 'Help', links: [
       { to: '/support',    label: 'Support',          icon: LifeBuoy },
+      { to: '/articles',   label: 'Shipping guides',  icon: Newspaper },
       { to: '/faq',        label: 'FAQ',              icon: BookOpen },
       { to: '/prohibited', label: 'Prohibited items', icon: ShieldAlert },
     ]},
