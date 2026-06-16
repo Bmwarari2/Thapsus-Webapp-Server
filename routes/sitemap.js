@@ -12,6 +12,9 @@ import { articles } from '../client/src/data/articles.js';
 
 const ARTICLE_SLUGS = articles.map((a) => a.slug);
 
+// Every public, indexable page in the SPA (see client/src/App.jsx). Each is
+// served by the SPA fallback (or prerendered, for /articles) so crawlers get
+// a 200 + rendered content. Keep this in step with the public <Route>s.
 const PUBLIC_ROUTES = [
   { path: '/',              changefreq: 'weekly',  priority: 1.0  },
   { path: '/pricing',       changefreq: 'weekly',  priority: 0.9  },
@@ -19,7 +22,6 @@ const PUBLIC_ROUTES = [
   { path: '/articles',      changefreq: 'weekly',  priority: 0.8  },
   { path: '/uk-stores',     changefreq: 'weekly',  priority: 0.7  },
   { path: '/faq',           changefreq: 'monthly', priority: 0.6  },
-  { path: '/exchange',      changefreq: 'daily',   priority: 0.7  },
   { path: '/prohibited',    changefreq: 'monthly', priority: 0.6  },
   { path: '/login',         changefreq: 'monthly', priority: 0.5  },
   { path: '/register',      changefreq: 'monthly', priority: 0.5  },
@@ -32,7 +34,20 @@ const PUBLIC_ROUTES = [
   })),
 ];
 
-// Protected / admin paths that crawlers should NOT index
+// Public routes that are intentionally NOT in the sitemap. They are reachable
+// (the SPA serves them) but have no search value — they are transactional,
+// token-based, or parameterised. We also Disallow them below so crawlers don't
+// waste budget on, or index, thin/sensitive pages.
+//   /check-inbox, /verify-email  — post-signup email landings
+//   /reset-password              — one-time token page
+//   /pay/:orderId                — per-order payment page (sensitive)
+//   /nps                         — post-delivery survey landing
+//   /track/:tn                   — parameterised tracking deep-link
+//
+// NOTE: /exchange was previously listed here but no such page exists in the
+// router, so it 404'd — removed to keep the sitemap free of dead URLs.
+
+// Protected / admin / transactional paths that crawlers should NOT index
 const DISALLOWED_PATHS = [
   '/admin',
   '/dashboard',
@@ -43,6 +58,12 @@ const DISALLOWED_PATHS = [
   '/support',
   '/warehouse',
   '/ship-instructions',
+  // Transactional / token / sensitive public pages (no SEO value)
+  '/check-inbox',
+  '/verify-email',
+  '/reset-password',
+  '/pay',
+  '/nps',
   '/api/',
 ];
 
