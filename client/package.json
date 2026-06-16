@@ -18,7 +18,7 @@
     "react-barcode": "^1.6.1",
     "react-dom": "^19.2.0",
     "react-hot-toast": "^2.4.1",
-    "react-router-dom": "^7.15.0",
+    "react-router-dom": "^7.18.0",
     "recharts": "^3.8.1"
   },
   "devDependencies": {
