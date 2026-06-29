@@ -121,6 +121,7 @@ import amlFlagsRoutes         from './routes/amlFlags.js';
 import appConfigRoutes        from './routes/appConfig.js';
 import customerConsolidationsRoutes from './routes/customerConsolidations.js';
 import accountDeletionRoutes        from './routes/accountDeletion.js';
+import financeRoutes                 from './routes/finance.js';
 
 const app      = express();
 const PORT     = process.env.PORT     || 5000;
@@ -567,6 +568,7 @@ app.all('/api/wallet{/*splat}', (_req, res) => res.status(410).json({
 }));
 app.use('/api/payments',         paymentsRoutes);
 app.use('/api/admin/payments',   adminPaymentsRoutes);
+app.use('/api/finance',          financeRoutes);
 app.use('/api/exchange',      exchangeRoutes);
 app.use('/api/referral',      referralRoutes);
 app.use('/api/tickets',       ticketsRoutes);

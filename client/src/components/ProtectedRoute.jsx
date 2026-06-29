@@ -8,9 +8,10 @@ import { useAuth } from '../context/AuthContext'
  *
  *   <ProtectedRoute adminOnly>{...}</ProtectedRoute>
  *   <ProtectedRoute roles={['operator','admin']}>{...}</ProtectedRoute>
+ *   <ProtectedRoute financeOnly>{...}</ProtectedRoute>
  */
-export const ProtectedRoute = ({ children, adminOnly = false, roles = null }) => {
-  const { isAuthenticated, isAdmin, user, loading } = useAuth()
+export const ProtectedRoute = ({ children, adminOnly = false, roles = null, financeOnly = false }) => {
+  const { isAuthenticated, isAdmin, canManageFinances, user, loading } = useAuth()
 
   if (loading) {
     return (
@@ -25,6 +26,12 @@ export const ProtectedRoute = ({ children, adminOnly = false, roles = null }) =>
   }
 
   if (adminOnly && !isAdmin) {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  // Finance dashboard is gated to a "selected admin" (can_manage_finances),
+  // not every admin.
+  if (financeOnly && !canManageFinances) {
     return <Navigate to="/dashboard" replace />
   }
 

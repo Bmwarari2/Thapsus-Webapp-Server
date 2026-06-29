@@ -97,7 +97,7 @@ router.get('/users', authMiddleware, isAdmin, async (req, res) => {
     params.push(limit, offset);
 
     const users = await db.query(
-      `SELECT id, email, name, phone, role, warehouse_id, referral_code, is_active, created_at
+      `SELECT id, email, name, phone, role, warehouse_id, referral_code, is_active, can_manage_finances, created_at
        FROM users ${conditions} ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params
     );
@@ -195,7 +195,7 @@ router.put('/users/:id', authMiddleware, isAdmin, async (req, res) => {
     const db = req.db;
     const { id } = req.params;
     const adminId = req.user.id;
-    const { role, is_active, delivery_address, admin_notes } = req.body;
+    const { role, is_active, delivery_address, admin_notes, can_manage_finances } = req.body;
 
     if (id === adminId && is_active === false) {
       return res.status(400).json({ success: false, message: 'You cannot deactivate your own account' });
@@ -214,6 +214,7 @@ router.put('/users/:id', authMiddleware, isAdmin, async (req, res) => {
     if (is_active !== undefined) { params.push(is_active); updates.push(`is_active = $${params.length}`); }
     if (delivery_address !== undefined) { params.push(delivery_address || null); updates.push(`delivery_address = $${params.length}`); }
     if (admin_notes !== undefined) { params.push(admin_notes || null); updates.push(`admin_notes = $${params.length}`); }
+    if (can_manage_finances !== undefined) { params.push(can_manage_finances === true); updates.push(`can_manage_finances = $${params.length}`); }
     if (updates.length === 0) return res.status(400).json({ success: false, message: 'Provide at least one field to update' });
     updates.push('updated_at = NOW()');
     params.push(id);
@@ -231,8 +232,16 @@ router.put('/users/:id', authMiddleware, isAdmin, async (req, res) => {
       );
     }
 
+    if (can_manage_finances !== undefined) {
+      await db.query(
+        'INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1, $2, $3, $4)',
+        [uuidv4(), adminId, can_manage_finances ? 'grant_finance_access' : 'revoke_finance_access',
+         JSON.stringify({ user_id: id, email: userInfo.email, name: userInfo.name })]
+      );
+    }
+
     const updated = await db.query(
-      'SELECT id, email, name, phone, role, warehouse_id, is_active, delivery_address, admin_notes FROM users WHERE id = $1', [id]
+      'SELECT id, email, name, phone, role, warehouse_id, is_active, delivery_address, admin_notes, can_manage_finances FROM users WHERE id = $1', [id]
     );
     res.json({ success: true, message: 'User updated successfully', user: updated.rows[0] });
   } catch (error) {

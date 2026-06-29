@@ -246,7 +246,7 @@ router.post('/login', async (req, res) => {
 
     const { rows } = await db.query(
       `SELECT id,email,password_hash,name,role,warehouse_id,language_pref,referral_code,
-              email_verified_at
+              email_verified_at,can_manage_finances
        FROM users WHERE email=$1 AND is_active=true`,
       [email]
     );
@@ -276,7 +276,7 @@ router.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, name: user.name, role: user.role, warehouse_id: user.warehouse_id },
+      { id: user.id, email: user.email, name: user.name, role: user.role, warehouse_id: user.warehouse_id, can_manage_finances: user.can_manage_finances === true },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRY }
     );
@@ -292,7 +292,7 @@ router.post('/login', async (req, res) => {
       token,
       supabase_token: supabase?.token || null,
       supabase_token_expires_at: supabase?.expiresAt || null,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, warehouse_id: user.warehouse_id, referral_code: user.referral_code, language_pref: user.language_pref }
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, warehouse_id: user.warehouse_id, referral_code: user.referral_code, language_pref: user.language_pref, can_manage_finances: user.can_manage_finances === true }
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -317,7 +317,7 @@ router.get('/me', authMiddleware, async (req, res) => {
   try {
     const { rows } = await req.db.query(
       `SELECT id,email,name,phone,role,warehouse_id,language_pref,referral_code,
-              delivery_address,country_of_residence,created_at,updated_at
+              delivery_address,country_of_residence,can_manage_finances,created_at,updated_at
          FROM users WHERE id=$1`,
       [req.user.id]
     );
@@ -336,6 +336,7 @@ router.get('/me', authMiddleware, async (req, res) => {
           email: user.email,
           role: user.role,
           warehouse_id: user.warehouse_id,
+          can_manage_finances: user.can_manage_finances === true,
         },
         JWT_SECRET,
         { algorithm: 'HS256', expiresIn: JWT_EXPIRY }
@@ -401,7 +402,7 @@ router.put('/profile', authMiddleware, async (req, res) => {
     await req.db.query(`UPDATE users SET ${setClauses.join(',')} WHERE id=$${idx}`, params);
 
     const { rows } = await req.db.query(
-      `SELECT id,email,name,phone,role,warehouse_id,language_pref,delivery_address,country_of_residence
+      `SELECT id,email,name,phone,role,warehouse_id,language_pref,delivery_address,country_of_residence,can_manage_finances
          FROM users WHERE id=$1`, [userId]
     );
     const fresh = rows[0];
@@ -417,6 +418,7 @@ router.put('/profile', authMiddleware, async (req, res) => {
         name: fresh.name,
         role: fresh.role,
         warehouse_id: fresh.warehouse_id,
+        can_manage_finances: fresh.can_manage_finances === true,
       },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRY }

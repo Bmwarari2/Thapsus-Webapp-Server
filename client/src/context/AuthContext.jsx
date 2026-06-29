@@ -233,6 +233,7 @@ export function AuthProvider({ children }) {
     logout,
     updateProfile,
     isAdmin: user?.role === 'admin',
+    canManageFinances: user?.can_manage_finances === true,
     isAuthenticated: !!user,  // ✅ FIX: expose isAuthenticated so ProtectedRoute works correctly
   }
 

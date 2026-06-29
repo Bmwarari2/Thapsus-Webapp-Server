@@ -27,6 +27,7 @@ swiftcargo/
 │   ├── tickets.js                # GET|POST /api/tickets with file upload
 │   ├── pricing.js                # POST /api/pricing/calculate
 │   ├── consolidation.js          # GET|POST /api/consolidation
+│   ├── finance.js                # /api/finance/* business bookkeeping (selected-admin)
 │   └── prohibited.js             # GET /api/prohibited/check
 │
 ├── utils/                        # Utility modules
@@ -104,6 +105,12 @@ swiftcargo/
 | `ticket_messages` | Support message threads | id, ticket_id, sender_id, message |
 | `notifications` | User notifications | id, user_id, type, message, is_read |
 | `admin_logs` | Admin activity logs | id, admin_id, action, details |
+| `finance_accounts` | Cash/bank/mobile-money pots | id, name, type, currency, opening_balance_minor |
+| `finance_categories` | Income/expense chart of accounts | id, name, kind, is_tax_deductible |
+| `finance_tax_codes` | UK/KE VAT & tax rates | id, jurisdiction, name, kind, rate_pct |
+| `finance_transactions` | Business general ledger (money in/out) | id, direction, amount_minor, currency, category_id, source |
+| `finance_tax_periods` | HMRC/KRA filing periods + status | id, jurisdiction, due_date, status, amount_due_minor |
+| `finance_report_snapshots` | Frozen period reports (audit) | id, kind, period_start, period_end, payload |
 
 ## Key Endpoints (50+ total)
 
@@ -144,6 +151,21 @@ swiftcargo/
 - `GET /api/admin/stats` - Dashboard statistics
 - `GET /api/admin/revenue?startDate=...` - Revenue report
 - `GET /api/admin/revenue/export` - CSV export
+- `PUT /api/admin/users/:id` - Update user (now also sets `can_manage_finances`)
+
+### Finance Management (selected-admin only — `users.can_manage_finances`)
+Business bookkeeping on top of the customer-payment tables (migration 057).
+All amounts are integer MINOR units (GBP pence / KES cents).
+- `GET  /api/finance/overview?currency=GBP|KES` - Money available, P&L (MTD/YTD), compliance
+- `GET  /api/finance/transactions` - Filterable ledger (direction, category, account, currency, source, from/to, q)
+- `POST /api/finance/transactions` - Record manual money in/out (locks FX rate, derives VAT)
+- `PATCH /api/finance/transactions/:id` · `POST /api/finance/transactions/:id/void`
+- `GET/POST/PATCH /api/finance/categories` · `/api/finance/accounts` · `/api/finance/tax/codes`
+- `GET  /api/finance/accounts/balances` - Derived per-account balances
+- `GET/POST/PATCH /api/finance/tax/periods` - HMRC (UK) / KRA (KE) filing periods + compliance status
+- `GET  /api/finance/reports/pnl|cashflow|tax?from&to&currency` - Live reports
+- `GET  /api/finance/reports/:type/export?format=csv` - CSV export (pnl|cashflow|tax|transactions)
+- `POST /api/finance/sync` - Reconcile/backfill ledger from settled payments + paid invoices
 
 ### Other
 - `POST /api/pricing/calculate` - Calculate shipping cost
