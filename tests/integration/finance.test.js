@@ -120,6 +120,18 @@ describe.skipIf(SKIP)('manual transactions', () => {
 });
 
 describe.skipIf(SKIP)('sync idempotency', () => {
+  it('runs every sync step without a per-step error', async () => {
+    // /sync returns 200 even when an individual step throws (runStep swallows
+    // and records the message), so assert each step reports a numeric insert
+    // count rather than an "error: …" string — this is what catches SQL/type
+    // bugs like a bigint-coerced FX param or a text=uuid join mismatch.
+    const r = await request(app).post('/api/finance/sync')
+      .set('Authorization', `Bearer ${financeAdmin.token}`).expect(200);
+    for (const [step, val] of Object.entries(r.body.synced || {})) {
+      expect(typeof val, `sync step '${step}' should be a count, got: ${val}`).toBe('number');
+    }
+  });
+
   it('does not create duplicate synced rows on a second run', async () => {
     await request(app).post('/api/finance/sync').set('Authorization', `Bearer ${financeAdmin.token}`).expect(200);
     const pool = getPool();

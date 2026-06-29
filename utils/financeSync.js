@@ -32,7 +32,7 @@ async function reportingRate(db) {
 }
 
 // Shared SELECT-list builders keep the live hook and the backfill in lock-step.
-// $1 is always the reporting/fallback GBP_KES rate.
+// $1::numeric is always the reporting/fallback GBP_KES rate.
 
 const PAYMENTS_INSERT = (extraWhere = '') => `
   INSERT INTO finance_transactions
@@ -48,11 +48,11 @@ const PAYMENTS_INSERT = (extraWhere = '') => `
     CASE WHEN p.method = 'stripe' THEN 'GBP' ELSE 'KES' END,
     (CASE WHEN p.method = 'stripe' AND p.stripe_amount_pence_gbp IS NOT NULL
           THEN p.stripe_amount_pence_gbp
-          ELSE ROUND(p.amount_due_kes * 100 / $1) END)::bigint,
+          ELSE ROUND(p.amount_due_kes * 100 / $1::numeric) END)::bigint,
     (CASE WHEN p.method = 'stripe' AND p.stripe_amount_pence_gbp IS NOT NULL
-          THEN ROUND(p.stripe_amount_pence_gbp * COALESCE(p.stripe_fx_rate_kes_gbp, $1))
+          THEN ROUND(p.stripe_amount_pence_gbp * COALESCE(p.stripe_fx_rate_kes_gbp, $1::numeric))
           ELSE p.amount_due_kes * 100 END)::bigint,
-    COALESCE(p.stripe_fx_rate_kes_gbp, $1),
+    COALESCE(p.stripe_fx_rate_kes_gbp, $1::numeric),
     CASE p.target_kind WHEN 'buy_for_me' THEN 'CAT-INC-BFM'
                        WHEN 'consolidation' THEN 'CAT-INC-INVOICE'
                        ELSE 'CAT-INC-SHIPPING' END,
@@ -114,26 +114,26 @@ export async function syncFinanceLedger(db) {
        fx_rate_gbp_kes, category_id, account_id, occurred_on, description,
        reference, source, source_id, status, created_at)
     SELECT
-      'FTX-CCI-' || c.id, 'in',
+      'FTX-CCI-' || c.id::text, 'in',
       ROUND(c.invoice_amount * 100)::bigint,
       COALESCE(c.invoice_currency, 'KES'),
       (CASE WHEN COALESCE(c.invoice_currency,'KES') = 'GBP'
             THEN ROUND(c.invoice_amount * 100)
-            ELSE ROUND(c.invoice_amount * 100 / $1) END)::bigint,
+            ELSE ROUND(c.invoice_amount * 100 / $1::numeric) END)::bigint,
       (CASE WHEN COALESCE(c.invoice_currency,'KES') = 'GBP'
-            THEN ROUND(c.invoice_amount * 100 * $1)
+            THEN ROUND(c.invoice_amount * 100 * $1::numeric)
             ELSE ROUND(c.invoice_amount * 100) END)::bigint,
-      $1,
+      $1::numeric,
       'CAT-INC-INVOICE',
       CASE WHEN COALESCE(c.invoice_currency,'KES') = 'GBP' THEN 'ACC-BANK-GBP' ELSE 'ACC-MPESA-KES' END,
       COALESCE(c.invoice_paid_at, c.updated_at, c.created_at)::date,
-      'Customer invoice', c.id,
-      'customer_invoice', c.id, 'cleared', COALESCE(c.invoice_paid_at, NOW())
+      'Customer invoice', c.id::text,
+      'customer_invoice', c.id::text, 'cleared', COALESCE(c.invoice_paid_at, NOW())
     FROM customer_consolidations c
     WHERE c.invoice_status = 'paid' AND c.invoice_amount IS NOT NULL
       AND NOT EXISTS (
         SELECT 1 FROM payments p
-         WHERE p.target_kind = 'consolidation' AND p.target_id = c.id AND p.status = 'paid'
+         WHERE p.target_kind = 'consolidation' AND p.target_id = c.id::text AND p.status = 'paid'
       )
     ON CONFLICT (source, source_id) WHERE (source <> 'manual') DO NOTHING`);
 
@@ -146,9 +146,9 @@ export async function syncFinanceLedger(db) {
     SELECT
       'FTX-AGT-' || a.id, 'out',
       ROUND(a.amount_kes * 100)::bigint, 'KES',
-      ROUND(a.amount_kes * 100 / $1)::bigint,
+      ROUND(a.amount_kes * 100 / $1::numeric)::bigint,
       ROUND(a.amount_kes * 100)::bigint,
-      $1, 'CAT-EXP-AGENT', 'ACC-BANK-KES',
+      $1::numeric, 'CAT-EXP-AGENT', 'ACC-BANK-KES',
       COALESCE(a.paid_at, a.created_at)::date,
       'Clearing agent invoice', a.invoice_no,
       'agent_invoice', a.id, 'cleared', COALESCE(a.paid_at, NOW())
@@ -166,8 +166,8 @@ export async function syncFinanceLedger(db) {
       'FTX-TDR-' || t.id, 'out',
       ROUND(t.amount_gbp * 100)::bigint, 'GBP',
       ROUND(t.amount_gbp * 100)::bigint,
-      ROUND(t.amount_gbp * 100 * $1)::bigint,
-      $1, 'CAT-EXP-SUPPLIER', 'ACC-BANK-GBP',
+      ROUND(t.amount_gbp * 100 * $1::numeric)::bigint,
+      $1::numeric, 'CAT-EXP-SUPPLIER', 'ACC-BANK-GBP',
       COALESCE(t.paid_at, t.created_at)::date,
       'Supplier (Tudor) invoice', 'Tudor', t.invoice_no,
       'tudor_invoice', t.id, 'cleared', COALESCE(t.paid_at, NOW())
