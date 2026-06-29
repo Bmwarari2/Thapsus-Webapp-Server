@@ -44,6 +44,7 @@ const AdminCustomerConsolidations = lazy(() => import('./pages/AdminCustomerCons
 const AdminIssueInvoice = lazy(() => import('./pages/AdminIssueInvoice').then(m => ({ default: m.AdminIssueInvoice })))
 const AdminCreateBuyForMe = lazy(() => import('./pages/AdminCreateBuyForMe').then(m => ({ default: m.AdminCreateBuyForMe })))
 const AdminDsarQueue    = lazy(() => import('./pages/AdminDsarQueue').then(m => ({ default: m.AdminDsarQueue })))
+const AdminFinance      = lazy(() => import('./pages/AdminFinance').then(m => ({ default: m.AdminFinance })))
 const ResetPassword     = lazy(() => import('./pages/ResetPassword').then(m => ({ default: m.ResetPassword })))
 const ForgotPassword    = lazy(() => import('./pages/ForgotPassword').then(m => ({ default: m.ForgotPassword })))
 const OrderDetail       = lazy(() => import('./pages/OrderDetail').then(m => ({ default: m.OrderDetail })))
@@ -180,6 +181,7 @@ function App() {
             <Route path="/admin/issue-invoice" element={<ProtectedRoute adminOnly={true}><AdminIssueInvoice /></ProtectedRoute>} />
             <Route path="/admin/create-bfm" element={<ProtectedRoute adminOnly={true}><AdminCreateBuyForMe /></ProtectedRoute>} />
             <Route path="/admin/dsar" element={<ProtectedRoute adminOnly={true}><AdminDsarQueue /></ProtectedRoute>} />
+            <Route path="/admin/finance" element={<ProtectedRoute financeOnly={true}><AdminFinance /></ProtectedRoute>} />
             <Route path="/kpi"   element={<ProtectedRoute adminOnly={true}><KpiDashboard /></ProtectedRoute>} />
 
             {/* Partner portals */}

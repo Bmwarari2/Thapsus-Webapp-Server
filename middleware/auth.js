@@ -54,6 +54,7 @@ async function checkAuthStatus(db, token, decoded) {
     const { rows } = await db.query(
       `SELECT
          u.is_active,
+         u.can_manage_finances,
          EXTRACT(EPOCH FROM u.password_changed_at)::int AS pwd_changed_epoch,
          EXISTS(SELECT 1 FROM revoked_tokens WHERE token_sha256 = $1) AS revoked
        FROM users u
@@ -63,7 +64,7 @@ async function checkAuthStatus(db, token, decoded) {
     if (rows.length === 0) {
       return { ok: false, status: 401, message: 'User no longer exists' };
     }
-    const { is_active, pwd_changed_epoch, revoked } = rows[0];
+    const { is_active, can_manage_finances, pwd_changed_epoch, revoked } = rows[0];
     if (revoked) {
       return { ok: false, status: 401, message: 'Token has been revoked' };
     }
@@ -75,7 +76,9 @@ async function checkAuthStatus(db, token, decoded) {
     if (decoded.iat && pwd_changed_epoch && decoded.iat + 5 < pwd_changed_epoch) {
       return { ok: false, status: 401, message: 'Token has been revoked' };
     }
-    return { ok: true };
+    // Surface the live finance flag so a grant/revoke takes effect on the next
+    // request rather than at next login (the JWT copy is only a UI hint).
+    return { ok: true, canManageFinances: can_manage_finances === true };
   } catch (err) {
     if (err.code === '42P01' || err.code === '42703') {
       // Boot-window race — migration not yet applied. Soft-fail to keep
@@ -122,6 +125,11 @@ export async function authMiddleware(req, res, next) {
   }
 
   req.user = decoded;
+  // Prefer the live DB value; fall back to the JWT copy during the boot window
+  // when checkAuthStatus soft-fails (column not yet migrated).
+  req.user.can_manage_finances = status.canManageFinances !== undefined
+    ? status.canManageFinances
+    : decoded.can_manage_finances === true;
   req.authToken = token;
   next();
 }
@@ -159,6 +167,22 @@ export function requireRole(...allowed) {
 export const isOperator = requireRole('operator');
 export const isAgent    = requireRole('clearing_agent');
 export const isRider    = requireRole('rider');
+
+/**
+ * requireFinanceAccess — gate the finance dashboard to a "selected admin".
+ *
+ * Unlike requireRole, role='admin' alone is NOT sufficient: access is granted
+ * per-admin via users.can_manage_finances (set by a super-admin). authMiddleware
+ * stamps the live flag onto req.user from the DB, so a revoke takes effect on
+ * the next request. Must run after authMiddleware.
+ */
+export function requireFinanceAccess(req, res, next) {
+  if (req.user?.can_manage_finances === true) return next();
+  return res.status(403).json({
+    success: false,
+    message: 'Finance access required. Ask an administrator to enable finance management for your account.',
+  });
+}
 
 export async function optionalAuth(req, res, next) {
   const authHeader = req.headers['authorization'];

@@ -418,6 +418,17 @@ export const AdminDashboard = () => {
     } catch (err) { toast.error(`Failed to ${action} user`) }
   }
 
+  const handleToggleFinanceAccess = async (u) => {
+    const next = !u.can_manage_finances
+    if (!window.confirm(`${next ? 'Grant' : 'Revoke'} finance management access for ${u.name}?`)) return
+    try {
+      await adminApi.updateUser(u.id, { can_manage_finances: next })
+      toast.success(`Finance access ${next ? 'granted' : 'revoked'}`)
+      setSelectedUser(prev => ({ ...prev, can_manage_finances: next }))
+      fetchData()
+    } catch (err) { toast.error('Failed to update finance access') }
+  }
+
   const handleDeleteUser = async (u) => {
     if (!window.confirm(`Permanently delete user ${u.name}? This will remove ALL their orders and data. This cannot be undone.`)) return
     try {
@@ -582,6 +593,13 @@ export const AdminDashboard = () => {
             </div>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tighter uppercase leading-none mb-2">{t('admin.title')}</h1>
             <p className="text-mute font-bold text-sm tracking-wide uppercase">Global Terminal • System Live</p>
+            {currentUser?.can_manage_finances && (
+              <a href="/admin/finance"
+                 className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-ember-gradient text-white font-black text-xs uppercase tracking-widest shadow-lg no-underline"
+                 style={{ textDecoration: 'none' }}>
+                <DollarSign size={15}/> Finance Dashboard
+              </a>
+            )}
           </div>
           <div className="flex bg-surface-2 backdrop-blur-2xl p-2 rounded-[2rem] border border-line shadow-sm overflow-x-auto no-scrollbar">
             {['overview', 'users', 'orders', 'payments', 'revenue', 'tickets', 'aml', 'exchange', 'settings', 'auditLogs', 'errorLogs'].map((tab) => (
@@ -1367,6 +1385,11 @@ export const AdminDashboard = () => {
                 <button onClick={() => handleResetUserPassword(selectedUser.id, selectedUser.name, selectedUser.email)} className={btnOutline + " !bg-surface"}><Key size={16}/> Push Reset Link</button>
                 <button onClick={() => setShowUserOrderForm(!showUserOrderForm)} className={btnPrimary}><Package size={16}/> Drop Order</button>
                 
+                {selectedUser.role === 'admin' && (
+                  <button onClick={() => handleToggleFinanceAccess(selectedUser)} className={btnOutline + (selectedUser.can_manage_finances ? " !border-emerald-500 !text-emerald-300 hover:!bg-emerald-500/10 bg-surface" : " !border-orange-500 !text-orange-300 hover:!bg-orange-500/10 bg-surface")}>
+                    <DollarSign size={16}/> {selectedUser.can_manage_finances ? 'Revoke Finance Access' : 'Grant Finance Access'}
+                  </button>
+                )}
                 {selectedUser.id !== currentUser?.id && (
                   <>
                     <button onClick={() => handleToggleUserActive(selectedUser)} className={btnOutline + (selectedUser.is_active ? " !border-amber-500 !text-amber-600 hover:!bg-amber-500/10 bg-surface" : " !border-green-500 !text-emerald-300 hover:!bg-emerald-500/10 bg-surface")}>

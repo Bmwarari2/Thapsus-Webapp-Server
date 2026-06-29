@@ -10,6 +10,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sendUnifiedPaymentReceiptEmail } from './email.js';
 import { insertWithUniqueTrackingNumber } from './trackingNumber.js';
+import { recordPaymentIncome } from './financeSync.js';
 
 /**
  * Marks the payment paid, deducts any consumed credit, and flips the
@@ -100,6 +101,10 @@ export async function markPaymentPaid(db, paymentId, opts = {}) {
     } catch (e) {
       console.warn(`[markPaymentPaid:${paymentId}] post-paid hook failed:`, e?.message);
     }
+
+    // Mirror the settled payment into the business finance ledger (money in).
+    // Idempotent + self-contained; never throws into this flow.
+    await recordPaymentIncome(db, paymentId);
 
     return { ok: true, alreadyPaid: false,
              target_kind: payment.target_kind, target_id: payment.target_id };

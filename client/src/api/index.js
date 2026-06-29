@@ -606,6 +606,44 @@ export const pushApi = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// FINANCE MANAGEMENT  →  /api/finance/*   (selected-admin only)
+// All amounts are MINOR units (GBP pence / KES cents); divide by 100 for display.
+// ─────────────────────────────────────────────────────────────────────────────
+export const financeApi = {
+  overview:      (currency = 'GBP') => api.get('/finance/overview', { params: { currency } }),
+
+  listTransactions:  (params = {}) => api.get('/finance/transactions', { params }),
+  createTransaction: (data)        => api.post('/finance/transactions', data),
+  updateTransaction: (id, data)    => api.patch(`/finance/transactions/${id}`, data),
+  voidTransaction:   (id)          => api.post(`/finance/transactions/${id}/void`),
+
+  listCategories: ()       => api.get('/finance/categories'),
+  createCategory: (data)   => api.post('/finance/categories', data),
+  updateCategory: (id, d)  => api.patch(`/finance/categories/${id}`, d),
+
+  listAccounts:    ()      => api.get('/finance/accounts'),
+  accountBalances: ()      => api.get('/finance/accounts/balances'),
+  createAccount:   (data)  => api.post('/finance/accounts', data),
+  updateAccount:   (id, d) => api.patch(`/finance/accounts/${id}`, d),
+
+  listTaxCodes:  ()        => api.get('/finance/tax/codes'),
+  createTaxCode: (data)    => api.post('/finance/tax/codes', data),
+  updateTaxCode: (id, d)   => api.patch(`/finance/tax/codes/${id}`, d),
+
+  listTaxPeriods:  ()      => api.get('/finance/tax/periods'),
+  createTaxPeriod: (data)  => api.post('/finance/tax/periods', data),
+  updateTaxPeriod: (id, d) => api.patch(`/finance/tax/periods/${id}`, d),
+
+  reportPnl:      (params = {}) => api.get('/finance/reports/pnl', { params }),
+  reportCashflow: (params = {}) => api.get('/finance/reports/cashflow', { params }),
+  reportTax:      (params = {}) => api.get('/finance/reports/tax', { params }),
+  exportReport:   (type, params = {}) =>
+    api.get(`/finance/reports/${type}/export`, { params: { ...params, format: 'csv' }, responseType: 'blob' }),
+
+  sync: () => api.post('/finance/sync'),
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Default export (raw axios instance) – handy for one-off calls
 // ─────────────────────────────────────────────────────────────────────────────
 export { default as apiClient } from './client'
