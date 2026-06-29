@@ -106,8 +106,13 @@ CREATE INDEX IF NOT EXISTS idx_finance_tx_account
     ON public.finance_transactions (account_id);
 
 -- updated_at touch (mirrors trg_payments_updated_at in 028)
+-- search_path pinned to '' (advisor 0011 / migration 040 convention): the body
+-- only touches NEW + NOW() (pg_catalog, always resolvable), so an empty
+-- search_path is safe and stops a mutable-search_path security warning.
 CREATE OR REPLACE FUNCTION public.touch_finance_tx_updated_at()
-RETURNS trigger LANGUAGE plpgsql AS $$
+RETURNS trigger LANGUAGE plpgsql
+SET search_path = ''
+AS $$
 BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
