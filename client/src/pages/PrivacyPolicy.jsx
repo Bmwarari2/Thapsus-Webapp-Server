@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { ShieldCheck, ArrowLeft, Zap } from 'lucide-react'
+import { useAppConfig, formatWhatsapp } from '../hooks/useAppConfig'
 
 const LiquidBlob = ({ className, color }) => (
   null
@@ -24,6 +25,7 @@ const Section = ({ title, children }) => (
 )
 
 export const PrivacyPolicy = () => {
+  const { support_whatsapp } = useAppConfig()
   return (
     <div className="min-h-screen bg-transparent font-sans text-white overflow-x-hidden relative">
       <style>{`
@@ -152,7 +154,7 @@ export const PrivacyPolicy = () => {
             <p>If you have any questions about this Privacy Policy, please contact us:</p>
             <ul className="list-none mt-3 space-y-1.5">
               <li><strong className="text-white">Email:</strong> <a href="mailto:admin@thapsus.uk" className="text-ember-400 hover:underline font-bold">admin@thapsus.uk</a></li>
-              <li><strong className="text-white">Phone / WhatsApp:</strong> <a href="https://wa.me/447424531483" target="_blank" rel="noopener noreferrer" className="text-ember-400 hover:underline font-bold">+44 7424 531483</a></li>
+              <li><strong className="text-white">Phone / WhatsApp:</strong> <a href={`https://wa.me/${support_whatsapp}`} target="_blank" rel="noopener noreferrer" className="text-ember-400 hover:underline font-bold">{formatWhatsapp(support_whatsapp)}</a></li>
               <li><strong className="text-white">Address:</strong> 31 Collingwood Close, Hazel Grove, Stockport, SK7 4LB, United Kingdom</li>
             </ul>
           </Section>

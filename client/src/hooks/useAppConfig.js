@@ -29,6 +29,20 @@ const FALLBACK_CONFIG = {
 let cachedConfig = null;
 let inflight = null;
 
+/**
+ * Format a wa.me number (digits only, country code first) for display.
+ * UK numbers (44…) render as "+44 7424 531483"; anything else falls back
+ * to a plain "+<digits>" so it stays correct regardless of locale.
+ */
+export function formatWhatsapp(number) {
+  const digits = String(number || '').replace(/\D/g, '');
+  if (digits.startsWith('44')) {
+    const rest = digits.slice(2);
+    return `+44 ${rest.slice(0, 4)} ${rest.slice(4)}`.trim();
+  }
+  return digits ? `+${digits}` : '';
+}
+
 export function useAppConfig() {
   const [config, setConfig] = useState(cachedConfig || FALLBACK_CONFIG);
 

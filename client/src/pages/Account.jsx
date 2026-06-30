@@ -21,13 +21,17 @@ import {
   Info, BookOpen, ScrollText, FileText, MessageCircle, LogOut, ChevronRight,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useAppConfig } from '../hooks/useAppConfig'
 import { paymentsApi } from '../api'
-
-const WHATSAPP_URL = 'https://wa.me/254700000000?text=Hi%20Thapsus%20Cargo%2C%20I%20need%20a%20hand'
 
 export const Account = () => {
   const { user, logout } = useAuth()
+  const { support_whatsapp } = useAppConfig()
   const [credit, setCredit] = useState(null)
+
+  const WHATSAPP_URL = `https://wa.me/${support_whatsapp}?text=${encodeURIComponent(
+    'Hi Thapsus Cargo, I need a hand'
+  )}`
 
   useEffect(() => {
     paymentsApi.myCredit()
