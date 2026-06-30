@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
+import { useAppConfig } from '../hooks/useAppConfig'
 import { SEO } from '../components/SEO'
 import { CutoffBanner } from '../components/CutoffBanner'
 import { PillLabel, EmberIcon, ArcDecoration } from '../components/ui'
@@ -34,7 +35,12 @@ export const Home = () => {
   const { t } = useLanguage()
   const { isAuthenticated } = useAuth()
   const navigate = useNavigate()
+  const { support_whatsapp } = useAppConfig()
   const [trackingInput, setTrackingInput] = useState('')
+
+  const whatsappUrl = `https://wa.me/${support_whatsapp}?text=${encodeURIComponent(
+    "Hi, I'd like to enquire about Thapsus Cargo shipping services."
+  )}`
 
   const handleTrack = (e) => {
     e.preventDefault()
@@ -118,7 +124,7 @@ export const Home = () => {
                   <button type="submit"
                     className="absolute right-1.5 top-1/2 -translate-y-1/2 btn-primary btn-sm">Track</button>
                 </form>
-                <a href="https://wa.me/447424531483?text=Hi%2C%20I%27d%20like%20to%20enquire%20about%20Thapsus%20Cargo%20shipping%20services."
+                <a href={whatsappUrl}
                   target="_blank" rel="noopener noreferrer"
                   className="btn bg-[#25D366] hover:bg-[#1ebe5b] text-white shrink-0">
                   <svg viewBox="0 0 32 32" width="20" height="20" fill="currentColor"><path d="M16 0C7.163 0 0 7.163 0 16c0 2.824.737 5.479 2.027 7.793L0 32l8.455-2.005A15.931 15.931 0 0016 32c8.837 0 16-7.163 16-16S24.837 0 16 0zm0 29.333a13.29 13.29 0 01-6.781-1.853l-.487-.29-5.013 1.189 1.213-4.877-.317-.5A13.267 13.267 0 012.667 16C2.667 8.636 8.636 2.667 16 2.667S29.333 8.636 29.333 16 23.364 29.333 16 29.333z"/></svg>
