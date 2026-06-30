@@ -3,6 +3,7 @@ import { Plus, Minus, HelpCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { PillLabel } from '../components/ui'
 import { Reveal } from '../components/motion'
+import { useAppConfig } from '../hooks/useAppConfig'
 
 const faqs = [
   {
@@ -133,6 +134,7 @@ const FAQItem = ({ q, a }) => {
 }
 
 export const FAQ = () => {
+  const { support_whatsapp } = useAppConfig()
   return (
     <div className="relative overflow-hidden py-14 px-4">
       <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[44rem] h-[44rem] bg-ember-radial blur-2xl pointer-events-none" />
@@ -166,7 +168,7 @@ export const FAQ = () => {
             <h3 className="text-2xl font-bold text-white mb-2">Still need help?</h3>
             <p className="text-mute mb-6">Our support team is here to assist with anything not covered above.</p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <a href="https://wa.me/447424531483" target="_blank" rel="noopener noreferrer"
+              <a href={`https://wa.me/${support_whatsapp}`} target="_blank" rel="noopener noreferrer"
                 className="btn bg-[#25D366] hover:bg-[#1ebe5b] text-white">WhatsApp us</a>
               <a href="mailto:admin@thapsus.uk" className="btn-secondary">Email support</a>
               <Link to="/support" className="btn-primary glass-sheen">Open a ticket</Link>

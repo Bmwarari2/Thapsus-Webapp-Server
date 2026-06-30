@@ -644,6 +644,15 @@ export const financeApi = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// APP CONFIG — public runtime constants (support WhatsApp/email, warehouse
+// code, OTP length…) driven by env vars so ops can rotate them without a
+// new build. GET /api/app-config → { config: {...} }.
+// ─────────────────────────────────────────────────────────────────────────────
+export const appConfigApi = {
+  get: () => api.get('/app-config'),
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Default export (raw axios instance) – handy for one-off calls
 // ─────────────────────────────────────────────────────────────────────────────
 export { default as apiClient } from './client'

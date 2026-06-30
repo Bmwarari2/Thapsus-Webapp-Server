@@ -5,6 +5,7 @@ import { Mail, Phone, MapPin } from 'lucide-react'
 // brand icons. See client/src/components/icons/BrandIcons.jsx (audit F-19).
 import { Facebook, Instagram } from './icons/BrandIcons'
 import { useLanguage } from '../context/LanguageContext'
+import { useAppConfig, formatWhatsapp } from '../hooks/useAppConfig'
 
 const TikTokIcon = ({ size = 20, className = '' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -14,6 +15,7 @@ const TikTokIcon = ({ size = 20, className = '' }) => (
 
 export const Footer = () => {
   const { t } = useLanguage()
+  const { support_whatsapp } = useAppConfig()
 
   return (
     <footer className="relative mt-16 overflow-hidden bg-ink-800 border-t border-line font-sans pt-16 pb-8">
@@ -71,12 +73,12 @@ export const Footer = () => {
                   <Phone size={16} className="text-ember-400" />
                 </div>
                 <a
-                  href="https://wa.me/447424531483"
+                  href={`https://wa.me/${support_whatsapp}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-ember-400 transition-colors flex items-center gap-1.5"
                 >
-                  +44 7424 531483
+                  {formatWhatsapp(support_whatsapp)}
                   <span className="text-[9px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">WhatsApp</span>
                 </a>
               </li>
