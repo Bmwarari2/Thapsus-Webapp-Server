@@ -77,9 +77,14 @@ try {
  *   family: 0  → allow both IPv4 and IPv6
  *   ssl        → required for Supabase
  */
+// Supabase (and any non-local host) requires SSL. A local Postgres — used for
+// running the suite / a seeded dev DB before touching the remote project — does
+// not support SSL, so disable it for localhost / an explicit sslmode=disable.
+const isLocalDb = /@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(rawUrl) || /sslmode=disable/.test(rawUrl);
+
 const pool = new Pool({
   connectionString: rawUrl,
-  ssl: { rejectUnauthorized: false },
+  ssl: isLocalDb ? false : { rejectUnauthorized: false },
   family: 0,
   max: 5,
   idleTimeoutMillis: 10000,
