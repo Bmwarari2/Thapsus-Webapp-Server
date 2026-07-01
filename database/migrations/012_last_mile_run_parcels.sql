@@ -28,7 +28,7 @@
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS public.last_mile_run_parcels (
-  run_id                     UUID NOT NULL REFERENCES public.last_mile_runs(id) ON DELETE CASCADE,
+  run_id                     TEXT NOT NULL REFERENCES public.last_mile_runs(id) ON DELETE CASCADE,
   parcel_id                  TEXT NOT NULL REFERENCES public.orders(id)         ON DELETE CASCADE,
   position                   INT  NOT NULL,
   delivery_address_override  TEXT,

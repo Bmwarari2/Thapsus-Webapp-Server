@@ -29,7 +29,7 @@
 CREATE TABLE IF NOT EXISTS public.customer_consolidations (
     id                          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id                     text NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    shipping_consolidation_id   uuid NULL REFERENCES public.consolidations(id) ON DELETE SET NULL,
+    shipping_consolidation_id   text NULL REFERENCES public.consolidations(id) ON DELETE SET NULL,
     status                      text NOT NULL DEFAULT 'pending'
                                 CHECK (status IN ('pending','invoiced','paid','shipped')),
     invoice_amount              numeric(12,2) NULL,

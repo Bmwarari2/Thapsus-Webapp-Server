@@ -5,7 +5,7 @@ import { idempotency } from '../middleware/idempotency.js';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
 import { sendAdminPasswordResetEmail, sendPaymentRequestEmail, sendOrderCreatedEmail, sendWelcomeAccountEmail, sendPaymentReminderEmail, sendPaymentReceiptEmail, sendOrderUpdatedEmail, emailConfigStatus } from '../utils/email.js';
-import { calculateShippingCost, ELECTRONICS_HANDLING, HS_TIERS } from '../utils/pricing.js';
+import { calculateShippingCost, loadPricingContext, ELECTRONICS_HANDLING, HS_TIERS } from '../utils/pricing.js';
 import { getGbpToKesRate } from '../utils/fx.js';
 import { refreshFxRatesFromFrankfurter } from '../utils/fxRefresh.js';
 
@@ -149,6 +149,7 @@ router.get('/users/:id', authMiddleware, isAdmin, async (req, res) => {
        FROM orders WHERE user_id = $1 ORDER BY created_at DESC`, [id]
     );
 
+    const pricingCtx = await loadPricingContext(db);
     const orders = ordersRes.rows.map((o) => {
       const dims = o.dimensions_json ? JSON.parse(o.dimensions_json) : null;
       let cost_breakdown = null;
@@ -160,6 +161,11 @@ router.get('/users/:id', authMiddleware, isAdmin, async (req, res) => {
           insurance: o.insurance || false,
           declared_value: o.declared_value || 0,
           electronics_item: o.electronics_item || null,
+          hs_tier: o.hs_tier || null,
+          settings:        pricingCtx.settings,
+          customsTiers:    pricingCtx.customsTiers,
+          hsMap:           pricingCtx.hsMap,
+          electronicsFees: pricingCtx.electronicsFees,
         });
       } catch (_) { /* leave cost_breakdown as null on error */ }
       return { ...o, dimensions_json: dims, cost_breakdown };
@@ -548,6 +554,10 @@ router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
     const order = orderRes.rows[0];
 
     let costBreakdown = null;
+    // DB-backed pricing context (six-knob settings + customs tiers), so an
+    // admin edit recomputes estimated_cost against the same configured pricing
+    // the customer self-serve flow uses — not the hardcoded defaults.
+    const pricingCtx = await loadPricingContext(db);
     const params = [];
     const updates = [];
 
@@ -586,6 +596,11 @@ router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
         insurance: order.insurance || false,
         declared_value: order.declared_value || 0,
         electronics_item: effectiveElectronics,
+        hs_tier: order.hs_tier || null,
+        settings:        pricingCtx.settings,
+        customsTiers:    pricingCtx.customsTiers,
+        hsMap:           pricingCtx.hsMap,
+        electronicsFees: pricingCtx.electronicsFees,
       });
       params.push(costBreakdown.total);
       updates.push(`estimated_cost = $${params.length}`);
@@ -633,6 +648,11 @@ router.put('/orders/:id/edit', authMiddleware, isAdmin, async (req, res) => {
           insurance: updatedOrder.insurance || false,
           declared_value: updatedOrder.declared_value || 0,
           electronics_item: updatedOrder.electronics_item || null,
+          hs_tier: updatedOrder.hs_tier || null,
+          settings:        pricingCtx.settings,
+          customsTiers:    pricingCtx.customsTiers,
+          hsMap:           pricingCtx.hsMap,
+          electronicsFees: pricingCtx.electronicsFees,
         });
       } catch (_) { /* non-fatal — skip email breakdown if pricing fails */ }
     }
@@ -1141,6 +1161,11 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, idempotency, a
     if (!['economy','express'].includes(speed))
       return res.status(400).json({ success: false, message: 'Invalid shipping speed' });
 
+    // Use the same DB-backed pricing context the customer self-serve flow
+    // loads (routes/orders.js), so admin-created orders price against the
+    // admin-configured six-knob settings / customs tiers rather than the
+    // hardcoded DEFAULT_SETTINGS fallback.
+    const pricingCtx = await loadPricingContext(db);
     const costBreakdown = calculateShippingCost({
       weight_kg: weight_kg || 0,
       dimensions,
@@ -1149,6 +1174,10 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, idempotency, a
       declared_value: declared_value || 0,
       electronics_item,
       hs_tier: tier,
+      settings:        pricingCtx.settings,
+      customsTiers:    pricingCtx.customsTiers,
+      hsMap:           pricingCtx.hsMap,
+      electronicsFees: pricingCtx.electronicsFees,
     });
 
     const customsEstimate = costBreakdown.breakdown?.customs_estimate?.amount ?? 0;
