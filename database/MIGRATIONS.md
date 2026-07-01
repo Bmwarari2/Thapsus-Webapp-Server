@@ -50,30 +50,48 @@ npm start
 > Express server connects as a superuser and bypasses RLS, so skipped RLS
 > policies do not affect local API testing.
 
-## Known issues to reconcile (found during the 2026 audit)
+## Schema-reproducibility status (2026 audit)
 
-The migration set in `database/migrations/` currently **cannot provision a clean
-database on its own**. These should be fixed so a fresh environment can be built
-reproducibly:
+Rebuilding a fresh DB from `database/migrations/` alone was tested against a
+throwaway local Postgres. Two of the blockers have been fixed; a third,
+larger one is characterised below.
 
-1. **Non-hermetic dependencies.** `007_auth_hardening.sql` runs
-   `ALTER FUNCTION public.is_thapsus_admin()` / `is_thapsus_staff()` assuming
-   those functions already exist, but their `CREATE FUNCTION` lives only in
-   `server-patch-*` migrations that are recorded in the `_migrations` ledger yet
-   are **not present in this directory**. Several tables (e.g. `auth_otps`) are
-   likewise created only by manual/patch migrations. Fold the missing
-   `CREATE FUNCTION`/`CREATE TABLE` statements into ordered migrations here.
+### Fixed
 
-2. **FK type drift.** `consolidations.id` and `last_mile_runs.id` are created as
-   `TEXT` (`001_framework_v2_additions.sql`), but later migrations add `uuid`
-   foreign keys pointing at them (`012_last_mile_run_parcels.sql`,
-   `025_customer_consolidations.sql`), so a clean build fails with
-   *"foreign key constraint cannot be implemented"*. The live DB only works
-   because its `id` columns drifted to `uuid`. Align the migration column types
-   with live.
+1. **Non-hermetic helper predicates + `auth_otps`** ✅
+   `007_auth_hardening.sql` `ALTER`s `is_thapsus_admin()` / `is_thapsus_staff()`
+   and many RLS policies call them, but their `CREATE FUNCTION` lived only in
+   out-of-directory `server-patch-*` migrations; `auth_otps` (referenced by 058)
+   was likewise created out of band. These are now codified — from the verbatim
+   live definitions — in **`0000a_supabase_prerequisites.sql`**, which sorts
+   right after the baseline and before `007`.
 
-3. **Unreliable ledger.** The `_migrations` ledger historically missed some
-   manually-applied migrations and recorded a `057_whatsapp_otp_and_optin.sql`
-   that isn't in this directory. Always treat the **live schema** as
-   authoritative (that's what `check:drift` does); the ledger reconcile above
-   was used to bring it back in line.
+2. **FK type drift** ✅
+   `012_last_mile_run_parcels.sql` and `025_customer_consolidations.sql`
+   declared `uuid` FK columns (`run_id`, `shipping_consolidation_id`) pointing at
+   `TEXT` primary keys (`last_mile_runs.id`, `consolidations.id`), so a clean
+   build failed *"foreign key constraint cannot be implemented"*. Live has always
+   used `TEXT` for those columns; the files were corrected to match. (The `uuid`
+   PKs `customer_consolidations.id` / `packages.customer_consolidation_id` are
+   correct and unchanged.)
+
+With these, a clean-room rebuild went from 22 failed migrations to 4.
+
+### Still open (larger reconciliation, not yet done)
+
+3. **Other objects created only by out-of-repo `server-patch-*` / manual
+   migrations.** A fully hermetic build still needs, among others:
+   `orders.consolidation_id` and `promotions.currency` (referenced by `033`/`035`
+   but added by server-patch migrations that are in **neither**
+   `database/migrations/` nor `database/manual-migrations/`), and the
+   `database/manual-migrations/` tables (`account_deletion_requests`,
+   `email_verification_tokens`, `nps_invitations`) which are applied manually by
+   design (see that directory's README). Closing this means dumping the current
+   live schema into a single consolidated baseline — a deliberate follow-up, not
+   a piecemeal patch.
+
+Until then, **treat the live schema as authoritative** — which is exactly what
+`npm run check:drift` does. The `_migrations` ledger is only advisory (it
+historically missed manual applies and even lists a `057_whatsapp_otp_and_optin.sql`
+that isn't in this directory), so drift detection is anchored to the real schema,
+not the ledger.
