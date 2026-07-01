@@ -12,6 +12,11 @@ import { notifyParcelStatus } from '../utils/parcelStatusNotify.js';
 
 const router = express.Router();
 
+// Matches the live DB's customs_entries_status_check CHECK constraint.
+// The status column is TEXT — there is no customs_status enum type on the
+// live database, so values are validated here for clean 400s.
+const CUSTOMS_STATUSES = ['draft', 'idf_submitted', 'entry_filed', 'duty_paid', 'released', 'rejected'];
+
 /* ──────────────────────────────────────────────────────────────────────────
  *  AGENT VIEWS
  * ──────────────────────────────────────────────────────────────────────── */
@@ -92,15 +97,19 @@ router.post(
       if (!parcel_id) {
         return res.status(400).json({ success: false, message: 'parcel_id is required' });
       }
-      // customs_entries.id is uuid on live; the legacy CE-... prefix fails
-      // string_to_uuid. Use a real uuidv4().
+      if (status != null && !CUSTOMS_STATUSES.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid status. Valid values: ${CUSTOMS_STATUSES.join(', ')}`,
+        });
+      }
       const id = uuidv4();
       await req.db.query(
         `INSERT INTO customs_entries
            (id, parcel_id, agent_id, idf_no, entry_no, cif_kes,
             duty_kes, vat_kes, idf_kes, rdl_kes, status, notes, doc_url)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-                 COALESCE($11,'idf_submitted')::customs_status,$12,$13)`,
+                 COALESCE($11,'idf_submitted'),$12,$13)`,
         [id, parcel_id, req.user.id, idf_no || null, entry_no || null,
          cif_kes || 0, duty_kes || 0, vat_kes || 0, idf_kes || 0, rdl_kes || 0,
          status || null, notes || null, doc_url || null]
@@ -167,6 +176,12 @@ router.post(
       return res.status(400).json({
         success: false,
         message: 'consolidation_id and user_id are required',
+      });
+    }
+    if (status != null && !CUSTOMS_STATUSES.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Valid values: ${CUSTOMS_STATUSES.join(', ')}`,
       });
     }
 
@@ -260,7 +275,7 @@ router.post(
         const placeholders = entryIds
           .map((_, i) => {
             const b = i * 13;
-            return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5},$${b+6},$${b+7},$${b+8},$${b+9},$${b+10},COALESCE($${b+11},'idf_submitted')::customs_status,$${b+12},$${b+13})`;
+            return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5},$${b+6},$${b+7},$${b+8},$${b+9},$${b+10},COALESCE($${b+11},'idf_submitted'),$${b+12},$${b+13})`;
           })
           .join(', ');
         const params = entryIds.flatMap((e, i) => [
@@ -318,11 +333,18 @@ router.patch(
       const sets = []; const params = [];
       for (const k of allowed) {
         if (Object.prototype.hasOwnProperty.call(req.body, k)) {
+          // customs_entries.status is TEXT with a CHECK constraint on the
+          // live DB (there is no customs_status enum type there — casting
+          // to it 42704'd every status update). Validate here so a bad
+          // value returns a clean 400 instead of a constraint-violation 500.
+          if (k === 'status' && !CUSTOMS_STATUSES.includes(req.body[k])) {
+            return res.status(400).json({
+              success: false,
+              message: `Invalid status. Valid values: ${CUSTOMS_STATUSES.join(', ')}`,
+            });
+          }
           params.push(req.body[k]);
-          // status is a Postgres enum (customs_status); cast on the way in.
-          sets.push(k === 'status'
-            ? `${k} = $${params.length}::customs_status`
-            : `${k} = $${params.length}`);
+          sets.push(`${k} = $${params.length}`);
         }
       }
       if (sets.length === 0) {

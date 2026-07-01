@@ -131,7 +131,7 @@ router.get('/', authMiddleware, ALLOWED_ADMIN, async (req, res) => {
     if (status) { params.push(status); where.push(`cc.status = $${params.length}`); }
     if (shipping_consolidation_id) {
       params.push(shipping_consolidation_id);
-      where.push(`cc.shipping_consolidation_id = $${params.length}::uuid`);
+      where.push(`cc.shipping_consolidation_id = $${params.length}`);
     }
     const wsql = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const { rows } = await req.db.query(
@@ -634,7 +634,7 @@ router.post('/attach-to-shipping/:shippingId', authMiddleware, ALLOWED_ADMIN, as
       await client.query('BEGIN');
 
       const ship = await client.query(
-        `SELECT id, status FROM consolidations WHERE id = $1::uuid`,
+        `SELECT id, status FROM consolidations WHERE id = $1`,
         [shippingId]
       );
       if (ship.rows.length === 0) {
@@ -659,7 +659,7 @@ router.post('/attach-to-shipping/:shippingId', authMiddleware, ALLOWED_ADMIN, as
 
       await client.query(
         `UPDATE customer_consolidations
-            SET shipping_consolidation_id = $1::uuid,
+            SET shipping_consolidation_id = $1,
                 status = 'shipped'
           WHERE id = ANY($2::uuid[])`,
         [shippingId, customer_consolidation_ids]
@@ -670,8 +670,8 @@ router.post('/attach-to-shipping/:shippingId', authMiddleware, ALLOWED_ADMIN, as
       // continue to work unchanged.
       await client.query(
         `UPDATE packages
-            SET consolidation_id = $1::uuid,
-                consolidated_with = $1::text,
+            SET consolidation_id = $1,
+                consolidated_with = $1,
                 is_consolidated = true,
                 updated_at = NOW()
           WHERE customer_consolidation_id = ANY($2::uuid[])`,

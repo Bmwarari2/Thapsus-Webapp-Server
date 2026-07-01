@@ -398,19 +398,19 @@ router.post(
       // Wrap run creation + parcel attachment in a single transaction so
       // a failure halfway through doesn't leave a run with no parcels
       // (or, worse, a partial parcel set silently undercounting
-      // total_stops).  last_mile_runs.id is uuid (default
-      // gen_random_uuid) on prod — RETURNING captures it.
+      // total_stops).  last_mile_runs.id is TEXT with NO default on the
+      // live DB (NOT uuid/gen_random_uuid as previously assumed), so the
+      // id must be supplied here — omitting it 500s with a NOT NULL
+      // violation. Same failure mode consolidationsV2 already fixed.
       const client = await req.db.connect();
-      let id;
+      const id = uuidv4();
       try {
         await client.query('BEGIN');
-        const insertRes = await client.query(
-          `INSERT INTO last_mile_runs (rider_id, zone, run_date, status, total_stops)
-           VALUES ($1,$2,$3,'planned',$4)
-           RETURNING id`,
-          [rider_id || null, zone, run_date, total]
+        await client.query(
+          `INSERT INTO last_mile_runs (id, rider_id, zone, run_date, status, total_stops)
+           VALUES ($1,$2,$3,$4,'planned',$5)`,
+          [id, rider_id || null, zone, run_date, total]
         );
-        id = insertRes.rows[0].id;
 
         // Attach parcels via the join table. Position is the index in
         // the submitted array — operator decides routing order.
@@ -1089,17 +1089,19 @@ router.post(
             otp_used || null, recipient_name || null,
             recipient_phone || null, notes || null,
           ];
-          // 11 placeholders per row: 1 for parcel_id + 10 shared.
+          // pod_events.id is TEXT with NO default on the live DB, so each
+          // row's id is minted here. 12 placeholders per row: id +
+          // parcel_id + 10 shared.
           const placeholders = parcels
             .map((_, i) => {
-              const base = i * 11;
-              return `($${base + 1},$${base + 2},$${base + 3},'delivered',$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11})`;
+              const base = i * 12;
+              return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},'delivered',$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12})`;
             })
             .join(', ');
-          const params = parcels.flatMap((pid) => [pid, ...sharedCols]);
+          const params = parcels.flatMap((pid) => [uuidv4(), pid, ...sharedCols]);
           const podRes = await client.query(
             `INSERT INTO pod_events
-               (parcel_id, run_id, rider_id, result, photo_url, photo_path,
+               (id, parcel_id, run_id, rider_id, result, photo_url, photo_path,
                 signature_url, signature_path, otp_used, recipient_name,
                 recipient_phone, notes)
              VALUES ${placeholders}
@@ -1145,7 +1147,7 @@ router.post(
           `UPDATE last_mile_runs
               SET completed_stops = completed_stops + $2,
                   status = (CASE WHEN completed_stops + $2 >= total_stops
-                                 THEN 'completed' ELSE 'in_progress' END)::run_status,
+                                 THEN 'completed' ELSE 'in_progress' END),
                   updated_at = NOW()
             WHERE id = $1
             RETURNING completed_stops, total_stops, status`,
@@ -1218,15 +1220,14 @@ router.post(
       let id;
       try {
         await client.query('BEGIN');
-        // pod_events.id is uuid (default gen_random_uuid()) on prod.
-        const failRes = await client.query(
+        // pod_events.id is TEXT with NO default on the live DB — supply it.
+        id = uuidv4();
+        await client.query(
           `INSERT INTO pod_events
-             (parcel_id, run_id, rider_id, result, notes)
-           VALUES ($1,$2,$3,'failed',$4)
-           RETURNING id`,
-          [parcel_id, runId, req.user.id, reason || 'Recipient unavailable']
+             (id, parcel_id, run_id, rider_id, result, notes)
+           VALUES ($1,$2,$3,$4,'failed',$5)`,
+          [id, parcel_id, runId, req.user.id, reason || 'Recipient unavailable']
         );
-        id = failRes.rows[0].id;
         // Count failures on THIS run only.  An earlier global count
         // tripped the held-at-hub flip on the first fail of a re-run
         // because a previous run had already racked up two fails on
@@ -1268,7 +1269,7 @@ router.post(
             `UPDATE last_mile_runs
                 SET completed_stops = completed_stops + 1,
                     status = (CASE WHEN completed_stops + 1 >= total_stops
-                                   THEN 'completed' ELSE 'in_progress' END)::run_status,
+                                   THEN 'completed' ELSE 'in_progress' END),
                     updated_at = NOW()
               WHERE id = $1
               RETURNING completed_stops, total_stops, status`,
