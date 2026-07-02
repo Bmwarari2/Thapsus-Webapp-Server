@@ -310,17 +310,18 @@ async function testPasswordResetTokens() {
   const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + 3600000).toISOString(); // 1 hour
 
+  const tokenHash = crypto.createHash('sha256').update(token).digest();
   await pool.query(
-    `INSERT INTO password_reset_tokens (id, user_id, token, expires_at)
+    `INSERT INTO password_reset_tokens (id, user_id, token_sha256, expires_at)
      VALUES ($1, $2, $3, $4)`,
-    [testIds.tokenId, testIds.userId, token, expiresAt]
+    [testIds.tokenId, testIds.userId, tokenHash, expiresAt]
   );
   assert(true, 'Password reset token created');
 
   // Look up token
   const found = await pool.query(
-    `SELECT * FROM password_reset_tokens WHERE token = $1 AND used = false AND expires_at > NOW()`,
-    [token]
+    `SELECT * FROM password_reset_tokens WHERE token_sha256 = $1 AND used = false AND expires_at > NOW()`,
+    [tokenHash]
   );
   assert(found.rows.length === 1, 'Valid token found by lookup');
   assert(found.rows[0].user_id === testIds.userId, 'Token belongs to correct user');
@@ -328,8 +329,8 @@ async function testPasswordResetTokens() {
   // Mark as used
   await pool.query('UPDATE password_reset_tokens SET used = true WHERE id = $1', [testIds.tokenId]);
   const used = await pool.query(
-    `SELECT * FROM password_reset_tokens WHERE token = $1 AND used = false AND expires_at > NOW()`,
-    [token]
+    `SELECT * FROM password_reset_tokens WHERE token_sha256 = $1 AND used = false AND expires_at > NOW()`,
+    [tokenHash]
   );
   assert(used.rows.length === 0, 'Used token no longer found in valid token lookup');
 }

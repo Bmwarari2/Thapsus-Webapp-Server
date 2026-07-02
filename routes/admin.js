@@ -1,6 +1,6 @@
 import express from 'express';
 import crypto from 'crypto';
-import { authMiddleware, isAdmin } from '../middleware/auth.js';
+import { authMiddleware, isAdmin, tokenSha256 } from '../middleware/auth.js';
 import { idempotency } from '../middleware/idempotency.js';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
@@ -1014,7 +1014,8 @@ router.post('/users/:id/reset-password', authMiddleware, isAdmin, async (req, re
     const token = crypto.randomBytes(32).toString('hex');
     const tokenId = uuidv4();
     const expiresAt = new Date(Date.now() + 3600000).toISOString();
-    await db.query('INSERT INTO password_reset_tokens (id, user_id, token, expires_at) VALUES ($1,$2,$3,$4)', [tokenId, user.id, token, expiresAt]);
+    // Hash-at-rest only (migration 0001 dropped the plaintext column).
+    await db.query('INSERT INTO password_reset_tokens (id, user_id, token_sha256, expires_at) VALUES ($1,$2,$3,$4)', [tokenId, user.id, tokenSha256(token), expiresAt]);
     const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
     sendAdminPasswordResetEmail(user.email, user.name, `${frontendUrl}/reset-password?token=${token}`).catch(console.error);
     await db.query('INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)', [uuidv4(), adminId, 'admin_reset_user_password', JSON.stringify({ user_id: id, user_email: user.email })]);
@@ -1486,8 +1487,8 @@ router.post('/users/:id/resend-welcome', authMiddleware, isAdmin, async (req, re
     const setupTok  = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 24 * 3600000).toISOString();
     await db.query(
-      `INSERT INTO password_reset_tokens (id, user_id, token, expires_at) VALUES ($1, $2, $3, $4)`,
-      [tokenId, id, setupTok, expiresAt]
+      `INSERT INTO password_reset_tokens (id, user_id, token_sha256, expires_at) VALUES ($1, $2, $3, $4)`,
+      [tokenId, id, tokenSha256(setupTok), expiresAt]
     );
 
     const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
@@ -1557,7 +1558,7 @@ router.post('/users/create', authMiddleware, isAdmin, async (req, res) => {
          ON CONFLICT (user_id) DO NOTHING`,
         [userId]
       );
-      await client.query('INSERT INTO password_reset_tokens (id, user_id, token, expires_at) VALUES ($1, $2, $3, $4)', [setupTokenId, userId, setupToken, expiresAt]);
+      await client.query('INSERT INTO password_reset_tokens (id, user_id, token_sha256, expires_at) VALUES ($1, $2, $3, $4)', [setupTokenId, userId, tokenSha256(setupToken), expiresAt]);
       await client.query('INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1, $2, $3, $4)', [uuidv4(), adminId, 'create_user_account', JSON.stringify({ user_id: userId, email: email.toLowerCase().trim(), role: accountRole, warehouse_id: warehouseId })]);
       await client.query('COMMIT');
     } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }

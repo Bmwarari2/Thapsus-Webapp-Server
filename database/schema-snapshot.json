@@ -895,11 +895,6 @@
     "nn": true,
     "hd": false
    },
-   "token": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
    "token_sha256": {
     "t": "bytea",
     "nn": true,
@@ -2016,14 +2011,9 @@
     "nn": true,
     "hd": false
    },
-   "token": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
    "token_sha256": {
     "t": "bytea",
-    "nn": false,
+    "nn": true,
     "hd": false
    },
    "expires_at": {
