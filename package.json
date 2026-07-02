@@ -18,6 +18,7 @@
     "check:drift:snapshot": "node scripts/check-schema-drift.mjs --snapshot",
     "schema:snapshot": "node scripts/check-schema-drift.mjs --write-snapshot",
     "seed:dev": "node scripts/seed-dev.mjs",
+    "smoke": "node scripts/smoke.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
