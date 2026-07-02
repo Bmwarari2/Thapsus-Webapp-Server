@@ -136,6 +136,72 @@ jobs:
           NODE_ENV: development
         run: npm test
 
+  # Browser e2e over the money paths (register→verify→login, order creation,
+  # admin + finance dashboards) — drives the BUILT client against the same
+  # hermetic prod-mirror Postgres the integration job uses. Catches "API
+  # works but the screen wires it wrong" breaks that no server test can see.
+  e2e:
+    name: e2e (browser money paths)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: thapsus_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/thapsus_e2e
+      PGPASSWORD: postgres
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build client
+        run: cd client && npm ci && npm run build
+
+      - name: Prepare prod-mirror database
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f database/dev/supabase-shims.sql
+          npm run migrate
+          npm run seed:dev
+
+      - name: Run Playwright suite
+        env:
+          E2E_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/thapsus_e2e
+        run: npm run test:e2e
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failures
+          path: test-results/
+          retention-days: 7
+
   # Audit W6.3 — accessibility regression guard.
   # Runs lighthouse-ci against the built static bundle and fails if the
   # accessibility category score drops below 0.9 (90%). Performance,

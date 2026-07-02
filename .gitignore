@@ -46,3 +46,7 @@ build/
 # OS
 Thumbs.db
 .lighthouseci/
+
+# Playwright
+test-results/
+playwright-report/
