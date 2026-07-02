@@ -56,16 +56,20 @@ All commands read `DATABASE_URL`. SSL is auto-disabled for `localhost`/`127.0.0.
 (and `sslmode=disable`) and required otherwise, so the same commands work against
 a local Postgres and against Supabase.
 
-## Recommended CI gate
+## CI gate (wired)
 
-```yaml
-# after installing deps, against a DB that mirrors production schema:
-- run: npm run migrate:check   # no migration left unapplied
-- run: npm run check:drift     # no code references a missing table/column
+`.github/workflows/test.yml` (`integration` job) runs on every PR/push
+against a hermetic `postgres:17` service container — no secrets needed:
+
+```
+shims → npm run migrate → migrate:check → check:drift → seed:dev → npm test
 ```
 
-Now that the baseline exists, "a DB that mirrors production schema" is simply
-a fresh Postgres + shims + `npm run migrate` — no live credentials needed.
+That last step runs the FULL suite including the DB-gated integration
+suites (auth, role matrix, finance, last-mile/cargo), because
+`TEST_DATABASE_URL` points at the container. A PR that adds a migration
+that doesn't apply, code that references a missing table/column, or a
+change that breaks any integration test fails CI instead of production.
 
 ## Local development / testing against a throwaway Postgres
 
