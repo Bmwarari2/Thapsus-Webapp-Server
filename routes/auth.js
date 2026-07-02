@@ -206,9 +206,9 @@ router.post('/register', async (req, res) => {
     const verificationId = uuidv4();
     const verificationExpiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
     await db.query(
-      `INSERT INTO email_verification_tokens (id, user_id, token, token_sha256, expires_at)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [verificationId, userId, verificationToken, verificationHash, verificationExpiresAt]
+      `INSERT INTO email_verification_tokens (id, user_id, token_sha256, expires_at)
+       VALUES ($1, $2, $3, $4)`,
+      [verificationId, userId, verificationHash, verificationExpiresAt]
     );
 
     const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
@@ -504,19 +504,17 @@ router.post('/reset-password', async (req, res) => {
       });
     }
 
-    // Find valid, unused token that hasn't expired.  Lookup is by
-    // SHA-256 hash so a database dump never lets an attacker mint a
-    // password change.  The legacy `token = $2` clause is kept during
-    // the grace period so emails issued before migration 010 still
-    // resolve; once the plaintext column is dropped the OR branch
-    // can go too.
+    // Find valid, unused token that hasn't expired. Lookup is by SHA-256
+    // hash so a database dump never lets an attacker mint a password
+    // change. The plaintext column (and its legacy OR-branch) was dropped
+    // by migration 0001 after the grace period ended.
     const tokenHash = resetTokenSha256(token);
     const tokenRes = await db.query(
       `SELECT id, user_id FROM password_reset_tokens
-       WHERE (token_sha256 = $1 OR token = $2)
+       WHERE token_sha256 = $1
          AND used = false
          AND expires_at > NOW()`,
-      [tokenHash, token]
+      [tokenHash]
     );
     if (tokenRes.rows.length === 0) {
       return res.status(400).json({ success: false, message: 'Invalid or expired reset link. Please request a new one.' });
@@ -599,8 +597,8 @@ router.post('/forgot-password', async (req, res) => {
     await db.query('UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND used = false', [user.id]);
 
     await db.query(
-      'INSERT INTO password_reset_tokens (id, user_id, token, token_sha256, expires_at) VALUES ($1, $2, $3, $4, $5)',
-      [tokenId, user.id, token, tokenHash, expiresAt]
+      'INSERT INTO password_reset_tokens (id, user_id, token_sha256, expires_at) VALUES ($1, $2, $3, $4)',
+      [tokenId, user.id, tokenHash, expiresAt]
     );
 
     const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
@@ -624,8 +622,8 @@ router.post('/forgot-password', async (req, res) => {
 // the role-routed tab view on success.
 //
 // Lookup is by SHA-256 hash so a DB dump never lets an attacker mint a
-// verified account. The legacy `token = $2` clause is kept for symmetry
-// with /reset-password during the grace period.
+// verified account. Hash-only since migration 0001 dropped the plaintext
+// column.
 router.post('/verify-email', async (req, res) => {
   try {
     const { token } = req.body;
@@ -637,10 +635,10 @@ router.post('/verify-email', async (req, res) => {
     const tokenRes = await db.query(
       `SELECT t.id, t.user_id
          FROM email_verification_tokens t
-        WHERE (t.token_sha256 = $1 OR t.token = $2)
+        WHERE t.token_sha256 = $1
           AND t.used = false
           AND t.expires_at > NOW()`,
-      [tokenHash, token]
+      [tokenHash]
     );
     if (tokenRes.rows.length === 0) {
       return res.status(400).json({
@@ -748,9 +746,9 @@ router.post('/resend-verification', async (req, res) => {
     const verificationId = uuidv4();
     const verificationExpiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
     await db.query(
-      `INSERT INTO email_verification_tokens (id, user_id, token, token_sha256, expires_at)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [verificationId, user.id, verificationToken, verificationHash, verificationExpiresAt]
+      `INSERT INTO email_verification_tokens (id, user_id, token_sha256, expires_at)
+       VALUES ($1, $2, $3, $4)`,
+      [verificationId, user.id, verificationHash, verificationExpiresAt]
     );
 
     const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import { randomUUID } from 'node:crypto';
+import crypto, { randomUUID } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import app from '../../server.js';
 import { initializeDatabase, getPool } from '../../database/init.js';
@@ -27,19 +27,25 @@ function mintEmail() {
 }
 
 // Sign-up no longer returns a JWT (email-verification gate, migration 004):
-// the account must consume its verification token first. The plaintext token
-// is only delivered by email in production, but the row keeps a plaintext
-// copy during the grace period — read it straight from the DB and redeem it
-// through the real endpoint so the whole flow is exercised.
-async function verifyEmailFor(userId) {
-  const { rows } = await getPool().query(
-    `SELECT token FROM email_verification_tokens
-      WHERE user_id = $1 AND used = false
-      ORDER BY created_at DESC LIMIT 1`,
-    [userId]
+// the account must consume its verification token first. Tokens are
+// hash-at-rest only (migration 0001 dropped the plaintext column), so the
+// plaintext exists solely in the email. Stand in for the mailbox by minting
+// a token whose hash we insert ourselves; /verify-email consumes every
+// pending token for the user, register-issued row included.
+async function mintVerificationToken(userId) {
+  const plaintext = crypto.randomBytes(32).toString('hex');
+  const hash = crypto.createHash('sha256').update(plaintext).digest();
+  await getPool().query(
+    `INSERT INTO email_verification_tokens (id, user_id, token_sha256, expires_at)
+     VALUES ($1, $2, $3, NOW() + interval '1 hour')`,
+    [randomUUID(), userId, hash]
   );
-  expect(rows[0]?.token).toBeTruthy();
-  const r = await request(app).post('/api/auth/verify-email').send({ token: rows[0].token });
+  return plaintext;
+}
+
+async function verifyEmailFor(userId) {
+  const token = await mintVerificationToken(userId);
+  const r = await request(app).post('/api/auth/verify-email').send({ token });
   expect(r.status).toBe(200);
   return r.body; // same auth bundle /login returns: { token, user, ... }
 }
@@ -94,22 +100,20 @@ describe.skipIf(SKIP)('POST /api/auth/register', () => {
     });
     expect(reg.status).toBe(201);
 
-    const bundle = await verifyEmailFor(reg.body.user.id);
-    expect(bundle.token).toBeTruthy();
-    expect(bundle.user.email).toBe(email.toLowerCase());
+    const token = await mintVerificationToken(reg.body.user.id);
+    const first = await request(app).post('/api/auth/verify-email').send({ token });
+    expect(first.status).toBe(200);
+    expect(first.body.token).toBeTruthy();
+    expect(first.body.user.email).toBe(email.toLowerCase());
 
     // The token from verify-email must be a real session.
     const me = await request(app)
       .get('/api/auth/me')
-      .set('Authorization', `Bearer ${bundle.token}`);
+      .set('Authorization', `Bearer ${first.body.token}`);
     expect(me.status).toBe(200);
 
     // A second redemption of the same token must fail (one-shot).
-    const { rows } = await getPool().query(
-      `SELECT token FROM email_verification_tokens WHERE user_id = $1`,
-      [reg.body.user.id]
-    );
-    const again = await request(app).post('/api/auth/verify-email').send({ token: rows[0].token });
+    const again = await request(app).post('/api/auth/verify-email').send({ token });
     expect(again.status).toBe(400);
   });
 

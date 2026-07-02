@@ -18,10 +18,12 @@
     "check:drift:snapshot": "node scripts/check-schema-drift.mjs --snapshot",
     "schema:snapshot": "node scripts/check-schema-drift.mjs --write-snapshot",
     "seed:dev": "node scripts/seed-dev.mjs",
+    "smoke": "node scripts/smoke.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:db": "node tests/db-test.js"
+    "test:db": "node tests/db-test.js",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",
@@ -49,6 +51,7 @@
     "@babel/core": "^7.29.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@vitejs/plugin-react": "^5.0.4",
     "@vitest/coverage-v8": "^4.1.5",
     "autoprefixer": "^10.4.16",
