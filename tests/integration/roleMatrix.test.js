@@ -69,7 +69,7 @@ beforeAll(async () => {
     const warehouse_id = `TC-VT-${role.toUpperCase().slice(0, 3)}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
     await pool.query(
       `INSERT INTO users
-         (id, email, password, name, phone, role, warehouse_id,
+         (id, email, password_hash, name, phone, role, warehouse_id,
           language_pref, referral_code, is_active)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [
@@ -87,7 +87,8 @@ afterAll(async () => {
   const pool = getPool();
   const ids = Object.values(USERS).map((u) => u.id);
   if (ids.length) {
-    await pool.query(`DELETE FROM users WHERE id = ANY($1::uuid[])`, [ids]);
+    // users.id is TEXT (uuid-shaped strings), not a uuid column.
+    await pool.query(`DELETE FROM users WHERE id = ANY($1::text[])`, [ids]);
   }
   await pool.end();
 });

@@ -239,9 +239,18 @@ router.patch('/:id', authMiddleware, ALLOWED_OPERATOR, async (req, res) => {
     const allowed = ['status','master_awb_no','master_awb_pdf','tudor_invoice_no',
                      'tudor_invoice_pdf','manifest_pdf','departure_at','arrival_at',
                      'assigned_agent_id','notes','cutoff_at'];
+    // Matches the live DB's consolidations_status_check CHECK constraint —
+    // an out-of-list status would otherwise 23514 into an opaque 500.
+    const VALID_STATUSES = ['open','closed','in_transit','arrived','cleared','delivered','cancelled'];
     const sets = []; const params = [];
     for (const k of allowed) {
       if (Object.prototype.hasOwnProperty.call(req.body, k)) {
+        if (k === 'status' && !VALID_STATUSES.includes(req.body[k])) {
+          return res.status(400).json({
+            success: false,
+            message: `Invalid status. Valid values: ${VALID_STATUSES.join(', ')}`,
+          });
+        }
         params.push(req.body[k]);
         sets.push(`${k} = $${params.length}`);
       }
@@ -287,8 +296,8 @@ router.post('/:id/assign-parcels', authMiddleware, ALLOWED_OPERATOR, async (req,
     }
     const pkgRes = await req.db.query(
       `UPDATE packages
-          SET consolidation_id = $1::uuid,
-              consolidated_with = $1::text,
+          SET consolidation_id = $1,
+              consolidated_with = $1,
               is_consolidated = true,
               status = 'manifested',
               updated_at = NOW()
@@ -301,7 +310,7 @@ router.post('/:id/assign-parcels', authMiddleware, ALLOWED_OPERATOR, async (req,
     if (orderIds.length > 0) {
       await req.db.query(
         `UPDATE orders
-            SET consolidation_id = $1::uuid,
+            SET consolidation_id = $1,
                 status = 'consolidating',
                 updated_at = NOW()
           WHERE id = ANY($2::text[])`,
@@ -335,8 +344,8 @@ router.post('/:id/assign-parcel', authMiddleware, ALLOWED_OPERATOR, async (req, 
     // order so the customer-facing consolidation card stays in sync.
     const pkgRes = await req.db.query(
       `UPDATE packages
-          SET consolidation_id = $1::uuid,
-              consolidated_with = $1::text,
+          SET consolidation_id = $1,
+              consolidated_with = $1,
               is_consolidated = true,
               status = 'manifested',
               updated_at = NOW()
@@ -350,7 +359,7 @@ router.post('/:id/assign-parcel', authMiddleware, ALLOWED_OPERATOR, async (req, 
     const orderId = pkgRes.rows[0].order_id;
     if (orderId) {
       await req.db.query(
-        `UPDATE orders SET consolidation_id = $1::uuid, status = 'consolidating', updated_at = NOW()
+        `UPDATE orders SET consolidation_id = $1, status = 'consolidating', updated_at = NOW()
           WHERE id = $2`,
         [id, orderId]
       );
@@ -381,7 +390,7 @@ router.post('/:id/remove-parcel', authMiddleware, ALLOWED_OPERATOR, async (req, 
               is_consolidated = false,
               status = 'received_at_warehouse',
               updated_at = NOW()
-        WHERE id = $1 AND consolidation_id = $2::uuid
+        WHERE id = $1 AND consolidation_id = $2
         RETURNING order_id`,
       [parcel_id, id]
     );
@@ -398,7 +407,7 @@ router.post('/:id/remove-parcel', authMiddleware, ALLOWED_OPERATOR, async (req, 
             SET consolidation_id = NULL,
                 status = 'received_at_warehouse',
                 updated_at = NOW()
-          WHERE id = $1 AND consolidation_id = $2::uuid`,
+          WHERE id = $1 AND consolidation_id = $2`,
         [orderId, id]
       );
     }
@@ -445,7 +454,7 @@ router.post('/:id/manifest', authMiddleware, ALLOWED_OPERATOR, async (req, res) 
               u.phone AS consignee_phone, u.delivery_address
          FROM orders o
          JOIN users u ON u.id = o.user_id
-        WHERE o.consolidation_id = $1::uuid
+        WHERE o.consolidation_id = $1
         ORDER BY o.created_at ASC`,
       [id]
     );
@@ -477,16 +486,20 @@ async function refreshTotals(db, consolidationId) {
   // Manifest totals are driven by `packages` (the per-parcel intake row), not
   // `orders` — assign-parcel/remove-parcel operate on packages first now that
   // the iOS detail view tracks them via cache.observePackagesInConsolidation.
-  // packages.consolidation_id is uuid (migration 016 aligned the type), so we
-  // join directly on c.id with no cast.
+  // chargeable_kg lives on the parent `orders` row (stamped at ops receive),
+  // NOT on packages — referencing it off packages 42703'd every
+  // assign/remove-parcel call. Join up to orders for the chargeable weight
+  // and fall back to the package's own scale weight.
   await db.query(
     `UPDATE consolidations c
         SET total_parcels = (SELECT COUNT(*) FROM packages WHERE consolidation_id = c.id),
             total_kg      = COALESCE(
-                              (SELECT SUM(COALESCE(chargeable_kg, weight_kg, 0))
-                                 FROM packages WHERE consolidation_id = c.id), 0),
+                              (SELECT SUM(COALESCE(o.chargeable_kg, p.weight_kg, 0))
+                                 FROM packages p
+                                 LEFT JOIN orders o ON o.id = p.order_id
+                                WHERE p.consolidation_id = c.id), 0),
             updated_at    = NOW()
-      WHERE c.id = $1::uuid`,
+      WHERE c.id = $1`,
     [consolidationId]
   );
 }

@@ -93,8 +93,9 @@ describe.skipIf(SKIP)('manual transactions', () => {
     expect(r.status).toBe(201);
     const tx = r.body.transaction;
     createdTxIds.add(tx.id);
-    expect(tx.amount_minor).toBe(10000);          // £100 → 10000 pence
-    expect(tx.amount_gbp_minor).toBe(10000);
+    // bigint columns come back from node-postgres as strings — coerce.
+    expect(Number(tx.amount_minor)).toBe(10000);  // £100 → 10000 pence
+    expect(Number(tx.amount_gbp_minor)).toBe(10000);
     expect(Number(tx.amount_kes_minor)).toBeGreaterThan(10000); // KES side is larger
   });
 
@@ -106,7 +107,7 @@ describe.skipIf(SKIP)('manual transactions', () => {
     expect(r.status).toBe(201);
     const tx = r.body.transaction;
     createdTxIds.add(tx.id);
-    expect(tx.amount_kes_minor).toBe(500000);     // 5000 KES → 500000 cents
+    expect(Number(tx.amount_kes_minor)).toBe(500000); // 5000 KES → 500000 cents
     expect(Number(tx.amount_gbp_minor)).toBeGreaterThan(0);
   });
 

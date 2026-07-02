@@ -375,6 +375,12 @@ app.use((req, res, next) => {
 // negligible DDoS risk of an unauthenticated webhook with raw-body
 // constraints.
 
+// Escape hatch for the vitest integration suite: supertest drives dozens
+// of auth requests through the app in a few seconds, which trips the
+// 10/15min auth cap and turns real assertions into 429 noise. Only the
+// test setup (tests/setup.js) sets this; it must never be set in prod.
+const skipRateLimits = () => process.env.DISABLE_RATE_LIMITS === 'true';
+
 // Generic catch-all for any /api/ request that isn't handled by a more
 // specific limiter below.
 const limiter = rateLimit({
@@ -382,6 +388,7 @@ const limiter = rateLimit({
   max: 200,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: skipRateLimits,
   handler: (req, res) => res.status(429).json({ success: false, message: 'Too many requests, please try again later.' }),
 });
 
@@ -393,6 +400,7 @@ const authLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: skipRateLimits,
   handler: (req, res) => res.status(429).json({ success: false, message: 'Too many authentication attempts. Please wait 15 minutes and try again.' }),
 });
 
@@ -401,6 +409,7 @@ const forgotPasswordLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: skipRateLimits,
   handler: (req, res) =>
     res.status(429).json({
       success: false,
@@ -417,6 +426,7 @@ const resetPasswordLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: skipRateLimits,
   handler: (req, res) =>
     res.status(429).json({
       success: false,
@@ -429,6 +439,7 @@ const paymentLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: skipRateLimits,
   handler: (req, res) =>
     res.status(429).json({
       success: false,
@@ -446,6 +457,7 @@ const uploadLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: skipRateLimits,
   handler: (req, res) =>
     res.status(429).json({
       success: false,
@@ -462,6 +474,7 @@ const trackingLimiter = rateLimit({
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: skipRateLimits,
   handler: (req, res) =>
     res.status(429).json({
       success: false,

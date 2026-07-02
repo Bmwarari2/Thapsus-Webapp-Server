@@ -30,6 +30,12 @@ const TEST_DEFAULTS = {
   // we want the import to succeed.
   ADMIN_PASSWORD: 'admin-test-password-do-not-use',
 
+  // The integration suite fires dozens of auth requests in seconds from
+  // one IP, which trips the 10/15min auth limiter and turns assertions
+  // into 429 noise. server.js honours this flag via each limiter's
+  // `skip` option; it is test-only and must never be set in production.
+  DISABLE_RATE_LIMITS: 'true',
+
   // database/init.js validates DATABASE_URL at module-load time and
   // calls process.exit(1) if it is missing. The unit tests never call
   // getPool(), so the connection is never opened — but the URL still

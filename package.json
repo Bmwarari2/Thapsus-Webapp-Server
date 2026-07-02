@@ -15,6 +15,8 @@
     "migrate:check": "node scripts/migrate.mjs --check",
     "migrate:reconcile": "node scripts/migrate.mjs --reconcile",
     "check:drift": "node scripts/check-schema-drift.mjs",
+    "check:drift:snapshot": "node scripts/check-schema-drift.mjs --snapshot",
+    "schema:snapshot": "node scripts/check-schema-drift.mjs --write-snapshot",
     "seed:dev": "node scripts/seed-dev.mjs",
     "test": "vitest run",
     "test:watch": "vitest",

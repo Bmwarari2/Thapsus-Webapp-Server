@@ -532,8 +532,20 @@ router.post('/reset-password', async (req, res) => {
       // on its next request — the typical reason for resetting a
       // password is suspected compromise, so the previously-issued
       // tokens MUST stop working.
+      //
+      // Also stamp email_verified_at if it was never set: this token
+      // reached the user by email, so consuming it proves mailbox
+      // control — the same trust basis as /verify-email. Without this,
+      // admin-created accounts (POST /admin/users/create) complete
+      // their emailed password-setup link and then hit the login 403
+      // email_unverified wall with no verification email ever sent.
       await db.query(
-        'UPDATE users SET password_hash = $1, password_changed_at = NOW(), updated_at = NOW() WHERE id = $2',
+        `UPDATE users
+            SET password_hash = $1,
+                password_changed_at = NOW(),
+                email_verified_at = COALESCE(email_verified_at, NOW()),
+                updated_at = NOW()
+          WHERE id = $2`,
         [passwordHash, userId]
       );
       // Mark token as used
@@ -764,6 +776,11 @@ router.post('/resend-verification', async (req, res) => {
  */
 router.post('/supabase-token', authMiddleware, async (req, res) => {
   try {
+    // Unconfigured is an environment state, not a server fault — return
+    // 503 so clients can distinguish "realtime disabled here" from a bug.
+    if (!process.env.SUPABASE_JWT_SECRET) {
+      return res.status(503).json({ success: false, message: 'Supabase realtime tokens are not configured on this deployment' });
+    }
     const { id, email, role } = req.user;
     const supabase = mintSupabaseToken({ id, email, role });
     return res.json({
