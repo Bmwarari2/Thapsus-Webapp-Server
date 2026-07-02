@@ -321,26 +321,28 @@ router.get('/parcels/by-barcode/:barcode', authMiddleware, ALLOWED, async (req, 
     if (!raw) {
       return res.status(400).json({ success: false, message: 'barcode is required' });
     }
+    // Weight/dims/value/retailer live on the parent ORDER, not on packages —
+    // the earlier version selected p.retailer / p.chargeable_kg /
+    // p.length_cm etc., none of which exist, so every scan 500'd (caught by
+    // check:drift v2). Dimensions are stored as JSON text on
+    // orders.dimensions_json and parsed below in JS.
     const { rows } = await req.db.query(
       `SELECT p.id            AS package_id,
               p.order_id,
               p.barcode,
               p.status        AS package_status,
-              p.retailer,
+              o.retailer,
               p.description,
-              p.declared_value_gbp_pence,
-              p.actual_kg,
-              p.volumetric_kg,
-              p.chargeable_kg,
-              p.length_cm,
-              p.width_cm,
-              p.height_cm,
+              ROUND(COALESCE(o.declared_value, 0) * 100) AS declared_value_gbp_pence,
+              COALESCE(p.weight_kg, o.weight_kg) AS actual_kg,
+              o.volumetric_kg,
+              o.chargeable_kg,
+              o.dimensions_json,
               p.photo_url,
               p.received_at,
-              p.photographed_at,
+              o.photographed_at,
               p.consolidation_id,
               p.is_consolidated,
-              p.hold_reason     AS package_hold_reason,
               o.id              AS order_id_full,
               o.tracking_number,
               o.status          AS order_status,
@@ -368,6 +370,8 @@ router.get('/parcels/by-barcode/:barcode', authMiddleware, ALLOWED, async (req, 
       });
     }
     const r = rows[0];
+    let dims = {};
+    try { dims = r.dimensions_json ? JSON.parse(r.dimensions_json) : {}; } catch { /* legacy/garbage json — dims stay null */ }
     res.json({
       success: true,
       parcel: {
@@ -383,9 +387,9 @@ router.get('/parcels/by-barcode/:barcode', authMiddleware, ALLOWED, async (req, 
         actual_kg:                   r.actual_kg,
         volumetric_kg:               r.volumetric_kg,
         chargeable_kg:               r.chargeable_kg,
-        length_cm:                   r.length_cm,
-        width_cm:                    r.width_cm,
-        height_cm:                   r.height_cm,
+        length_cm:                   dims.length ?? null,
+        width_cm:                    dims.width ?? null,
+        height_cm:                   dims.height ?? null,
         photo_url:                   r.photo_url,
         received_at:                 r.received_at,
         photographed_at:             r.photographed_at,
@@ -394,7 +398,7 @@ router.get('/parcels/by-barcode/:barcode', authMiddleware, ALLOWED, async (req, 
         consolidation_master_awb:    r.master_awb_no,
         consolidation_flight_date:   r.departure_at,
         consolidation_status:        r.consolidation_status,
-        hold_reason:                 r.order_hold_reason || r.package_hold_reason,
+        hold_reason:                 r.order_hold_reason,
         hold_resolved_at:            r.hold_resolved_at,
         customer: {
           full_name:    r.full_name,

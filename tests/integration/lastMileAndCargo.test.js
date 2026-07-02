@@ -238,6 +238,30 @@ describe.skipIf(SKIP)('last-mile runs and POD (operator + rider)', () => {
   });
 });
 
+describe.skipIf(SKIP)('warehouse barcode lookup (operator)', () => {
+  it('finds a received parcel by barcode with order-side weight/dims (was 500: columns read off packages)', async () => {
+    const barcode = `VT-BC-${randomUUID().slice(0, 8).toUpperCase()}`;
+    await getPool().query('UPDATE packages SET barcode = $1 WHERE order_id = $2', [barcode, orderA.id]);
+
+    const r = await request(app)
+      .get(`/api/ops/parcels/by-barcode/${barcode}`)
+      .set('Authorization', `Bearer ${operator.token}`);
+    expect(r.status).toBe(200);
+    expect(r.body.parcel.barcode).toBe(barcode);
+    expect(r.body.parcel.order_id).toBe(orderA.id);
+    // weight/dims come from the parent order row
+    expect(Number(r.body.parcel.actual_kg)).toBeGreaterThan(0);
+    expect(Number(r.body.parcel.length_cm)).toBe(20);
+  });
+
+  it('404s an unknown barcode', async () => {
+    const r = await request(app)
+      .get('/api/ops/parcels/by-barcode/NOPE-000')
+      .set('Authorization', `Bearer ${operator.token}`);
+    expect(r.status).toBe(404);
+  });
+});
+
 describe.skipIf(SKIP)('customs entries + agent invoices (clearing agent)', () => {
   it('creates a customs entry (status is TEXT, not a customs_status enum)', async () => {
     const r = await request(app)

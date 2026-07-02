@@ -49,7 +49,9 @@ the full test suite.
 | `npm run migrate` | Apply every pending migration (files under `database/migrations/*.sql` not yet in the `_migrations` ledger), in filename order, each in its own transaction, **fail-fast**. |
 | `npm run migrate:check` | Exit non-zero if any migration is unapplied. **Wire this into CI** so a PR that adds a `.sql` without applying it to the target DB fails loudly. No writes. |
 | `npm run migrate:reconcile` | Record every migration filename as applied **without running it** — one-time use when adopting an already-provisioned DB whose ledger is behind reality. |
-| `npm run check:drift` | Connect to `DATABASE_URL`, read the **actual** columns of every public table, and verify that every table/column the code's `.query()`/`.exec()` calls reference exists. This is the check that would have caught the `orders.hs_tier`, `tickets.idempotency_key`, and `request_idempotency` outages. **Wire this into CI.** |
+| `npm run check:drift` | **v2.** Statically verify every `.query()`/`.exec()` SQL string against the real schema (from `DATABASE_URL`): tables/columns exist, INSERTs don't omit NOT-NULL-no-default columns, `::type` casts name real types, `col = $n::uuid` comparisons aren't against TEXT columns, and alias-qualified + bare column references resolve. Each check is pinned to a production outage from the 2026 audits (`tests/unit/schemaDrift.test.js` is the permanent negative test). Runs in CI. |
+| `npm run check:drift:snapshot` | Same checks, but against the committed `database/schema-snapshot.json` — no database needed (laptops, quick pre-commit). |
+| `npm run schema:snapshot` | Regenerate `database/schema-snapshot.json` from `DATABASE_URL`. Run after any migration that changes the schema and commit the result. |
 | `npm run seed:dev` | Seed a local/dev DB with a verified admin, two customers, and sample orders (refuses non-local DBs unless `ALLOW_REMOTE_SEED=true`). |
 
 All commands read `DATABASE_URL`. SSL is auto-disabled for `localhost`/`127.0.0.1`
