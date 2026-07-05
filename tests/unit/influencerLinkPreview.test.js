@@ -33,9 +33,14 @@ describe('renderInfluencerPreviewHtml', () => {
     expect(out).toContain('<meta name="twitter:url" content="https://www.thapsus.uk/i/INFAB2CD" />');
   });
 
-  it('keeps the brand og:image untouched', () => {
+  it('points og:image and twitter:image at the per-influencer PNG with dimensions', () => {
     const out = renderInfluencerPreviewHtml(SHELL, { name: 'Bee', code: 'INFXYZ12', appUrl: 'https://www.thapsus.uk' });
-    expect(out).toContain('<meta property="og:image" content="https://thapsus.uk/og-image.png" />');
+    expect(out).toContain('<meta property="og:image" content="https://www.thapsus.uk/i/INFXYZ12/og.png" />');
+    expect(out).toContain('<meta name="twitter:image" content="https://www.thapsus.uk/i/INFXYZ12/og.png"');
+    expect(out).toContain('<meta property="og:image:width" content="1200" />');
+    expect(out).toContain('<meta property="og:image:height" content="630" />');
+    // the old generic image must be gone
+    expect(out).not.toContain('og-image.png" />\n<meta name="twitter:card"');
   });
 
   it('HTML-escapes a hostile name so it cannot break out of the attribute', () => {
