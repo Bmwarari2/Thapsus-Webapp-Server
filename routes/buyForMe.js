@@ -14,6 +14,7 @@ import {
   sendBuyForMeAlternativeEmail,
 } from '../utils/email.js';
 import { notifyAdminsOfBuyForMe } from '../utils/buyForMeAdminNotify.js';
+import { recordInfluencerConversion } from '../utils/influencerConversion.js';
 import { pushToAdmins } from './events.js';
 import { notifyUser } from '../utils/realtimeNotify.js';
 
@@ -82,6 +83,9 @@ router.post('/', authMiddleware, idempotency, async (req, res) => {
     } catch (notifyErr) {
       console.error('BFM admin notify failed (non-fatal):', notifyErr?.message);
     }
+    // Influencer attribution (migration 0002) — a concierge request is a
+    // "placed order" for conversion-tracking purposes. Best-effort.
+    recordInfluencerConversion(req.db, req.user.id, id, 'buy_for_me');
     res.status(201).json({ success: true, order_id: id });
   } catch (err) {
     console.error('POST /buy-for-me error:', err);

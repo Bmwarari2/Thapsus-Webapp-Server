@@ -88,144 +88,197 @@ function generateReferralCode() {
 // Africa hub, GB/US for the source corridors, OTHER for anything else.
 const ALLOWED_COUNTRIES = new Set(['KE','UG','TZ','RW','GB','US','OTHER']);
 
+/**
+ * Thrown by createCustomerAccount for any client-fixable problem (bad input,
+ * duplicate email). Carries the HTTP status + a machine-readable code so both
+ * the /register route and the influencer signup route map it to the same
+ * response shape.
+ */
+export class AccountValidationError extends Error {
+  constructor(status, message, code = null) {
+    super(message);
+    this.name = 'AccountValidationError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+/**
+ * Create a customer account — the single, security-reviewed sign-up path
+ * shared by POST /api/auth/register and the public influencer signup route.
+ * Validates input, hashes the password, inserts the user (+ a zero-balance
+ * user_credits row), links any account-referral OR influencer-referral code,
+ * and mints + emails a one-shot email-verification token. Sign-up never
+ * auto-signs-in: the account activates only after the emailed link is hit.
+ *
+ * Throws AccountValidationError on client-fixable problems; lets unexpected
+ * errors bubble so the caller returns a 500.
+ *
+ * @returns {Promise<{userId,email,name,phone,warehouseId,referralCode,influencerCode}>}
+ */
+export async function createCustomerAccount(db, input = {}) {
+  const { name, password, phone, referral_code, country_of_residence } = input;
+  const rawEmail = input.email;
+
+  if (!name || !rawEmail || !password || !phone) {
+    throw new AccountValidationError(400, 'Missing required fields: name, email, password, phone');
+  }
+
+  // Normalise the email before any DB hit so User@x and user@x land in
+  // the same row.  Audit T13 — email is the unique identity key, but
+  // two prod accounts diverged because one signup typed the address
+  // with a capital first letter.
+  const email = String(rawEmail).trim().toLowerCase();
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    throw new AccountValidationError(400, 'Invalid email format');
+  }
+
+  const trimmedName = name.trim();
+  if (trimmedName.length < 2 || trimmedName.length > 100) {
+    throw new AccountValidationError(400, 'Name must be between 2 and 100 characters');
+  }
+
+  const phoneRegex = /^\+?[\d\s\-()]{7,20}$/;
+  if (!phoneRegex.test(phone)) {
+    throw new AccountValidationError(400, 'Invalid phone number format');
+  }
+
+  if (password.length < PASSWORD_MIN_LENGTH) {
+    throw new AccountValidationError(400, `Password must be at least ${PASSWORD_MIN_LENGTH} characters`);
+  }
+
+  let normalisedCountry = null;
+  if (typeof country_of_residence === 'string' && country_of_residence.trim().length > 0) {
+    normalisedCountry = country_of_residence.trim().toUpperCase();
+    if (!ALLOWED_COUNTRIES.has(normalisedCountry)) {
+      throw new AccountValidationError(400, 'Invalid country_of_residence');
+    }
+  }
+
+  const existing = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+  if (existing.rows.length > 0) {
+    throw new AccountValidationError(409, 'Email already registered');
+  }
+
+  // Async bcrypt — `hashSync` blocks the event loop for ~80ms which
+  // hurts concurrency under load. Async runs in libuv's threadpool
+  // so other requests keep flowing while the hash is computed.
+  const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
+  const userId = uuidv4();
+  const warehouseId = generateWarehouseId();
+
+  // Ensure unique referral code
+  let newReferralCode = generateReferralCode();
+  while ((await db.query('SELECT id FROM users WHERE referral_code = $1', [newReferralCode])).rows.length > 0) {
+    newReferralCode = generateReferralCode();
+  }
+
+  let referredBy = null;
+  if (referral_code) {
+    const ref = await db.query('SELECT id FROM users WHERE referral_code = $1', [referral_code.trim().toUpperCase()]);
+    if (ref.rows.length > 0 && ref.rows[0].id !== userId) referredBy = ref.rows[0].id;
+  }
+
+  // Influencer attribution (migration 0002) — a SEPARATE scheme from the
+  // account-to-account referral above. We only stamp the code when it exists
+  // and is active; an unknown/disabled code is ignored (never blocks signup).
+  let influencerCode = null;
+  if (input.influencer_code && typeof input.influencer_code === 'string') {
+    const norm = input.influencer_code.trim().toUpperCase();
+    if (norm) {
+      const inf = await db.query(
+        'SELECT code FROM influencer_codes WHERE code = $1 AND is_active = true',
+        [norm]
+      );
+      if (inf.rows.length > 0) influencerCode = inf.rows[0].code;
+    }
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    // wallet_balance + wallet table dropped in migration 028 (PR A).
+    // Replacement: every new user gets a user_credits row at balance 0;
+    // referral rewards bump credit_ledger + user_credits.balance_kes.
+    await client.query(
+      `INSERT INTO users (id,email,password_hash,name,phone,role,warehouse_id,language_pref,referral_code,referred_by,is_active,country_of_residence,influencer_code)
+       VALUES ($1,$2,$3,$4,$5,'customer',$6,'en',$7,$8,true,$9,$10)`,
+      [userId, email, passwordHash, name, phone, warehouseId, newReferralCode, referredBy, normalisedCountry, influencerCode]
+    );
+    await client.query(
+      `INSERT INTO user_credits (user_id, balance_kes, updated_at)
+       VALUES ($1, 0, NOW())
+       ON CONFLICT (user_id) DO NOTHING`,
+      [userId]
+    );
+    if (referredBy) {
+      // referral_code in the referrals table must be unique per row.
+      // Multiple referees can use the same referrer code, so we append
+      // the referee's ID suffix to keep each entry distinct.
+      const referralEntryCode = `${referral_code.trim().toUpperCase()}-${userId.slice(0, 8).toUpperCase()}`;
+      await client.query(
+        `INSERT INTO referrals (id,referrer_id,referee_id,referral_code,status,reward_amount)
+         VALUES ($1,$2,$3,$4,'pending',50)`,
+        [uuidv4(), referredBy, userId, referralEntryCode]
+      );
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  // Email verification (migration 004). Sign-up no longer auto-signs the
+  // user in: we mint a one-shot 24h token, hash it for at-rest storage,
+  // email a verification link, and respond with `verification_required`
+  // so the client can show "check your inbox" instead of routing into the
+  // role-tabs. The user becomes able to sign in once they hit
+  // POST /api/auth/verify-email with the plaintext token.
+  const verificationToken = crypto.randomBytes(32).toString('hex');
+  const verificationHash = resetTokenSha256(verificationToken);
+  const verificationId = uuidv4();
+  const verificationExpiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+  await db.query(
+    `INSERT INTO email_verification_tokens (id, user_id, token_sha256, expires_at)
+     VALUES ($1, $2, $3, $4)`,
+    [verificationId, userId, verificationHash, verificationExpiresAt]
+  );
+
+  const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
+  const verifyLink = `${frontendUrl}/verify-email?token=${verificationToken}`;
+  import('../utils/email.js')
+    .then(({ sendEmailVerificationEmail }) =>
+      sendEmailVerificationEmail(email, name, verifyLink)
+    )
+    .catch(console.error);
+
+  return {
+    userId, email, name, phone,
+    warehouseId, referralCode: newReferralCode, influencerCode,
+  };
+}
+
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
-    const { name, password, phone, referral_code, country_of_residence } = req.body;
-    const rawEmail = req.body.email;
-    const db = req.db;
-
-    if (!name || !rawEmail || !password || !phone) {
-      return res.status(400).json({ success: false, message: 'Missing required fields: name, email, password, phone' });
-    }
-
-    // Normalise the email before any DB hit so User@x and user@x land in
-    // the same row.  Audit T13 — email is the unique identity key, but
-    // two prod accounts diverged because one signup typed the address
-    // with a capital first letter.
-    const email = String(rawEmail).trim().toLowerCase();
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ success: false, message: 'Invalid email format' });
-    }
-
-    const trimmedName = name.trim();
-    if (trimmedName.length < 2 || trimmedName.length > 100) {
-      return res.status(400).json({ success: false, message: 'Name must be between 2 and 100 characters' });
-    }
-
-    const phoneRegex = /^\+?[\d\s\-()]{7,20}$/;
-    if (!phoneRegex.test(phone)) {
-      return res.status(400).json({ success: false, message: 'Invalid phone number format' });
-    }
-
-    if (password.length < PASSWORD_MIN_LENGTH) {
-      return res.status(400).json({
-        success: false,
-        message: `Password must be at least ${PASSWORD_MIN_LENGTH} characters`
-      });
-    }
-
-    let normalisedCountry = null;
-    if (typeof country_of_residence === 'string' && country_of_residence.trim().length > 0) {
-      normalisedCountry = country_of_residence.trim().toUpperCase();
-      if (!ALLOWED_COUNTRIES.has(normalisedCountry)) {
-        return res.status(400).json({ success: false, message: 'Invalid country_of_residence' });
-      }
-    }
-
-    const existing = await db.query('SELECT id FROM users WHERE email = $1', [email]);
-    if (existing.rows.length > 0) {
-      return res.status(409).json({ success: false, message: 'Email already registered' });
-    }
-
-    // Async bcrypt — `hashSync` blocks the event loop for ~80ms which
-    // hurts concurrency under load. Async runs in libuv's threadpool
-    // so other requests keep flowing while the hash is computed.
-    const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
-    const userId = uuidv4();
-    const warehouseId = generateWarehouseId();
-
-    // Ensure unique referral code
-    let newReferralCode = generateReferralCode();
-    while ((await db.query('SELECT id FROM users WHERE referral_code = $1', [newReferralCode])).rows.length > 0) {
-      newReferralCode = generateReferralCode();
-    }
-
-    let referredBy = null;
-    if (referral_code) {
-      const ref = await db.query('SELECT id FROM users WHERE referral_code = $1', [referral_code.trim().toUpperCase()]);
-      if (ref.rows.length > 0 && ref.rows[0].id !== userId) referredBy = ref.rows[0].id;
-    }
-
-    const client = await db.connect();
-    try {
-      await client.query('BEGIN');
-      // wallet_balance + wallet table dropped in migration 028 (PR A).
-      // Replacement: every new user gets a user_credits row at balance 0;
-      // referral rewards bump credit_ledger + user_credits.balance_kes.
-      await client.query(
-        `INSERT INTO users (id,email,password_hash,name,phone,role,warehouse_id,language_pref,referral_code,referred_by,is_active,country_of_residence)
-         VALUES ($1,$2,$3,$4,$5,'customer',$6,'en',$7,$8,true,$9)`,
-        [userId, email, passwordHash, name, phone, warehouseId, newReferralCode, referredBy, normalisedCountry]
-      );
-      await client.query(
-        `INSERT INTO user_credits (user_id, balance_kes, updated_at)
-         VALUES ($1, 0, NOW())
-         ON CONFLICT (user_id) DO NOTHING`,
-        [userId]
-      );
-      if (referredBy) {
-        // referral_code in the referrals table must be unique per row.
-        // Multiple referees can use the same referrer code, so we append
-        // the referee's ID suffix to keep each entry distinct.
-        const referralEntryCode = `${referral_code.trim().toUpperCase()}-${userId.slice(0, 8).toUpperCase()}`;
-        await client.query(
-          `INSERT INTO referrals (id,referrer_id,referee_id,referral_code,status,reward_amount)
-           VALUES ($1,$2,$3,$4,'pending',50)`,
-          [uuidv4(), referredBy, userId, referralEntryCode]
-        );
-      }
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-
-    // Email verification (migration 004). Sign-up no longer auto-signs the
-    // user in: we mint a one-shot 24h token, hash it for at-rest storage,
-    // email a verification link, and respond with `verification_required`
-    // so the client can show "check your inbox" instead of routing into the
-    // role-tabs. The user becomes able to sign in once they hit
-    // POST /api/auth/verify-email with the plaintext token.
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    const verificationHash = resetTokenSha256(verificationToken);
-    const verificationId = uuidv4();
-    const verificationExpiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
-    await db.query(
-      `INSERT INTO email_verification_tokens (id, user_id, token_sha256, expires_at)
-       VALUES ($1, $2, $3, $4)`,
-      [verificationId, userId, verificationHash, verificationExpiresAt]
-    );
-
-    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
-    const verifyLink = `${frontendUrl}/verify-email?token=${verificationToken}`;
-    import('../utils/email.js')
-      .then(({ sendEmailVerificationEmail }) =>
-        sendEmailVerificationEmail(email, name, verifyLink)
-      )
-      .catch(console.error);
-
+    const account = await createCustomerAccount(req.db, req.body);
     res.status(201).json({
       success: true,
       message: 'Registration successful. Please check your email to activate your account.',
       verification_required: true,
-      user: { id: userId, email, name, phone, warehouse_id: warehouseId, referral_code: newReferralCode, role: 'customer' }
+      user: {
+        id: account.userId, email: account.email, name: account.name, phone: account.phone,
+        warehouse_id: account.warehouseId, referral_code: account.referralCode, role: 'customer',
+      },
     });
   } catch (error) {
+    if (error instanceof AccountValidationError) {
+      return res.status(error.status).json({ success: false, message: error.message, code: error.code || undefined });
+    }
     console.error('Registration error:', error);
     logRouteError(req, res, error, 'Registration error');
     res.status(500).json({ success: false, message: 'Registration failed' });
