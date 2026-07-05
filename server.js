@@ -317,6 +317,43 @@ app.get(/^\/articles(?:\/[a-zA-Z0-9-]+)?\/?$/, (req, res, next) => {
   res.sendFile(file, (err) => { if (err) next(); });
 });
 
+// ── Influencer link previews (/i/<CODE>) ─────────────────────────────────────
+// When an influencer shares their link on WhatsApp/iMessage/Telegram/etc., the
+// preview crawler fetches this URL and reads the static <meta> tags — it never
+// runs the React app. So we render the SPA shell with the influencer's name
+// swapped into the title/description/OG tags server-side. Real users get the
+// same shell and the app boots + renders the landing page as normal. Falls
+// through to the SPA shell for unknown codes or a missing build (dev).
+const SPA_INDEX_PATH = path.join(__dirname, 'client', 'dist', 'index.html');
+app.get('/i/:code', async (req, res, next) => {
+  try {
+    const code = String(req.params.code || '').trim().toUpperCase();
+    if (!/^[A-Z0-9]{3,24}$/.test(code)) return next();
+
+    let baseHtml;
+    try { baseHtml = fs.readFileSync(SPA_INDEX_PATH, 'utf8'); }
+    catch { return next(); } // no build (dev) — SPA fallback handles it
+
+    const { rows } = await getPool().query(
+      'SELECT influencer_name FROM influencer_codes WHERE code = $1 AND is_active = true',
+      [code]
+    );
+    const name = rows[0]?.influencer_name;
+    // Unknown/inactive code → serve the shell untouched (generic preview).
+    if (!name) return res.type('html').send(baseHtml);
+
+    const { renderInfluencerPreviewHtml } = await import('./utils/influencerLinkPreview.js');
+    const appUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
+    const html = renderInfluencerPreviewHtml(baseHtml, { name, code, appUrl });
+    // Short cache — the name rarely changes, and crawlers re-fetch on share.
+    res.set('Cache-Control', 'public, max-age=300');
+    res.type('html').send(html);
+  } catch (err) {
+    console.error('Influencer link-preview render failed (non-fatal):', err?.message);
+    next(); // fall through to the SPA shell
+  }
+});
+
 // ── Long-cache hashed assets (audit F-22) ───────────────────────────────────
 // Vite hashes filenames in /assets/* — e.g., index-DYOGuuA_.css,
 // vendor-react-dom-BxKxlONR.js. The content for any given URL is
