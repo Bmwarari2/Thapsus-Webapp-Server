@@ -325,6 +325,36 @@ app.get(/^\/articles(?:\/[a-zA-Z0-9-]+)?\/?$/, (req, res, next) => {
 // same shell and the app boots + renders the landing page as normal. Falls
 // through to the SPA shell for unknown codes or a missing build (dev).
 const SPA_INDEX_PATH = path.join(__dirname, 'client', 'dist', 'index.html');
+const DEFAULT_OG_IMAGE = path.join(__dirname, 'client', 'dist', 'og-image.png');
+
+// Per-influencer preview image (1200×630 PNG with their name on it). The
+// /i/:code HTML above points og:image here. Rendered on demand + cached by
+// name. Unknown/inactive codes fall back to the brand og-image.
+app.get('/i/:code/og.png', async (req, res, next) => {
+  try {
+    const code = String(req.params.code || '').trim().toUpperCase();
+    if (!/^[A-Z0-9]{3,24}$/.test(code)) return next();
+
+    const { rows } = await getPool().query(
+      'SELECT influencer_name FROM influencer_codes WHERE code = $1 AND is_active = true',
+      [code]
+    );
+    const name = rows[0]?.influencer_name;
+    if (!name) {
+      return res.sendFile(DEFAULT_OG_IMAGE, (err) => { if (err) next(); });
+    }
+
+    const { renderInfluencerOgPng } = await import('./utils/influencerOgImage.js');
+    const png = renderInfluencerOgPng(name);
+    res.set('Content-Type', 'image/png');
+    res.set('Cache-Control', 'public, max-age=86400'); // 1 day; names rarely change
+    res.send(png);
+  } catch (err) {
+    console.error('Influencer OG image render failed (non-fatal):', err?.message);
+    return res.sendFile(DEFAULT_OG_IMAGE, (e) => { if (e) next(); });
+  }
+});
+
 app.get('/i/:code', async (req, res, next) => {
   try {
     const code = String(req.params.code || '').trim().toUpperCase();

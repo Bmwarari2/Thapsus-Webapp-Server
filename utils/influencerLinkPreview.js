@@ -34,6 +34,7 @@ export function renderInfluencerPreviewHtml(baseHtml, { name, code, appUrl }) {
   const cleanName = escapeHtml(name);
   const base = String(appUrl || 'https://www.thapsus.uk').replace(/\/+$/, '');
   const url = escapeHtml(`${base}/i/${code}`);
+  const imageUrl = escapeHtml(`${base}/i/${code}/og.png`);
 
   const title = `${cleanName} invited you to Thapsus Cargo`;
   const description =
@@ -58,6 +59,20 @@ export function renderInfluencerPreviewHtml(baseHtml, { name, code, appUrl }) {
   html = swap(html, /(<meta name="twitter:title" content=")[^"]*(")/);
   html = swapDesc(html, /(<meta name="twitter:description" content=")[^"]*(")/);
   html = swapUrl(html, /(<meta name="twitter:url" content=")[^"]*(")/);
+
+  // Point the preview image at the per-influencer PNG (rendered by
+  // /i/<code>/og.png). Replace the og:image value and append the dimension
+  // hints crawlers use to lay the card out; swap the twitter:image too.
+  html = html.replace(
+    /<meta property="og:image" content="[^"]*"\s*\/?>/,
+    `<meta property="og:image" content="${imageUrl}" />\n` +
+    `    <meta property="og:image:secure_url" content="${imageUrl}" />\n` +
+    `    <meta property="og:image:type" content="image/png" />\n` +
+    `    <meta property="og:image:width" content="1200" />\n` +
+    `    <meta property="og:image:height" content="630" />\n` +
+    `    <meta property="og:image:alt" content="${title}" />`
+  );
+  html = html.replace(/(<meta name="twitter:image" content=")[^"]*(")/, (_m, pre, post) => pre + imageUrl + post);
 
   return html;
 }
