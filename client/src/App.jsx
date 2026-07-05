@@ -73,6 +73,8 @@ const AgentInvoices       = lazy(() => import('./pages/partner/AgentPortal').the
 const RiderPwa            = lazy(() => import('./pages/partner/RiderPwa').then(m => ({ default: m.RiderPwa })))
 const NpsLanding          = lazy(() => import('./pages/NpsLanding').then(m => ({ default: m.NpsLanding })))
 const Referral            = lazy(() => import('./pages/Referral').then(m => ({ default: m.Referral })))
+const InfluencerLanding   = lazy(() => import('./pages/InfluencerLanding').then(m => ({ default: m.InfluencerLanding })))
+const AdminInfluencers    = lazy(() => import('./pages/AdminInfluencers').then(m => ({ default: m.AdminInfluencers })))
 const AccountDeletion     = lazy(() => import('./pages/AccountDeletion').then(m => ({ default: m.AccountDeletion })))
 const Activity            = lazy(() => import('./pages/Activity').then(m => ({ default: m.Activity })))
 const Invoices            = lazy(() => import('./pages/Invoices').then(m => ({ default: m.Invoices })))
@@ -114,6 +116,10 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            {/* Influencer referral landing — public. Someone who received an
+                influencer's link lands here, sees their name, and signs up +
+                submits item links in one step. */}
+            <Route path="/i/:code" element={<InfluencerLanding />} />
             <Route path="/check-inbox" element={<CheckInbox />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/track" element={<TrackPackage />} />
@@ -181,6 +187,7 @@ function App() {
             <Route path="/admin/issue-invoice" element={<ProtectedRoute adminOnly={true}><AdminIssueInvoice /></ProtectedRoute>} />
             <Route path="/admin/create-bfm" element={<ProtectedRoute adminOnly={true}><AdminCreateBuyForMe /></ProtectedRoute>} />
             <Route path="/admin/dsar" element={<ProtectedRoute adminOnly={true}><AdminDsarQueue /></ProtectedRoute>} />
+            <Route path="/admin/influencers" element={<ProtectedRoute adminOnly={true}><AdminInfluencers /></ProtectedRoute>} />
             <Route path="/admin/finance" element={<ProtectedRoute financeOnly={true}><AdminFinance /></ProtectedRoute>} />
             <Route path="/kpi"   element={<ProtectedRoute adminOnly={true}><KpiDashboard /></ProtectedRoute>} />
 

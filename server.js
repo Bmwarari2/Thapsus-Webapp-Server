@@ -122,6 +122,7 @@ import appConfigRoutes        from './routes/appConfig.js';
 import customerConsolidationsRoutes from './routes/customerConsolidations.js';
 import accountDeletionRoutes        from './routes/accountDeletion.js';
 import financeRoutes                 from './routes/finance.js';
+import influencerRoutes, { adminRouter as influencerAdminRoutes } from './routes/influencer.js';
 
 const app      = express();
 const PORT     = process.env.PORT     || 5000;
@@ -494,6 +495,9 @@ app.use('/api/auth/register',        authLimiter);
 app.use('/api/auth/password',        authLimiter);          // PUT — change-password (authenticated, but limited to slow session-hijack brute force)
 app.use('/api/auth/reset-password',  resetPasswordLimiter);
 app.use('/api/auth/forgot-password', forgotPasswordLimiter);
+// Influencer landing-page signup creates a real account — same brute-force
+// surface as /register, so it gets the same limiter.
+app.use('/api/influencer/:code/signup', authLimiter);
 
 // Payments (cost + abuse surface). The bare POST /api/payments creates
 // a Stripe PaymentIntent (or M-Pesa pending row), which costs Stripe
@@ -625,6 +629,8 @@ app.use('/api/admin/aml-flags', amlFlagsRoutes);
 app.use('/api/app-config',     appConfigRoutes);
 app.use('/api/customer-consolidations', customerConsolidationsRoutes);
 app.use('/api/account/deletion-request', accountDeletionRoutes);
+app.use('/api/influencer',         influencerRoutes);          // public landing/signup
+app.use('/api/admin/influencers',  influencerAdminRoutes);     // admin management
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 app.get(/^\/(?!api).*/, (req, res) => {

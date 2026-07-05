@@ -1416,6 +1416,105 @@
     "hd": true
    }
   },
+  "influencer_codes": {
+   "code": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "influencer_name": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "influencer_contact": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "reward_per_order": {
+    "t": "numeric",
+    "nn": false,
+    "hd": false
+   },
+   "notes": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "is_active": {
+    "t": "boolean",
+    "nn": true,
+    "hd": true
+   },
+   "click_count": {
+    "t": "integer",
+    "nn": true,
+    "hd": true
+   },
+   "created_by": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "created_at": {
+    "t": "timestamptz",
+    "nn": true,
+    "hd": true
+   },
+   "updated_at": {
+    "t": "timestamptz",
+    "nn": true,
+    "hd": true
+   }
+  },
+  "influencer_conversions": {
+   "id": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "code": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "user_id": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "order_ref": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "order_kind": {
+    "t": "text",
+    "nn": true,
+    "hd": true
+   },
+   "converted_at": {
+    "t": "timestamptz",
+    "nn": true,
+    "hd": true
+   },
+   "payout_status": {
+    "t": "text",
+    "nn": true,
+    "hd": true
+   },
+   "payout_at": {
+    "t": "timestamptz",
+    "nn": false,
+    "hd": false
+   },
+   "payout_note": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   }
+  },
   "insurance_policies": {
    "id": {
     "t": "text",
@@ -3095,6 +3194,11 @@
     "t": "boolean",
     "nn": true,
     "hd": true
+   },
+   "influencer_code": {
+    "t": "text",
+    "nn": false,
+    "hd": false
    }
   },
   "whatsapp_messages": {

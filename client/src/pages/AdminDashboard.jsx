@@ -5,7 +5,7 @@ import {
   UserPlus, Bell, Mail, Eye, ArrowLeft, Key, Send, AlertTriangle,
   ChevronLeft, ChevronRight, Filter, ChevronDown, Globe, TrendingUp,
   CheckCircle, X, Box, Pencil, Scale, Ruler, ShoppingCart, Zap,
-  ArrowUpRight, Clock
+  ArrowUpRight, Clock, Megaphone
 } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLanguage } from '../context/LanguageContext'
@@ -593,13 +593,20 @@ export const AdminDashboard = () => {
             </div>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tighter uppercase leading-none mb-2">{t('admin.title')}</h1>
             <p className="text-mute font-bold text-sm tracking-wide uppercase">Global Terminal • System Live</p>
-            {currentUser?.can_manage_finances && (
-              <a href="/admin/finance"
-                 className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-ember-gradient text-white font-black text-xs uppercase tracking-widest shadow-lg no-underline"
+            <div className="mt-3 flex flex-wrap gap-2">
+              {currentUser?.can_manage_finances && (
+                <a href="/admin/finance"
+                   className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-ember-gradient text-white font-black text-xs uppercase tracking-widest shadow-lg no-underline"
+                   style={{ textDecoration: 'none' }}>
+                  <DollarSign size={15}/> Finance Dashboard
+                </a>
+              )}
+              <a href="/admin/influencers"
+                 className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-surface-2 border border-line text-white font-black text-xs uppercase tracking-widest shadow-lg no-underline hover:bg-ember-500/10"
                  style={{ textDecoration: 'none' }}>
-                <DollarSign size={15}/> Finance Dashboard
+                <Megaphone size={15}/> Influencers
               </a>
-            )}
+            </div>
           </div>
           <div className="flex bg-surface-2 backdrop-blur-2xl p-2 rounded-[2rem] border border-line shadow-sm overflow-x-auto no-scrollbar">
             {['overview', 'users', 'orders', 'payments', 'revenue', 'tickets', 'aml', 'exchange', 'settings', 'auditLogs', 'errorLogs'].map((tab) => (

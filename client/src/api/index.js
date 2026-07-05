@@ -653,6 +653,28 @@ export const appConfigApi = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// INFLUENCER REFERRALS — admin-generated codes handed to marketing
+// influencers (no account of their own). Public landing/signup + admin CRUD.
+// ─────────────────────────────────────────────────────────────────────────────
+export const influencerApi = {
+  // ── Public (landing page) ──────────────────────────────────────────────
+  /** GET /api/influencer/:code → { valid, influencer_name } */
+  lookup: (code) => api.get(`/influencer/${encodeURIComponent(code)}`),
+  /** POST /api/influencer/:code/click — count a link open (fire-and-forget) */
+  click: (code) => api.post(`/influencer/${encodeURIComponent(code)}/click`),
+  /** POST /api/influencer/:code/signup — create account + submit item links */
+  signup: (code, payload) => api.post(`/influencer/${encodeURIComponent(code)}/signup`, payload),
+
+  // ── Admin ──────────────────────────────────────────────────────────────
+  list:    () => api.get('/admin/influencers'),
+  get:     (code) => api.get(`/admin/influencers/${encodeURIComponent(code)}`),
+  create:  (payload) => api.post('/admin/influencers', payload),
+  update:  (code, payload) => api.patch(`/admin/influencers/${encodeURIComponent(code)}`, payload),
+  markPaid: (conversionId, paid = true, note = null) =>
+    api.post(`/admin/influencers/conversions/${encodeURIComponent(conversionId)}/pay`, { paid, note }),
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Default export (raw axios instance) – handy for one-off calls
 // ─────────────────────────────────────────────────────────────────────────────
 export { default as apiClient } from './client'
