@@ -83,6 +83,13 @@ swiftcargo/
 #### Admin Features
 - **routes/admin.js** - User management, order management, stats, revenue
 
+#### Influencer Programme (migrations 0002 + 0003)
+- **routes/influencer.js** - Public landing/visit/signup + admin code CRUD, provisioning, payout marking
+- **routes/influencerPortal.js** - Influencer self-serve analytics dashboard (`role: influencer`)
+- **utils/influencerConversion.js** - Best-effort first-order attribution
+- **utils/influencerLinkPreview.js** / **utils/influencerOgImage.js** - Server-rendered `/i/:code` link previews + per-influencer OG image
+- **utils/ipGeolocation.js** - Coarse, privacy-preserving visitor geolocation (salted IP hash; raw IP never stored)
+
 #### Utilities
 - **routes/prohibited.js** - Check prohibited items
 
@@ -100,7 +107,10 @@ swiftcargo/
 | `packages` | Individual packages | id, order_id, status, weight_kg, warehouse_location |
 | `transactions` | Payment transactions | id, user_id, type, amount, payment_method |
 | `wallet` | User wallet balances | id, user_id, balance, currency |
-| `referrals` | Referral program tracking | id, referrer_id, referee_id, reward_amount |
+| `referrals` | Account-to-account referral tracking | id, referrer_id, referee_id, reward_amount |
+| `influencer_codes` | Admin-minted influencer codes | code, influencer_name, reward_per_order, owner_user_id, click_count |
+| `influencer_conversions` | Payable unit — 1 per attributed customer's first order | id, code, user_id, order_kind, payout_status |
+| `influencer_link_events` | Per-open analytics (coarse geo; `converted` flag) | id, code, ip_hash, country, city, device_type, converted |
 | `tickets` | Support tickets | id, user_id, subject, status, priority |
 | `ticket_messages` | Support message threads | id, ticket_id, sender_id, message |
 | `notifications` | User notifications | id, user_id, type, message, is_read |
@@ -135,10 +145,19 @@ swiftcargo/
 - `POST /api/wallet/deposit` - Deposit funds (M-Pesa, Stripe, PayPal)
 - `POST /api/wallet/pay` - Pay from wallet
 
-### Referral
+### Referral (account-to-account)
 - `GET /api/referral` - Get code & stats
 - `POST /api/referral/apply` - Apply referral code
 - `GET /api/referral/history` - View referral history
+
+### Influencer programme
+- `GET /api/influencer/:code` - Validate a code (public)
+- `POST /api/influencer/:code/visit` - Record a link open (returns visit_id; public)
+- `POST /api/influencer/:code/signup` - Attributed signup + item links (public)
+- `GET /api/influencer-portal/dashboard` - Self-serve analytics (role: influencer)
+- `GET/POST /api/admin/influencers` - List / mint codes (admin)
+- `POST /api/admin/influencers/:code/account` - Provision a partner login (admin)
+- `POST /api/admin/influencers/conversions/:id/pay` - Mark payout (admin)
 
 ### Tickets
 - `POST /api/tickets` - Create with file upload

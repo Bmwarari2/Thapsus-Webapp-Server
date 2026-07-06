@@ -50,6 +50,8 @@ Migration milestones worth knowing:
 - `045` renames `users.password` → `users.password_hash` (matches the bcrypt content).
 - `051` adds the six-knob pricing model (`pricing_settings`, `customs_tiers`, `hs_code_tiers`, `electronics_fees`).
 - `052` drops `orders.market` (only one market remains).
+- `0002` adds the influencer referral programme (`influencer_codes`, `influencer_conversions`, `users.influencer_code`).
+- `0003` adds influencer partner logins (`influencer` role, `influencer_codes.owner_user_id`) + link-open analytics with coarse geolocation (`influencer_link_events`).
 
 ### Provisioning a fresh Supabase project
 
@@ -101,7 +103,10 @@ After changing any var on Railway, **redeploy the service** — Node reads `proc
 /api/last-mile            — rider runs, run-stops, POD upload, OTP
 /api/insurance            — declared-value insurance quote / issue / claim
 /api/dsar                 — GDPR DSAR requests + admin queue
-/api/referral             — referral codes and credit
+/api/referral             — account-to-account referral codes and credit
+/api/influencer           — public influencer landing/visit/signup (+ /i/:code SSR preview & og.png)
+/api/influencer-portal    — influencer self-serve analytics dashboard (role: influencer)
+/api/admin/influencers    — admin: mint codes, provision partner logins, mark payouts
 /api/prohibited           — categories + DB-backed search + admin CRUD (UK→KE catalogue seeded by mig 030)
 /api/pricing              — public quote engine (six-knob model; customs hidden — KRA charges separately)
 /api/pricing-tiers        — public tiers/fees + admin promotions
