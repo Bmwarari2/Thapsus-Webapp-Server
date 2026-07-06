@@ -577,7 +577,14 @@ function LipanaStkPanel({ payment, amountDueKes, message, onPaid, onFallback }) 
           onPaid?.()
           return
         }
-        if (['failed', 'cancelled', 'rejected'].includes(next)) {
+        // 'rejected' is an explicit admin decision — it never auto-recovers,
+        // so stop polling immediately. 'failed'/'cancelled' can still flip
+        // to 'paid' if a late M-Pesa success lands (Daraja's "timeout fired
+        // but the customer paid anyway" race — the server now recovers such
+        // rows). Keep polling through the budget so we surface that recovery
+        // instead of stranding the customer on a "failed" screen for a
+        // payment that actually went through.
+        if (next === 'rejected') {
           setPolling(false)
           return
         }
@@ -590,7 +597,12 @@ function LipanaStkPanel({ payment, amountDueKes, message, onPaid, onFallback }) 
     return () => { cancelled = true; if (timer) clearTimeout(timer) }
   }, [payment?.id, onPaid, status])
 
-  const failed = ['failed', 'cancelled', 'rejected'].includes(status)
+  const isFailStatus = ['failed', 'cancelled', 'rejected'].includes(status)
+  // While polling is still live, a failed/cancelled row may yet recover to
+  // 'paid' (late M-Pesa success), so present it as "confirming" rather than
+  // a terminal failure. Only show the red terminal state once polling ends.
+  const confirming = polling && (status === 'failed' || status === 'cancelled')
+  const failed = !polling && isFailStatus
   const timedOut = !polling && status === 'pending'
 
   return (
@@ -605,15 +617,17 @@ function LipanaStkPanel({ payment, amountDueKes, message, onPaid, onFallback }) 
             <CheckCircle2 size={22} className="text-green-600" />
           )}
           <p className={`text-sm font-black uppercase tracking-widest ${failed ? 'text-red-700' : 'text-green-700'}`}>
-            {failed ? 'Payment failed' : timedOut ? 'No confirmation yet' : 'Awaiting M-Pesa PIN'}
+            {failed ? 'Payment failed' : confirming ? 'Confirming payment' : timedOut ? 'No confirmation yet' : 'Awaiting M-Pesa PIN'}
           </p>
         </div>
         <p className="text-sm text-slate-700 leading-relaxed">
           {failed
             ? 'The STK push was declined or expired. You can try again or fall back to manual M-Pesa.'
-            : timedOut
-              ? 'We didn\'t hear back from M-Pesa. Check your phone — the prompt may still be pending. You can keep waiting or fall back to manual M-Pesa.'
-              : (message || 'Check your phone and enter your M-Pesa PIN to confirm KES ' + fmt(amountDueKes) + '.')}
+            : confirming
+              ? 'The prompt expired, but we\'re double-checking with M-Pesa in case your payment still went through. Please hold on a moment — don\'t pay again yet.'
+              : timedOut
+                ? 'We didn\'t hear back from M-Pesa. Check your phone — the prompt may still be pending. You can keep waiting or fall back to manual M-Pesa.'
+                : (message || 'Check your phone and enter your M-Pesa PIN to confirm KES ' + fmt(amountDueKes) + '.')}
         </p>
       </div>
 

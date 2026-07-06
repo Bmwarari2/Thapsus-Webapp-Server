@@ -47,9 +47,31 @@ export async function markPaymentPaid(db, paymentId, opts = {}) {
                target_kind: payment.target_kind, target_id: payment.target_id };
     }
 
-    if (payment.status !== 'pending' && payment.status !== 'awaiting_review') {
+    // Recover a payment we'd already recorded as 'failed'. This is the
+    // M-Pesa STK "timeout callback fired, but the customer still completed
+    // the payment" race: Lipana sends payment.failed/payment.timeout when
+    // the Daraja prompt expires (row flips pending → failed), then sends
+    // the genuine payment.success once the money actually lands. Without
+    // this, the merchant receives the funds but the payment stays 'failed'
+    // and the order never clears — the exact "customer got an error but I
+    // received the money" report.
+    //
+    // Every caller of markPaymentPaid has already proven money arrived:
+    // an HMAC-verified Lipana webhook, a signature-verified Stripe webhook,
+    // or a manual admin M-Pesa approval. So recovering 'failed' → 'paid' is
+    // always correct. We deliberately do NOT recover 'cancelled' (a row
+    // superseded by a fresh payment attempt — recovering it could settle a
+    // target twice) or 'rejected' (an explicit admin decision).
+    const recovering = payment.status === 'failed';
+    if (payment.status !== 'pending' && payment.status !== 'awaiting_review' && !recovering) {
       await client.query('ROLLBACK');
       return { ok: false, reason: `Cannot mark paid from status '${payment.status}'` };
+    }
+    if (recovering) {
+      console.warn(
+        `[markPaymentPaid:${paymentId}] recovering 'failed' → 'paid' on a ` +
+        `verified late success signal (STK timeout/decline that settled anyway)`
+      );
     }
 
     // Deduct credit consumed for this payment from the user's balance and
@@ -106,7 +128,7 @@ export async function markPaymentPaid(db, paymentId, opts = {}) {
     // Idempotent + self-contained; never throws into this flow.
     await recordPaymentIncome(db, paymentId);
 
-    return { ok: true, alreadyPaid: false,
+    return { ok: true, alreadyPaid: false, recovered: recovering,
              target_kind: payment.target_kind, target_id: payment.target_id };
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
