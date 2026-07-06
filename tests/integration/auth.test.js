@@ -325,3 +325,39 @@ describe.skipIf(SKIP)('GET /api/auth/me — silent refresh (W6.1)', () => {
     expect(second.body).not.toHaveProperty('refreshed_token');
   });
 });
+
+describe.skipIf(SKIP)('GET /api/auth/reset-context', () => {
+  async function mintResetToken(userId) {
+    const plaintext = crypto.randomBytes(32).toString('hex');
+    const hash = crypto.createHash('sha256').update(plaintext).digest();
+    await getPool().query(
+      `INSERT INTO password_reset_tokens (id, user_id, token_sha256, expires_at)
+       VALUES ($1, $2, $3, NOW() + interval '1 hour')`,
+      [randomUUID(), userId, hash]
+    );
+    return plaintext;
+  }
+
+  it('returns the account email for a valid token (username for password managers)', async () => {
+    const email = mintEmail();
+    const reg = await request(app).post('/api/auth/register').send({
+      email, password: 'PassPhrase!23', name: 'Reset Ctx', phone: '+254700000040',
+    });
+    const token = await mintResetToken(reg.body.user.id);
+    const r = await request(app).get('/api/auth/reset-context').query({ token });
+    expect(r.status).toBe(200);
+    expect(r.body.email).toBe(email.toLowerCase());
+  });
+
+  it('returns email: null for an unknown/expired token (no leak, no error)', async () => {
+    const r = await request(app).get('/api/auth/reset-context').query({ token: 'not-a-real-token' });
+    expect(r.status).toBe(200);
+    expect(r.body.email).toBeNull();
+  });
+
+  it('returns email: null when no token is supplied', async () => {
+    const r = await request(app).get('/api/auth/reset-context');
+    expect(r.status).toBe(200);
+    expect(r.body.email).toBeNull();
+  });
+});
