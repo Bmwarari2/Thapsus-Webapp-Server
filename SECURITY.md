@@ -203,6 +203,9 @@ ever scale beyond a single Railway dyno, switch to
   `bcryptjs` 3.x, `ws` 8.x, `xss` 1.x.
 - Client `axios` is at `^1.7.9` (post-audit M-1) — predates SSRF
   and credential-leak CVEs that hit `<1.7.9`.
+- Client `react-router-dom` bumped to `^7.15.1` to clear
+  GHSA-84g9-w2xq-vcv6 (CSRF via `PUT`/`PATCH`/`DELETE` document
+  requests; affected `7.12.0`–`7.15.0`).
 - `npm audit` and Dependabot alerts are reviewed regularly; no
   open advisories at time of writing.
 - Renovate / Dependabot can be added later; until then, manual

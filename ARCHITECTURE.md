@@ -200,6 +200,34 @@ route. Same code path = same downstream behaviour (parcel status flip,
 credit ledger debit, receipt email) regardless of payment method.
 Never duplicate that logic; if it needs to change, change it in one place.
 
+### STK timeout-then-success recovery (PR #276)
+
+Daraja's STK Push has a ~60 s window. When a customer completes the payment
+right on the deadline, Lipana can deliver `transaction.failed` /
+`transaction.timeout` (prompt expired) **and** the genuine
+`transaction.success` within the same second, in that order. The failed
+event flips the row `pending → failed`; the success event then reaches
+`markPaymentPaid()`. So the state machine accepts a recovery transition
+`failed → paid` (on top of `pending` / `awaiting_review`) — every caller is
+proof-of-funds (HMAC-verified Lipana webhook, signature-verified Stripe
+webhook, or a manual admin approval), so recovering a failed row is always
+correct. It deliberately does **not** recover `cancelled` (superseded by a
+fresh attempt — double-settle risk) or `rejected` (an explicit admin
+decision). Without this, the merchant received the money while the order
+stayed `failed` and never cleared.
+
+The webapp STK poller (`PayInvoiceModal.jsx`) mirrors this: a transient
+`failed`/`cancelled` keeps polling through its budget and shows a
+"Confirming payment" state, only surfacing the terminal failure + retry once
+polling ends — so a late success settles the UI instead of stranding the
+customer, and the retry button can't fire while a recovery is still possible.
+
+For a payment settled **entirely out-of-band** (e.g. reconciled directly in
+the DB), `markPaymentPaid()` no-ops on the already-`paid` row and never sends
+the receipt. Re-send it with `scripts/resend-payment-receipt.mjs <paymentId>`
+(PR #277) — same lookups + template as the normal post-paid hook, guarded to
+fire only for `status = 'paid'`.
+
 ### Wallet → credits migration
 
 The legacy `wallet` table was retired in migration 028. It has been
@@ -297,6 +325,8 @@ The backend has a vitest + supertest suite (PRs #137–#142):
 - `tests/unit/sanitize.test.js` — XSS scrub middleware.
 - `tests/unit/stripeWebhook.test.js` — Stripe handler branches (8 cases).
 - `tests/unit/lipanaWebhook.test.js` — Lipana handler branches (13 cases).
+- `tests/unit/markPaymentPaidRecovery.test.js` — `failed → paid` STK
+  recovery + the `cancelled` / `rejected` / already-paid guards (5 cases).
 - `tests/unit/deprecation.test.js` — RFC 8594 header emission.
 - `tests/unit/fxRefresh.test.js`, `tests/unit/logRetention.test.js` —
   daily-cron helpers.

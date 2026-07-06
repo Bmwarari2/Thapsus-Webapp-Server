@@ -207,6 +207,9 @@ Both webhooks:
 - Are mounted with `express.raw({ limit: '1mb' })` **before** `express.json()`.
 - Insert into a per-provider `*_events_seen` table (PK on `event_id`) before any side-effect, so retries / replays land twice on the row but only run side-effects once.
 - Converge on `utils/markPaymentPaid.js` — the same code path that the admin M-Pesa manual approval route uses. Parcel status flip, credit ledger debit, receipt email all happen exactly once regardless of provider.
+- Tolerate the STK "timeout-then-success" race (PR #276): if `transaction.failed`/`transaction.timeout` lands just before the genuine `transaction.success`, `markPaymentPaid()` recovers the row `failed → paid` (it will **not** recover `cancelled` or `rejected`). The STK poller keeps polling through a transient failure so a late success still settles the UI.
+
+> **Reconciling a payment settled out-of-band:** `markPaymentPaid()` no-ops on an already-`paid` row, so the receipt won't re-send. Use `node scripts/resend-payment-receipt.mjs <paymentId>` (runs where the Gmail OAuth creds live; `DRY_RUN=true` to preview).
 
 ### Credit Centre (replaces wallet)
 ```
