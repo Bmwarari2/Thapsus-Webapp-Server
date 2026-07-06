@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { User, Mail, Phone, Lock, AlertCircle, Gift, Link2, Plus, X, Package } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -25,6 +25,7 @@ export const InfluencerLanding = () => {
 
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirmPassword: '' })
   const [items, setItems] = useState([{ url: '', description: '' }])
+  const visitIdRef = useRef(null)
 
   useEffect(() => {
     let alive = true
@@ -34,16 +35,23 @@ export const InfluencerLanding = () => {
         if (res.data?.valid) {
           setInfluencerName(res.data.influencer_name || '')
           setPhase('ready')
-          // Count this visit once per browser session so a refresh doesn't
-          // inflate the influencer's "received" number.
-          const key = `inf_click_${code}`
+          // Record this visit once per browser session so a refresh doesn't
+          // inflate the influencer's "opens" number. The returned visit_id
+          // ties an eventual signup back to this exact open.
+          const key = `inf_visit_${code}`
+          const recordVisit = () =>
+            influencerApi.visit(code)
+              .then((r) => { visitIdRef.current = r.data?.visit_id || null; return r.data?.visit_id })
+              .catch(() => {})
           try {
-            if (!sessionStorage.getItem(key)) {
-              influencerApi.click(code).catch(() => {})
-              sessionStorage.setItem(key, '1')
+            const stored = sessionStorage.getItem(key)
+            if (stored) {
+              visitIdRef.current = stored
+            } else {
+              recordVisit().then((vid) => { if (vid) { try { sessionStorage.setItem(key, vid) } catch {} } })
             }
           } catch {
-            influencerApi.click(code).catch(() => {})
+            recordVisit()
           }
         } else {
           setPhase('invalid')
@@ -81,6 +89,7 @@ export const InfluencerLanding = () => {
         phone: form.phone.trim(),
         password: form.password,
         items: cleanItems,
+        visit_id: visitIdRef.current || undefined,
       })
       toast.success('Account created — check your inbox to activate it.')
       navigate(`/check-inbox?email=${encodeURIComponent(res.data?.email || form.email.trim())}`)

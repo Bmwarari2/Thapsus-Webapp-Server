@@ -123,6 +123,7 @@ import customerConsolidationsRoutes from './routes/customerConsolidations.js';
 import accountDeletionRoutes        from './routes/accountDeletion.js';
 import financeRoutes                 from './routes/finance.js';
 import influencerRoutes, { adminRouter as influencerAdminRoutes } from './routes/influencer.js';
+import influencerPortalRoutes from './routes/influencerPortal.js';
 
 const app      = express();
 const PORT     = process.env.PORT     || 5000;
@@ -697,6 +698,7 @@ app.use('/api/app-config',     appConfigRoutes);
 app.use('/api/customer-consolidations', customerConsolidationsRoutes);
 app.use('/api/account/deletion-request', accountDeletionRoutes);
 app.use('/api/influencer',         influencerRoutes);          // public landing/signup
+app.use('/api/influencer-portal',  influencerPortalRoutes);    // influencer self-serve dashboard
 app.use('/api/admin/influencers',  influencerAdminRoutes);     // admin management
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────

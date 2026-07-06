@@ -74,6 +74,7 @@ const RiderPwa            = lazy(() => import('./pages/partner/RiderPwa').then(m
 const NpsLanding          = lazy(() => import('./pages/NpsLanding').then(m => ({ default: m.NpsLanding })))
 const Referral            = lazy(() => import('./pages/Referral').then(m => ({ default: m.Referral })))
 const InfluencerLanding   = lazy(() => import('./pages/InfluencerLanding').then(m => ({ default: m.InfluencerLanding })))
+const InfluencerDashboard = lazy(() => import('./pages/InfluencerDashboard').then(m => ({ default: m.InfluencerDashboard })))
 const AdminInfluencers    = lazy(() => import('./pages/AdminInfluencers').then(m => ({ default: m.AdminInfluencers })))
 const AccountDeletion     = lazy(() => import('./pages/AccountDeletion').then(m => ({ default: m.AccountDeletion })))
 const Activity            = lazy(() => import('./pages/Activity').then(m => ({ default: m.Activity })))
@@ -190,6 +191,9 @@ function App() {
             <Route path="/admin/influencers" element={<ProtectedRoute adminOnly={true}><AdminInfluencers /></ProtectedRoute>} />
             <Route path="/admin/finance" element={<ProtectedRoute financeOnly={true}><AdminFinance /></ProtectedRoute>} />
             <Route path="/kpi"   element={<ProtectedRoute adminOnly={true}><KpiDashboard /></ProtectedRoute>} />
+
+            {/* Influencer partner dashboard (self-serve analytics) */}
+            <Route path="/influencer" element={<ProtectedRoute roles={['influencer']}><InfluencerDashboard /></ProtectedRoute>} />
 
             {/* Partner portals */}
             <Route path="/partner/agent"           element={<ProtectedRoute roles={['clearing_agent']}><AgentPortal /></ProtectedRoute>} />

@@ -61,9 +61,14 @@ export const Login = () => {
       setLoading(true)
       const loggedInUser = await login(formData.email, formData.password)
       toast.success(t('auth.loginSuccess') || 'Login successful!')
-      const dest = (loggedInUser.role !== 'admin' && nextPath)
+      const home = loggedInUser.role === 'admin' ? '/admin'
+        : loggedInUser.role === 'influencer' ? '/influencer'
+        : '/dashboard'
+      // Deep-link (nextPath) wins for ordinary customers; admins and
+      // influencers always land on their own home surface.
+      const dest = (loggedInUser.role !== 'admin' && loggedInUser.role !== 'influencer' && nextPath)
         ? nextPath
-        : (loggedInUser.role === 'admin' ? '/admin' : '/dashboard')
+        : home
       navigate(dest, { replace: true })
     } catch (err) {
       const code = err?.response?.data?.code

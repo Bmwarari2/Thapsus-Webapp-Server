@@ -10,6 +10,7 @@ import toast from 'react-hot-toast'
 import {
   ArrowLeft, Megaphone, Plus, Copy, Check, MousePointerClick,
   UserPlus, ShoppingBag, Power, ChevronRight, BadgeDollarSign,
+  Mail, Send, X, LayoutDashboard, RefreshCw,
 } from 'lucide-react'
 import { influencerApi } from '../api'
 import { GlassStyles, GlassCard, PageHeading } from '../components/GlassUI'
@@ -22,6 +23,9 @@ export const AdminInfluencers = () => {
   const [creating, setCreating] = useState(false)
   const [selected, setSelected] = useState(null) // code string
   const [copied, setCopied] = useState(null)
+  const [inviteFor, setInviteFor] = useState(null) // code currently being invited
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviting, setInviting] = useState(false)
 
   const [form, setForm] = useState({ influencer_name: '', influencer_contact: '', reward_per_order: '', code: '', notes: '' })
 
@@ -79,6 +83,28 @@ export const AdminInfluencers = () => {
       setList((prev) => prev.map((x) => (x.code === c.code ? { ...x, is_active: !x.is_active } : x)))
     } catch {
       toast.error('Failed to update')
+    }
+  }
+
+  const openInvite = (c) => {
+    setInviteFor(c.code)
+    setInviteEmail(c.owner_email || (c.influencer_contact && c.influencer_contact.includes('@') ? c.influencer_contact : ''))
+  }
+
+  const sendInvite = async (code) => {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteEmail.trim())) return toast.error('Enter a valid email')
+    setInviting(true)
+    try {
+      const r = await influencerApi.provisionAccount(code, { email: inviteEmail.trim() })
+      toast.success(r.data?.email_status === 'sent'
+        ? 'Invite emailed — they can set a password and log in.'
+        : 'Account linked. Email failed — copy the setup link from the response.')
+      setInviteFor(null); setInviteEmail('')
+      load()
+    } catch (e) {
+      toast.error(e?.response?.data?.message || 'Failed to provision account')
+    } finally {
+      setInviting(false)
     }
   }
 
@@ -172,6 +198,44 @@ export const AdminInfluencers = () => {
                       <ChevronRight size={16} className={`transition-transform ${selected === c.code ? 'rotate-90' : ''}`} />
                     </button>
                   </div>
+                </div>
+
+                {/* Dashboard account row */}
+                <div className="mt-3 pt-3 border-t border-line">
+                  {inviteFor === c.code ? (
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <div className="relative flex-1">
+                        <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-dim" />
+                        <input
+                          type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)}
+                          placeholder="influencer@email.com"
+                          className="w-full pl-9 pr-3 py-2 rounded-lg border border-line bg-surface-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-300"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => sendInvite(c.code)} disabled={inviting}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-ember-gradient text-white text-xs font-bold disabled:opacity-50">
+                          <Send size={14} /> {inviting ? 'Sending…' : 'Send invite'}
+                        </button>
+                        <button onClick={() => { setInviteFor(null); setInviteEmail('') }}
+                          className="p-2 rounded-lg border border-line bg-surface-2 text-mute hover:text-white"><X size={14} /></button>
+                      </div>
+                    </div>
+                  ) : c.has_account ? (
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="inline-flex items-center gap-1.5 text-emerald-300 font-semibold">
+                        <LayoutDashboard size={14} /> Dashboard account · {c.owner_email}
+                      </span>
+                      <button onClick={() => openInvite(c)} className="inline-flex items-center gap-1 text-mute hover:text-white font-semibold">
+                        <RefreshCw size={12} /> Re-send invite
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => openInvite(c)}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-ember-400 hover:text-ember-300">
+                      <UserPlus size={14} /> Invite this influencer to their own dashboard
+                    </button>
+                  )}
                 </div>
 
                 {selected === c.code && <Detail code={c.code} onChanged={load} />}
