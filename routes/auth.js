@@ -541,6 +541,34 @@ router.put('/password', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/auth/reset-context?token=…
+//
+// Returns the email tied to a valid, unused, unexpired password-set/reset
+// token. The set-password form uses it to (a) show which account is being
+// activated and (b) render a username field so password managers (Apple
+// Passwords, 1Password, …) can associate + save the new credential. The token
+// already grants full password control, so surfacing its email is not a new
+// leak; an invalid/expired token simply returns email: null.
+router.get('/reset-context', async (req, res) => {
+  try {
+    const token = req.query.token;
+    if (!token || typeof token !== 'string') return res.json({ success: true, email: null });
+    const tokenHash = resetTokenSha256(token);
+    const { rows } = await req.db.query(
+      `SELECT u.email
+         FROM password_reset_tokens t
+         JOIN users u ON u.id = t.user_id
+        WHERE t.token_sha256 = $1 AND t.used = false AND t.expires_at > NOW()
+        LIMIT 1`,
+      [tokenHash]
+    );
+    return res.json({ success: true, email: rows[0]?.email || null });
+  } catch (error) {
+    console.error('Reset context error:', error?.message);
+    return res.json({ success: true, email: null });
+  }
+});
+
 // POST /api/auth/reset-password
 router.post('/reset-password', async (req, res) => {
   try {

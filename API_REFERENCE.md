@@ -21,7 +21,7 @@ The `sc_token` is an HS256-signed JWT (`{ id, email, role, warehouse_id, iat }`)
 
 For direct Supabase PostgREST / Realtime calls the iOS app exchanges its `sc_token` for a short-lived `supabase_token` via `POST /auth/supabase-token`.
 
-Roles: `customer`, `operator`, `clearing_agent`, `rider`, `admin`. Admin always satisfies any role gate.
+Roles: `customer`, `operator`, `clearing_agent`, `rider`, `influencer`, `admin`. Admin always satisfies any role gate. `influencer` accounts are confined to `/influencer` (the partner dashboard) — the app bounces them off every customer/ops/admin route.
 
 ---
 
@@ -138,6 +138,55 @@ POST /buy-for-me/:id/pay        # routes through /api/payments
 ```
 
 The quote is calculated server-side from the six-knob pricing model (`pricing_settings`, `customs_tiers`, `hs_code_tiers`, `electronics_fees`). Customer surfaces show KES; operator surfaces show GBP. The web `/calculator` shows the same breakdown but hides the customs estimate (KRA charges separately on clearance).
+
+---
+
+## Influencer referrals & analytics
+
+Admin-driven marketing programme (migrations 0002 + 0003), **separate** from the
+account-to-account `referral_code` scheme that pays wallet credit between
+customers. An admin mints a short code for an influencer who has no account,
+the influencer shares `/i/<CODE>`, and the admin tracks the funnel — link opens
+→ signups → orders — to pay them. Influencers can be given their own login to a
+self-serve analytics dashboard.
+
+**Public** (no auth):
+```
+GET  /i/:code                   # SSR landing page; <meta> preview carries the influencer's name
+GET  /i/:code/og.png            # per-influencer 1200×630 preview image (name rendered on a branded card)
+GET  /api/influencer/:code      # { valid, influencer_name } — validate a code
+POST /api/influencer/:code/visit  # record a link open (device + coarse geo); returns { visit_id }
+POST /api/influencer/:code/signup # create an account (attributed) + turn item links into buy-for-me requests
+POST /api/influencer/:code/click  # legacy counter bump (superseded by /visit)
+```
+`/visit` writes an `influencer_link_events` row and returns a `visit_id`; the
+landing page threads that id into `/signup`, which flips the visit to
+`converted` — that's how "opened but never signed up" is distinguished. Location
+is estimated from the IP via ipwho.is out-of-band; the **raw IP is never stored**
+(only a salted hash + coarse country/region/city). Link-preview crawlers get the
+name in server-rendered `<meta>` tags because they don't run JS.
+
+**Influencer portal** (role `influencer`; admins also allowed, scoped to codes they own):
+```
+GET /api/influencer-portal/dashboard?days=30
+    # KPIs (opens, unique visitors, signups, orders, earnings, opened-not-signed-up),
+    # per-link funnels, a zero-filled daily time-series, location + device breakdowns,
+    # and a recent-activity feed — all scoped to the caller's own codes.
+```
+
+**Admin** (`authMiddleware` + `isAdmin`):
+```
+GET   /admin/influencers                    # all codes + funnel numbers + account status
+POST  /admin/influencers                    # mint a code { influencer_name, code?, reward_per_order?, ... }
+GET   /admin/influencers/:code              # one code + its signups + conversions
+PATCH /admin/influencers/:code              # edit name/contact/reward/notes/is_active
+POST  /admin/influencers/:code/account      # provision (or re-invite) the influencer's dashboard login
+POST  /admin/influencers/conversions/:id/pay  # mark a conversion compensated (or not)
+```
+Provisioning creates a `role='influencer'` user (or links an existing one),
+sets `influencer_codes.owner_user_id`, and emails a set-password invite (reuses
+the reset-password flow, which also verifies the email); the response includes a
+fallback `setup_link` for when email delivery is down.
 
 ---
 
@@ -391,6 +440,7 @@ Every response includes the `X-Request-Id` header for correlation against `error
 | Scope | Limit |
 | --- | --- |
 | Auth (`/auth/*` mutations) | 10 / 15 min |
+| Influencer landing signup (`/influencer/:code/signup`) | 10 / 15 min |
 | Forgot-password | 5 / hour |
 | Reset-password | 10 / hour |
 | Payments | 10 / 15 min |

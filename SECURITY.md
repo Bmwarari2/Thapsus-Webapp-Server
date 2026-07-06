@@ -225,6 +225,17 @@ ever scale beyond a single Railway dyno, switch to
   `lipana_events_seen`) double as a forensic log of every
   signed event we received.
 
+### 10.1 Visitor analytics privacy (influencer links)
+
+The influencer link tracker (`influencer_link_events`, migration 0003)
+estimates a visitor's location from their IP for the partner dashboard.
+The **raw IP is never stored**: `utils/ipGeolocation.js` keeps only a
+salted SHA-256 hash of the IP (for unique-visitor counts) plus the
+coarse country/region/city resolved at capture time. The lookup runs
+best-effort against ipwho.is out-of-band, so a third party sees the IP
+at lookup time but our database never persists it. The salt is
+`IP_HASH_SECRET` (falls back to `JWT_SECRET`).
+
 ---
 
 ## 11. What's NOT covered
@@ -246,4 +257,4 @@ Honesty section. We don't claim:
 
 ---
 
-*Last updated 2026-05-09 (audit remediation cycle).*
+*Last updated 2026-07-06 (influencer programme: partner logins + privacy-preserving link analytics).*

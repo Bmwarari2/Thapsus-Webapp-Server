@@ -107,9 +107,14 @@ All four checks ride on a single round-trip query against `users` +
 ### Role gates
 
 `requireRole(...allowed)` in the same file. Roles: `customer`,
-`operator`, `clearing_agent`, `rider`, `admin`. Admins always pass.
+`operator`, `clearing_agent`, `rider`, `influencer`, `admin`. Admins always pass.
 Convenience exports: `isAdmin`, `isOperator`, `isAgent`, `isRider`.
-The 5×5 matrix is exercised by `tests/integration/roleMatrix.test.js`.
+The role matrix is exercised by `tests/integration/roleMatrix.test.js`.
+
+`influencer` (migration 0003) is a marketing-partner login confined to the
+`/influencer` dashboard: the SPA's `ProtectedRoute` redirects influencers off
+any route that doesn't explicitly allow their role, and the nav + customer
+widgets are hidden for them.
 
 ---
 
@@ -374,7 +379,36 @@ UK-origin only and the `orders.market` column was dropped in migration
 
 ---
 
-## 12. Where to look next
+## 12. Influencer referral programme (migrations 0002 + 0003)
+
+A marketing programme distinct from the account-to-account `referral_code`
+scheme (which pays wallet credit between customers). Admins mint codes for
+influencers who have no account; the influencer shares `/i/<CODE>`.
+
+- **Data model.** `influencer_codes` (the mintable code + `owner_user_id` link
+  to a partner login), `influencer_conversions` (one row per attributed
+  customer's first order — the payable unit), `influencer_link_events` (one row
+  per link open, with coarse geo + a `converted` flag), and
+  `users.influencer_code` (attribution stamp). Attribution is recorded
+  best-effort from the order/BFM create paths (`utils/influencerConversion.js`)
+  so it can never block an order.
+- **Link previews.** `/i/:code` is server-rendered so WhatsApp/iMessage/etc.
+  crawlers (which don't run JS) get the influencer's name in the `<meta>` tags,
+  and `/i/:code/og.png` rasterises a per-influencer card with `@resvg/resvg-js`
+  + a bundled font (`utils/influencerLinkPreview.js`, `utils/influencerOgImage.js`).
+- **Geolocation, privacy-first.** `utils/ipGeolocation.js` resolves the visitor
+  IP to country/region/city via ipwho.is (cached, timed out, out-of-band so the
+  landing page never waits). The **raw IP is never stored** — only a salted hash
+  (unique-visitor counts) + the coarse location.
+- **Partner dashboard.** `role='influencer'` accounts (provisioned + emailed a
+  set-password invite by an admin) log in to `/influencer`, served by
+  `routes/influencerPortal.js` — a single `/dashboard` call returns KPIs,
+  per-link funnels, a daily time-series, and location/device breakdowns, scoped
+  to the codes they own. Influencers are confined to this one surface.
+
+---
+
+## 13. Where to look next
 
 - **`SETUP.md`** — local dev setup, Supabase / Stripe / Gmail / Lipana wiring.
 - **`README_BACKEND.md`** — server-side feature notes.
@@ -383,9 +417,10 @@ UK-origin only and the `orders.market` column was dropped in migration
 - **`SECURITY.md`** — disclosure policy + threat model.
 - **`tests/README.md`** — how to add tests, the `TEST_DATABASE_URL`
   gating contract.
-- **`database/migrations/`** — schema evolution. Numbered, applied in
-  order; advisor cleanups live at 040/041/046; pricing model at 051;
-  market column drop at 052.
+- **`database/migrations/`** — schema evolution. A consolidated baseline
+  (`0000_*`) plus incremental migrations from `0001` up; the influencer
+  programme is `0002` (codes + conversions) and `0003` (partner accounts +
+  link-event analytics). See `database/MIGRATIONS.md`.
 - **`.github/workflows/`** — `test.yml` (unit + integration + lighthouse),
   `codeql.yml` (SAST).
 - **Companion mobile repo:** [`thapsus-v1.1`](https://github.com/Bmwarari2/thapsus-v1.1) —

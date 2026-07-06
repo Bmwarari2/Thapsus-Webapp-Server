@@ -25,7 +25,11 @@ makes drift a CI failure instead of a production outage.
 The 59 historical migrations live in `_archive/` for git history and forensic
 reference. Neither `scripts/migrate.mjs` nor the boot-time runner descends
 into subdirectories, so nothing in `_archive/` ever applies. **New migrations
-start at `0001_*.sql`** and layer on top of the baseline.
+start at `0001_*.sql`** and layer on top of the baseline. Applied so far:
+`0001` (drop plaintext token columns), `0002` (influencer referral programme),
+`0003` (influencer partner logins + link-open analytics with coarse
+geolocation). Both `0002` and `0003` have been applied to the live Supabase
+project and recorded in the `_migrations` ledger.
 
 The live `_migrations` ledger has both baseline filenames recorded, so
 `migrate:check` is green against live; the archived filenames remaining in

@@ -32,6 +32,9 @@ client/
 │   │   ├── ProhibitedItems.jsx
 │   │   ├── Support.jsx
 │   │   ├── Referral.jsx
+│   │   ├── InfluencerLanding.jsx    # Public /i/:code — influencer invite + signup
+│   │   ├── InfluencerDashboard.jsx  # /influencer — partner self-serve analytics
+│   │   ├── AdminInfluencers.jsx     # /admin/influencers — mint codes, provision logins
 │   │   ├── WarehouseAddresses.jsx
 │   │   └── AdminDashboard.jsx
 │   ├── api.js         # Axios API client and all API calls
@@ -130,12 +133,17 @@ npm run preview
 - **Support Tickets**: Create and track support issues
 - **Prohibited Items**: Check if items are allowed
 
+### Influencer Partner Features
+- **Invite landing** (`/i/:code`): branded page with the influencer's name; visitors sign up + submit item links in one step
+- **Partner dashboard** (`/influencer`): self-serve analytics — link opens, unique visitors, signups, orders, earnings, "opened but didn't sign up", an activity chart, location + device breakdowns, and per-link copy-links. Influencer accounts are confined to this surface.
+
 ### Admin Features
 - **Dashboard**: Real-time stats and charts
 - **User Management**: View and manage users
 - **Order Management**: Bulk status updates
 - **Revenue Reports**: Revenue analytics by market
 - **Support Tickets**: Manage customer tickets
+- **Influencer Programme** (`/admin/influencers`): mint codes, copy links, funnel stats, provision partner logins, mark payouts
 - **Charts**: Interactive visualizations (Recharts)
 
 ### Design System
