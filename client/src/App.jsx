@@ -10,6 +10,7 @@ import { GoogleAnalytics } from './components/GoogleAnalytics'
 import { MetaPixel } from './components/MetaPixel'
 import { CookieConsent } from './components/CookieConsent'
 import { useIdleTagManager } from './hooks/useIdleTagManager'
+import { useAuth } from './context/AuthContext'
 
 // Marketing IDs are read from Vite env vars at build time. Falls back to
 // the existing literal IDs so the prod deployment keeps working without
@@ -74,6 +75,7 @@ const RiderPwa            = lazy(() => import('./pages/partner/RiderPwa').then(m
 const NpsLanding          = lazy(() => import('./pages/NpsLanding').then(m => ({ default: m.NpsLanding })))
 const Referral            = lazy(() => import('./pages/Referral').then(m => ({ default: m.Referral })))
 const InfluencerLanding   = lazy(() => import('./pages/InfluencerLanding').then(m => ({ default: m.InfluencerLanding })))
+const InfluencerDashboard = lazy(() => import('./pages/InfluencerDashboard').then(m => ({ default: m.InfluencerDashboard })))
 const AdminInfluencers    = lazy(() => import('./pages/AdminInfluencers').then(m => ({ default: m.AdminInfluencers })))
 const AccountDeletion     = lazy(() => import('./pages/AccountDeletion').then(m => ({ default: m.AccountDeletion })))
 const Activity            = lazy(() => import('./pages/Activity').then(m => ({ default: m.Activity })))
@@ -93,6 +95,11 @@ function App() {
   // hydration. Replaces the previous inline <script> blocks in index.html
   // that blocked LCP/TBT.
   useIdleTagManager(GTM_ID, FB_PIXEL_ID)
+
+  // Influencer partner accounts get a focused surface — the customer-facing
+  // support chat + shipment-alert banner are hidden for them.
+  const { user } = useAuth()
+  const isInfluencer = user?.role === 'influencer'
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -191,6 +198,9 @@ function App() {
             <Route path="/admin/finance" element={<ProtectedRoute financeOnly={true}><AdminFinance /></ProtectedRoute>} />
             <Route path="/kpi"   element={<ProtectedRoute adminOnly={true}><KpiDashboard /></ProtectedRoute>} />
 
+            {/* Influencer partner dashboard (self-serve analytics) */}
+            <Route path="/influencer" element={<ProtectedRoute roles={['influencer']}><InfluencerDashboard /></ProtectedRoute>} />
+
             {/* Partner portals */}
             <Route path="/partner/agent"           element={<ProtectedRoute roles={['clearing_agent']}><AgentPortal /></ProtectedRoute>} />
             <Route path="/partner/agent/invoices"  element={<ProtectedRoute roles={['clearing_agent']}><AgentInvoices /></ProtectedRoute>} />
@@ -211,8 +221,8 @@ function App() {
           </Routes>
         </Suspense>
 
-        <SupportChatWidget />
-        <NotificationBanner />
+        {!isInfluencer && <SupportChatWidget />}
+        {!isInfluencer && <NotificationBanner />}
       </main>
 
       <Footer />

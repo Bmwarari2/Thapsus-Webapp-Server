@@ -25,6 +25,14 @@ export const ProtectedRoute = ({ children, adminOnly = false, roles = null, fina
     return <Navigate to="/login" replace />
   }
 
+  // Influencers are confined to their own section. Any protected route that
+  // doesn't explicitly list the 'influencer' role bounces them back to their
+  // dashboard, so they never land on the customer/ops/admin surfaces.
+  if (user?.role === 'influencer') {
+    const allowsInfluencer = Array.isArray(roles) && roles.includes('influencer')
+    if (!allowsInfluencer) return <Navigate to="/influencer" replace />
+  }
+
   if (adminOnly && !isAdmin) {
     return <Navigate to="/dashboard" replace />
   }

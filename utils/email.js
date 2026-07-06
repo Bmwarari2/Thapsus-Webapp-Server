@@ -1464,9 +1464,55 @@ async function sendBuyForMeAlternativeEmail(toEmail, toName, orderId, itemName, 
   }
 }
 
+/**
+ * Invite email for a newly-provisioned INFLUENCER account. Mirrors the
+ * welcome-account flow but with partner/dashboard copy instead of the
+ * customer warehouse framing. The link points at /reset-password?token=…
+ * where the influencer sets their password, then signs in to their dashboard.
+ */
+async function sendInfluencerInviteEmail(toEmail, toName, setupLink, codeLabel) {
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">You're now a Thapsus Cargo partner 🎉</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      We've set up your <strong>influencer partner account</strong>. Set your password to unlock your
+      dashboard, where you can grab your referral link and see — in real time — how many people opened it,
+      signed up, and placed an order.
+    </p>
+    ${codeLabel ? `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 24px;font-size:15px;">
+      <tbody><tr style="background:#f9fafb;">
+        <td style="padding:10px 12px;color:#6b7280;font-weight:600;width:40%;">Your referral code</td>
+        <td style="padding:10px 12px;color:#0e1012;font-weight:700;">${codeLabel}</td>
+      </tr></tbody></table>` : ''}
+    <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
+      This setup link expires in <strong>24 hours</strong>.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:16px auto 24px;">
+      <tr>
+        <td style="background-color:#f26418;border-radius:8px;">
+          <a href="${setupLink}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">Set Password & Open Dashboard</a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6;">
+      If you weren't expecting this, you can safely ignore this email.
+    </p>`;
+
+  const subject = 'Your Thapsus Cargo partner dashboard is ready';
+  try {
+    const result = await sendWithGmail({ to: toEmail, subject, html: emailLayout(bodyHtml) });
+    await logEmailSent({ toEmail, emailType: 'influencer_invite', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'influencer_invite', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
 export {
   sendEmailVerificationEmail,
   sendPasswordResetEmail,
+  sendInfluencerInviteEmail,
   sendAdminPasswordResetEmail,
   sendPaymentRequestEmail,
   sendOrderCreatedEmail,
@@ -1497,6 +1543,7 @@ export {
 export default {
   sendEmailVerificationEmail,
   sendPasswordResetEmail,
+  sendInfluencerInviteEmail,
   sendAdminPasswordResetEmail,
   sendPaymentRequestEmail,
   sendOrderCreatedEmail,

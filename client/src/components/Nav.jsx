@@ -49,6 +49,26 @@ function buildNav({ isAuthenticated, isAdmin, role }) {
     }
   }
 
+  // Influencers only ever see their partner section — none of the customer
+  // shipping/wallet/account surfaces.
+  if (role === 'influencer') {
+    return {
+      tabs: [
+        { to: '/',           label: 'Home',      icon: HomeIcon },
+        { to: '/influencer', label: 'Dashboard', icon: LayoutDashboard },
+      ],
+      groups: [
+        { key: 'partner', label: 'Partner', links: [
+          { to: '/influencer', label: 'My dashboard', icon: LayoutDashboard },
+        ]},
+        { key: 'legal', label: 'Legal', links: [
+          { to: '/privacy', label: 'Privacy',          icon: ScrollText },
+          { to: '/terms',   label: 'Terms of service', icon: FileText },
+        ]},
+      ],
+    }
+  }
+
   const tabs = [
     { to: '/',           label: 'Home',      icon: HomeIcon },
     { to: '/track',      label: 'Track',     icon: Search },
@@ -205,10 +225,12 @@ export function Nav() {
               </>
             ) : (
               <>
-                <Link to="/notifications" aria-label="Notifications"
-                  className="hidden lg:inline-flex p-2.5 rounded-full text-mute hover:text-white hover:bg-white/[0.06] transition-colors">
-                  <Bell size={18} />
-                </Link>
+                {role !== 'influencer' && (
+                  <Link to="/notifications" aria-label="Notifications"
+                    className="hidden lg:inline-flex p-2.5 rounded-full text-mute hover:text-white hover:bg-white/[0.06] transition-colors">
+                    <Bell size={18} />
+                  </Link>
+                )}
                 {/* Desktop profile dropdown */}
                 <div className="relative hidden lg:block" ref={profileRef}>
                   <button onClick={() => setProfileOpen((v) => !v)}

@@ -21,11 +21,14 @@
  * the pasted item links into buy-for-me requests.
  */
 import express from 'express';
+import crypto from 'node:crypto';
+import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
-import { authMiddleware, isAdmin } from '../middleware/auth.js';
+import { authMiddleware, isAdmin, tokenSha256 } from '../middleware/auth.js';
 import { createCustomerAccount, AccountValidationError } from './auth.js';
 import { notifyAdminsOfBuyForMe } from '../utils/buyForMeAdminNotify.js';
 import { recordInfluencerConversion } from '../utils/influencerConversion.js';
+import { getClientIp, hashIp, lookupGeo, parseDeviceType, geoFromHeaders } from '../utils/ipGeolocation.js';
 
 const router = express.Router();       // PUBLIC
 const adminRouter = express.Router();  // /api/admin/influencers
@@ -94,6 +97,66 @@ router.post('/:code/click', async (req, res) => {
 });
 
 /**
+ * POST /api/influencer/:code/visit — record one link OPEN with detail.
+ *
+ * Supersedes /click: besides bumping the counter it writes an
+ * influencer_link_events row (device, referrer, coarse IP-estimated
+ * location) and returns a `visit_id`. The landing page keeps that id and
+ * passes it to /signup so we can flip the visit to `converted` — which is how
+ * the dashboard tells "opened but never signed up" from "opened and joined".
+ *
+ * The geo lookup is done asynchronously AFTER responding so the landing page
+ * never waits on a third-party call. Entirely best-effort.
+ */
+router.post('/:code/visit', async (req, res) => {
+  const code = normaliseCode(req.params.code);
+  const visitId = uuidv4();
+  try {
+    if (!CODE_RE.test(code)) return res.json({ success: true });
+
+    const { rows } = await req.db.query(
+      'SELECT code FROM influencer_codes WHERE code = $1 AND is_active = true',
+      [code]
+    );
+    if (!rows[0]) return res.json({ success: true });
+
+    const ip = getClientIp(req);
+    const ua = String(req.headers['user-agent'] || '').slice(0, 500);
+    const referrer = String(req.headers['referer'] || req.headers['referrer'] || '').slice(0, 500) || null;
+    const headerGeo = geoFromHeaders(req) || {};
+
+    // Fast insert with everything we know synchronously.
+    await req.db.query(
+      `INSERT INTO influencer_link_events
+         (id, code, ip_hash, country_code, device_type, referrer, user_agent)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [visitId, code, hashIp(ip), headerGeo.country_code || null, parseDeviceType(ua), referrer, ua]
+    );
+    await req.db.query(
+      'UPDATE influencer_codes SET click_count = click_count + 1 WHERE code = $1',
+      [code]
+    );
+
+    res.json({ success: true, visit_id: visitId });
+
+    // Enrich with coarse location out-of-band so the response isn't delayed.
+    lookupGeo(ip).then((geo) => {
+      if (!geo || (!geo.country && !geo.city && !geo.country_code)) return;
+      return req.db.query(
+        `UPDATE influencer_link_events
+            SET country = $1, country_code = COALESCE($2, country_code),
+                region = $3, city = $4, latitude = $5, longitude = $6
+          WHERE id = $7`,
+        [geo.country, geo.country_code, geo.region, geo.city, geo.latitude, geo.longitude, visitId]
+      );
+    }).catch((e) => console.error('visit geo enrich failed (non-fatal):', e?.message));
+  } catch (err) {
+    console.error('POST /influencer/:code/visit error (non-fatal):', err?.message);
+    if (!res.headersSent) res.json({ success: true });
+  }
+});
+
+/**
  * POST /api/influencer/:code/signup — the landing-page conversion action.
  *
  * Body: { name, email, phone, password, country_of_residence?,
@@ -136,6 +199,18 @@ router.post('/:code/signup', async (req, res) => {
 
     // Create the account (throws AccountValidationError on bad input / dupe).
     const account = await createCustomerAccount(req.db, { ...req.body, influencer_code: code });
+
+    // Flip the originating visit to "converted" so the dashboard can tell
+    // signups from people who only opened the link. Best-effort.
+    const visitId = typeof req.body.visit_id === 'string' ? req.body.visit_id.trim() : '';
+    if (visitId) {
+      req.db.query(
+        `UPDATE influencer_link_events
+            SET converted = true, user_id = $1, converted_at = now()
+          WHERE id = $2 AND code = $3`,
+        [account.userId, visitId, code]
+      ).catch((e) => console.error('visit convert mark failed (non-fatal):', e?.message));
+    }
 
     // Turn each link into a buy-for-me request owned by the new account.
     // Best-effort so a hiccup here doesn't undo a successful signup.
@@ -206,11 +281,13 @@ adminRouter.get('/', authMiddleware, isAdmin, async (req, res) => {
     const { rows } = await req.db.query(
       `SELECT c.code, c.influencer_name, c.influencer_contact, c.reward_per_order,
               c.notes, c.is_active, c.click_count, c.created_at, c.updated_at,
+              c.owner_user_id, ou.email AS owner_email, ou.name AS owner_name,
               (SELECT COUNT(*) FROM users u WHERE u.influencer_code = c.code) AS signups,
               (SELECT COUNT(*) FROM influencer_conversions ic WHERE ic.code = c.code) AS conversions,
               (SELECT COUNT(*) FROM influencer_conversions ic
                 WHERE ic.code = c.code AND ic.payout_status = 'unpaid') AS unpaid_conversions
          FROM influencer_codes c
+         LEFT JOIN users ou ON ou.id = c.owner_user_id
         ORDER BY c.created_at DESC`
     );
     res.json({ success: true, influencers: rows.map(shapeCodeRow) });
@@ -281,11 +358,14 @@ adminRouter.get('/:code', authMiddleware, isAdmin, async (req, res) => {
     const { rows } = await req.db.query(
       `SELECT c.code, c.influencer_name, c.influencer_contact, c.reward_per_order,
               c.notes, c.is_active, c.click_count, c.created_at, c.updated_at,
+              c.owner_user_id, ou.email AS owner_email, ou.name AS owner_name,
               (SELECT COUNT(*) FROM users u WHERE u.influencer_code = c.code) AS signups,
               (SELECT COUNT(*) FROM influencer_conversions ic WHERE ic.code = c.code) AS conversions,
               (SELECT COUNT(*) FROM influencer_conversions ic
                 WHERE ic.code = c.code AND ic.payout_status = 'unpaid') AS unpaid_conversions
-         FROM influencer_codes c WHERE c.code = $1`,
+         FROM influencer_codes c
+         LEFT JOIN users ou ON ou.id = c.owner_user_id
+        WHERE c.code = $1`,
       [code]
     );
     if (!rows[0]) return res.status(404).json({ success: false, message: 'Code not found' });
@@ -405,6 +485,107 @@ adminRouter.post('/conversions/:id/pay', authMiddleware, isAdmin, async (req, re
   }
 });
 
+function generateWarehouseId() {
+  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let id = 'TC-';
+  for (let i = 0; i < 4; i++) id += chars.charAt(Math.floor(Math.random() * chars.length));
+  return id;
+}
+function generateReferralCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = 'TC';
+  for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+  return code;
+}
+
+/**
+ * POST /api/admin/influencers/:code/account — provision (or re-invite) the
+ * influencer's dashboard account and link it to this code.
+ *
+ * Body: { email, name? }. Creates a role='influencer' user (or links an
+ * existing influencer account with that email), sets owner_user_id on the
+ * code, and emails a set-password link. Setting the password via that link
+ * also verifies the email (see /auth/reset-password), so the influencer can
+ * then sign in and land on their dashboard.
+ */
+adminRouter.post('/:code/account', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const code = normaliseCode(req.params.code);
+    const rawEmail = req.body.email;
+    if (!rawEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(rawEmail).trim())) {
+      return res.status(400).json({ success: false, message: 'A valid email is required' });
+    }
+    const email = String(rawEmail).trim().toLowerCase();
+
+    const codeRes = await req.db.query(
+      'SELECT code, influencer_name FROM influencer_codes WHERE code = $1', [code]
+    );
+    if (!codeRes.rows[0]) return res.status(404).json({ success: false, message: 'Code not found' });
+    const name = (req.body.name && String(req.body.name).trim()) || codeRes.rows[0].influencer_name;
+
+    const existing = await req.db.query('SELECT id, role FROM users WHERE email = $1', [email]);
+    let userId;
+    let created = false;
+    if (existing.rows[0]) {
+      if (existing.rows[0].role !== 'influencer') {
+        return res.status(409).json({ success: false, message: 'That email already belongs to a non-influencer account' });
+      }
+      userId = existing.rows[0].id;
+    } else {
+      userId = uuidv4();
+      created = true;
+      let referralCode = generateReferralCode();
+      while ((await req.db.query('SELECT id FROM users WHERE referral_code = $1', [referralCode])).rows.length > 0) {
+        referralCode = generateReferralCode();
+      }
+      const tempPassword = crypto.randomBytes(24).toString('hex');
+      const passwordHash = await bcrypt.hash(tempPassword, 10);
+      await req.db.query(
+        `INSERT INTO users (id, email, password_hash, name, phone, role, warehouse_id, language_pref, referral_code, is_active)
+         VALUES ($1,$2,$3,$4,$5,'influencer',$6,'en',$7,true)`,
+        [userId, email, passwordHash, name, req.body.phone ? String(req.body.phone).trim() : '', generateWarehouseId(), referralCode]
+      );
+    }
+
+    // Link the code to this account (a code has one owner; an account may own many).
+    await req.db.query(
+      'UPDATE influencer_codes SET owner_user_id = $1, updated_at = now() WHERE code = $2',
+      [userId, code]
+    );
+
+    // Mint a fresh set-password token + email the invite (best-effort email).
+    const setupToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 3600000).toISOString();
+    await req.db.query('UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND used = false', [userId]);
+    await req.db.query(
+      'INSERT INTO password_reset_tokens (id, user_id, token_sha256, expires_at) VALUES ($1,$2,$3,$4)',
+      [uuidv4(), userId, tokenSha256(setupToken), expiresAt]
+    );
+
+    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
+    let emailStatus = 'sent';
+    try {
+      const { sendInfluencerInviteEmail } = await import('../utils/email.js');
+      await sendInfluencerInviteEmail(email, name, `${frontendUrl}/reset-password?token=${setupToken}`, code);
+    } catch (mailErr) {
+      emailStatus = 'failed';
+      console.warn('Influencer invite email failed (non-fatal):', mailErr?.message);
+    }
+
+    res.status(created ? 201 : 200).json({
+      success: true,
+      created,
+      email_status: emailStatus,
+      // A fallback link so the admin can share it directly if email is down.
+      setup_link: `${frontendUrl}/reset-password?token=${setupToken}`,
+      account: { id: userId, email, name, role: 'influencer' },
+    });
+  } catch (err) {
+    console.error('POST /admin/influencers/:code/account error:', err);
+    res.status(500).json({ success: false, message: 'Failed to provision account' });
+  }
+});
+
 function shapeCodeRow(r) {
   return {
     code: r.code,
@@ -417,6 +598,11 @@ function shapeCodeRow(r) {
     signups: parseInt(r.signups, 10) || 0,
     conversions: parseInt(r.conversions, 10) || 0,
     unpaid_conversions: parseInt(r.unpaid_conversions, 10) || 0,
+    // Dashboard account link (null until an influencer account is provisioned).
+    owner_user_id: r.owner_user_id || null,
+    owner_email: r.owner_email || null,
+    owner_name: r.owner_name || null,
+    has_account: !!r.owner_user_id,
     created_at: r.created_at,
     updated_at: r.updated_at,
   };

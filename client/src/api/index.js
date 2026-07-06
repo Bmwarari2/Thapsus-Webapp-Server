@@ -660,7 +660,9 @@ export const influencerApi = {
   // ── Public (landing page) ──────────────────────────────────────────────
   /** GET /api/influencer/:code → { valid, influencer_name } */
   lookup: (code) => api.get(`/influencer/${encodeURIComponent(code)}`),
-  /** POST /api/influencer/:code/click — count a link open (fire-and-forget) */
+  /** POST /api/influencer/:code/visit — record a rich link open, returns { visit_id } */
+  visit: (code) => api.post(`/influencer/${encodeURIComponent(code)}/visit`),
+  /** POST /api/influencer/:code/click — legacy counter bump (fire-and-forget) */
   click: (code) => api.post(`/influencer/${encodeURIComponent(code)}/click`),
   /** POST /api/influencer/:code/signup — create account + submit item links */
   signup: (code, payload) => api.post(`/influencer/${encodeURIComponent(code)}/signup`, payload),
@@ -672,6 +674,16 @@ export const influencerApi = {
   update:  (code, payload) => api.patch(`/admin/influencers/${encodeURIComponent(code)}`, payload),
   markPaid: (conversionId, paid = true, note = null) =>
     api.post(`/admin/influencers/conversions/${encodeURIComponent(conversionId)}/pay`, { paid, note }),
+  /** POST /api/admin/influencers/:code/account — provision + invite a dashboard login */
+  provisionAccount: (code, payload) => api.post(`/admin/influencers/${encodeURIComponent(code)}/account`, payload),
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INFLUENCER PORTAL — the influencer's own self-serve analytics dashboard
+// (role=influencer). One call returns KPIs, per-link, time-series, locations.
+// ─────────────────────────────────────────────────────────────────────────────
+export const influencerPortalApi = {
+  dashboard: (days) => api.get('/influencer-portal/dashboard', { params: days ? { days } : {} }),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

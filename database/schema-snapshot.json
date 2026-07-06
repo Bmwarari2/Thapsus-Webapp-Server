@@ -1466,6 +1466,11 @@
     "t": "timestamptz",
     "nn": true,
     "hd": true
+   },
+   "owner_user_id": {
+    "t": "text",
+    "nn": false,
+    "hd": false
    }
   },
   "influencer_conversions": {
@@ -1511,6 +1516,88 @@
    },
    "payout_note": {
     "t": "text",
+    "nn": false,
+    "hd": false
+   }
+  },
+  "influencer_link_events": {
+   "id": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "code": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "occurred_at": {
+    "t": "timestamptz",
+    "nn": true,
+    "hd": true
+   },
+   "ip_hash": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "country": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "country_code": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "region": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "city": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "latitude": {
+    "t": "numeric",
+    "nn": false,
+    "hd": false
+   },
+   "longitude": {
+    "t": "numeric",
+    "nn": false,
+    "hd": false
+   },
+   "device_type": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "referrer": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "user_agent": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "converted": {
+    "t": "boolean",
+    "nn": true,
+    "hd": true
+   },
+   "user_id": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "converted_at": {
+    "t": "timestamptz",
     "nn": false,
     "hd": false
    }
