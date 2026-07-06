@@ -10,6 +10,7 @@ import { GoogleAnalytics } from './components/GoogleAnalytics'
 import { MetaPixel } from './components/MetaPixel'
 import { CookieConsent } from './components/CookieConsent'
 import { useIdleTagManager } from './hooks/useIdleTagManager'
+import { useAuth } from './context/AuthContext'
 
 // Marketing IDs are read from Vite env vars at build time. Falls back to
 // the existing literal IDs so the prod deployment keeps working without
@@ -94,6 +95,11 @@ function App() {
   // hydration. Replaces the previous inline <script> blocks in index.html
   // that blocked LCP/TBT.
   useIdleTagManager(GTM_ID, FB_PIXEL_ID)
+
+  // Influencer partner accounts get a focused surface — the customer-facing
+  // support chat + shipment-alert banner are hidden for them.
+  const { user } = useAuth()
+  const isInfluencer = user?.role === 'influencer'
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -215,8 +221,8 @@ function App() {
           </Routes>
         </Suspense>
 
-        <SupportChatWidget />
-        <NotificationBanner />
+        {!isInfluencer && <SupportChatWidget />}
+        {!isInfluencer && <NotificationBanner />}
       </main>
 
       <Footer />
