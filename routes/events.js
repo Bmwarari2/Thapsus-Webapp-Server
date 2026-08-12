@@ -65,6 +65,21 @@ export function pushToAdmins(type, data) {
 }
 
 /**
+ * Push an event to ALL connected staff (operators + admins). The WhatsApp
+ * inbox / pipeline dashboards subscribe to these.
+ */
+export function pushToStaff(type, data) {
+  const payload = `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const [, set] of clients) {
+    for (const res of set) {
+      if (res._swiftAdminRole === 'admin' || res._swiftAdminRole === 'operator') {
+        try { res.write(payload); } catch (_) { /* ignore */ }
+      }
+    }
+  }
+}
+
+/**
  * Push an event to EVERY connected client (e.g. global announcements).
  */
 export function pushToAll(type, data) {

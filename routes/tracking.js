@@ -44,10 +44,45 @@ router.get('/:trackingNumber', optionalAuth, async (req, res) => {
     const db = req.db;
     const { trackingNumber } = req.params;
 
-    // Slim public projection.  Any unauthenticated caller can hit this
-    // endpoint with a tracking number — never leak user_id, financial
-    // values (declared_value / actual_cost / customs_duty / estimated_cost),
-    // or insurance toggles.  Audit T11.
+    // WhatsApp-flow tracking codes (TRK-####) first. Slim public
+    // projection — status + timeline only, no customer PII, no amounts
+    // beyond the pending delivery fee the recipient needs to know about.
+    const waCode = trackingNumber.trim().toUpperCase().replace(/^TRK[\s-]?/, 'TRK-');
+    if (/^TRK-\d+$/.test(waCode)) {
+      const { rows } = await db.query(
+        `SELECT tracking_code, status, delivery_fee_waived,
+                delivery_fee_kes, delivery_fee_paid_at,
+                paid_at, purchased_at, arrived_at, dispatched_at, delivered_at,
+                created_at, updated_at
+           FROM wa_orders WHERE tracking_code = $1`,
+        [waCode]
+      );
+      const o = rows[0];
+      if (!o) return res.status(404).json({ success: false, message: 'Tracking number not found' });
+      return res.json({
+        success: true,
+        tracking: {
+          tracking_number: o.tracking_code,
+          status: o.status,
+          timeline: {
+            paid_at: o.paid_at,
+            purchased_at: o.purchased_at,
+            arrived_at: o.arrived_at,
+            dispatched_at: o.dispatched_at,
+            delivered_at: o.delivered_at,
+          },
+          delivery_fee_pending:
+            o.status === 'delivery_fee_pending' && !o.delivery_fee_waived && !o.delivery_fee_paid_at
+              ? Number(o.delivery_fee_kes) : null,
+          created_at: o.created_at,
+          updated_at: o.updated_at,
+        },
+      });
+    }
+
+    // Legacy tracking numbers (TC-YYYYMMDD-…) — the pre-WhatsApp flow;
+    // kept until in-flight orders drain. Slim public projection: never
+    // leak user_id, financial values, or insurance toggles. Audit T11.
     const result = await db.query(
       `SELECT id, tracking_number, retailer, status, description,
               weight_kg, dimensions_json, shipping_speed,

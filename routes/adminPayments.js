@@ -17,10 +17,18 @@ const ADMIN = requireRole('admin'); // tighter than the staff list — only admi
 /** GET /api/admin/payments/pending — every M-Pesa payment awaiting review. */
 router.get('/pending', authMiddleware, ADMIN, async (req, res) => {
   try {
+    // LEFT JOINs: legacy payments hang off a users row, WhatsApp-flow
+    // payments hang off a wa_contacts row (user_id IS NULL).
     const { rows } = await req.db.query(
-      `SELECT p.*, u.email AS user_email, u.name AS user_name
+      `SELECT p.*,
+              COALESCE(u.name, wc.full_name)          AS user_name,
+              COALESCE(u.email, wc.phone)             AS user_email,
+              wc.customer_code                        AS wa_customer_code,
+              wo.tracking_code                        AS wa_tracking_code
          FROM payments p
-         JOIN users u ON u.id = p.user_id
+         LEFT JOIN users u        ON u.id = p.user_id
+         LEFT JOIN wa_contacts wc ON wc.id = p.wa_contact_id
+         LEFT JOIN wa_orders wo   ON p.target_kind = 'wa_order' AND wo.id = p.target_id
         WHERE p.status = 'awaiting_review' AND p.method = 'mpesa'
         ORDER BY p.created_at ASC`
     );
@@ -63,7 +71,7 @@ router.post('/:id/approve', authMiddleware, ADMIN, async (req, res) => {
       ? override_reason.trim() : '';
 
     const { rows } = await req.db.query(
-      `SELECT id, status, method, amount_due_kes,
+      `SELECT id, status, method, amount_due_kes, target_kind,
               mpesa_message_amount_kes, mpesa_reference
          FROM payments WHERE id = $1`,
       [req.params.id]
@@ -86,7 +94,11 @@ router.post('/:id/approve', authMiddleware, ADMIN, async (req, res) => {
         message: `Payment is in status '${payment.status}', not 'awaiting_review'.`,
       });
     }
-    if (payment.mpesa_message_amount_kes == null) {
+    // WhatsApp-flow manual payments have no SMS-paste step — the admin
+    // approves against the M-Pesa statement directly, and the amount was
+    // fixed server-side at request time. Legacy customer-pasted payments
+    // keep the SMS requirement + amount cross-check below.
+    if (payment.target_kind !== 'wa_order' && payment.mpesa_message_amount_kes == null) {
       return res.status(409).json({
         success: false,
         message: 'No M-Pesa SMS on file. Ask the customer to paste their confirmation message before approving.',

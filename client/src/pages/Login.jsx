@@ -186,15 +186,12 @@ export const Login = () => {
 
           <div className="my-7 flex items-center gap-4">
             <div className="flex-1 h-px bg-line" />
-            <span className="text-white/30 text-[11px] font-semibold uppercase tracking-widest">or</span>
+            <span className="text-white/30 text-[11px] font-semibold uppercase tracking-widest">staff only</span>
             <div className="flex-1 h-px bg-line" />
           </div>
 
           <p className="text-center text-mute text-sm">
-            {t('auth.noAccount') || "Don't have an account?"}{' '}
-            <Link to="/register" className="text-ember-400 hover:text-ember-300 font-semibold ml-1">
-              {t('auth.registerHere') || 'Create one'}
-            </Link>
+            Customer? No account needed — just message our WhatsApp line to order and track.
           </p>
         </div>
       </div>

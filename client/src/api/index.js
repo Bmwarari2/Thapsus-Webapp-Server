@@ -690,3 +690,55 @@ export const influencerPortalApi = {
 // Default export (raw axios instance) – handy for one-off calls
 // ─────────────────────────────────────────────────────────────────────────────
 export { default as apiClient } from './client'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WHATSAPP FLOW — unified inbox, order pipeline, settings (the lean rebuild's
+// primary surfaces; everything above this line is legacy-drain only).
+// ─────────────────────────────────────────────────────────────────────────────
+export const waApi = {
+  // Inbox
+  conversations: (q = '') => api.get('/wa/conversations', { params: q ? { q } : {} }),
+  conversation: (contactId) => api.get(`/wa/conversations/${contactId}`),
+  messages: (contactId, before = null) =>
+    api.get(`/wa/conversations/${contactId}/messages`, { params: before ? { before } : {} }),
+  sendMessage: (contactId, payload) =>
+    api.post(`/wa/conversations/${contactId}/messages`, payload),
+  markRead: (contactId) => api.post(`/wa/conversations/${contactId}/read`),
+  setAi: (contactId, enabled) => api.post(`/wa/conversations/${contactId}/ai`, { enabled }),
+  updateContact: (contactId, data) => api.put(`/wa/contacts/${contactId}`, data),
+  uploadUrl: (filename, content_type) =>
+    api.post('/wa/upload-url', { filename, content_type }),
+
+  // Orders / pipeline
+  orders: (params = {}) => api.get('/wa/orders', { params }),
+  order: (id) => api.get(`/wa/orders/${id}`),
+  createOrder: (contact_id, product_links = [], product_note = null) =>
+    api.post('/wa/orders', { contact_id, product_links, product_note }),
+  scan: (code) => api.get(`/wa/orders/scan/${encodeURIComponent(code)}`),
+  quote: (id, usd_price) =>
+    api.post(`/wa/orders/${id}/quote`, { usd_price },
+      { headers: { 'Idempotency-Key': newIdempotencyKey() } }),
+  confirm: (id) => api.post(`/wa/orders/${id}/confirm`),
+  requestPayment: (id, { method = 'stk', purpose = 'order', phone = undefined } = {}) =>
+    api.post(`/wa/orders/${id}/request-payment`, { method, purpose, phone },
+      { headers: { 'Idempotency-Key': newIdempotencyKey() } }),
+  advance: (id, to_status, note = null) =>
+    api.post(`/wa/orders/${id}/advance`, { to_status, note }),
+  waiveFee: (id) => api.post(`/wa/orders/${id}/waive-fee`),
+  /** Admin: record a manual M-Pesa payment against whatever the order owes. */
+  markPaid: (id, { mpesa_reference = null, note = null } = {}) =>
+    api.post(`/wa/orders/${id}/mark-paid`, { mpesa_reference, note },
+      { headers: { 'Idempotency-Key': newIdempotencyKey() } }),
+  receiptUrl: (id) => api.get(`/wa/orders/${id}/receipt`),
+  resendReceipt: (id) => api.post(`/wa/orders/${id}/receipt/resend`),
+
+  // Settings
+  settings: () => api.get('/wa/settings'),
+  saveSettings: (data) => api.put('/wa/settings', data),
+}
+
+// WhatsApp webhook diagnostics (admin) — server-side sent.dm inspection.
+export const waWebhookApi = {
+  status: () => api.get('/wa/settings/webhook-status'),
+  repair: () => api.post('/wa/settings/webhook-repair'),
+}

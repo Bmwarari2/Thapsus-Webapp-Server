@@ -24,7 +24,7 @@ import { initializeDatabase, getPool } from '../../database/init.js';
 
 const SKIP = !process.env.TEST_DATABASE_URL;
 
-const ROLES = ['customer', 'operator', 'rider', 'clearing_agent', 'admin'];
+const ROLES = ['customer', 'operator', 'admin'];
 
 // Routes we exercise. Keep small + representative — one or two per gate.
 // `allow` is the set of roles the route's middleware permits; admin is
@@ -33,8 +33,7 @@ const ROUTE_MATRIX = [
   { method: 'get', path: '/api/admin/stats',         allow: ['admin'] },
   { method: 'get', path: '/api/admin/users',         allow: ['admin'] },
   { method: 'get', path: '/api/admin/error-logs',    allow: ['admin'] },
-  { method: 'get', path: '/api/agent-invoices/mine', allow: ['clearing_agent', 'admin'] },
-  { method: 'get', path: '/api/admin/aml-flags',     allow: ['admin'] },
+  { method: 'get', path: '/api/ops/today',           allow: ['operator', 'admin'] },
 ];
 
 // Per-role test users created in beforeAll.

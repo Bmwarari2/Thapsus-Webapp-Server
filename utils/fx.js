@@ -56,3 +56,31 @@ export async function getGbpToKesRate(db) {
   }
   return { rate, updatedAt: rows[0].updated_at || null };
 }
+
+/**
+ * Fetch the live USD→KES rate — the quoting currency for the WhatsApp
+ * flow (Quote KES = USD × rate × (1 + markup%)). The row is maintained
+ * daily by utils/fxRefresh.js (frankfurter.dev cross-rate). Same
+ * fail-fast contract as the GBP helper: a missing/invalid row throws
+ * rather than silently mis-quoting.
+ */
+export async function getUsdToKesRate(db) {
+  const { rows } = await db.query(
+    `SELECT rate, updated_at
+       FROM exchange_rates
+      WHERE currency_pair = 'USD_KES'
+      LIMIT 1`
+  );
+  if (!rows[0]) {
+    throw new FxRateUnavailableError(
+      'USD→KES exchange rate is not configured. Trigger an FX refresh (admin → refresh rates) before quoting.'
+    );
+  }
+  const rate = Number(rows[0].rate);
+  if (!Number.isFinite(rate) || rate <= 0) {
+    throw new FxRateUnavailableError(
+      `USD→KES rate stored in exchange_rates is invalid (got ${rows[0].rate}). Trigger an FX refresh before quoting.`
+    );
+  }
+  return { rate, updatedAt: rows[0].updated_at || null };
+}

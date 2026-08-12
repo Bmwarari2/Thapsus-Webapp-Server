@@ -1472,7 +1472,7 @@ async function sendBuyForMeAlternativeEmail(toEmail, toName, orderId, itemName, 
  */
 async function sendInfluencerInviteEmail(toEmail, toName, setupLink, codeLabel) {
   const bodyHtml = `
-    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">You're now a Thapsus Cargo partner 🎉</h2>
+    <h2 style="margin:0 0 16px;color:#0e1012;font-size:22px;">You're now a Thapsus Cargo partner</h2>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hello ${toName || 'there'},</p>
     <p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">
       We've set up your <strong>influencer partner account</strong>. Set your password to unlock your

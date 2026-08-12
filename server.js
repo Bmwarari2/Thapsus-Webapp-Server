@@ -19,9 +19,7 @@ import { initializeDatabase, getPool } from './database/init.js';
 import { logError, errorLoggingMiddleware, logRouteError } from './utils/errorLogger.js';
 import { startLogRetention } from './utils/logRetention.js';
 import { startFxRefresh } from './utils/fxRefresh.js';
-import { startAccountDeletionRunner } from './utils/accountDeletionRunner.js';
 import { sanitizeBody, sanitizeQuery } from './middleware/sanitize.js';
-import { deprecate } from './middleware/deprecation.js';
 
 dotenv.config();
 
@@ -83,47 +81,22 @@ async function ensureAdminUser(pool) {
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 import authRoutes          from './routes/auth.js';
-import ordersRoutes        from './routes/orders.js';
+import ordersRoutes        from './routes/orders.js';   // legacy drain — retired after in-flight orders complete
 import trackingRoutes      from './routes/tracking.js';
 import adminRoutes         from './routes/admin.js';
-// import walletRoutes from './routes/wallet.js'; // REMOVED in PR A — wallet replaced by payments + credits (migration 028).
-import paymentsRoutes, { stripeWebhookHandler, lipanaWebhookHandler } from './routes/payments.js';
+import paymentsRoutes, { lipanaWebhookHandler } from './routes/payments.js';
 import adminPaymentsRoutes from './routes/adminPayments.js';
 import exchangeRoutes      from './routes/exchange.js';
-import referralRoutes      from './routes/referral.js';
-import ticketsRoutes       from './routes/tickets.js';
-import pricingRoutes       from './routes/pricing.js';
-import consolidationRoutes from './routes/consolidation.js';
-import prohibitedRoutes    from './routes/prohibited.js';
-import backupRoutes        from './routes/backup.js';
 import eventsRoutes        from './routes/events.js';
-import paymentRoutes       from './routes/payment.js';
 import sitemapRoutes       from './routes/sitemap.js';
-import warehouseRoutes     from './routes/warehouse.js';
-import retailersRoutes     from './routes/retailers.js';
-// ── Framework v2 routes ───────────────────────────────────────────────────────
-import consolidationsV2Routes from './routes/consolidationsV2.js';
-import customsRoutes          from './routes/customs.js';
-import insuranceRoutes        from './routes/insurance.js';
-import lastMileRoutes         from './routes/lastMile.js';
-import parcelsRoutes          from './routes/parcels.js';
-import kpiRoutes              from './routes/kpi.js';
-import dsarRoutes             from './routes/dsar.js';
-import buyForMeRoutes         from './routes/buyForMe.js';
-import opsRoutes              from './routes/ops.js';
-import pricingTiersRoutes     from './routes/pricingTiers.js';
-import npsRoutes              from './routes/nps.js';
-import notificationsRoutes    from './routes/notifications.js';
-import pushRoutes             from './routes/push.js';
-
-import agentInvoicesRoutes   from './routes/agentInvoices.js';
-import amlFlagsRoutes         from './routes/amlFlags.js';
-import appConfigRoutes        from './routes/appConfig.js';
-import customerConsolidationsRoutes from './routes/customerConsolidations.js';
-import accountDeletionRoutes        from './routes/accountDeletion.js';
-import financeRoutes                 from './routes/finance.js';
-import influencerRoutes, { adminRouter as influencerAdminRoutes } from './routes/influencer.js';
-import influencerPortalRoutes from './routes/influencerPortal.js';
+import parcelsRoutes       from './routes/parcels.js';  // legacy drain
+import opsRoutes           from './routes/ops.js';      // legacy drain
+import appConfigRoutes     from './routes/appConfig.js';
+import receiptRedirectRoutes from './routes/receiptRedirect.js';
+import { waWebhookHandler } from './routes/waWebhook.js';
+import waOrdersRoutes      from './routes/waOrders.js';
+import waInboxRoutes       from './routes/waInbox.js';
+import waSettingsRoutes    from './routes/waSettings.js';
 
 const app      = express();
 const PORT     = process.env.PORT     || 5000;
@@ -175,15 +148,10 @@ app.use(helmet({
       styleSrc:   ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       styleSrcElem: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc:    ["'self'", "https://fonts.gstatic.com"],
-      // Stripe.js loads from js.stripe.com; Stripe Elements iframes load
-      // from m.stripe.network and js.stripe.com; webhook redirects come
-      // from hooks.stripe.com; XHRs hit api.stripe.com + r.stripe.com.
-      // Stripe's official CSP guide: https://docs.stripe.com/security/guide#content-security-policy
-      scriptSrc:  ["'self'", "'unsafe-inline'", "https://www.googletagmanager.com", "https://connect.facebook.net", "https://js.stripe.com"],
-      scriptSrcElem: ["'self'", "'unsafe-inline'", "https://www.googletagmanager.com", "https://connect.facebook.net", "https://js.stripe.com"],
-      frameSrc:   ["'self'", "https://js.stripe.com", "https://hooks.stripe.com", "https://m.stripe.network"],
-      imgSrc:     ["'self'", 'data:', 'https:', "https://www.facebook.com"],
-      connectSrc: ["'self'", 'https:', 'wss:', "https://www.google-analytics.com", "https://analytics.google.com", "https://www.googletagmanager.com", "https://connect.facebook.net", "https://www.facebook.com", "https://api.stripe.com", "https://m.stripe.network", "https://r.stripe.com"],
+      scriptSrc:  ["'self'", "'unsafe-inline'", "https://www.googletagmanager.com"],
+      scriptSrcElem: ["'self'", "'unsafe-inline'", "https://www.googletagmanager.com"],
+      imgSrc:     ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'", 'https:', 'wss:', "https://www.google-analytics.com", "https://analytics.google.com", "https://www.googletagmanager.com"],
     },
   },
   // Strict-Transport-Security: enforce HTTPS for 1 year + include subdomains
@@ -226,20 +194,20 @@ const MORGAN_FORMAT = NODE_ENV === 'development'
   ? ':method :url :status :response-time ms - :res[content-length] req=:request-id'
   : ':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent" req=:request-id';
 app.use(morgan(MORGAN_FORMAT));
-// Stripe webhook MUST receive the raw body for signature verification.
-// Mount it BEFORE express.json() so the JSON parser doesn't consume the
-// stream first. The handler attaches req.db itself via getPool().
-app.post('/api/payments/stripe/webhook',
-  express.raw({ type: 'application/json', limit: '1mb' }),
-  (req, _res, next) => { req.db = getPool(); next(); },
-  stripeWebhookHandler
-);
-// Lipana M-Pesa STK webhook — same raw-body recipe; HMAC-SHA256 signature
+// Lipana M-Pesa STK webhook — raw body mounted BEFORE express.json() so the
+// JSON parser doesn't consume the stream first; HMAC-SHA256 signature
 // verification reads the unparsed bytes via X-Lipana-Signature.
 app.post('/api/payments/lipana/webhook',
   express.raw({ type: 'application/json', limit: '1mb' }),
   (req, _res, next) => { req.db = getPool(); next(); },
   lipanaWebhookHandler
+);
+// sent.dm WhatsApp webhook — same raw-body recipe; Svix-style HMAC over
+// x-webhook-id/-timestamp/-signature verified in utils/sentdm.js.
+app.post('/api/wa/webhook',
+  express.raw({ type: 'application/json', limit: '1mb' }),
+  (req, _res, next) => { req.db = getPool(); next(); },
+  waWebhookHandler
 );
 
 // Audit M-5: keep the global JSON / urlencoded body limit small (200kb) so
@@ -253,7 +221,6 @@ app.use(express.json({ limit: '200kb' }));
 app.use(express.urlencoded({ limit: '200kb', extended: true }));
 app.use(sanitizeBody);
 app.use(sanitizeQuery);
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ── Universal Links — apple-app-site-association ─────────────────────────────
 // Apple insists on Content-Type: application/json (no extension) and
@@ -318,73 +285,6 @@ app.get(/^\/articles(?:\/[a-zA-Z0-9-]+)?\/?$/, (req, res, next) => {
   res.sendFile(file, (err) => { if (err) next(); });
 });
 
-// ── Influencer link previews (/i/<CODE>) ─────────────────────────────────────
-// When an influencer shares their link on WhatsApp/iMessage/Telegram/etc., the
-// preview crawler fetches this URL and reads the static <meta> tags — it never
-// runs the React app. So we render the SPA shell with the influencer's name
-// swapped into the title/description/OG tags server-side. Real users get the
-// same shell and the app boots + renders the landing page as normal. Falls
-// through to the SPA shell for unknown codes or a missing build (dev).
-const SPA_INDEX_PATH = path.join(__dirname, 'client', 'dist', 'index.html');
-const DEFAULT_OG_IMAGE = path.join(__dirname, 'client', 'dist', 'og-image.png');
-
-// Per-influencer preview image (1200×630 PNG with their name on it). The
-// /i/:code HTML above points og:image here. Rendered on demand + cached by
-// name. Unknown/inactive codes fall back to the brand og-image.
-app.get('/i/:code/og.png', async (req, res, next) => {
-  try {
-    const code = String(req.params.code || '').trim().toUpperCase();
-    if (!/^[A-Z0-9]{3,24}$/.test(code)) return next();
-
-    const { rows } = await getPool().query(
-      'SELECT influencer_name FROM influencer_codes WHERE code = $1 AND is_active = true',
-      [code]
-    );
-    const name = rows[0]?.influencer_name;
-    if (!name) {
-      return res.sendFile(DEFAULT_OG_IMAGE, (err) => { if (err) next(); });
-    }
-
-    const { renderInfluencerOgPng } = await import('./utils/influencerOgImage.js');
-    const png = renderInfluencerOgPng(name);
-    res.set('Content-Type', 'image/png');
-    res.set('Cache-Control', 'public, max-age=86400'); // 1 day; names rarely change
-    res.send(png);
-  } catch (err) {
-    console.error('Influencer OG image render failed (non-fatal):', err?.message);
-    return res.sendFile(DEFAULT_OG_IMAGE, (e) => { if (e) next(); });
-  }
-});
-
-app.get('/i/:code', async (req, res, next) => {
-  try {
-    const code = String(req.params.code || '').trim().toUpperCase();
-    if (!/^[A-Z0-9]{3,24}$/.test(code)) return next();
-
-    let baseHtml;
-    try { baseHtml = fs.readFileSync(SPA_INDEX_PATH, 'utf8'); }
-    catch { return next(); } // no build (dev) — SPA fallback handles it
-
-    const { rows } = await getPool().query(
-      'SELECT influencer_name FROM influencer_codes WHERE code = $1 AND is_active = true',
-      [code]
-    );
-    const name = rows[0]?.influencer_name;
-    // Unknown/inactive code → serve the shell untouched (generic preview).
-    if (!name) return res.type('html').send(baseHtml);
-
-    const { renderInfluencerPreviewHtml } = await import('./utils/influencerLinkPreview.js');
-    const appUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
-    const html = renderInfluencerPreviewHtml(baseHtml, { name, code, appUrl });
-    // Short cache — the name rarely changes, and crawlers re-fetch on share.
-    res.set('Cache-Control', 'public, max-age=300');
-    res.type('html').send(html);
-  } catch (err) {
-    console.error('Influencer link-preview render failed (non-fatal):', err?.message);
-    next(); // fall through to the SPA shell
-  }
-});
-
 // ── Long-cache hashed assets (audit F-22) ───────────────────────────────────
 // Vite hashes filenames in /assets/* — e.g., index-DYOGuuA_.css,
 // vendor-react-dom-BxKxlONR.js. The content for any given URL is
@@ -435,14 +335,13 @@ app.use((req, res, next) => {
 // as the source for every request.
 //
 // Anything mounted as a route handler ABOVE the rate-limit `app.use(...)`
-// blocks below (notably the Stripe webhook at app.post('/api/payments/stripe/webhook', …)
-// near line 180) bypasses these limiters entirely — Express matches the
-// route handler first and never falls through to the limiter middleware.
-// That's intentional for the Stripe webhook: signature verification + the
-// `stripe_events_seen` idempotency table are the right defence, and
-// dropping legitimate Stripe retries on a tight IP cap is worse than the
-// negligible DDoS risk of an unauthenticated webhook with raw-body
-// constraints.
+// blocks below (notably the Lipana webhook mounted before express.json())
+// bypasses these limiters entirely — Express matches the route handler
+// first and never falls through to the limiter middleware. That's
+// intentional for webhooks: signature verification + the events-seen
+// idempotency tables are the right defence, and dropping legitimate
+// provider retries on a tight IP cap is worse than the negligible DDoS
+// risk of an unauthenticated webhook with raw-body constraints.
 
 // Escape hatch for the vitest integration suite: supertest drives dozens
 // of auth requests through the app in a few seconds, which trips the
@@ -563,23 +462,18 @@ app.use('/api/auth/register',        authLimiter);
 app.use('/api/auth/password',        authLimiter);          // PUT — change-password (authenticated, but limited to slow session-hijack brute force)
 app.use('/api/auth/reset-password',  resetPasswordLimiter);
 app.use('/api/auth/forgot-password', forgotPasswordLimiter);
-// Influencer landing-page signup creates a real account — same brute-force
-// surface as /register, so it gets the same limiter.
-app.use('/api/influencer/:code/signup', authLimiter);
 
 // Payments (cost + abuse surface). The bare POST /api/payments creates
-// a Stripe PaymentIntent (or M-Pesa pending row), which costs Stripe
-// API quota and is the typical card-testing vector. GETs to
-// /api/payments/:id are status reads (cheap) and don't need a tighter
-// cap; the M-Pesa confirmation submit has its own cap below; webhooks
-// bypass these entirely (see top-of-section note).
+// an M-Pesa STK push (provider API quota) — the typical abuse vector.
+// GETs to /api/payments/:id are status reads (cheap) and don't need a
+// tighter cap; the M-Pesa confirmation submit has its own cap below;
+// webhooks bypass these entirely (see top-of-section note).
 app.use('/api/payments', (req, res, next) => {
   if (req.method === 'POST' && req.path === '/') {
     return paymentLimiter(req, res, next);
   }
   next();
 });
-app.use('/api/payment',                          paymentLimiter); // legacy /api/payment (read-only order lookup)
 app.use('/api/payments/:id/mpesa-confirmation',  paymentLimiter);
 
 // Signed-upload-URL mints (Supabase storage cost surface). Each of these
@@ -588,13 +482,13 @@ app.use('/api/payments/:id/mpesa-confirmation',  paymentLimiter);
 // into a Supabase storage bucket. We never see the bytes — but unbounded
 // mint requests can still inflate Supabase storage cost or be used as a
 // vehicle to enumerate parcel/ticket ids.
-app.use('/api/last-mile/pod/upload-url',           uploadLimiter); // rider POD photo + signature
-app.use('/api/tickets/attachments/upload-url',     uploadLimiter); // support ticket attachment
 app.use('/api/parcels/upload-url',                 uploadLimiter); // operator intake photo
-app.use('/api/agent-invoices/upload-url',          uploadLimiter); // clearing-agent invoice PDF
+app.use('/api/wa/upload-url',                      uploadLimiter); // inbox outbound media
 
 // Tracking (public, unauthenticated)
 app.use('/api/tracking', trackingLimiter);
+// Short receipt links handed out on WhatsApp — public, token-authenticated.
+app.use('/r', trackingLimiter);
 
 // Catch-all — anything not matched above. Mount LAST so the specific
 // limiters above get first crack.
@@ -635,71 +529,33 @@ app.get('/health', async (req, res) => {
 });
 
 // ── API routes ────────────────────────────────────────────────────────────────
-app.use('/api/auth',          authRoutes);
-app.use('/api/orders',        ordersRoutes);
-app.use('/api/tracking',      trackingRoutes);
-app.use('/api/admin',         adminRoutes);
-// /api/wallet REMOVED — wallet table dropped in migration 028. Stub responds
-// with 410 Gone so any stale iOS/web client gets a clear "switch to /api/payments"
-// signal instead of a confusing 404.
-//
-// Express 5 / path-to-regexp v6: bare `*` glob isn't valid; use a
-// named splat. `/*splat` is optional (matches the bare path too) and
-// `*splat` captures any subpath under /api/wallet — we don't read
-// the captured value, the match is the whole point.
-app.all('/api/wallet{/*splat}', (_req, res) => res.status(410).json({
+app.use('/api/auth',           authRoutes);
+// Legacy customer order creation is closed — new orders come through the
+// WhatsApp flow (wa_orders). The rest of the legacy orders surface stays
+// mounted read/updateable below so operators can finish in-flight orders.
+app.post('/api/orders', (_req, res) => res.status(410).json({
   success: false,
-  message: 'Wallet has been removed. Use POST /api/payments instead.',
+  message: 'New orders are placed on WhatsApp now. Message our WhatsApp line to get a quote.',
 }));
-app.use('/api/payments',         paymentsRoutes);
-app.use('/api/admin/payments',   adminPaymentsRoutes);
-app.use('/api/finance',          financeRoutes);
-app.use('/api/exchange',      exchangeRoutes);
-app.use('/api/referral',      referralRoutes);
-app.use('/api/tickets',       ticketsRoutes);
-app.use('/api/pricing',       pricingRoutes);
-// Audit W6.6 — `/api/consolidation/*` is the v1 namespace; it has been
-// superseded by `/api/consolidations` (Framework v2, mounted below).
-// We tag responses with Deprecation + Sunset headers per RFC 8594 and
-// emit a one-time stderr warning per (caller, path) so the dashboards
-// surface exactly which clients still need to migrate. The mount
-// itself stays live until the sunset date; nothing breaks for legacy
-// builds in the field.
-const LEGACY_CONSOLIDATION_SUNSET = new Date('2026-05-23T00:00:00Z');
-app.use('/api/consolidation', deprecate({
-  replacement: '/api/consolidations',
-  sunset: LEGACY_CONSOLIDATION_SUNSET,
-}));
-app.use('/api/consolidation', consolidationRoutes);
-app.use('/api/prohibited',    prohibitedRoutes);
-app.use('/api/admin/backups', backupRoutes);
-app.use('/api/events',        eventsRoutes);
-app.use('/api/payment',       paymentRoutes);
-app.use('/api/warehouse',     warehouseRoutes);
-app.use('/api/retailers',     retailersRoutes);
-
-// ── Framework v2 mounts ───────────────────────────────────────────────────────
-app.use('/api/consolidations', consolidationsV2Routes);
-app.use('/api/customs',        customsRoutes);
-app.use('/api/insurance',      insuranceRoutes);
-app.use('/api/last-mile',      lastMileRoutes);
-app.use('/api/parcels',        parcelsRoutes);
-app.use('/api/kpi',            kpiRoutes);
-app.use('/api/dsar',           dsarRoutes);
-app.use('/api/buy-for-me',     buyForMeRoutes);
-app.use('/api/ops',            opsRoutes);
-app.use('/api/pricing-tiers',  pricingTiersRoutes);
-app.use('/api/nps',            npsRoutes);
-app.use('/api/notifications',  notificationsRoutes);
-app.use('/api/push',           pushRoutes);
-app.use('/api/agent-invoices', agentInvoicesRoutes);
-app.use('/api/admin/aml-flags', amlFlagsRoutes);
+app.use('/api/orders',         ordersRoutes);   // legacy drain
+app.use('/api/tracking',       trackingRoutes);
+app.use('/api/admin',          adminRoutes);
+app.use('/api/payments',       paymentsRoutes);
+app.use('/api/admin/payments', adminPaymentsRoutes);
+app.use('/api/exchange',       exchangeRoutes);
+app.use('/api/events',         eventsRoutes);
+app.use('/api/parcels',        parcelsRoutes);  // legacy drain
+app.use('/api/ops',            opsRoutes);      // legacy drain
 app.use('/api/app-config',     appConfigRoutes);
-app.use('/api/customer-consolidations', customerConsolidationsRoutes);
-app.use('/api/account/deletion-request', accountDeletionRoutes);
-app.use('/api/influencer',         influencerRoutes);          // public landing/signup
-app.use('/api/influencer-portal',  influencerPortalRoutes);    // influencer self-serve dashboard
-app.use('/api/admin/influencers',  influencerAdminRoutes);     // admin management
+// WhatsApp flow — inbound webhook is mounted above (raw body); these are
+// the operator-facing APIs.
+app.use('/api/wa/orders',      waOrdersRoutes);
+app.use('/api/wa/settings',    waSettingsRoutes);
+app.use('/api/wa',             waInboxRoutes);
+
+// Public short receipt links (/r/TRK-8821.<sig>) — must sit above the SPA
+// fallback, which otherwise swallows every non-/api path.
+app.use('/r',                  receiptRedirectRoutes);
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 app.get(/^\/(?!api).*/, (req, res) => {
@@ -771,16 +627,10 @@ Ready ✨
     // untouched (utils/fxRefresh.js for the why).
     const stopFxRefresh = startFxRefresh(pool);
 
-    // Daily sweep of account_deletion_requests for rows whose 14-day
-    // cooldown is up. Hard-deletes the underlying user via FK CASCADE.
-    // Same shape as fxRefresh: 60s warm-up, 24h cadence, unref'd.
-    const stopAccountDeletionRunner = startAccountDeletionRunner(pool);
-
     const shutdown = (signal) => {
       console.log(`${signal} — shutting down gracefully`);
       try { stopLogRetention?.() } catch { /* ignore */ }
       try { stopFxRefresh?.() } catch { /* ignore */ }
-      try { stopAccountDeletionRunner?.() } catch { /* ignore */ }
       server.close(() => { pool.end(); process.exit(0); });
     };
     process.on('SIGTERM', () => shutdown('SIGTERM'));

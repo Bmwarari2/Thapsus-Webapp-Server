@@ -1,12 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Menu, X, LogOut, Settings, BarChart3, Truck, Plane, Bike, ShoppingBag,
-  Activity, Home as HomeIcon, Search, Calculator, LayoutDashboard, LogIn,
-  Wallet as WalletIcon, FileText, ShieldAlert, Database, Receipt,
-  Warehouse as WarehouseIcon, LifeBuoy, BookOpen, ScrollText, History,
-  Bell, Gift, User, ChevronDown, ArrowRight, Plus, MoreHorizontal, Store,
-  Newspaper,
+  Menu, X, LogOut, Settings, BarChart3, Truck,
+  Home as HomeIcon, Search, LogIn, FileText, BookOpen, ScrollText,
+  ChevronDown, MoreHorizontal, Newspaper, MessageSquareText, KanbanSquare, HandCoins,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import brandMark1x from '../assets/brand-mark.webp'
@@ -22,24 +19,23 @@ const Brand = ({ onClick }) => (
   </Link>
 )
 
-/* ── Link sets: primary tabs (bottom bar / top bar) + grouped "more" menu ──── */
-function buildNav({ isAuthenticated, isAdmin, role }) {
+/* ── Link sets: primary tabs (bottom bar / top bar) + grouped "more" menu ────
+   Customers live on WhatsApp — the webapp signs in operators/admins only. */
+function buildNav({ isAuthenticated, isAdmin }) {
   if (!isAuthenticated) {
     return {
       tabs: [
-        { to: '/',        label: 'Home',    icon: HomeIcon },
-        { to: '/track',   label: 'Track',   icon: Search },
-        { to: '/pricing', label: 'Pricing', icon: Calculator },
-        { to: '/login',   label: 'Sign in', icon: LogIn },
+        { to: '/',      label: 'Home',    icon: HomeIcon },
+        { to: '/track', label: 'Track',   icon: Search },
+        { to: '/faq',   label: 'FAQ',     icon: BookOpen },
+        { to: '/login', label: 'Sign in', icon: LogIn },
       ],
       groups: [
         { key: 'browse', label: 'Browse', links: [
-          { to: '/',           label: 'Home',             icon: HomeIcon },
-          { to: '/track',      label: 'Track a package',  icon: Search },
-          { to: '/pricing',    label: 'Pricing',          icon: Calculator },
-          { to: '/articles',   label: 'Shipping guides',  icon: Newspaper },
-          { to: '/faq',        label: 'FAQ',              icon: BookOpen },
-          { to: '/prohibited', label: 'Prohibited items', icon: ShieldAlert },
+          { to: '/',         label: 'Home',            icon: HomeIcon },
+          { to: '/track',    label: 'Track a package', icon: Search },
+          { to: '/articles', label: 'Shipping guides', icon: Newspaper },
+          { to: '/faq',      label: 'FAQ',             icon: BookOpen },
         ]},
         { key: 'legal', label: 'Legal', links: [
           { to: '/privacy', label: 'Privacy',          icon: ScrollText },
@@ -49,90 +45,35 @@ function buildNav({ isAuthenticated, isAdmin, role }) {
     }
   }
 
-  // Influencers only ever see their partner section — none of the customer
-  // shipping/wallet/account surfaces.
-  if (role === 'influencer') {
-    return {
-      tabs: [
-        { to: '/',           label: 'Home',      icon: HomeIcon },
-        { to: '/influencer', label: 'Dashboard', icon: LayoutDashboard },
-      ],
-      groups: [
-        { key: 'partner', label: 'Partner', links: [
-          { to: '/influencer', label: 'My dashboard', icon: LayoutDashboard },
-        ]},
-        { key: 'legal', label: 'Legal', links: [
-          { to: '/privacy', label: 'Privacy',          icon: ScrollText },
-          { to: '/terms',   label: 'Terms of service', icon: FileText },
-        ]},
-      ],
-    }
-  }
-
-  const tabs = [
-    { to: '/',           label: 'Home',      icon: HomeIcon },
-    { to: '/track',      label: 'Track',     icon: Search },
-    { to: '/buy-for-me', label: 'Shop',      icon: ShoppingBag },
-    { to: '/dashboard',  label: 'Dashboard', icon: LayoutDashboard },
+  // Admins get the payment queue in the bottom bar — approving till
+  // payments is the step that unblocks every order, so it can't live two
+  // menus deep.
+  const tabs = isAdmin ? [
+    { to: '/ops/inbox',    label: 'Inbox',    icon: MessageSquareText },
+    { to: '/ops/pipeline', label: 'Pipeline', icon: KanbanSquare },
+    { to: '/ops/payments', label: 'Payments', icon: HandCoins },
+    { to: '/admin',        label: 'Admin',    icon: BarChart3 },
+  ] : [
+    { to: '/ops/inbox',    label: 'Inbox',    icon: MessageSquareText },
+    { to: '/ops/pipeline', label: 'Pipeline', icon: KanbanSquare },
+    { to: '/track',        label: 'Track',    icon: Search },
+    { to: '/ops',          label: 'Legacy',   icon: Truck },
   ]
 
   const groups = [
-    { key: 'shipping', label: 'Shipping', links: [
-      { to: '/orders',     label: 'Parcel tracking',   icon: Receipt },
-      { to: '/new-order',  label: 'New order',         icon: Plus },
-      { to: '/buy-for-me', label: 'Buy for me',        icon: ShoppingBag },
-      { to: '/uk-stores',  label: 'UK stores',         icon: Store },
-      { to: '/warehouse',  label: 'Warehouse address', icon: WarehouseIcon },
-      { to: '/ship-instructions', label: 'How to ship', icon: BookOpen },
-      { to: '/pricing',    label: 'Pricing',           icon: Calculator },
-    ]},
-    { key: 'wallet', label: 'Wallet & rewards', links: [
-      { to: '/credit',       label: 'My credit',    icon: WalletIcon },
-      { to: '/transactions', label: 'Transactions', icon: History },
-      { to: '/referral',     label: 'Refer & earn', icon: Gift },
-    ]},
-    { key: 'account', label: 'Account', links: [
-      { to: '/account',       label: 'My account',    icon: User },
-      { to: '/notifications', label: 'Notifications', icon: Bell },
-      { to: '/activity',      label: 'Activity',      icon: Activity },
-      { to: '/dsar',          label: 'My data',       icon: Database },
-    ]},
-    { key: 'help', label: 'Help', links: [
-      { to: '/support',    label: 'Support',          icon: LifeBuoy },
-      { to: '/articles',   label: 'Shipping guides',  icon: Newspaper },
-      { to: '/faq',        label: 'FAQ',              icon: BookOpen },
-      { to: '/prohibited', label: 'Prohibited items', icon: ShieldAlert },
+    { key: 'operations', label: 'Operations', links: [
+      { to: '/ops/inbox',    label: 'WhatsApp inbox',   icon: MessageSquareText },
+      { to: '/ops/pipeline', label: 'Order pipeline',   icon: KanbanSquare },
+      { to: '/ops',          label: 'Legacy console',   icon: Truck },
+      { to: '/track',        label: 'Public tracking',  icon: Search },
     ]},
   ]
 
-  if (role === 'operator' || isAdmin) {
-    groups.push({ key: 'operator', label: 'Operator tools', links: [
-      { to: '/ops/buy-for-me',     label: 'Buy-for-me queue', icon: ShoppingBag },
-      { to: '/ops',                label: 'Operator console', icon: Truck },
-      { to: '/ops/consolidations', label: 'Consolidations',   icon: Plane },
-      { to: '/ops/dispatch',       label: 'Dispatch board',   icon: Bike },
-    ]})
-  }
-  if (role === 'clearing_agent') {
-    groups.push({ key: 'agent', label: 'Clearing agent', links: [
-      { to: '/partner/agent',          label: 'Agent portal', icon: Plane },
-      { to: '/partner/agent/invoices', label: 'My invoices',  icon: Receipt },
-    ]})
-  }
-  if (role === 'rider') {
-    groups.push({ key: 'rider', label: 'Rider', links: [
-      { to: '/partner/rider', label: "Today's runs", icon: Bike },
-    ]})
-  }
   if (isAdmin) {
-    groups.push({ key: 'admin', label: 'Admin tools', links: [
-      { to: '/admin',                         label: 'Admin dashboard',         icon: BarChart3 },
-      { to: '/admin/create-bfm',              label: 'Create Buy-for-me',       icon: ShoppingBag },
-      { to: '/admin/customer-consolidations', label: 'Customer consolidations', icon: Receipt },
-      { to: '/admin/issue-invoice',           label: 'Issue invoice',           icon: FileText },
-      { to: '/admin/dsar',                    label: 'DSAR queue',              icon: Database },
-      { to: '/kpi',                           label: 'KPI dashboard',           icon: Activity },
-      { to: '/ops/settings',                  label: 'Pricing settings',        icon: Settings },
+    groups.push({ key: 'admin', label: 'Admin', links: [
+      { to: '/ops/payments', label: 'Payments to approve', icon: HandCoins },
+      { to: '/admin',        label: 'Admin dashboard',     icon: BarChart3 },
+      { to: '/ops/settings', label: 'WhatsApp settings',   icon: Settings },
     ]})
   }
 
@@ -173,7 +114,7 @@ export function Nav() {
   const [profileOpen, setProfileOpen] = useState(false)
   const profileRef = useRef(null)
 
-  const { tabs, groups } = buildNav({ isAuthenticated, isAdmin, role })
+  const { tabs, groups } = buildNav({ isAuthenticated, isAdmin })
 
   useEffect(() => { setMenuOpen(false); setProfileOpen(false) }, [location.pathname])
 
@@ -219,18 +160,9 @@ export function Nav() {
           {/* Right cluster */}
           <div className="flex items-center gap-2">
             {!isAuthenticated ? (
-              <>
-                <Link to="/login" className="hidden sm:inline-flex nav-link"><LogIn size={16} /> Login</Link>
-                <Link to="/register" className="btn-primary btn-sm hidden sm:inline-flex">Get started <ArrowRight size={15} /></Link>
-              </>
+              <Link to="/login" className="hidden sm:inline-flex nav-link"><LogIn size={16} /> Staff login</Link>
             ) : (
               <>
-                {role !== 'influencer' && (
-                  <Link to="/notifications" aria-label="Notifications"
-                    className="hidden lg:inline-flex p-2.5 rounded-full text-mute hover:text-white hover:bg-white/[0.06] transition-colors">
-                    <Bell size={18} />
-                  </Link>
-                )}
                 {/* Desktop profile dropdown */}
                 <div className="relative hidden lg:block" ref={profileRef}>
                   <button onClick={() => setProfileOpen((v) => !v)}
@@ -322,10 +254,7 @@ export function Nav() {
               {isAuthenticated ? (
                 <button onClick={handleLogout} className="btn-secondary w-full"><LogOut size={17} /> Log out</button>
               ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  <Link to="/login" onClick={closeMenu} className="btn-secondary w-full"><LogIn size={16} /> Login</Link>
-                  <Link to="/register" onClick={closeMenu} className="btn-primary w-full">Get started</Link>
-                </div>
+                <Link to="/login" onClick={closeMenu} className="btn-secondary w-full"><LogIn size={16} /> Staff login</Link>
               )}
             </div>
           </div>

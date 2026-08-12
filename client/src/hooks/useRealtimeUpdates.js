@@ -199,3 +199,20 @@ export function useInvoiceUpdates(cb) {
   const ref = useRef(cb); ref.current = cb;
   useEffect(() => on('invoice_update', data => ref.current(data)), [on]);
 }
+
+// ── WhatsApp-flow events (operator dashboard) ─────────────────────────────────
+export function useWaInboxUpdates(cb) {
+  const { on } = useRealtimeUpdates();
+  const ref = useRef(cb); ref.current = cb;
+  useEffect(() => on('wa_inbox_update', data => ref.current(data)), [on]);
+}
+export function useWaPipelineUpdates(cb) {
+  const { on } = useRealtimeUpdates();
+  const ref = useRef(cb); ref.current = cb;
+  useEffect(() => on('wa_pipeline_update', data => ref.current(data)), [on]);
+}
+export function useWaNewCustomer(cb) {
+  const { on } = useRealtimeUpdates();
+  const ref = useRef(cb); ref.current = cb;
+  useEffect(() => on('wa_new_customer', data => ref.current(data)), [on]);
+}

@@ -1,8 +1,8 @@
 // utils/markPaymentPaid.js
-// Single atomic state-machine for "money received" — called from both the
-// Stripe webhook AND the admin M-Pesa approval route. Same code path means
-// the same downstream side-effects (target row update + parcel notify +
-// credit ledger debit) regardless of payment method.
+// Single atomic state-machine for "money received" — called from the
+// Lipana webhook AND the admin M-Pesa approval route. Same code path means
+// the same downstream side-effects (target row update + customer notify +
+// credit ledger debit) regardless of how the money arrived.
 //
 // Caller must NOT have an open transaction — this function opens its own
 // so it can FOR UPDATE the target rows safely.
@@ -10,7 +10,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sendUnifiedPaymentReceiptEmail } from './email.js';
 import { insertWithUniqueTrackingNumber } from './trackingNumber.js';
-import { recordPaymentIncome } from './financeSync.js';
+import { nextTrackingCode } from './waCodes.js';
 
 /**
  * Marks the payment paid, deducts any consumed credit, and flips the
@@ -75,8 +75,9 @@ export async function markPaymentPaid(db, paymentId, opts = {}) {
     }
 
     // Deduct credit consumed for this payment from the user's balance and
-    // append a ledger entry. Skip if amount_credit_kes is 0.
-    if (payment.amount_credit_kes > 0) {
+    // append a ledger entry. Skip if amount_credit_kes is 0 (always true
+    // for wa_order payments, which have no users row to hold credit).
+    if (payment.amount_credit_kes > 0 && payment.user_id) {
       await client.query(
         `INSERT INTO user_credits (user_id, balance_kes, updated_at)
          VALUES ($1, 0, NOW())
@@ -124,10 +125,6 @@ export async function markPaymentPaid(db, paymentId, opts = {}) {
       console.warn(`[markPaymentPaid:${paymentId}] post-paid hook failed:`, e?.message);
     }
 
-    // Mirror the settled payment into the business finance ledger (money in).
-    // Idempotent + self-contained; never throws into this flow.
-    await recordPaymentIncome(db, paymentId);
-
     return { ok: true, alreadyPaid: false, recovered: recovering,
              target_kind: payment.target_kind, target_id: payment.target_id };
   } catch (err) {
@@ -141,6 +138,48 @@ export async function markPaymentPaid(db, paymentId, opts = {}) {
 
 async function flipTarget(client, kind, id) {
   switch (kind) {
+    case 'wa_order': {
+      // Two payment moments in the WhatsApp pipeline, distinguished by the
+      // order's current status:
+      //   confirmed (or a late quoted)          → the main order payment:
+      //     flip to 'paid' and mint the Tracking Code in the same
+      //     transaction so the code exists the instant money lands.
+      //   in_kenya / delivery_fee_pending       → the last-mile fee:
+      //     stamp delivery_fee_paid_at; the operator dispatches next.
+      const { rows } = await client.query(
+        `SELECT id, status, tracking_code FROM wa_orders WHERE id = $1 FOR UPDATE`,
+        [id]
+      );
+      const order = rows[0];
+      if (!order) throw new Error(`wa_order ${id} not found`);
+      if (['quoting', 'quoted', 'confirmed'].includes(order.status)) {
+        const trackingCode = order.tracking_code || await nextTrackingCode(client);
+        await client.query(
+          `UPDATE wa_orders
+              SET status = 'paid', paid_at = COALESCE(paid_at, NOW()),
+                  tracking_code = COALESCE(tracking_code, $2), updated_at = NOW()
+            WHERE id = $1`,
+          [id, trackingCode]
+        );
+        await client.query(
+          `INSERT INTO wa_order_events (id, order_id, from_status, to_status, note)
+           VALUES ($1, $2, $3, 'paid', 'Payment received')`,
+          [uuidv4(), id, order.status]
+        );
+      } else if (['in_kenya', 'delivery_fee_pending'].includes(order.status)) {
+        await client.query(
+          `UPDATE wa_orders SET delivery_fee_paid_at = NOW(), updated_at = NOW() WHERE id = $1`,
+          [id]
+        );
+        await client.query(
+          `INSERT INTO wa_order_events (id, order_id, from_status, to_status, note)
+           VALUES ($1, $2, $3, $3, 'Delivery fee received')`,
+          [uuidv4(), id, order.status]
+        );
+      }
+      // Terminal/other statuses: leave the order alone (idempotent replay).
+      break;
+    }
     case 'order':
       await client.query(
         `UPDATE orders SET status = 'paid', updated_at = NOW() WHERE id = $1 AND status NOT IN ('paid','cancelled','delivered')`,
@@ -231,6 +270,9 @@ function parseRetailerLabel(url) {
 }
 
 async function firePostPaidHook(db, payment) {
+  if (payment.target_kind === 'wa_order') {
+    return fireWaOrderPostPaidHook(db, payment);
+  }
   // 1) Look up the customer's email + name.
   const { rows: userRows } = await db.query(
     `SELECT email, name FROM users WHERE id = $1`,
@@ -265,6 +307,84 @@ async function firePostPaidHook(db, payment) {
     targetLabel,
     userId:               payment.user_id,
   });
+}
+
+/**
+ * WhatsApp-flow post-payment side effects (best-effort; the money is in):
+ *   main order payment  → PDF receipt to Supabase Storage, pushed to the
+ *     customer as a signed URL, plus the Tracking Code announcement.
+ *   delivery fee        → short confirmation; operator dispatches next.
+ * Dynamic imports keep the legacy payment path free of the wa modules.
+ */
+async function fireWaOrderPostPaidHook(db, payment) {
+  const { rows } = await db.query(
+    `SELECT o.*, c.id AS c_id, c.phone, c.full_name, c.customer_code
+       FROM wa_orders o JOIN wa_contacts c ON c.id = o.contact_id
+      WHERE o.id = $1`,
+    [payment.target_id]
+  );
+  const order = rows[0];
+  if (!order) {
+    console.warn(`[firePostPaidHook:${payment.id}] wa_order ${payment.target_id} missing`);
+    return;
+  }
+  const contact = {
+    id: order.c_id, phone: order.phone,
+    full_name: order.full_name, customer_code: order.customer_code,
+  };
+  const { sendToContact } = await import('./waSend.js');
+  const { pushToStaff } = await import('../routes/events.js');
+
+  try {
+    pushToStaff('wa_pipeline_update', {
+      order_id: order.id, contact_id: contact.id, status: order.status,
+    });
+  } catch { /* SSE best-effort */ }
+
+  // Delivery-fee settlement → short confirmation only.
+  if (['in_kenya', 'delivery_fee_pending'].includes(order.status)) {
+    await sendToContact(db, contact, {
+      text:
+        `Delivery fee received for ${order.tracking_code}. ` +
+        `Your parcel will be dispatched to your address shortly.`,
+    });
+    return;
+  }
+  if (order.status !== 'paid') return; // replay of an old event — nothing to say
+
+  // Main payment: tracking code announcement + PDF receipt.
+  await sendToContact(db, contact, {
+    templateKey: 'payment_received',
+    templateParams: { tracking_code: order.tracking_code || '' },
+    text:
+      `Payment received — asante!\n` +
+      `Your tracking code is *${order.tracking_code}*. Text it to us any time to check on your parcel.\n` +
+      `We're purchasing your item now and will keep you posted.`,
+  });
+
+  try {
+    const { generateAndStoreReceipt } = await import('./receiptPdf.js');
+    const { receiptShortUrl } = await import('./receiptLink.js');
+    const path = await generateAndStoreReceipt({ order, contact, payment });
+    await db.query(
+      `UPDATE wa_orders SET receipt_path = $2, updated_at = NOW() WHERE id = $1`,
+      [order.id, path]
+    );
+    // Short link rather than the ~600-character Supabase signed URL —
+    // /r/:token re-signs on click, so it also never goes stale.
+    const url = receiptShortUrl(order);
+    if (url) {
+      await sendToContact(db, contact, {
+        templateKey: 'receipt',
+        templateParams: { tracking_code: order.tracking_code || '', receipt_url: url },
+        text: `Here's your receipt for ${order.tracking_code}: ${url}`,
+      });
+    }
+  } catch (e) {
+    // Receipt failures never block the payment; the operator can resend
+    // from the order screen (POST /api/wa/orders/:id/receipt/resend).
+    console.warn(`[firePostPaidHook:${payment.id}] receipt generation failed:`, e?.message);
+  }
 }
 
 async function lookupTargetLabel(db, kind, id) {

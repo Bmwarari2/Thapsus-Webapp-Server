@@ -22,9 +22,9 @@ makes drift a CI failure instead of a production outage.
   retailers, finance chart of accounts), captured verbatim from live.
   Idempotent (`ON CONFLICT DO NOTHING`).
 
-The 59 historical migrations live in `_archive/` for git history and forensic
-reference. Neither `scripts/migrate.mjs` nor the boot-time runner descends
-into subdirectories, so nothing in `_archive/` ever applies. **New migrations
+The 59 historical pre-baseline migrations were removed from the tree (they were
+never applied by the runner); they remain available in git history under
+`database/migrations/_archive/` if forensic reference is needed. **New migrations
 start at `0001_*.sql`** and layer on top of the baseline. Applied so far:
 `0001` (drop plaintext token columns), `0002` (influencer referral programme),
 `0003` (influencer partner logins + link-open analytics with coarse
@@ -106,7 +106,7 @@ migrations: helper functions and tables created only by out-of-repo
 `server-patch-*` files, FK columns declared `uuid` against TEXT referents,
 manual-migrations applied out of band, and a `_migrations` ledger that missed
 manual applies. Fixes were layered piecemeal (see `_archive/0000a_supabase_prerequisites.sql`
-and the archive README trail) until the 2026-07 audit ended the class by
+and the archive README trail, both now only in git history) until the 2026-07 audit ended the class by
 cutting the consolidated baseline above from the live schema itself.
 
 The operating rule stands: **treat the live schema as authoritative** — which

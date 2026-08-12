@@ -26,7 +26,6 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@resvg/resvg-js": "^2.6.2",
     "@supabase/supabase-js": "^2.105.4",
     "bcryptjs": "^3.0.3",
     "compression": "^1.7.4",
@@ -38,10 +37,9 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.10.0",
+    "pdfkit": "^0.19.1",
     "pg": "^8.11.3",
-    "stripe": "^22.1.1",
     "uuid": "^14.0.0",
-    "web-push": "^3.6.7",
     "ws": "^8.21.0",
     "xss": "^1.0.15"
   },

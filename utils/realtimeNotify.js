@@ -1,33 +1,23 @@
 /**
- * utils/realtimeNotify.js — one call to reach a user on every channel.
+ * utils/realtimeNotify.js — one call to reach a user in any open tab.
  *
- * Fans a single event out to:
- *   • SSE  (routes/events.js::pushToUser)  → live update in an open tab
- *   • Web Push (utils/webpush.js)          → notification on a closed PWA
- *
- * Both are best-effort and swallow their own errors; callers should never
- * have to wrap this in try/catch for correctness.
+ * SSE only (routes/events.js::pushToUser). Web Push was removed with the
+ * customer PWA in the lean rebuild. Best-effort: swallows its own errors,
+ * callers never need to wrap this in try/catch for correctness.
  */
 import { pushToUser } from '../routes/events.js';
-import { sendWebPushToUser } from './webpush.js';
 
 /**
- * @param {object} db
+ * @param {object} _db             - kept for call-site compatibility
  * @param {string} userId
  * @param {object} opts
- * @param {string} opts.type        - SSE event type (e.g. 'buy_for_me_update')
- * @param {object} opts.data        - SSE payload
- * @param {object} [opts.push]      - { title, body, url?, tag? }; omit to skip push
+ * @param {string} opts.type       - SSE event type (e.g. 'buy_for_me_update')
+ * @param {object} opts.data       - SSE payload
  */
-export async function notifyUser(db, userId, { type, data, push } = {}) {
+export async function notifyUser(_db, userId, { type, data } = {}) {
   if (!userId) return;
   try { if (type) pushToUser(userId, type, data || {}); }
   catch (err) { console.error('[notify] SSE failed:', err?.message); }
-
-  if (push) {
-    try { await sendWebPushToUser(db, userId, push); }
-    catch (err) { console.error('[notify] web push failed:', err?.message); }
-  }
 }
 
 export default { notifyUser };

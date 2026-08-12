@@ -45,6 +45,76 @@ function estimateDelivery(order) {
   return est
 }
 
+// WhatsApp-flow parcels (TRK-#### codes): the public API returns a slim
+// status + timeline shape — five milestone timestamps and, when relevant,
+// the pending last-mile fee.
+const WA_STEPS = [
+  { key: 'paid_at',       label: 'Payment received' },
+  { key: 'purchased_at',  label: 'Item purchased' },
+  { key: 'arrived_at',    label: 'Arrived in Kenya' },
+  { key: 'dispatched_at', label: 'Out for delivery' },
+  { key: 'delivered_at',  label: 'Delivered' },
+]
+
+const WA_STATUS_LABELS = {
+  quoting: 'Being quoted', quoted: 'Quote sent', confirmed: 'Confirmed — awaiting payment',
+  paid: 'Paid — purchase in progress', purchased: 'Purchased — heading to our facility',
+  in_kenya: 'Arrived in Kenya', delivery_fee_pending: 'Arrived — delivery fee pending',
+  dispatched: 'Out for delivery', delivered: 'Delivered', cancelled: 'Cancelled',
+}
+
+const WaFlowResult = ({ tracking }) => {
+  const doneCount = WA_STEPS.filter((s) => tracking.timeline?.[s.key]).length
+  return (
+    <div className="max-w-2xl mx-auto mb-14 animate-fade-in">
+      <div className="rounded-3xl bg-white/[0.04] border border-line p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div>
+            <p className="text-[10px] font-semibold text-mute uppercase tracking-widest mb-1">Tracking</p>
+            <p className="text-xl font-bold text-white">{tracking.tracking_number}</p>
+          </div>
+          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-ember-500/15 text-ember-400 border border-ember-500/25">
+            {WA_STATUS_LABELS[tracking.status] || tracking.status?.replace(/_/g, ' ')}
+          </span>
+        </div>
+        <div className="space-y-0">
+          {WA_STEPS.map((step, idx) => {
+            const at = tracking.timeline?.[step.key]
+            const done = Boolean(at)
+            const isNext = !done && idx === doneCount
+            return (
+              <div key={step.key} className="relative flex items-start gap-4 pb-8 last:pb-0">
+                {idx < WA_STEPS.length - 1 && (
+                  <span className={`absolute left-[11px] top-6 bottom-0 w-0.5 ${done ? 'bg-ember-500/60' : 'bg-white/10'}`} />
+                )}
+                <span className={`relative z-10 w-6 h-6 rounded-full grid place-items-center text-[11px] font-bold ${
+                  done ? 'bg-ember-500 text-white' : isNext ? 'bg-white/15 text-white animate-pulse' : 'bg-white/5 text-mute'
+                }`}>
+                  {done ? '✓' : idx + 1}
+                </span>
+                <div>
+                  <p className={`text-sm font-semibold ${done || isNext ? 'text-white' : 'text-mute'}`}>{step.label}</p>
+                  {at && (
+                    <p className="text-xs text-mute">
+                      {new Date(at).toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        {tracking.delivery_fee_pending != null && (
+          <div className="mt-6 rounded-2xl bg-amber-500/10 border border-amber-500/25 px-4 py-3 text-sm text-amber-200">
+            Last-mile delivery fee pending: KSh {Number(tracking.delivery_fee_pending).toLocaleString()} —
+            check WhatsApp for the payment prompt.
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export const TrackPackage = () => {
   const { t } = useLanguage()
   const { isAuthenticated } = useAuth()
@@ -161,8 +231,11 @@ export const TrackPackage = () => {
           </div>
         )}
 
-        {/* Result */}
-        {package_ && (
+        {/* Result — WhatsApp-flow parcels (TRK-#### codes) */}
+        {package_ && package_.timeline && <WaFlowResult tracking={package_} />}
+
+        {/* Result — legacy parcels */}
+        {package_ && !package_.timeline && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mb-14 animate-fade-in">
             {/* Timeline */}
             <div className="lg:col-span-7">

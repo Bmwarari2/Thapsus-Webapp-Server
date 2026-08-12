@@ -8,9 +8,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../utils/email.js', () => ({
   sendUnifiedPaymentReceiptEmail: vi.fn(async () => {}),
 }));
-vi.mock('../../utils/financeSync.js', () => ({
-  recordPaymentIncome: vi.fn(async () => {}),
-}));
 vi.mock('../../utils/trackingNumber.js', () => ({
   insertWithUniqueTrackingNumber: vi.fn(async () => {}),
 }));

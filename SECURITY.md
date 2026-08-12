@@ -5,7 +5,7 @@ clients commit to today, and the rationale for the choices that look
 unusual at first glance. Pair it with `ARCHITECTURE.md` for the
 broader system shape.
 
-For run/deploy notes see `SETUP.md` / `README_BACKEND.md`. For audit
+For run/deploy notes see `SETUP.md` / `CUTOVER.md`. For audit
 history see `docs/system_audit_2026_05_09.md` (in the iOS repo).
 
 ---
@@ -94,7 +94,7 @@ file viewer iframe — the CSRF model collapses and we have to add
 proper tokens before that ships. Document and resist.
 
 XSS is mitigated upstream of the cookie problem:
-- `helmet` applies CSP with explicit allowlists for Stripe / Google /
+- `helmet` applies CSP with explicit allowlists for Google /
   Meta script origins. No `unsafe-eval`. `unsafe-inline` is allowed
   for Tailwind-generated styles only — the standard tradeoff for
   utility-first CSS without nonces.
@@ -144,17 +144,42 @@ XSS is mitigated upstream of the cookie problem:
 
 ## 6. Webhooks
 
-Stripe and Lipana webhook endpoints are mounted *before*
-`express.json()` so signature verification reads raw bytes:
+Webhook endpoints are mounted *before* `express.json()` so signature
+verification reads raw bytes:
 
-- **Stripe** — `stripe.webhooks.constructEvent(rawBody, sig, secret)`.
-- **Lipana** — HMAC-SHA256 over the raw body, compared with
-  `crypto.timingSafeEqual`.
+- **sent.dm** (`/api/wa/webhook`) — Svix-style HMAC-SHA256 over
+  `${id}.${timestamp}.${rawBody}`, compared with
+  `crypto.timingSafeEqual`, with a ±300s timestamp tolerance that
+  bounds replay. Idempotent via the unique
+  `wa_messages.provider_message_id`.
+- **Lipana** (`/api/payments/lipana/webhook`) — HMAC-SHA256 over the raw
+  body, `timingSafeEqual`, idempotent via `lipana_events_seen`
+  (`ON CONFLICT DO NOTHING`). Inert while `MPESA_PROVIDER=manual`.
 
-Both endpoints **bypass rate limiters** by design (signature is the
+Both endpoints **bypass rate limiters** by design (the signature is the
 gate; dropping a legitimate retry is worse than the cost surface).
-Replays are short-circuited by `stripe_events_seen` /
-`lipana_events_seen` tables (insert with `ON CONFLICT DO NOTHING`).
+
+### Receipt links
+
+`GET /r/:token` is unauthenticated by design — the token *is* the
+credential. It is a truncated HMAC over the order id keyed on
+`JWT_SECRET`, verified in constant time, and the redirect it issues
+points at a signed URL valid for 10 minutes. Receipts contain a
+customer's name and delivery address, so the token is unguessable rather
+than derived from the public tracking code alone. Rotating `JWT_SECRET`
+revokes every outstanding link. The route sits behind the public
+tracking rate limiter and returns an identical 404 for a bad signature,
+an unknown code and a missing receipt, so it confirms nothing about
+which codes exist.
+
+### AI boundary
+
+The Gemini assistant (`utils/waAi.js`) is treated as untrusted output.
+It cannot move money or state: quoting, confirmation, payment and
+pipeline transitions all resolve before it is consulted. Its output is
+classified into a tagged result before use, so a control sentinel can
+never be emitted to a customer, and prompts carry only the requesting
+customer's own order rows — never another contact's data.
 
 ---
 
@@ -164,7 +189,7 @@ Replays are short-circuited by `stripe_events_seen` /
   the repo.
 - Boot sequence in `server.js` fail-fasts on missing required
   values: `DATABASE_URL`, `JWT_SECRET`, `ADMIN_PASSWORD`. Missing
-  optional values (Stripe, Lipana, email) cause specific endpoints
+  optional values (sent.dm, Gemini, Lipana, email) cause specific endpoints
   to return 503 instead of crashing the whole boot.
 - `tests/setup.js` installs throwaway placeholder values for the
   same set of vars so the vitest suite can import route modules
@@ -185,7 +210,7 @@ Tiered per route in `server.js:390-427`:
 | `/auth/login`, `/auth/register`, `/auth/password` | 10 | 15 min | Credential-stuffing, brute-force |
 | `/auth/forgot-password` | 5 | 60 min | Email enumeration |
 | `/auth/reset-password` | 10 | 60 min | Token guessing |
-| `/payments` (create intent) | 10 | 15 min | Card testing, Stripe cost |
+| `/payments` (create intent) | 10 | 15 min | Legacy drain surface |
 | `/*/upload-url` mints | 30 | 15 min | Supabase quota |
 | `/tracking/*` (public) | 60 | 15 min | Public tracking enumeration |
 | `/api/*` catch-all | 200 | 15 min | Generic fallback |
@@ -221,20 +246,28 @@ ever scale beyond a single Railway dyno, switch to
   `utils/logRetention.js` (audit W6.5).
 - `error_logs` table has its own admin viewer at
   `/admin/error-logs` and a clear-all endpoint.
-- For webhook failures, the dedup tables (`stripe_events_seen`,
+- For webhook failures, the dedup surfaces (`wa_messages.provider_message_id`,
   `lipana_events_seen`) double as a forensic log of every
   signed event we received.
 
-### 10.1 Visitor analytics privacy (influencer links)
+### 10.1 Retired subsystems
 
-The influencer link tracker (`influencer_link_events`, migration 0003)
-estimates a visitor's location from their IP for the partner dashboard.
-The **raw IP is never stored**: `utils/ipGeolocation.js` keeps only a
-salted SHA-256 hash of the IP (for unique-visitor counts) plus the
-coarse country/region/city resolved at capture time. The lookup runs
-best-effort against ipwho.is out-of-band, so a third party sees the IP
-at lookup time but our database never persists it. The salt is
-`IP_HASH_SECRET` (falls back to `JWT_SECRET`).
+The influencer link tracker and its IP-geolocation pipeline were removed
+in the WhatsApp-first rebuild (see `REBUILD.md`). No visitor IPs, hashed
+or otherwise, are collected any more. The `influencer_link_events` table
+still exists but is unreferenced and never written to; it is scheduled
+for removal with the rest of the legacy schema.
+
+### 10.2 WhatsApp conversation data
+
+Full message transcripts are stored in `wa_messages`, including anything
+a customer volunteers. Contact rows hold name, delivery address and
+M-Pesa number. Recent transcript excerpts and a rolling AI summary are
+sent to Google's Gemini API when the assistant is enabled; the operator
+kill-switch in `/ops/settings` stops that immediately, and the
+per-conversation toggle stops it for one customer. Nothing else leaves
+the system: receipts sit in a private bucket and are reachable only
+through a signed, expiring URL.
 
 ---
 
@@ -244,14 +277,15 @@ Honesty section. We don't claim:
 
 - **Pen-tested.** This document captures internal posture; no
   third-party audit has been commissioned.
-- **GDPR-compliant beyond DSAR.** We honour data-subject access
-  + erasure requests via `/api/dsar` + the admin queue at
-  `/admin/dsar`. Marketing-consent logging exists; full DPIA does
-  not.
-- **PCI-DSS.** Card data never touches our servers; Stripe handles
-  PAN. We are SAQ-A scope only.
-- **iOS attestation / DeviceCheck / App Attest.** Not implemented;
-  fraud risk is mitigated by KYC at signup + payment-side limits.
+- **Automated GDPR tooling.** The self-service DSAR and account-deletion
+  endpoints were removed with the customer portal. Access and erasure
+  requests are handled manually against `wa_contacts` / `wa_messages`;
+  no DPIA exists.
+- **PCI-DSS.** Not applicable — we take no card payments. Stripe was
+  removed in the rebuild and no PAN has ever touched our servers.
+- **Content review of WhatsApp media.** Customers can send images and
+  documents into the inbox. They are stored in a private bucket and
+  served through signed URLs, but nothing scans them.
 - **Bug bounty.** We're a single-developer product; no formal
   programme exists.
 
