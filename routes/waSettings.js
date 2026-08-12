@@ -13,6 +13,7 @@ import {
   listWebhooks, listWebhookEvents, createWebhook,
   updateWebhookUrl, activateWebhook, fetchMessageActivities,
 } from '../utils/sentdm.js';
+import { aiSelfTest } from '../utils/waAi.js';
 
 const router = express.Router();
 
@@ -131,8 +132,13 @@ router.put('/', authMiddleware, isAdmin, async (req, res) => {
  */
 router.get('/webhook-status', authMiddleware, isAdmin, async (req, res) => {
   try {
+    // AI health first — it's independent of sent.dm, and a live round-trip
+    // reports the exact provider error (retired model, bad key, quota).
+    const settings = await getWaSettings(req.db).catch(() => null);
+    const ai = { enabled: Boolean(settings?.ai_enabled), ...(await aiSelfTest()) };
+
     if (!sentDmConfigured()) {
-      return res.status(503).json({ success: false, message: 'SENTDM_API_KEY is not configured on the server' });
+      return res.status(503).json({ success: false, ai, message: 'SENTDM_API_KEY is not configured on the server' });
     }
     const expected = expectedWebhookUrl();
     const webhooks = await listWebhooks();
@@ -193,6 +199,7 @@ router.get('/webhook-status', authMiddleware, isAdmin, async (req, res) => {
       secret_configured: Boolean(process.env.SENTDM_WEBHOOK_SECRET),
       webhooks: detailed,
       outbound_failures: outboundFailures,
+      ai,
     });
   } catch (err) {
     if (err instanceof SentDmError) {

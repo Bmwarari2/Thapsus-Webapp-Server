@@ -21,12 +21,17 @@
 // HANDOFF and the message just lands in the operator inbox, which is
 // exactly the pre-AI behavior. Every failure mode degrades to that.
 //
-// Config: GEMINI_API_KEY (Google AI Studio), optional GEMINI_MODEL
-// (default gemini-2.5-flash). The on/off switch + knowledge base live in
-// wa_settings so operators control them from /ops/settings at runtime.
+// Config: GEMINI_API_KEY (Google AI Studio). GEMINI_MODEL optionally
+// pins a model; when unset the model is DISCOVERED from the API (see
+// resolveModel) rather than hardcoded — Google retires model names on a
+// rolling basis and a stale default takes the assistant down with
+// "model is no longer available to new users" (this happened in
+// production with gemini-2.5-flash). The on/off switch + knowledge base
+// live in wa_settings so operators control them from /ops/settings.
 
 const BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const TIMEOUT_MS = 15_000;
+const MODEL_CACHE_MS = 6 * 60 * 60 * 1000; // re-discover a few times a day
 
 export const HANDOFF = 'HANDOFF';
 
@@ -34,12 +39,72 @@ export function aiConfigured() {
   return Boolean(process.env.GEMINI_API_KEY);
 }
 
-function modelName() {
-  return process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+let _model = null;      // { name, at }
+
+/**
+ * Rank the models the key can actually use. Prefers, in order: the
+ * "flash" tier (fast + cheap, ample for short WhatsApp replies), higher
+ * version numbers, and stable releases over preview/experimental builds.
+ */
+export function scoreModel(m) {
+  const name = String(m?.name || '').replace(/^models\//, '');
+  const methods = m?.supportedGenerationMethods || m?.supported_generation_methods || [];
+  if (!name.startsWith('gemini')) return -1;
+  if (!methods.includes('generateContent')) return -1;
+  // Non-chat / specialist endpoints.
+  if (/embedding|aqa|imagen|veo|tts|audio|image-generation|native-audio|live/.test(name)) return -1;
+
+  const version = parseFloat((name.match(/gemini-(\d+(?:\.\d+)?)/) || [])[1] || '0');
+  let score = version * 100;
+  if (/flash/.test(name)) score += 50;          // right tier for this workload
+  if (/lite/.test(name)) score -= 10;           // cheaper still, slightly weaker
+  if (/pro/.test(name)) score += 10;            // usable, pricier
+  if (/preview|exp|experimental/.test(name)) score -= 40;
+  if (/\d{2}-\d{2}$/.test(name)) score -= 5;    // dated snapshot; prefer the rolling alias
+  return score;
+}
+
+/** @returns {Promise<string>} a model name this API key can call today. */
+async function resolveModel({ force = false } = {}) {
+  if (process.env.GEMINI_MODEL) return process.env.GEMINI_MODEL;
+  if (!force && _model && Date.now() - _model.at < MODEL_CACHE_MS) return _model.name;
+
+  const res = await fetch(`${BASE}/models?key=${process.env.GEMINI_API_KEY}&pageSize=200`, {
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Gemini ListModels HTTP ${res.status}: ${errText.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  const ranked = (data?.models || [])
+    .map((m) => ({ name: String(m.name || '').replace(/^models\//, ''), score: scoreModel(m) }))
+    .filter((m) => m.score >= 0)
+    .sort((a, b) => b.score - a.score);
+  if (ranked.length === 0) throw new Error('Gemini ListModels returned no usable chat model');
+
+  _model = { name: ranked[0].name, at: Date.now() };
+  console.info(`[waAi] using Gemini model "${_model.name}" (${ranked.length} candidates)`);
+  return _model.name;
+}
+
+async function callModel(model, body) {
+  const res = await fetch(`${BASE}/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    const err = new Error(`Gemini HTTP ${res.status}: ${errText.slice(0, 200)}`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
 }
 
 async function generate({ system, contents, json = false, schema = null }) {
-  const url = `${BASE}/models/${modelName()}:generateContent?key=${process.env.GEMINI_API_KEY}`;
   const body = {
     system_instruction: { parts: [{ text: system }] },
     contents,
@@ -50,20 +115,39 @@ async function generate({ system, contents, json = false, schema = null }) {
       ...(json && schema ? { responseSchema: schema } : {}),
     },
   };
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`Gemini HTTP ${res.status}: ${errText.slice(0, 200)}`);
+
+  let data;
+  try {
+    data = await callModel(await resolveModel(), body);
+  } catch (e) {
+    // A retired/unknown model 404s — re-discover once and retry, so a
+    // Google model retirement self-heals instead of paging anyone.
+    if (e.status !== 404 || process.env.GEMINI_MODEL) throw e;
+    console.warn('[waAi] model 404 — re-resolving:', e.message);
+    data = await callModel(await resolveModel({ force: true }), body);
   }
-  const data = await res.json();
+
   const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
   if (!text) throw new Error('Gemini returned no text');
   return text.trim();
+}
+
+/**
+ * Diagnostics for /ops/settings: which model resolved, and does a real
+ * round-trip succeed? Never throws.
+ */
+export async function aiSelfTest() {
+  if (!aiConfigured()) return { ok: false, configured: false, error: 'GEMINI_API_KEY is not set on the server' };
+  try {
+    const model = await resolveModel({ force: true });
+    const text = await generate({
+      system: 'You are a health check. Reply with the single word OK.',
+      contents: [{ role: 'user', parts: [{ text: 'ping' }] }],
+    });
+    return { ok: true, configured: true, model, sample: text.slice(0, 60) };
+  } catch (e) {
+    return { ok: false, configured: true, model: _model?.name || null, error: e.message };
+  }
 }
 
 const GUARDRAILS = `

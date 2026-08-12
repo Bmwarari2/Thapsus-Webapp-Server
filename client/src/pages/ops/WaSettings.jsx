@@ -213,6 +213,22 @@ function WebhookDoctor() {
         </div>
       </div>
 
+      {status?.ai && (
+        <div className={`rounded-xl border p-3 text-sm ${
+          status.ai.ok ? 'bg-emerald-500/5 border-emerald-500/25' : 'bg-red-500/5 border-red-500/25'
+        }`}>
+          <p className="flex items-center gap-2 text-white font-semibold">
+            {status.ai.ok
+              ? <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
+              : <XCircle size={15} className="text-red-400 shrink-0" />}
+            AI assistant {status.ai.enabled ? '(on)' : '(toggle off)'}
+          </p>
+          {status.ai.ok
+            ? <p className="text-xs text-mute mt-1">Model in use: <span className="font-mono">{status.ai.model}</span></p>
+            : <p className="text-[11px] font-mono text-red-300 mt-1 break-words">{status.ai.error}</p>}
+        </div>
+      )}
+
       {status && (
         <div className="space-y-3 text-sm">
           <p className="text-mute">
