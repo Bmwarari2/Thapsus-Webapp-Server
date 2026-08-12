@@ -92,6 +92,7 @@ import sitemapRoutes       from './routes/sitemap.js';
 import parcelsRoutes       from './routes/parcels.js';  // legacy drain
 import opsRoutes           from './routes/ops.js';      // legacy drain
 import appConfigRoutes     from './routes/appConfig.js';
+import { waWebhookHandler } from './routes/waWebhook.js';
 
 const app      = express();
 const PORT     = process.env.PORT     || 5000;
@@ -196,6 +197,13 @@ app.post('/api/payments/lipana/webhook',
   express.raw({ type: 'application/json', limit: '1mb' }),
   (req, _res, next) => { req.db = getPool(); next(); },
   lipanaWebhookHandler
+);
+// sent.dm WhatsApp webhook — same raw-body recipe; Svix-style HMAC over
+// x-webhook-id/-timestamp/-signature verified in utils/sentdm.js.
+app.post('/api/wa/webhook',
+  express.raw({ type: 'application/json', limit: '1mb' }),
+  (req, _res, next) => { req.db = getPool(); next(); },
+  waWebhookHandler
 );
 
 // Audit M-5: keep the global JSON / urlencoded body limit small (200kb) so
