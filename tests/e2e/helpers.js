@@ -19,9 +19,14 @@ export async function closeDb() {
   if (p) await p.end();
 }
 
+// Waits for the redirect off /login before returning. Without that, a
+// caller that goes straight to page.goto('/ops/…') races the token
+// write: the SPA boots unauthenticated and ProtectedRoute bounces it
+// back to the sign-in screen.
 export async function login(page, email, password) {
   await page.goto('/login');
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', password);
   await page.click('button[type="submit"]');
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 });
 }

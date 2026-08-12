@@ -16,7 +16,7 @@ test.afterAll(async () => { await closeDb(); });
 
 test('admin signs in and lands on a rendering dashboard', async ({ page }) => {
   await login(page, ADMIN.email, ADMIN.password);
-  await page.waitForURL('**/admin**', { timeout: 15_000 });
+  await expect(page).toHaveURL(/\/admin/);
   await expect(page.getByText(/users|error logs/i).first()).toBeVisible({ timeout: 15_000 });
 });
 
@@ -33,7 +33,7 @@ test('the WhatsApp inbox loads its conversation list', async ({ page }) => {
   await login(page, ADMIN.email, ADMIN.password);
   await page.goto('/ops/inbox');
   // Empty seed DB — the empty state is the correct render, not a crash.
-  await expect(page.getByText(/conversation|inbox/i).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('WhatsApp Inbox')).toBeVisible({ timeout: 15_000 });
 });
 
 test('the payment queue renders and reaches the API', async ({ page }) => {
