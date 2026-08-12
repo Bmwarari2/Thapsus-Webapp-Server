@@ -8,6 +8,15 @@
 // Usage:
 //   SENTDM_API_KEY=sk_live_… node scripts/register-sentdm-webhook.mjs https://www.thapsus.uk
 //   SENTDM_API_KEY=sk_live_… node scripts/register-sentdm-webhook.mjs --list
+//   SENTDM_API_KEY=sk_live_… node scripts/register-sentdm-webhook.mjs --events <webhook-id>
+//   SENTDM_API_KEY=sk_live_… node scripts/register-sentdm-webhook.mjs --activate <webhook-id>
+//   SENTDM_API_KEY=sk_live_… node scripts/register-sentdm-webhook.mjs --rotate <webhook-id>
+//
+// `--events` prints the recent delivery attempts (HTTP status + error per
+// event) — the first place to look when "webhook failed" in testing.
+// `--activate` re-enables a webhook that sent.dm auto-disabled after
+// consecutive failures. `--rotate` mints a fresh signing secret (set the
+// printed value as SENTDM_WEBHOOK_SECRET).
 
 const API = process.env.SENTDM_BASE_URL?.replace(/\/+$/, '') || 'https://api.sent.dm';
 const KEY = process.env.SENTDM_API_KEY;
@@ -37,13 +46,42 @@ async function call(method, path, body) {
 }
 
 const arg = process.argv[2];
+const argId = process.argv[3];
 
 if (arg === '--list') {
   const data = await call('GET', '/v3/webhooks?page=1&page_size=20');
   for (const w of data?.webhooks ?? []) {
-    console.log(`${w.id}  active=${w.is_active}  ${w.endpoint_url}  events=${(w.event_types || []).join(',')}`);
+    console.log(`${w.id}`);
+    console.log(`  url=${w.endpoint_url}  active=${w.is_active}  events=${(w.event_types || []).join(',')}`);
+    console.log(`  consecutive_failures=${w.consecutive_failures ?? 0}  last_attempt=${w.last_delivery_attempt_at ?? '—'}  last_success=${w.last_successful_delivery_at ?? '—'}`);
   }
   if (!(data?.webhooks ?? []).length) console.log('(no webhooks registered)');
+  process.exit(0);
+}
+
+if (arg === '--events') {
+  if (!argId) { console.error('Usage: --events <webhook-id>'); process.exit(1); }
+  const data = await call('GET', `/v3/webhooks/${argId}/events?page=1&page_size=20`);
+  for (const e of data?.events ?? []) {
+    console.log(`${e.created_at}  ${e.event_type}  delivery=${e.delivery_status}  http=${e.http_status_code ?? '—'}  attempts=${e.delivery_attempts}`);
+    if (e.error_message) console.log(`    error: ${e.error_message}`);
+    if (e.response_body) console.log(`    response: ${String(e.response_body).slice(0, 200)}`);
+  }
+  if (!(data?.events ?? []).length) console.log('(no delivery events — sent.dm has not attempted this webhook yet)');
+  process.exit(0);
+}
+
+if (arg === '--activate') {
+  if (!argId) { console.error('Usage: --activate <webhook-id>'); process.exit(1); }
+  await call('PATCH', `/v3/webhooks/${argId}/toggle-status`, { is_active: true });
+  console.log(`Webhook ${argId} re-activated.`);
+  process.exit(0);
+}
+
+if (arg === '--rotate') {
+  if (!argId) { console.error('Usage: --rotate <webhook-id>'); process.exit(1); }
+  const data = await call('POST', `/v3/webhooks/${argId}/rotate-secret`, {});
+  console.log(`New signing secret (set as SENTDM_WEBHOOK_SECRET on Railway):\n\n  ${data?.signing_secret}\n`);
   process.exit(0);
 }
 
