@@ -527,6 +527,13 @@ app.get('/health', async (req, res) => {
 
 // ── API routes ────────────────────────────────────────────────────────────────
 app.use('/api/auth',           authRoutes);
+// Legacy customer order creation is closed — new orders come through the
+// WhatsApp flow (wa_orders). The rest of the legacy orders surface stays
+// mounted read/updateable below so operators can finish in-flight orders.
+app.post('/api/orders', (_req, res) => res.status(410).json({
+  success: false,
+  message: 'New orders are placed on WhatsApp now. Message our WhatsApp line to get a quote.',
+}));
 app.use('/api/orders',         ordersRoutes);   // legacy drain
 app.use('/api/tracking',       trackingRoutes);
 app.use('/api/admin',          adminRoutes);

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import crypto, { randomUUID } from 'node:crypto';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../../server.js';
 import { initializeDatabase, getPool } from '../../database/init.js';
@@ -8,15 +9,15 @@ import { initializeDatabase, getPool } from '../../database/init.js';
 // Real-Postgres integration tests for the /api/auth/* surface (audit H-1).
 //
 // Gated on TEST_DATABASE_URL. When unset the suite is skipped — the unit
-// runs (sanitize, stripe, lipana, appBoot) stay green on a developer
-// laptop with no DB. Set TEST_DATABASE_URL in CI / on a throwaway
-// Supabase branch to enable.
+// runs stay green on a developer laptop with no DB. Set TEST_DATABASE_URL
+// in CI / on a throwaway Supabase branch to enable.
 //
-// Each test mints a unique email so the suite is replay-safe and
-// concurrent. afterAll cleans up rows we created.
+// Customer self-registration was retired with the WhatsApp-first rebuild
+// (customers onboard on WhatsApp; the webapp signs in staff only), so
+// users are seeded directly via SQL — the same recipe roleMatrix.test.js
+// uses — and the retired endpoints are asserted to 410.
 
 const SKIP = !process.env.TEST_DATABASE_URL;
-const SKIP_MSG = SKIP ? '⚠ TEST_DATABASE_URL not set — skipping' : '';
 
 const createdEmails = new Set();
 
@@ -26,28 +27,24 @@ function mintEmail() {
   return e;
 }
 
-// Sign-up no longer returns a JWT (email-verification gate, migration 004):
-// the account must consume its verification token first. Tokens are
-// hash-at-rest only (migration 0001 dropped the plaintext column), so the
-// plaintext exists solely in the email. Stand in for the mailbox by minting
-// a token whose hash we insert ourselves; /verify-email consumes every
-// pending token for the user, register-issued row included.
-async function mintVerificationToken(userId) {
-  const plaintext = crypto.randomBytes(32).toString('hex');
-  const hash = crypto.createHash('sha256').update(plaintext).digest();
+/** Seed an active, email-verified staff user directly. */
+async function seedUser({ role = 'operator', password = 'PassPhrase!23' } = {}) {
+  const email = mintEmail();
+  const id = randomUUID();
   await getPool().query(
-    `INSERT INTO email_verification_tokens (id, user_id, token_sha256, expires_at)
-     VALUES ($1, $2, $3, NOW() + interval '1 hour')`,
-    [randomUUID(), userId, hash]
+    `INSERT INTO users (id, email, password_hash, name, phone, role, warehouse_id,
+                        language_pref, referral_code, is_active, email_verified_at)
+     VALUES ($1, $2, $3, $4, '+254700000000', $5, $6, 'en', $7, true, NOW())`,
+    [id, email, bcrypt.hashSync(password, 10), 'Vitest Staff', role,
+     `TC-${id.slice(0, 4).toUpperCase()}`, `REF${id.slice(0, 9).toUpperCase()}`]
   );
-  return plaintext;
+  return { id, email, password };
 }
 
-async function verifyEmailFor(userId) {
-  const token = await mintVerificationToken(userId);
-  const r = await request(app).post('/api/auth/verify-email').send({ token });
+async function loginToken(email, password) {
+  const r = await request(app).post('/api/auth/login').send({ email, password });
   expect(r.status).toBe(200);
-  return r.body; // same auth bundle /login returns: { token, user, ... }
+  return r.body.token;
 }
 
 beforeAll(async () => {
@@ -57,126 +54,47 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (SKIP) return;
-  // Clean up every user row we created. Cascade clears related tables.
   const pool = getPool();
   if (createdEmails.size) {
-    const emails = [...createdEmails];
-    await pool.query(
-      `DELETE FROM users WHERE email = ANY($1::text[])`,
-      [emails]
-    );
+    await pool.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[...createdEmails]]);
   }
   await pool.end();
 });
 
-describe.skipIf(SKIP)('POST /api/auth/register', () => {
-  it('creates a new customer and requires email verification (no auto sign-in)', async () => {
-    const email = mintEmail();
-    const r = await request(app)
-      .post('/api/auth/register')
-      .send({
-        email,
-        password: 'PassPhrase!23',
-        name: 'Vitest User',
-        phone: '+254700000000',
-      });
+describe.skipIf(SKIP)('retired self-registration surface', () => {
+  it.each(['/api/auth/register', '/api/auth/verify-email', '/api/auth/resend-verification'])(
+    'POST %s returns 410 Gone', async (path) => {
+      const r = await request(app).post(path).send({});
+      expect(r.status).toBe(410);
+      expect(r.body.success).toBe(false);
+      expect(r.body.message).toMatch(/WhatsApp/i);
+    }
+  );
+});
 
-    expect(r.status).toBe(201);
+describe.skipIf(SKIP)('POST /api/auth/login', () => {
+  it('issues a token for valid staff credentials', async () => {
+    const { email, password } = await seedUser();
+    const r = await request(app).post('/api/auth/login').send({ email, password });
+    expect(r.status).toBe(200);
     expect(r.body.success).toBe(true);
-    // Email-verification gate: sign-up must NOT hand out a session token.
-    expect(r.body.verification_required).toBe(true);
-    expect(r.body.token).toBeUndefined();
+    expect(r.body.token).toBeTruthy();
     expect(r.body.user.email).toBe(email.toLowerCase());
-    expect(r.body.user.role).toBe('customer');
     // Password must never be echoed back.
     expect(r.body.user).not.toHaveProperty('password');
     expect(r.body.user).not.toHaveProperty('password_hash');
   });
 
-  it('verify-email consumes the token and returns a working auth bundle', async () => {
-    const email = mintEmail();
-    const reg = await request(app).post('/api/auth/register').send({
-      email, password: 'PassPhrase!23', name: 'Verify Flow', phone: '+254700000003',
-    });
-    expect(reg.status).toBe(201);
-
-    const token = await mintVerificationToken(reg.body.user.id);
-    const first = await request(app).post('/api/auth/verify-email').send({ token });
-    expect(first.status).toBe(200);
-    expect(first.body.token).toBeTruthy();
-    expect(first.body.user.email).toBe(email.toLowerCase());
-
-    // The token from verify-email must be a real session.
-    const me = await request(app)
-      .get('/api/auth/me')
-      .set('Authorization', `Bearer ${first.body.token}`);
-    expect(me.status).toBe(200);
-
-    // A second redemption of the same token must fail (one-shot).
-    const again = await request(app).post('/api/auth/verify-email').send({ token });
-    expect(again.status).toBe(400);
-  });
-
-  it('rejects passwords shorter than 8 characters', async () => {
-    const r = await request(app)
-      .post('/api/auth/register')
-      .send({
-        email: mintEmail(),
-        password: 'short',
-        name: 'Vitest User',
-        phone: '+254700000001',
-      });
-    expect(r.status).toBeGreaterThanOrEqual(400);
-    expect(r.status).toBeLessThan(500);
-    expect(r.body.success).toBe(false);
-  });
-
-  it('rejects duplicate email registrations', async () => {
-    const email = mintEmail();
-    const body = { email, password: 'PassPhrase!23', name: 'Dup', phone: '+254700000002' };
-
-    const first = await request(app).post('/api/auth/register').send(body);
-    expect(first.status).toBe(201);
-
-    const dup = await request(app).post('/api/auth/register').send(body);
-    expect(dup.status).toBe(409);
-    expect(dup.body.success).toBe(false);
-  });
-});
-
-describe.skipIf(SKIP)('POST /api/auth/login', () => {
-  it('rejects an unverified account with 403 (email-verification gate)', async () => {
-    const email = mintEmail();
-    const password = 'PassPhrase!23';
-    await request(app).post('/api/auth/register').send({
-      email, password, name: 'Unverified Login', phone: '+254700000009',
-    });
-
+  it('rejects an unverified account with 403 (verification gate)', async () => {
+    const { email, password, id } = await seedUser();
+    await getPool().query(`UPDATE users SET email_verified_at = NULL WHERE id = $1`, [id]);
     const r = await request(app).post('/api/auth/login').send({ email, password });
     expect(r.status).toBe(403);
     expect(r.body.success).toBe(false);
   });
 
-  it('issues a token for valid credentials once the email is verified', async () => {
-    const email = mintEmail();
-    const password = 'PassPhrase!23';
-    const reg = await request(app).post('/api/auth/register').send({
-      email, password, name: 'Login Test', phone: '+254700000010',
-    });
-    await verifyEmailFor(reg.body.user.id);
-
-    const r = await request(app).post('/api/auth/login').send({ email, password });
-    expect(r.status).toBe(200);
-    expect(r.body.success).toBe(true);
-    expect(r.body.token).toBeTruthy();
-  });
-
   it('returns 401 for a wrong password (and runs the dummy-hash so timing is symmetrical)', async () => {
-    const email = mintEmail();
-    await request(app).post('/api/auth/register').send({
-      email, password: 'PassPhrase!23', name: 'Wrong PW', phone: '+254700000011',
-    });
-
+    const { email } = await seedUser();
     const r = await request(app).post('/api/auth/login').send({
       email, password: 'WRONGwrongWRONG',
     });
@@ -195,21 +113,10 @@ describe.skipIf(SKIP)('POST /api/auth/login', () => {
 });
 
 describe.skipIf(SKIP)('GET /api/auth/me + token revocation', () => {
-  async function registerAndToken() {
-    const email = mintEmail();
-    const password = 'PassPhrase!23';
-    const reg = await request(app).post('/api/auth/register').send({
-      email, password, name: 'Me Test', phone: '+254700000020',
-    });
-    const bundle = await verifyEmailFor(reg.body.user.id);
-    return { email, password, token: bundle.token };
-  }
-
   it('returns the authenticated user when given a valid Bearer token', async () => {
-    const { email, token } = await registerAndToken();
-    const r = await request(app)
-      .get('/api/auth/me')
-      .set('Authorization', `Bearer ${token}`);
+    const { email, password } = await seedUser();
+    const token = await loginToken(email, password);
+    const r = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
     expect(r.status).toBe(200);
     expect(r.body?.user?.email).toBe(email.toLowerCase());
   });
@@ -220,7 +127,8 @@ describe.skipIf(SKIP)('GET /api/auth/me + token revocation', () => {
   });
 
   it('rejects requests after logout (revoked_tokens entry inserted)', async () => {
-    const { token } = await registerAndToken();
+    const { email, password } = await seedUser();
+    const token = await loginToken(email, password);
 
     const logout = await request(app)
       .post('/api/auth/logout')
@@ -239,78 +147,52 @@ describe.skipIf(SKIP)('GET /api/auth/me + token revocation', () => {
 // JWT_REFRESH_AFTER_SECONDS (24h default). Tested with a forged-iat
 // token signed using the same JWT_SECRET (provided by tests/setup.js).
 describe.skipIf(SKIP)('GET /api/auth/me — silent refresh (W6.1)', () => {
-  async function registerAndUser() {
-    const email = mintEmail();
-    const reg = await request(app).post('/api/auth/register').send({
-      email, password: 'PassPhrase!23', name: 'Refresh', phone: '+254700000030',
-    });
-    await verifyEmailFor(reg.body.user.id);
-    return { email, userId: reg.body.user.id };
-  }
-
   it('does NOT return refreshed_token when the token is fresh', async () => {
-    const email = mintEmail();
-    const reg = await request(app).post('/api/auth/register').send({
-      email, password: 'PassPhrase!23', name: 'Fresh', phone: '+254700000031',
-    });
-    const bundle = await verifyEmailFor(reg.body.user.id);
-    const r = await request(app)
-      .get('/api/auth/me')
-      .set('Authorization', `Bearer ${bundle.token}`);
+    const { email, password } = await seedUser();
+    const token = await loginToken(email, password);
+    const r = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
     expect(r.status).toBe(200);
     expect(r.body).not.toHaveProperty('refreshed_token');
   });
 
   it('returns refreshed_token when iat is older than the refresh threshold', async () => {
-    const { email, userId } = await registerAndUser();
+    const { email, id: userId } = await seedUser();
 
     // Make sure the password_changed_at gate doesn't reject our forged
-    // old-iat token. Setting it far in the past (the column is NOT NULL)
-    // means the middleware/auth.js check `iat + 5 < pwd_changed_epoch` is
-    // false for any iat we pick.
+    // old-iat token.
     await getPool().query(
       `UPDATE users SET password_changed_at = '2000-01-01T00:00:00Z' WHERE id = $1`,
       [userId]
     );
 
-    // Forge a token with iat 25 hours ago. Same JWT_SECRET as the
-    // server (set by tests/setup.js).
     const oldIat = Math.floor(Date.now() / 1000) - 25 * 3600;
     // NB: explicit iat/exp claims in the payload — jsonwebtoken's
     // noTimestamp option would strip the iat we're trying to forge.
     const oldToken = jwt.sign(
-      { id: userId, email, role: 'customer', iat: oldIat, exp: oldIat + 7 * 24 * 3600 },
+      { id: userId, email, role: 'operator', iat: oldIat, exp: oldIat + 7 * 24 * 3600 },
       process.env.JWT_SECRET,
       { algorithm: 'HS256' }
     );
 
-    const r = await request(app)
-      .get('/api/auth/me')
-      .set('Authorization', `Bearer ${oldToken}`);
-
+    const r = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${oldToken}`);
     expect(r.status).toBe(200);
     expect(r.body.refreshed_token).toBeTruthy();
 
-    // The new token must verify against the same secret.
     const decoded = jwt.verify(r.body.refreshed_token, process.env.JWT_SECRET);
     expect(decoded.id).toBe(userId);
     expect(decoded.email).toBe(email.toLowerCase());
-    expect(decoded.role).toBe('customer');
-    // And its iat must be fresher than the forged one.
     expect(decoded.iat).toBeGreaterThan(oldIat);
   });
 
   it('the refreshed token is itself accepted on a follow-up /me call', async () => {
-    const { email, userId } = await registerAndUser();
+    const { email, id: userId } = await seedUser();
     await getPool().query(
       `UPDATE users SET password_changed_at = '2000-01-01T00:00:00Z' WHERE id = $1`,
       [userId]
     );
     const oldIat = Math.floor(Date.now() / 1000) - 25 * 3600;
-    // NB: explicit iat/exp claims in the payload — jsonwebtoken's
-    // noTimestamp option would strip the iat we're trying to forge.
     const oldToken = jwt.sign(
-      { id: userId, email, role: 'customer', iat: oldIat, exp: oldIat + 7 * 24 * 3600 },
+      { id: userId, email, role: 'operator', iat: oldIat, exp: oldIat + 7 * 24 * 3600 },
       process.env.JWT_SECRET,
       { algorithm: 'HS256' }
     );
@@ -321,7 +203,6 @@ describe.skipIf(SKIP)('GET /api/auth/me — silent refresh (W6.1)', () => {
 
     const second = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${refreshed}`);
     expect(second.status).toBe(200);
-    // The freshly-issued token shouldn't itself trigger another refresh.
     expect(second.body).not.toHaveProperty('refreshed_token');
   });
 });
@@ -339,11 +220,8 @@ describe.skipIf(SKIP)('GET /api/auth/reset-context', () => {
   }
 
   it('returns the account email for a valid token (username for password managers)', async () => {
-    const email = mintEmail();
-    const reg = await request(app).post('/api/auth/register').send({
-      email, password: 'PassPhrase!23', name: 'Reset Ctx', phone: '+254700000040',
-    });
-    const token = await mintResetToken(reg.body.user.id);
+    const { email, id } = await seedUser();
+    const token = await mintResetToken(id);
     const r = await request(app).get('/api/auth/reset-context').query({ token });
     expect(r.status).toBe(200);
     expect(r.body.email).toBe(email.toLowerCase());
