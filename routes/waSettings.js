@@ -37,7 +37,15 @@ function expectedWebhookUrl() {
 router.get('/', authMiddleware, isAdmin, async (req, res) => {
   try {
     const settings = await getWaSettings(req.db);
-    res.json({ success: true, settings });
+    res.json({
+      success: true,
+      settings,
+      // Environment capabilities the dashboard adapts to.
+      capabilities: {
+        stk_available: String(process.env.MPESA_PROVIDER || 'manual').toLowerCase().trim() === 'lipana',
+        mpesa_till: process.env.MPESA_TILL_NUMBER || null,
+      },
+    });
   } catch (err) {
     logRouteError(req, res, err, 'GET /api/wa/settings');
     res.status(500).json({ success: false, message: 'Failed to load settings' });
@@ -95,6 +103,22 @@ router.put('/', authMiddleware, isAdmin, async (req, res) => {
         return res.status(400).json({ success: false, message: 'ai_knowledge_base must be a string (max 20000 chars)' });
       }
       updates.push(['ai_knowledge_base', body.ai_knowledge_base.trim()]);
+    }
+    if (body.staff_alert_numbers !== undefined) {
+      if (!Array.isArray(body.staff_alert_numbers) || body.staff_alert_numbers.length > 10
+          || body.staff_alert_numbers.some((n) => typeof n !== 'string' || n.length > 20)) {
+        return res.status(400).json({ success: false, message: 'staff_alert_numbers must be up to 10 phone numbers' });
+      }
+      const cleaned = body.staff_alert_numbers
+        .map((n) => n.replace(/[^\d]/g, ''))
+        .filter((n) => n.length >= 9);
+      updates.push(['staff_alert_numbers', JSON.stringify(cleaned)]);
+    }
+    if (body.staff_alert_template !== undefined) {
+      if (typeof body.staff_alert_template !== 'string' || body.staff_alert_template.length > 128) {
+        return res.status(400).json({ success: false, message: 'staff_alert_template must be a template name or ID' });
+      }
+      updates.push(['staff_alert_template', body.staff_alert_template.trim()]);
     }
     if (body.template_map !== undefined) {
       if (typeof body.template_map !== 'object' || body.template_map === null || Array.isArray(body.template_map)

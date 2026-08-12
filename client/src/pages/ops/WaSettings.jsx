@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Settings2, Save, Stethoscope, Wrench, CheckCircle2, XCircle } from 'lucide-react'
+import { Settings2, Save, Stethoscope, Wrench, CheckCircle2, XCircle, BellRing } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { waApi, waWebhookApi } from '../../api'
 import { GlassStyles, GlassCard, PageHeading } from '../../components/GlassUI'
@@ -10,12 +10,14 @@ const inputCls =
 
 export function WaSettings() {
   const [form, setForm] = useState(null)
+  const [caps, setCaps] = useState({})
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     waApi.settings()
       .then((res) => {
         const s = res.data.settings
+        setCaps(res.data.capabilities || {})
         setForm({
           markup_pct: String(s.markup_pct),
           promo_active: s.promo_active,
@@ -26,6 +28,8 @@ export function WaSettings() {
           template_map: JSON.stringify(s.template_map || {}, null, 2),
           ai_enabled: s.ai_enabled === true,
           ai_knowledge_base: s.ai_knowledge_base || '',
+          staff_alert_numbers: (s.staff_alert_numbers || []).join('\n'),
+          staff_alert_template: s.staff_alert_template || 'Staff_Alert',
         })
       })
       .catch((e) => toast.error(e.response?.data?.message || 'Failed to load settings'))
@@ -47,6 +51,8 @@ export function WaSettings() {
         template_map: templateMap,
         ai_enabled: form.ai_enabled,
         ai_knowledge_base: form.ai_knowledge_base,
+        staff_alert_numbers: form.staff_alert_numbers.split('\n').map((n) => n.trim()).filter(Boolean),
+        staff_alert_template: form.staff_alert_template,
       })
       toast.success('Settings saved')
     } catch (e) {
@@ -146,6 +152,43 @@ export function WaSettings() {
             </p>
           </div>
         </GlassCard>
+
+        <GlassCard className="p-5 space-y-4">
+          <div className="flex items-start gap-3">
+            <BellRing size={18} className="text-ember-400 mt-0.5 shrink-0" />
+            <div>
+              <h2 className="font-bold text-white">Staff WhatsApp alerts</h2>
+              <p className="text-xs text-mute mt-0.5">
+                Pings these numbers on WhatsApp when a human is needed: a new customer finishes
+                onboarding, a customer confirms a quote, someone says they've paid (verify on
+                M-Pesa), or the assistant hands off. Leave empty to disable.
+              </p>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-white mb-1.5">Alert numbers (one per line)</label>
+            <textarea rows={3} value={form.staff_alert_numbers} onChange={set('staff_alert_numbers')}
+              placeholder={'0712 345 678\n254733000000'} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-white mb-1.5">Alert template (name or ID)</label>
+            <input value={form.staff_alert_template} onChange={set('staff_alert_template')}
+              placeholder="Staff_Alert" className={inputCls} />
+            <p className="text-xs text-mute mt-1">
+              Your approved sent.dm template with two variables — var_1 (what happened) and
+              var_2 (the details).
+            </p>
+          </div>
+        </GlassCard>
+
+        {caps.stk_available === false && (
+          <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 p-3 text-sm text-amber-200">
+            <span className="font-semibold">Payments are manual.</span> M-Pesa STK Push is switched
+            off (MPESA_PROVIDER), so the dashboard sends till instructions
+            {caps.mpesa_till ? <> (Till <span className="font-mono">{caps.mpesa_till}</span>)</> : null}
+            {' '}and an admin approves each payment after checking M-Pesa.
+          </div>
+        )}
 
         <button onClick={save} disabled={busy}
           className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-ember-600 hover:bg-ember-500 text-white font-semibold disabled:opacity-50">

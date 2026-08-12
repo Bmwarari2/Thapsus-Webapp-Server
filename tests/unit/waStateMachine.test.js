@@ -9,6 +9,9 @@ vi.mock('../../routes/events.js', () => ({
   pushToUser: vi.fn(),
   pushToAdmins: vi.fn(),
 }));
+vi.mock('../../utils/waStaffAlert.js', () => ({
+  notifyStaff: vi.fn(async () => {}),
+}));
 vi.mock('../../utils/waSettings.js', () => ({
   getWaSettings: vi.fn(async () => ({
     markup_pct: 10, promo_active: false, promo_type: 'waive_fee',
@@ -21,6 +24,7 @@ import { handleInbound } from '../../utils/waStateMachine.js';
 import { sendToContact } from '../../utils/waSend.js';
 import { pushToStaff } from '../../routes/events.js';
 import { getWaSettings } from '../../utils/waSettings.js';
+import { notifyStaff } from '../../utils/waStaffAlert.js';
 
 function makeDb(queryImpl) {
   return { query: vi.fn(queryImpl ?? (async () => ({ rows: [], rowCount: 0 }))) };
@@ -403,5 +407,77 @@ describe('AI order awareness', () => {
     await handleInbound(db, contact(), { id: 'm1', body: 'TRK-8821' });
     expect(waAi.chatReply).not.toHaveBeenCalled();
     expect(sendToContact.mock.calls[0][2].text).toContain('TRK-8821');
+  });
+});
+
+describe('staff WhatsApp alerts', () => {
+  async function ai() {
+    const waAi = await import('../../utils/waAi.js');
+    waAi.aiConfigured.mockReturnValue(true);
+    getWaSettings.mockResolvedValue({
+      markup_pct: 10, promo_active: false, promo_type: 'waive_fee',
+      promo_message: '', default_delivery_fee_kes: 300,
+      welcome_media_urls: [], template_map: {},
+      ai_enabled: true, ai_knowledge_base: 'kb',
+    });
+    return waAi;
+  }
+
+  it('alerts staff when a customer says they have paid, with the M-Pesa ref', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce('Thanks! We are confirming your payment now.');
+    const db = makeDb(async () => ({ rows: [] }));
+    await handleInbound(db, contact(), { id: 'm1', body: 'I have paid, SHL9XK2QRT confirmed Ksh 17,094' });
+    expect(notifyStaff).toHaveBeenCalledWith(db, expect.objectContaining({
+      title: expect.stringMatching(/payment claimed/i),
+      detail: expect.stringContaining('SHL9XK2QRT'),
+    }));
+  });
+
+  it.each(['nimelipa', 'I paid already', 'nimetuma the money'])(
+    'recognises "%s" as a payment claim', async (msg) => {
+      const waAi = await ai();
+      waAi.chatReply.mockResolvedValueOnce('ok');
+      await handleInbound(makeDb(async () => ({ rows: [] })), contact(), { id: 'm1', body: msg });
+      expect(notifyStaff).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+        title: expect.stringMatching(/payment claimed/i),
+      }));
+    }
+  );
+
+  it('alerts staff when the AI hands off (customer wants a human)', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce(null);
+    await handleInbound(makeDb(async () => ({ rows: [] })), contact(),
+      { id: 'm1', body: 'Can I speak to a customer rep?' });
+    expect(notifyStaff).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      title: expect.stringMatching(/needs a human/i),
+      detail: expect.stringContaining('customer rep'),
+    }));
+    expect(sendToContact).not.toHaveBeenCalled();
+  });
+
+  it('does not alert on an ordinary answered question', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce('We deliver in 10-14 days.');
+    await handleInbound(makeDb(async () => ({ rows: [] })), contact(), { id: 'm1', body: 'how long is delivery?' });
+    expect(notifyStaff).not.toHaveBeenCalled();
+  });
+
+  it('alerts staff and gives till instructions when a quote is confirmed', async () => {
+    process.env.MPESA_TILL_NUMBER = '5530500';
+    const db = makeDb(async (sql) => {
+      if (sql.includes("status = 'quoted'") && sql.startsWith('SELECT')) {
+        return { rows: [{ id: 'o1', quote_kes: '17094' }] };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    await handleInbound(db, contact(), { id: 'm1', body: 'yes' });
+    expect(notifyStaff).toHaveBeenCalledWith(db, expect.objectContaining({
+      title: expect.stringMatching(/order confirmed/i),
+    }));
+    const text = sendToContact.mock.calls[0][2].text;
+    expect(text).toContain('5530500');
+    expect(text).not.toMatch(/enter your PIN/i);   // STK language is gone
   });
 });

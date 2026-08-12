@@ -30,6 +30,9 @@ export function WaOrderDetail() {
   const [usd, setUsd] = useState('')
   const [busy, setBusy] = useState(false)
   const [printOpen, setPrintOpen] = useState(false)
+  // M-Pesa STK is unavailable in production (provider withdrawn), so the
+  // dashboard offers till instructions + manual approval only.
+  const [stkAvailable, setStkAvailable] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -44,6 +47,11 @@ export function WaOrderDetail() {
   }, [id])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => {
+    waApi.settings()
+      .then((r) => setStkAvailable(Boolean(r.data.capabilities?.stk_available)))
+      .catch(() => setStkAvailable(false))
+  }, [])
   useWaPipelineUpdates((data) => { if (data.order_id === id) load() })
 
   const run = (fn, okMsg) => async (...args) => {
@@ -166,12 +174,14 @@ export function WaOrderDetail() {
             )}
             {['confirmed', 'quoted'].includes(order.status) && (
               <>
-                <button onClick={() => requestPay('stk', 'order')} disabled={busy}
-                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-white text-sm font-semibold">
-                  <Smartphone size={15} /> M-Pesa STK push
-                </button>
+                {stkAvailable && (
+                  <button onClick={() => requestPay('stk', 'order')} disabled={busy}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-white text-sm font-semibold">
+                    <Smartphone size={15} /> M-Pesa STK push
+                  </button>
+                )}
                 <button onClick={() => requestPay('manual', 'order')} disabled={busy}
-                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white/5 border border-line text-white hover:bg-white/10 text-sm">
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-white text-sm font-semibold">
                   <HandCoins size={15} /> Send till instructions
                 </button>
               </>
@@ -203,9 +213,9 @@ export function WaOrderDetail() {
               </p>
               {feePayable && (
                 <div className="flex flex-wrap gap-2">
-                  <button onClick={() => requestPay('stk', 'delivery_fee')} disabled={busy}
+                  <button onClick={() => requestPay(stkAvailable ? 'stk' : 'manual', 'delivery_fee')} disabled={busy}
                     className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-white text-sm font-semibold">
-                    <Smartphone size={15} /> STK for fee
+                    {stkAvailable ? <><Smartphone size={15} /> STK for fee</> : <><HandCoins size={15} /> Request fee</>}
                   </button>
                   <button onClick={waive} disabled={busy}
                     className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white/5 border border-line text-white hover:bg-white/10 text-sm">

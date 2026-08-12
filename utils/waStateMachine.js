@@ -36,8 +36,14 @@ import { normalizeKenyanPhone } from './lipanaClient.js';
 import { pushToStaff } from '../routes/events.js';
 import { getWaSettings } from './waSettings.js';
 import { aiConfigured, chatReply, onboardingTurn } from './waAi.js';
+import { notifyStaff } from './waStaffAlert.js';
 
 const CONFIRM_WORDS = /^(yes+|yeah|yep|ok(ay)?|confirm(ed)?|proceed|sawa( sawa)?|ndio|ndiyo|poa|1)\b/i;
+
+// "I've paid" in the shapes Kenyan customers actually type, including a
+// pasted M-Pesa confirmation (which always carries a 10-char reference).
+const PAID_CLAIM = /\b(i('| ha)?ve )?(paid|sent|nimelipa|nimetuma|lipa)\b|\bconfirmed\b.*\bksh\b|\bM-?PESA\b.*\bconfirm/i;
+const MPESA_REF = /\b[A-Z0-9]{10}\b/;
 
 const STATUS_LABEL = {
   quoting: 'Being quoted',
@@ -111,16 +117,37 @@ export async function handleInbound(db, contact, message) {
         [order.id]
       );
       pushToStaff('wa_pipeline_update', { order_id: order.id, status: 'confirmed', contact_id: contact.id });
+      notifyStaff(db, {
+        title: 'Order confirmed — send payment details',
+        detail: `${contact.full_name || contact.phone} (${contact.customer_code || 'no code'}) confirmed KSh ${Number(order.quote_kes).toLocaleString('en-KE')}`,
+        dedupeKey: `confirmed:${order.id}`,
+      });
+      // M-Pesa STK is unavailable (provider withdrawn), so every payment
+      // is a Buy Goods transfer the team verifies by hand.
+      const till = process.env.MPESA_TILL_NUMBER || '';
       await sendToContact(db, contact, {
         templateKey: 'payment_prompt',
         templateParams: { amount_kes: String(order.quote_kes) },
         text:
-          `Great! Your order is confirmed at KSh ${Number(order.quote_kes).toLocaleString('en-KE')}. ` +
-          `We'll send an M-Pesa payment prompt to your phone shortly — just enter your PIN when it pops up. ` +
-          `If you'd rather pay another way, reply here and we'll help.`,
+          `Great! Your order is confirmed at KSh ${Number(order.quote_kes).toLocaleString('en-KE')}.\n\n` +
+          `To pay: Lipa na M-Pesa → Buy Goods${till ? ` → Till *${till}*` : ''} → ` +
+          `KSh ${Number(order.quote_kes).toLocaleString('en-KE')}.\n\n` +
+          `Reply here once you've paid and we'll confirm it right away.`,
       });
       return;
     }
+  }
+
+  // 3b. Customer says they've paid. With STK unavailable every payment is
+  // verified by hand, so this must reach a person immediately. We still
+  // let the AI reply (it reassures them) — this only adds the alert.
+  if (body && PAID_CLAIM.test(body)) {
+    const ref = (body.match(MPESA_REF) || [])[0];
+    notifyStaff(db, {
+      title: 'Payment claimed — verify on M-Pesa',
+      detail: `${contact.full_name || contact.phone} (${contact.customer_code || 'no code'}): "${body.slice(0, 160)}"${ref ? ` — ref ${ref}` : ''}`,
+      dedupeKey: `paid:${contact.id}:${ref || body.slice(0, 40)}`,
+    });
   }
 
   // 4. AI answer from the knowledge base — or the operator inbox.
@@ -140,8 +167,18 @@ export async function handleInbound(db, contact, message) {
         message: body,
         orderContext: await loadOrderContext(db, contact.id),
       });
-      if (reply) await sendToContact(db, contact, { text: reply });
-      // null = HANDOFF → stay silent; the inbox already has the message.
+      if (reply) {
+        await sendToContact(db, contact, { text: reply });
+      } else {
+        // HANDOFF — the AI deliberately stepped back (human requested,
+        // complaint, or something outside the knowledge base). Silence is
+        // right for the customer, but staff need to know now.
+        notifyStaff(db, {
+          title: 'Customer needs a human',
+          detail: `${contact.full_name || contact.phone} (${contact.customer_code || 'no code'}): "${body.slice(0, 200)}"`,
+          dedupeKey: `handoff:${contact.id}:${body.slice(0, 40)}`,
+        });
+      }
     } catch (e) {
       console.warn('[waStateMachine] AI fallthrough failed (non-fatal):', e?.message);
     }
@@ -280,6 +317,11 @@ async function aiOnboarding(db, contact, message, body, settings) {
       full_name: merged.full_name,
       phone: contact.phone,
     });
+    notifyStaff(db, {
+      title: 'New customer onboarded',
+      detail: `${merged.full_name || contact.phone} — ${customerCode} — ${merged.delivery_address || 'no address'}`,
+      dedupeKey: `onboarded:${contact.id}`,
+    });
     await sendToContact(db, contact, {
       templateKey: 'onboarded',
       templateParams: { customer_code: customerCode },
@@ -360,6 +402,11 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
         customer_code: customerCode,
         full_name: contact.full_name,
         phone: contact.phone,
+      });
+      notifyStaff(db, {
+        title: 'New customer onboarded',
+        detail: `${contact.full_name || contact.phone} — ${customerCode}`,
+        dedupeKey: `onboarded:${contact.id}`,
       });
       return sendToContact(db, contact, {
         templateKey: 'onboarded',

@@ -25,6 +25,12 @@ const DEFAULTS = {
   // GEMINI_API_KEY on the server; this flag is the operator kill-switch.
   ai_enabled: false,
   ai_knowledge_base: '',
+  // Staff WhatsApp alerts: numbers that receive the approved
+  // "staff_alert" template when something needs a human (new customer,
+  // customer confirmed a quote, customer says they paid, AI handed off).
+  // Empty list = alerts off.
+  staff_alert_numbers: [],
+  staff_alert_template: 'Staff_Alert',
 };
 
 function parseJsonOr(fallback, raw) {
@@ -50,6 +56,9 @@ export async function getWaSettings(db) {
         ? parseJsonOr({}, kv.template_map) : {},
       ai_enabled: kv.ai_enabled === 'true',
       ai_knowledge_base: kv.ai_knowledge_base ?? '',
+      staff_alert_numbers: Array.isArray(parseJsonOr(null, kv.staff_alert_numbers))
+        ? parseJsonOr([], kv.staff_alert_numbers) : [],
+      staff_alert_template: kv.staff_alert_template || DEFAULTS.staff_alert_template,
     };
   });
 }

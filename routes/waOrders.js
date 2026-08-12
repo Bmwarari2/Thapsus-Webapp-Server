@@ -31,6 +31,16 @@ const STAFF = requireRole('operator'); // admins pass via requireRole's bypass
 
 const MPESA_TILL = process.env.MPESA_TILL_NUMBER || '5530500';
 
+/**
+ * STK Push is only offered when an M-Pesa API provider is actually wired
+ * up. Lipana withdrew service (regulatory), so production runs
+ * MPESA_PROVIDER=manual: the customer pays the till and an admin approves
+ * the payment by hand. Surfaced to the dashboard so the STK button hides.
+ */
+function stkAvailable() {
+  return String(process.env.MPESA_PROVIDER || 'manual').toLowerCase().trim() === 'lipana';
+}
+
 const ORDER_SELECT = `
   SELECT o.*, c.phone, c.full_name, c.customer_code, c.delivery_address,
          c.mpesa_number
@@ -250,7 +260,15 @@ router.post('/:id/confirm', authMiddleware, STAFF, async (req, res) => {
  *            the payments queue ("Approve Payment" button).
  */
 router.post('/:id/request-payment', authMiddleware, STAFF, idempotency, async (req, res) => {
-  const method = req.body?.method === 'manual' ? 'manual' : 'stk';
+  // Default to manual — STK only when a provider is genuinely configured.
+  const method = (req.body?.method === 'stk' && stkAvailable()) ? 'stk' : 'manual';
+  if (req.body?.method === 'stk' && !stkAvailable()) {
+    return res.status(409).json({
+      success: false,
+      error: 'stk_unavailable',
+      message: 'M-Pesa STK Push is not available — send till instructions and approve the payment manually.',
+    });
+  }
   const purpose = req.body?.purpose === 'delivery_fee' ? 'delivery_fee' : 'order';
   try {
     const { rows } = await req.db.query(`${ORDER_SELECT} WHERE o.id = $1`, [req.params.id]);

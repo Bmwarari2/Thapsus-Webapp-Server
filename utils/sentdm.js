@@ -169,13 +169,16 @@ export async function fetchMessageActivities(messageId) {
  *
  * @returns {Promise<{messageId: string|null}>}
  */
-export async function sendTemplate(phoneDigits, templateName, parameters = {}, { idempotencyKey } = {}) {
+export async function sendTemplate(phoneDigits, templateRef, parameters = {}, { idempotencyKey } = {}) {
+  // Operators may paste either the template name or its UUID from the
+  // sent.dm console; the API takes one or the other (mutually exclusive).
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(templateRef));
   const data = await api('POST', '/v3/messages', {
     idempotencyKey,
     body: {
       to: [toE164(phoneDigits)],
       channel: ['whatsapp'],
-      template: { name: templateName, parameters },
+      template: { ...(isUuid ? { id: templateRef } : { name: templateRef }), parameters },
     },
   });
   return { messageId: data?.recipients?.[0]?.message_id ?? null };
