@@ -20,6 +20,11 @@ const DEFAULTS = {
   // Empty until WhatsApp templates are registered/approved; senders fall
   // back to free-form text (fine inside the 24h service window).
   template_map: {},
+  // Gemini assistant (utils/waAi.js): answers general questions from the
+  // knowledge base and interprets onboarding replies. Requires
+  // GEMINI_API_KEY on the server; this flag is the operator kill-switch.
+  ai_enabled: false,
+  ai_knowledge_base: '',
 };
 
 function parseJsonOr(fallback, raw) {
@@ -43,6 +48,8 @@ export async function getWaSettings(db) {
       template_map: (typeof parseJsonOr(null, kv.template_map) === 'object'
         && parseJsonOr(null, kv.template_map) !== null)
         ? parseJsonOr({}, kv.template_map) : {},
+      ai_enabled: kv.ai_enabled === 'true',
+      ai_knowledge_base: kv.ai_knowledge_base ?? '',
     };
   });
 }

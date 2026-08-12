@@ -24,6 +24,8 @@ export function WaSettings() {
           default_delivery_fee_kes: String(s.default_delivery_fee_kes),
           welcome_media_urls: (s.welcome_media_urls || []).join('\n'),
           template_map: JSON.stringify(s.template_map || {}, null, 2),
+          ai_enabled: s.ai_enabled === true,
+          ai_knowledge_base: s.ai_knowledge_base || '',
         })
       })
       .catch((e) => toast.error(e.response?.data?.message || 'Failed to load settings'))
@@ -43,6 +45,8 @@ export function WaSettings() {
         default_delivery_fee_kes: Number(form.default_delivery_fee_kes),
         welcome_media_urls: form.welcome_media_urls.split('\n').map((s) => s.trim()).filter(Boolean),
         template_map: templateMap,
+        ai_enabled: form.ai_enabled,
+        ai_knowledge_base: form.ai_knowledge_base,
       })
       toast.success('Settings saved')
     } catch (e) {
@@ -114,6 +118,31 @@ export function WaSettings() {
               Maps message keys (welcome, quote, payment_received, receipt, purchased, arrived_fee,
               arrived_waived, dispatched, delivered) to approved WhatsApp template names.
               Leave empty to send free-form text inside the 24h session window.
+            </p>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-5 space-y-4">
+          <label className="flex items-center justify-between cursor-pointer">
+            <div>
+              <span className="text-sm font-semibold text-white">AI assistant (Gemini)</span>
+              <p className="text-xs text-mute">
+                Answers general questions from the knowledge base and understands onboarding replies.
+                It never quotes prices, confirms orders, or touches payments — those stay with you.
+                Requires GEMINI_API_KEY on Railway.
+              </p>
+            </div>
+            <input type="checkbox" checked={form.ai_enabled} onChange={set('ai_enabled')}
+              className="w-5 h-5 accent-orange-600" />
+          </label>
+          <div>
+            <label className="block text-sm font-semibold text-white mb-1.5">Knowledge base</label>
+            <textarea rows={10} value={form.ai_knowledge_base} onChange={set('ai_knowledge_base')}
+              placeholder={"Facts the assistant may use, e.g.:\n- We buy from any online store abroad (Amazon, ASOS, Shein…)\n- Quotes: item price × live USD rate + 10% service margin\n- Typical delivery: 10–14 days from purchase to Nairobi\n- Delivery fee: KSh 300 within Nairobi (currently waived!)\n- Payment: M-Pesa only\n- Support hours: Mon–Sat 8am–6pm"}
+              className={`${inputCls} text-sm`} />
+            <p className="text-xs text-mute mt-1">
+              The assistant only states facts written here; anything else gets handed to you in the inbox.
+              If you're unsure, keep prices/timelines out and it will defer to the team.
             </p>
           </div>
         </GlassCard>

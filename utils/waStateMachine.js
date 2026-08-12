@@ -15,8 +15,15 @@
 //      exactly one order awaiting confirmation flips it to 'confirmed'
 //      and prompts for payment. Anything ambiguous falls through to a
 //      human.
-//   4. Everything else just sits in the operator inbox (the webhook
-//      already bumped unread + SSE before calling us).
+//   4. Everything else: when the Gemini layer is enabled (wa_settings
+//      ai_enabled + GEMINI_API_KEY), it answers from the operator's
+//      knowledge base; otherwise — and on any AI failure or handoff —
+//      the message just sits in the operator inbox (the webhook already
+//      bumped unread + SSE before calling us).
+//
+// The AI is consulted ONLY for onboarding interpretation and the final
+// fall-through. Money and state (tracking replies, confirmations, quotes,
+// payments, pipeline moves) run BEFORE it and stay fully deterministic.
 //
 // State lives entirely on wa_contacts.state — no in-memory sessions, so
 // deploys/restarts never lose a customer mid-onboarding.
@@ -26,6 +33,7 @@ import { extractTrackingCode, nextCustomerCode } from './waCodes.js';
 import { normalizeKenyanPhone } from './lipanaClient.js';
 import { pushToStaff } from '../routes/events.js';
 import { getWaSettings } from './waSettings.js';
+import { aiConfigured, chatReply, extractOnboardingField } from './waAi.js';
 
 const CONFIRM_WORDS = /^(yes+|yeah|yep|ok(ay)?|confirm(ed)?|proceed|sawa( sawa)?|ndio|ndiyo|poa|1)\b/i;
 
@@ -52,8 +60,12 @@ export async function handleInbound(db, contact, message) {
 
   const body = (message.body || '').trim();
 
+  let settings = null;
+  try { settings = await getWaSettings(db); } catch { /* run without AI */ }
+  const ai = Boolean(settings?.ai_enabled) && aiConfigured();
+
   if (contact.state !== 'active') {
-    return handleOnboarding(db, contact, body);
+    return handleOnboarding(db, contact, body, { ai, settings });
   }
 
   // 2. Tracking self-service.
@@ -98,7 +110,28 @@ export async function handleInbound(db, contact, message) {
     }
   }
 
-  // 4. Fall through to the operator inbox — nothing automated to do.
+  // 4. AI answer from the knowledge base — or the operator inbox.
+  if (ai && body) {
+    try {
+      const { rows: history } = await db.query(
+        `SELECT direction, body FROM (
+           SELECT direction, body, created_at FROM wa_messages
+            WHERE contact_id = $1 AND body IS NOT NULL AND id <> $2
+            ORDER BY created_at DESC LIMIT 10
+         ) h ORDER BY created_at ASC`,
+        [contact.id, message.id]
+      );
+      const reply = await chatReply({
+        knowledgeBase: settings.ai_knowledge_base,
+        history,
+        message: body,
+      });
+      if (reply) await sendToContact(db, contact, { text: reply });
+      // null = HANDOFF → stay silent; the inbox already has the message.
+    } catch (e) {
+      console.warn('[waStateMachine] AI fallthrough failed (non-fatal):', e?.message);
+    }
+  }
 }
 
 // ── Onboarding ──────────────────────────────────────────────────────────────
@@ -113,7 +146,30 @@ async function setState(db, contactId, state, fields = {}) {
   await db.query(`UPDATE wa_contacts SET ${sets.join(', ')} WHERE id = $1`, params);
 }
 
-async function handleOnboarding(db, contact, body) {
+/**
+ * When AI is on, interpret the customer's onboarding reply: returns the
+ * extracted field value, or null after sending the model's clarifying
+ * response (which answers whatever they actually said, then re-asks).
+ * Any AI failure returns the raw body so the deterministic path decides.
+ */
+async function interpretAnswer(db, contact, body, { ai, settings, field, fallbackReprompt }) {
+  if (!ai || !body) return body;
+  try {
+    const { value, reply } = await extractOnboardingField({
+      field,
+      message: body,
+      knowledgeBase: settings.ai_knowledge_base,
+    });
+    if (value) return value;
+    await sendToContact(db, contact, { text: reply || fallbackReprompt });
+    return null;
+  } catch (e) {
+    console.warn(`[waStateMachine] AI ${field} extraction failed (non-fatal):`, e?.message);
+    return body; // deterministic path takes over
+  }
+}
+
+async function handleOnboarding(db, contact, body, { ai = false, settings = null } = {}) {
   switch (contact.state) {
     case 'new': {
       await setState(db, contact.id, 'awaiting_name');
@@ -140,24 +196,34 @@ async function handleOnboarding(db, contact, body) {
     }
 
     case 'awaiting_name': {
-      if (body.length < 2 || /^https?:\/\//i.test(body)) {
+      const answer = await interpretAnswer(db, contact, body, {
+        ai, settings, field: 'full_name',
+        fallbackReprompt: `Please reply with your full name (as we should write it on your parcels).`,
+      });
+      if (answer === null) return; // AI already responded + re-asked
+      if (answer.length < 2 || /^https?:\/\//i.test(answer)) {
         return sendToContact(db, contact, {
           text: `Please reply with your full name (as we should write it on your parcels).`,
         });
       }
-      await setState(db, contact.id, 'awaiting_address', { full_name: body.slice(0, 120) });
+      await setState(db, contact.id, 'awaiting_address', { full_name: answer.slice(0, 120) });
       return sendToContact(db, contact, {
-        text: `Thanks ${body.split(/\s+/)[0]}! What's your delivery address? (Estate/building, street, town)`,
+        text: `Thanks ${answer.split(/\s+/)[0]}! What's your delivery address? (Estate/building, street, town)`,
       });
     }
 
     case 'awaiting_address': {
-      if (body.length < 5) {
+      const answer = await interpretAnswer(db, contact, body, {
+        ai, settings, field: 'delivery_address',
+        fallbackReprompt: `Please send your delivery address — estate/building, street and town — so our rider can find you.`,
+      });
+      if (answer === null) return;
+      if (answer.length < 5) {
         return sendToContact(db, contact, {
           text: `Please send your delivery address — estate/building, street and town — so our rider can find you.`,
         });
       }
-      await setState(db, contact.id, 'awaiting_mpesa', { delivery_address: body.slice(0, 400) });
+      await setState(db, contact.id, 'awaiting_mpesa', { delivery_address: answer.slice(0, 400) });
       return sendToContact(db, contact, {
         text: `Almost done! Which M-Pesa number will you pay with? (You can reply "this one" to use this WhatsApp number.)`,
       });
@@ -165,7 +231,19 @@ async function handleOnboarding(db, contact, body) {
 
     case 'awaiting_mpesa': {
       const useThis = /^(this( one| number)?|same|hii)$/i.test(body);
-      const normalized = normalizeKenyanPhone(useThis ? contact.phone : body);
+      let candidate = body;
+      if (!useThis && !normalizeKenyanPhone(body)) {
+        // Not obviously a phone number — let the AI figure out what they
+        // meant (a question, a number written with words, etc).
+        const answer = await interpretAnswer(db, contact, body, {
+          ai, settings, field: 'mpesa_number',
+          fallbackReprompt: `That doesn't look like a valid Kenyan M-Pesa number 🤔 — please send it like 0712 345 678.`,
+        });
+        if (answer === null) return;
+        candidate = answer;
+      }
+      // normalizeKenyanPhone stays the hard gate no matter what the AI said.
+      const normalized = normalizeKenyanPhone(useThis ? contact.phone : candidate);
       if (!normalized) {
         return sendToContact(db, contact, {
           text: `That doesn't look like a valid Kenyan M-Pesa number 🤔 — please send it like 0712 345 678.`,

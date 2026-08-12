@@ -49,10 +49,13 @@ describe('onboarding', () => {
   });
 
   it('sends configured welcome media after the welcome text', async () => {
-    getWaSettings.mockResolvedValueOnce({
+    // handleInbound reads settings at dispatch time AND inside the
+    // welcome branch — cover both reads.
+    const settings = {
       welcome_media_urls: ['https://cdn.example.com/how-it-works.png'],
       template_map: {},
-    });
+    };
+    getWaSettings.mockResolvedValueOnce(settings).mockResolvedValueOnce(settings);
     const db = makeDb();
     await handleInbound(db, contact({ state: 'new' }), { id: 'm', body: 'Hi' });
     const mediaSend = sendToContact.mock.calls.find(([, , o]) => o.mediaUrl);
@@ -180,5 +183,106 @@ describe('quote confirmation', () => {
     await handleInbound(db, contact({ state: 'blocked' }), { id: 'm', body: 'yes' });
     expect(db.query).not.toHaveBeenCalled();
     expect(sendToContact).not.toHaveBeenCalled();
+  });
+});
+
+// ── Gemini layer ─────────────────────────────────────────────────────────────
+// waAi is module-mocked (hoisted); aiConfigured defaults to false so every
+// pre-AI test above runs the deterministic paths unchanged.
+vi.mock('../../utils/waAi.js', () => ({
+  HANDOFF: 'HANDOFF',
+  aiConfigured: vi.fn(() => false),
+  chatReply: vi.fn(),
+  extractOnboardingField: vi.fn(),
+}));
+
+describe('AI assistant integration', () => {
+  const aiSettings = {
+    markup_pct: 10, promo_active: false, promo_type: 'waive_fee',
+    promo_message: '', default_delivery_fee_kes: 300,
+    welcome_media_urls: [], template_map: {},
+    ai_enabled: true, ai_knowledge_base: 'Delivery takes 10-14 days.',
+  };
+
+  async function ai() {
+    const waAi = await import('../../utils/waAi.js');
+    waAi.aiConfigured.mockReturnValue(true);
+    getWaSettings.mockResolvedValue(aiSettings);
+    return waAi;
+  }
+
+  it('answers a fall-through question from the knowledge base', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce('Delivery usually takes 10-14 days. Asante!');
+    const db = makeDb(async (sql) => {
+      if (sql.includes('FROM wa_messages')) return { rows: [{ direction: 'in', body: 'Hi' }] };
+      return { rows: [] };
+    });
+    await handleInbound(db, contact(), { id: 'm1', body: 'How long does delivery take?' });
+    expect(sendToContact).toHaveBeenCalledTimes(1);
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/10-14 days/);
+  });
+
+  it('stays silent on HANDOFF (message stays with the operator)', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce(null);
+    const db = makeDb(async () => ({ rows: [] }));
+    await handleInbound(db, contact(), { id: 'm1', body: 'I want to complain about my order' });
+    expect(sendToContact).not.toHaveBeenCalled();
+  });
+
+  it('stays silent when the AI call throws (fail-safe to inbox)', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockRejectedValueOnce(new Error('Gemini HTTP 500'));
+    const db = makeDb(async () => ({ rows: [] }));
+    await handleInbound(db, contact(), { id: 'm1', body: 'Random question' });
+    expect(sendToContact).not.toHaveBeenCalled();
+  });
+
+  it('extracts the name from a chatty onboarding reply', async () => {
+    const waAi = await ai();
+    waAi.extractOnboardingField.mockResolvedValueOnce({ value: 'John Kamau', reply: null });
+    const db = makeDb();
+    await handleInbound(db, contact({ state: 'awaiting_name' }),
+      { id: 'm1', body: 'oh sure, the name is John Kamau by the way' });
+    const update = db.query.mock.calls.find(([sql]) => sql.includes('full_name'));
+    expect(update[1]).toContain('John Kamau');
+  });
+
+  it('sends the AI clarifying reply when the customer said something else', async () => {
+    const waAi = await ai();
+    waAi.extractOnboardingField.mockResolvedValueOnce({
+      value: null,
+      reply: 'Karibu! We deliver in 10-14 days. What name should we put on your parcels?',
+    });
+    const db = makeDb();
+    await handleInbound(db, contact({ state: 'awaiting_name' }), { id: 'm1', body: 'hi, how long is delivery?' });
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('full_name'))).toBe(false);
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/what name/i);
+  });
+
+  it('tracking codes bypass the AI entirely (deterministic first)', async () => {
+    const waAi = await ai();
+    const db = makeDb(async (sql) => {
+      if (sql.includes('tracking_code')) {
+        return { rows: [{ id: 'o1', status: 'paid', tracking_code: 'TRK-8821',
+          paid_at: '2026-08-01', purchased_at: null, arrived_at: null,
+          dispatched_at: null, delivered_at: null,
+          delivery_fee_waived: false, delivery_fee_kes: null, customer_code: 'TC-1042' }] };
+      }
+      return { rows: [] };
+    });
+    await handleInbound(db, contact(), { id: 'm1', body: 'TRK-8821' });
+    expect(waAi.chatReply).not.toHaveBeenCalled();
+    expect(sendToContact.mock.calls[0][2].text).toContain('TRK-8821');
+  });
+
+  it('an invalid AI-extracted M-Pesa number is still rejected by the hard gate', async () => {
+    const waAi = await ai();
+    waAi.extractOnboardingField.mockResolvedValueOnce({ value: '12345', reply: null });
+    const db = makeDb();
+    await handleInbound(db, contact({ state: 'awaiting_mpesa' }), { id: 'm1', body: 'use one two three' });
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('mpesa_number'))).toBe(false);
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/valid/i);
   });
 });

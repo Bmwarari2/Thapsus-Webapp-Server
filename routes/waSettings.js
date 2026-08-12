@@ -86,6 +86,15 @@ router.put('/', authMiddleware, isAdmin, async (req, res) => {
       }
       updates.push(['welcome_media_urls', JSON.stringify(body.welcome_media_urls)]);
     }
+    if (body.ai_enabled !== undefined) {
+      updates.push(['ai_enabled', body.ai_enabled === true ? 'true' : 'false']);
+    }
+    if (body.ai_knowledge_base !== undefined) {
+      if (typeof body.ai_knowledge_base !== 'string' || body.ai_knowledge_base.length > 20_000) {
+        return res.status(400).json({ success: false, message: 'ai_knowledge_base must be a string (max 20000 chars)' });
+      }
+      updates.push(['ai_knowledge_base', body.ai_knowledge_base.trim()]);
+    }
     if (body.template_map !== undefined) {
       if (typeof body.template_map !== 'object' || body.template_map === null || Array.isArray(body.template_map)
           || Object.entries(body.template_map).some(([k, v]) =>
