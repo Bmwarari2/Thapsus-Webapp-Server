@@ -125,27 +125,35 @@ export function flattenForFreeText(text) {
     .trim();
 }
 
+// Set the first time the API rejects line structure. After that we
+// flatten up front instead of paying a rejected round-trip on every
+// multi-line message. Resets on restart, so if sent.dm ever starts
+// accepting newlines the next deploy picks that up for free.
+let freeTextRejectsNewlines = false;
+
 /**
  * Send a free-form text (works inside WhatsApp's 24h customer-service
  * window, which every reply-to-a-customer flow is in). Multi-line bodies
- * are sent as-is first, and retried flattened when the API rejects the
- * line structure (VALIDATION_008) — so if sent.dm ever starts accepting
- * newlines, formatting comes back for free.
+ * are tried as-is and retried flattened when the API rejects the line
+ * structure (VALIDATION_008).
  *
  * @returns {Promise<{messageId: string|null}>}
  */
 export async function sendText(phoneDigits, text, { idempotencyKey } = {}) {
+  const flattened = flattenForFreeText(text);
+  const body = freeTextRejectsNewlines ? flattened : text;
   try {
     const data = await api('POST', '/v3/messages', {
       idempotencyKey,
-      body: { to: [toE164(phoneDigits)], channel: ['whatsapp'], text },
+      body: { to: [toE164(phoneDigits)], channel: ['whatsapp'], text: body },
     });
     return { messageId: data?.recipients?.[0]?.message_id ?? null };
   } catch (e) {
-    const flattened = flattenForFreeText(text);
     const validationReject = e instanceof SentDmError
       && (String(e.code).startsWith('VALIDATION') || /template variable/i.test(e.message));
-    if (!validationReject || flattened === text) throw e;
+    if (!validationReject || flattened === body) throw e;
+    freeTextRejectsNewlines = true;
+    console.warn('[sentdm] free text rejected newlines — flattening from here on');
     // Fresh idempotency key — the original is cached with the rejection.
     const data = await api('POST', '/v3/messages', {
       idempotencyKey: idempotencyKey ? `${idempotencyKey}-flat` : undefined,

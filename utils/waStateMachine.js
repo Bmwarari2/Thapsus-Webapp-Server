@@ -598,19 +598,79 @@ async function replyTrackingStatus(db, contact, trackingCode) {
     });
   }
 
-  const lines = [`*${trackingCode}* — ${STATUS_LABEL[order.status] || order.status}`];
-  const steps = [
+  const day = (d) => new Date(d).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  // A labelled block beats a list of dates: the customer wants to know
+  // where the parcel is, how far along that is, and what happens next.
+  // Written to survive sent.dm's newline flattening — every line stands
+  // on its own once the breaks become " · " separators.
+  const lines = [
+    `Order *${trackingCode}*`,
+    `Status: ${STATUS_LABEL[order.status] || order.status}`,
+    `Progress: ${progressBar(order.status)}`,
+  ];
+
+  const [lastLabel, lastAt] = latestMilestone(order);
+  if (lastAt) lines.push(`${lastLabel}: ${day(lastAt)}`);
+
+  const next = NEXT_STEP[order.status];
+  if (next) lines.push(`Next: ${next}`);
+
+  if (order.quote_kes) {
+    lines.push(`${order.paid_at ? 'Paid' : 'Order total'}: KSh ${Number(order.quote_kes).toLocaleString('en-KE')}`);
+  }
+  if (order.status === 'delivery_fee_pending' && !order.delivery_fee_waived
+      && !order.delivery_fee_paid_at && Number(order.delivery_fee_kes) > 0) {
+    lines.push(
+      `Delivery fee due: KSh ${Number(order.delivery_fee_kes).toLocaleString('en-KE')} ` +
+      `— Lipa na M-Pesa, Buy Goods, Till ${mpesaTill()}, then reply here.`
+    );
+  }
+  lines.push('Reply here if you need anything else.');
+
+  return sendToContact(db, contact, { text: lines.join('\n') });
+}
+
+// The five customer-visible stages, in order. Statuses before payment
+// can't be reached by a tracking lookup (the code is minted on payment),
+// so the bar always starts at Paid.
+const JOURNEY = [
+  { key: 'paid', label: 'Paid' },
+  { key: 'purchased', label: 'Purchased' },
+  { key: 'in_kenya', label: 'In Kenya' },
+  { key: 'dispatched', label: 'Out for delivery' },
+  { key: 'delivered', label: 'Delivered' },
+];
+
+// Which journey stage each order status sits at.
+const STAGE_OF = {
+  quoting: -1, quoted: -1, confirmed: -1,
+  paid: 0, purchased: 1, in_kenya: 2, delivery_fee_pending: 2,
+  dispatched: 3, delivered: 4,
+};
+
+const NEXT_STEP = {
+  paid: "we're buying your item now",
+  purchased: "it's on its way to our facility",
+  in_kenya: "we'll dispatch it to your address shortly",
+  delivery_fee_pending: 'pay the delivery fee and we dispatch',
+  dispatched: 'our rider will call you on arrival, usually within 24 hours',
+};
+
+/** `Paid > Purchased > In Kenya > *Out for delivery* > Delivered` */
+function progressBar(status) {
+  const at = STAGE_OF[status] ?? -1;
+  return JOURNEY.map((s, i) => (i === at ? `*${s.label}*` : s.label)).join(' > ');
+}
+
+/** The most recent stage that actually has a timestamp. */
+function latestMilestone(order) {
+  const stamps = [
     ['Paid', order.paid_at],
     ['Purchased', order.purchased_at],
     ['Arrived in Kenya', order.arrived_at],
-    ['Out for delivery', order.dispatched_at],
+    ['Dispatched', order.dispatched_at],
     ['Delivered', order.delivered_at],
-  ];
-  for (const [label, at] of steps) {
-    if (at) lines.push(`${label} — ${new Date(at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}`);
-  }
-  if (order.status === 'delivery_fee_pending' && !order.delivery_fee_waived && order.delivery_fee_kes) {
-    lines.push(`\nLast-mile delivery fee: KSh ${Number(order.delivery_fee_kes).toLocaleString('en-KE')} — pay it on Buy Goods, Till ${mpesaTill()}, then reply here.`);
-  }
-  return sendToContact(db, contact, { text: lines.join('\n') });
+  ].filter(([, at]) => at);
+  return stamps.length ? stamps[stamps.length - 1] : [null, null];
 }

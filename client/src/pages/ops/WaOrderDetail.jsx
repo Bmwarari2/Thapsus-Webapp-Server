@@ -109,6 +109,11 @@ export function WaOrderDetail() {
   const feePayable = ['in_kenya', 'delivery_fee_pending'].includes(order.status)
     && !order.delivery_fee_waived && !order.delivery_fee_paid_at && Number(order.delivery_fee_kes) > 0
   const isAdmin = user?.role === 'admin'
+  // Label needs something to call the item: the operator's note, else
+  // the retailer host off the first product link.
+  const itemName = order.product_note
+    || (links[0] ? (() => { try { return `Order from ${new URL(links[0]).hostname.replace(/^www\./, '')}` } catch { return '' } })() : '')
+    || 'Personal effects'
   // What the customer still owes, by stage — mirrors the server's rule in
   // POST /wa/orders/:id/mark-paid.
   const outstandingKes = ['quoting', 'quoted', 'confirmed'].includes(order.status)
@@ -350,8 +355,12 @@ export function WaOrderDetail() {
           <div className="bg-white rounded-xl p-4 max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
             <PrintableParcelLabel parcel={{
               tracking_number: order.tracking_code,
-              description: `${order.full_name || ''} — ${order.customer_code || ''}`,
-              user_name: order.full_name,
+              name: order.full_name,
+              customer_code: order.customer_code,
+              phone: order.phone,
+              delivery_address: order.delivery_address,
+              description: itemName,
+              created_at: order.created_at,
             }} />
             <div className="flex gap-2 mt-3 print:hidden">
               <button onClick={() => window.print()}

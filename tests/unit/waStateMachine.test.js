@@ -25,6 +25,7 @@ import { sendToContact } from '../../utils/waSend.js';
 import { pushToStaff } from '../../routes/events.js';
 import { getWaSettings } from '../../utils/waSettings.js';
 import { notifyStaff } from '../../utils/waStaffAlert.js';
+import { flattenForFreeText } from '../../utils/sentdm.js';
 
 function makeDb(queryImpl) {
   return { query: vi.fn(queryImpl ?? (async () => ({ rows: [], rowCount: 0 }))) };
@@ -143,6 +144,59 @@ describe('tracking auto-reply', () => {
     const db = makeDb(async () => ({ rows: [] }));
     await handleInbound(db, contact(), { id: 'm', body: 'TRK-999999' });
     expect(sendToContact.mock.calls[0][2].text).toMatch(/couldn't find/i);
+  });
+
+  // The reply used to be a bare list of dates. It's now a labelled block
+  // with a progress bar and a what-happens-next line, and it has to stay
+  // legible after sent.dm flattens newlines into " · " separators.
+  function trackedOrder(over = {}) {
+    return {
+      id: 'o1', status: 'dispatched', tracking_code: 'TRK-8821', quote_kes: '17094',
+      paid_at: '2026-08-01', purchased_at: '2026-08-02', arrived_at: '2026-08-10',
+      dispatched_at: '2026-08-12', delivered_at: null,
+      delivery_fee_waived: false, delivery_fee_kes: null, delivery_fee_paid_at: null,
+      customer_code: 'TC-1042', ...over,
+    };
+  }
+  const trackDb = (over) => makeDb(async (sql) =>
+    (sql.includes('tracking_code') ? { rows: [trackedOrder(over)] } : { rows: [] }));
+
+  it('answers with a labelled block, not a pile of dates', async () => {
+    await handleInbound(trackDb(), contact(), { id: 'm', body: 'TRK-8821' });
+    const reply = sendToContact.mock.calls[0][2].text;
+    expect(reply).toContain('Order *TRK-8821*');
+    expect(reply).toContain('Status: Out for delivery');
+    expect(reply).toContain('Progress: Paid > Purchased > In Kenya > *Out for delivery* > Delivered');
+    expect(reply).toContain('Dispatched: 12 Aug 2026');
+    expect(reply).toMatch(/Next: our rider will call you/);
+    expect(reply).toContain('Paid: KSh 17,094');
+    // Only the newest milestone, not every one of them.
+    expect(reply).not.toContain('Purchased: ');
+  });
+
+  it('bolds the stage the parcel is actually at', async () => {
+    await handleInbound(trackDb({ status: 'in_kenya', dispatched_at: null }), contact(),
+      { id: 'm', body: 'TRK-8821' });
+    expect(sendToContact.mock.calls[0][2].text)
+      .toContain('Paid > Purchased > *In Kenya* > Out for delivery > Delivered');
+  });
+
+  it('spells out an outstanding delivery fee with the till', async () => {
+    await handleInbound(
+      trackDb({ status: 'delivery_fee_pending', dispatched_at: null, delivery_fee_kes: '300' }),
+      contact(), { id: 'm', body: 'TRK-8821' });
+    const reply = sendToContact.mock.calls[0][2].text;
+    expect(reply).toMatch(/Delivery fee due: KSh 300/);
+    expect(reply).toMatch(/Buy Goods, Till \d+/);
+  });
+
+  it('stays readable once sent.dm flattens the newlines', async () => {
+    await handleInbound(trackDb(), contact(), { id: 'm', body: 'TRK-8821' });
+    const flat = flattenForFreeText(sendToContact.mock.calls[0][2].text);
+    expect(flat).not.toContain('\n');
+    // Every line keeps its own label, so the flattened form still parses
+    // as separate facts rather than one run-on sentence.
+    expect(flat).toMatch(/Order \*TRK-8821\* · Status: Out for delivery · Progress:/);
   });
 });
 

@@ -2,8 +2,16 @@
 //
 // One-page branded payment receipt for the WhatsApp flow. Rendered with
 // pdfkit (pure JS — no headless browser, Railway-safe), uploaded to the
-// private Supabase Storage bucket 'receipts', delivered to the customer
-// as a 7-day signed URL over WhatsApp.
+// private Supabase Storage bucket 'receipts', and delivered to the
+// customer as a short /r/ link over WhatsApp (see utils/receiptLink.js).
+//
+// Layout follows the invoice convention the owner asked for: a full-
+// height brand rail down the left edge, the word RECEIPT set large at
+// the top right over its number and date, an itemised table with ruled
+// columns, and a totals block bottom-right facing a terms block
+// bottom-left. Everything is laid out in absolute coordinates against
+// the constants below rather than pdfkit's text cursor, because the
+// cursor drifts as soon as a value wraps.
 //
 // The 'receipts' bucket must exist (private). Created during cutover —
 // see the deploy notes in .env.example / the cutover checklist.
@@ -14,6 +22,20 @@ import { getSupabaseAdmin } from './supabaseAdmin.js';
 const BRAND = '#c2410c';      // Thapsus ember orange
 const INK = '#111827';
 const MUTED = '#6b7280';
+const RULE = '#e5e7eb';
+const PANEL = '#f9fafb';
+
+// A5 (419.53 × 595.28pt), not A4: every one of these is opened on a
+// phone from a WhatsApp link, and A4 leaves a third of the page empty
+// under a two-line receipt. A5 still prints cleanly, scaled onto A4.
+// The rail eats the left edge; content runs LEFT → RIGHT with the
+// totals column right-aligned at RIGHT.
+const RAIL_W = 16;
+const LEFT = 42;
+const RIGHT = 396;
+const WIDTH = RIGHT - LEFT;
+
+const kes = (v) => `KSh ${Math.round(Number(v) || 0).toLocaleString('en-KE')}`;
 
 /**
  * @param {object} p
@@ -24,79 +46,246 @@ const MUTED = '#6b7280';
  */
 export function renderReceiptPdf({ order, contact, payment }) {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    const doc = new PDFDocument({ size: 'A5', margin: 0 });
     const chunks = [];
     doc.on('data', (c) => chunks.push(c));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    // Header
-    doc.fontSize(22).fillColor(BRAND).font('Helvetica-Bold').text('THAPSUS CARGO');
-    doc.fontSize(10).fillColor(MUTED).font('Helvetica')
-      .text('Shop the world, delivered to Kenya', { paddingTop: 2 });
-    doc.moveDown(0.5);
-    doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor(BRAND).lineWidth(2).stroke();
-    doc.moveDown(1);
+    const H = doc.page.height;
 
-    doc.fontSize(16).fillColor(INK).font('Helvetica-Bold').text('Payment Receipt');
-    doc.moveDown(0.8);
+    // ── Brand rail + masthead band ──────────────────────────────────
+    doc.rect(0, 0, RAIL_W, H).fill(BRAND);
+    doc.rect(RAIL_W, 0, doc.page.width - RAIL_W, 112).fill(INK);
 
+    doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(19)
+      .text('THAPSUS CARGO', LEFT, 30, { characterSpacing: 1 });
+    doc.font('Helvetica').fontSize(7).fillColor('#d1d5db')
+      .text('SHOP THE WORLD, DELIVERED TO KENYA', LEFT, 52, { characterSpacing: 0.9 });
+    doc.fontSize(7).fillColor('#9ca3af')
+      .text('WhatsApp support · thapsus.uk', LEFT, 66);
+
+    // RECEIPT wordmark, right-aligned in the band.
+    doc.font('Helvetica-Bold').fontSize(22).fillColor('#ffffff')
+      .text('RECEIPT', LEFT, 28, { width: WIDTH, align: 'right', characterSpacing: 1.8 });
     const paidAt = payment.paid_at ? new Date(payment.paid_at) : new Date();
-    const rows = [
-      ['Receipt no.', payment.id],
-      ['Date', paidAt.toLocaleString('en-KE', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Africa/Nairobi' })],
-      ['Customer', `${contact.full_name || '—'} (${contact.customer_code || '—'})`],
+    doc.font('Helvetica').fontSize(9).fillColor('#d1d5db')
+      .text(`No. ${payment.id}`, LEFT, 57, { width: WIDTH, align: 'right' })
+      .text(
+        paidAt.toLocaleDateString('en-KE', { dateStyle: 'long', timeZone: 'Africa/Nairobi' }),
+        LEFT, 69, { width: WIDTH, align: 'right' }
+      );
+
+    // PAID stamp — the one thing a customer scans for.
+    doc.roundedRect(RIGHT - 54, 84, 54, 16, 3).fill(BRAND);
+    doc.font('Helvetica-Bold').fontSize(8).fillColor('#ffffff')
+      .text('PAID', RIGHT - 54, 89, { width: 54, align: 'center', characterSpacing: 1.4 });
+
+    // ── Billed-to / order meta, two columns ─────────────────────────
+    let y = 134;
+    doc.font('Helvetica-Bold').fontSize(8).fillColor(MUTED)
+      .text('BILLED TO', LEFT, y, { characterSpacing: 0.8 });
+    doc.text('ORDER', LEFT + 200, y, { characterSpacing: 0.8 });
+    y += 14;
+
+    doc.font('Helvetica-Bold').fontSize(10.5).fillColor(INK)
+      .text(contact.full_name || '—', LEFT, y, { width: 185 });
+    doc.font('Helvetica').fontSize(8.5).fillColor(MUTED);
+    let leftY = doc.y + 2;
+    if (contact.customer_code) {
+      doc.text(`Customer code ${contact.customer_code}`, LEFT, leftY, { width: 185 });
+      leftY = doc.y;
+    }
+    if (contact.phone) {
+      doc.text(`+${String(contact.phone).replace(/^\+/, '')}`, LEFT, leftY, { width: 185 });
+      leftY = doc.y;
+    }
+    if (contact.delivery_address) {
+      doc.text(contact.delivery_address, LEFT, leftY + 1, { width: 175 });
+      leftY = doc.y;
+    }
+
+    const meta = [
       ['Tracking code', order.tracking_code || 'Assigned shortly'],
       ['Payment method', 'M-Pesa'],
       ...(payment.mpesa_reference ? [['M-Pesa reference', payment.mpesa_reference]] : []),
     ];
-
-    for (const [label, value] of rows) {
-      const y = doc.y;
-      doc.fontSize(10).fillColor(MUTED).font('Helvetica').text(label, 50, y, { width: 150 });
-      doc.fontSize(10).fillColor(INK).font('Helvetica-Bold').text(String(value), 210, y, { width: 335 });
-      doc.moveDown(0.6);
+    let rightY = y;
+    for (const [label, value] of meta) {
+      doc.font('Helvetica').fontSize(8).fillColor(MUTED)
+        .text(label, LEFT + 200, rightY, { width: 154 });
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(INK)
+        .text(String(value), LEFT + 200, rightY + 10, { width: 154 });
+      rightY = doc.y + 5;
     }
 
-    doc.moveDown(0.8);
-    doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#e5e7eb').lineWidth(1).stroke();
-    doc.moveDown(0.8);
+    // ── Itemised table ──────────────────────────────────────────────
+    y = Math.max(leftY, rightY) + 18;
+    const COL = { desc: LEFT + 7, unit: LEFT + 170, qty: LEFT + 236, total: LEFT + 275 };
+    const COL_W = { desc: 165, unit: 60, qty: 32, total: 72 };
 
-    // Amount breakdown (quote snapshot). All money fields optional-safe.
-    const usd = order.usd_price != null ? Number(order.usd_price) : null;
-    const rate = order.fx_rate != null ? Number(order.fx_rate) : null;
-    const markup = order.markup_pct != null ? Number(order.markup_pct) : null;
-    const kes = (v) => `KSh ${Number(v).toLocaleString('en-KE')}`;
+    doc.rect(LEFT, y, WIDTH, 20).fill(INK);
+    doc.font('Helvetica-Bold').fontSize(7).fillColor('#ffffff');
+    doc.text('DESCRIPTION', COL.desc, y + 7, { width: COL_W.desc, characterSpacing: 0.6 });
+    doc.text('UNIT', COL.unit, y + 7, { width: COL_W.unit, align: 'right', characterSpacing: 0.6 });
+    doc.text('QTY', COL.qty, y + 7, { width: COL_W.qty, align: 'right', characterSpacing: 0.6 });
+    doc.text('AMOUNT', COL.total, y + 7, { width: COL_W.total, align: 'right', characterSpacing: 0.6 });
+    y += 20;
 
-    doc.fontSize(12).fillColor(INK).font('Helvetica-Bold').text('Order summary', 50);
-    doc.moveDown(0.5);
-    const money = [
-      ...(usd != null ? [['Item price', `$${usd.toFixed(2)} USD`]] : []),
-      ...(rate != null ? [['Exchange rate', `1 USD = ${rate.toFixed(2)} KES`]] : []),
-      ...(markup != null ? [['Service margin', `${markup.toFixed(0)}%`]] : []),
-      ['Amount paid', kes(payment.amount_due_kes ?? order.quote_kes ?? 0)],
-    ];
-    for (const [label, value] of money) {
-      const y = doc.y;
-      const isTotal = label === 'Amount paid';
-      doc.fontSize(isTotal ? 12 : 10).fillColor(isTotal ? BRAND : MUTED)
-        .font(isTotal ? 'Helvetica-Bold' : 'Helvetica').text(label, 50, y, { width: 150 });
-      doc.fontSize(isTotal ? 12 : 10).fillColor(isTotal ? BRAND : INK)
-        .font('Helvetica-Bold').text(String(value), 210, y, { width: 335 });
-      doc.moveDown(isTotal ? 0.8 : 0.6);
+    const { goodsKes, serviceKes, total, items } = receiptLineItems({ order, payment });
+
+    doc.font('Helvetica');
+    for (const [i, item] of items.entries()) {
+      const rowH = 30;
+      if (i % 2 === 1) doc.rect(LEFT, y, WIDTH, rowH).fill(PANEL);
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(INK)
+        .text(item.desc, COL.desc, y + 6, { width: COL_W.desc, ellipsis: true, height: 11 });
+      doc.font('Helvetica').fontSize(7).fillColor(MUTED)
+        .text(item.sub, COL.desc, y + 17, { width: COL_W.desc, ellipsis: true, height: 9 });
+      doc.font('Helvetica').fontSize(8.5).fillColor(INK);
+      doc.text(item.unit, COL.unit, y + 11, { width: COL_W.unit, align: 'right' });
+      doc.text(item.qty, COL.qty, y + 11, { width: COL_W.qty, align: 'right' });
+      doc.font('Helvetica-Bold')
+        .text(item.amount, COL.total, y + 11, { width: COL_W.total, align: 'right' });
+      y += rowH;
+      doc.moveTo(LEFT, y).lineTo(RIGHT, y).lineWidth(0.5).strokeColor(RULE).stroke();
     }
 
-    doc.moveDown(1.5);
-    doc.fontSize(9).fillColor(MUTED).font('Helvetica').text(
-      `Track your parcel any time: message your tracking code to our WhatsApp line. ` +
-      `Keep your customer code (${contact.customer_code || '—'}) for all future orders.`,
-      50, doc.y, { width: 495 }
+    // ── Totals block, right-aligned under the table ─────────────────
+    const totalsTop = y + 10;
+    const labelX = LEFT + 176;
+    const valueX = COL.total;
+    let ty = totalsTop;
+    const totalRow = (label, value, strong = false) => {
+      doc.font(strong ? 'Helvetica-Bold' : 'Helvetica').fontSize(strong ? 9 : 8.5)
+        .fillColor(strong ? INK : MUTED)
+        .text(label, labelX, ty, { width: 98, align: 'right' });
+      doc.font('Helvetica-Bold').fontSize(strong ? 9 : 8.5).fillColor(INK)
+        .text(value, valueX, ty, { width: COL_W.total, align: 'right' });
+      ty += 14;
+    };
+    totalRow('Subtotal', kes(goodsKes));
+    if (serviceKes > 0) totalRow('Service', kes(serviceKes));
+    totalRow('VAT', 'Not applicable');
+
+    doc.rect(labelX, ty + 2, RIGHT - labelX, 24).fill(BRAND);
+    doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#ffffff')
+      .text('TOTAL PAID', labelX + 8, ty + 11, { width: 80, characterSpacing: 0.6 });
+    doc.fontSize(11)
+      .text(kes(total), valueX - 8, ty + 9, { width: COL_W.total, align: 'right' });
+    ty += 34;
+
+    // ── Terms block, facing the totals ──────────────────────────────
+    doc.font('Helvetica-Bold').fontSize(8).fillColor(MUTED)
+      .text('TERMS & NEXT STEPS', LEFT, totalsTop, { characterSpacing: 0.8 });
+    doc.font('Helvetica').fontSize(7.5).fillColor(MUTED).text(
+      order.tracking_code
+        ? `Text ${order.tracking_code} to our WhatsApp line any time for a live status update. `
+          + 'A last-mile delivery fee may apply when the parcel lands in Kenya; we will tell you '
+          + 'before dispatch. Keep this receipt for your records.'
+        : 'Text your tracking code to our WhatsApp line any time for a live status update. '
+          + 'Keep this receipt for your records.',
+      LEFT, totalsTop + 12, { width: 160, lineGap: 1.5 }
     );
-    doc.moveDown(0.5);
-    doc.fontSize(9).fillColor(MUTED).text('Asante for shopping with Thapsus Cargo.', 50);
+
+    // ── Journey strip ───────────────────────────────────────────────
+    // Fills the space a two-line invoice leaves on A4 with the one thing
+    // a parcel customer actually wants next: where this order goes from
+    // here, and which stage it's at right now.
+    const stripY = Math.max(ty, doc.y) + 22;
+    doc.font('Helvetica-Bold').fontSize(8).fillColor(MUTED)
+      .text('WHAT HAPPENS NEXT', LEFT, stripY, { characterSpacing: 0.8 });
+
+    const STAGES = ['Paid', 'Purchased', 'In Kenya', 'Out for delivery', 'Delivered'];
+    const reached = STAGE_INDEX[order.status] ?? 0;
+    const dotY = stripY + 26;
+    const gap = (WIDTH - 10) / (STAGES.length - 1);
+
+    doc.moveTo(LEFT + 5, dotY).lineTo(RIGHT - 5, dotY)
+      .lineWidth(1).strokeColor(RULE).stroke();
+    if (reached > 0) {
+      doc.moveTo(LEFT + 5, dotY).lineTo(LEFT + 5 + gap * reached, dotY)
+        .lineWidth(1.5).strokeColor(BRAND).stroke();
+    }
+    STAGES.forEach((label, i) => {
+      const cx = LEFT + 5 + gap * i;
+      const done = i <= reached;
+      doc.circle(cx, dotY, 4).fill(done ? BRAND : '#ffffff');
+      if (!done) doc.circle(cx, dotY, 4).lineWidth(1).strokeColor(RULE).stroke();
+      doc.font(i === reached ? 'Helvetica-Bold' : 'Helvetica').fontSize(6.5)
+        .fillColor(done ? INK : MUTED)
+        .text(label, cx - gap / 2, dotY + 10, { width: gap, align: 'center' });
+    });
+
+    // ── Footer ──────────────────────────────────────────────────────
+    const footY = Math.max(dotY + 40, H - 62);
+    doc.moveTo(LEFT, footY).lineTo(RIGHT, footY).lineWidth(0.5).strokeColor(RULE).stroke();
+    doc.font('Helvetica').fontSize(7.5).fillColor(MUTED)
+      .text('Asante for shopping with Thapsus Cargo.', LEFT, footY + 11);
+    doc.font('Helvetica-Bold').fontSize(7.5).fillColor(INK)
+      .text('Thapsus Cargo', LEFT, footY + 11, { width: WIDTH, align: 'right' });
+    doc.font('Helvetica').fontSize(7).fillColor(MUTED)
+      .text('Authorised — computer generated, no signature required',
+        LEFT, footY + 22, { width: WIDTH, align: 'right' });
 
     doc.end();
   });
+}
+
+/**
+ * Split the amount paid back into goods + service using the quote
+ * snapshot, and describe both as table rows. Exported because this is
+ * the only arithmetic on the page worth testing — the rest is layout.
+ *
+ * @returns {{goodsKes: number, serviceKes: number, total: number, items: object[]}}
+ */
+export function receiptLineItems({ order, payment }) {
+  const usd = order.usd_price != null ? Number(order.usd_price) : null;
+  const rate = order.fx_rate != null ? Number(order.fx_rate) : null;
+  const markup = order.markup_pct != null ? Number(order.markup_pct) : null;
+  const total = Number(payment.amount_due_kes ?? order.quote_kes ?? 0);
+
+  const goodsKes = (usd != null && rate != null) ? Math.round(usd * rate) : total;
+  const serviceKes = Math.max(0, total - goodsKes);
+
+  const items = [
+    {
+      desc: describeItem(order),
+      sub: usd != null && rate != null
+        ? `$${usd.toFixed(2)} at 1 USD = ${rate.toFixed(2)} KES`
+        : 'Purchased on your behalf',
+      unit: kes(goodsKes),
+      qty: '1',
+      amount: kes(goodsKes),
+    },
+    ...(serviceKes > 0 ? [{
+      desc: 'Service and handling',
+      sub: markup != null ? `${markup.toFixed(0)}% of item value` : 'Sourcing, purchase and shipping',
+      unit: kes(serviceKes),
+      qty: '1',
+      amount: kes(serviceKes),
+    }] : []),
+  ];
+  return { goodsKes, serviceKes, total, items };
+}
+
+// Which journey dot is lit, by order status. A receipt is only ever
+// generated from 'paid' onwards, so 0 is the floor.
+const STAGE_INDEX = {
+  paid: 0, purchased: 1, in_kenya: 2, delivery_fee_pending: 2,
+  dispatched: 3, delivered: 4,
+};
+
+/** Best available human name for what was bought. */
+function describeItem(order) {
+  if (order.product_note) return String(order.product_note).slice(0, 90);
+  const links = Array.isArray(order.product_links) ? order.product_links : [];
+  if (links[0]) {
+    try {
+      return `Order from ${new URL(links[0]).hostname.replace(/^www\./i, '')}`;
+    } catch { /* fall through */ }
+  }
+  return 'Item purchased on your behalf';
 }
 
 /**
