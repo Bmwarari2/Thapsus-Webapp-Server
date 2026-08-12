@@ -8,8 +8,29 @@ import express from 'express';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { getWaSettings, invalidateWaSettings } from '../utils/waSettings.js';
+import {
+  sentDmConfigured, SentDmError,
+  listWebhooks, listWebhookEvents, createWebhook,
+  updateWebhookUrl, activateWebhook,
+} from '../utils/sentdm.js';
 
 const router = express.Router();
+
+/**
+ * The URL sent.dm must deliver to. Built from SITE_URL/FRONTEND_URL with
+ * the host normalized to the apex — Railway serves the apex custom domain
+ * only, so a www-registered webhook dies with no HTTP response.
+ */
+function expectedWebhookUrl() {
+  const base = process.env.SITE_URL || process.env.FRONTEND_URL || process.env.APP_URL || 'https://thapsus.uk';
+  try {
+    const u = new URL(base);
+    u.hostname = u.hostname.replace(/^www\./i, '');
+    return `${u.origin}/api/wa/webhook`;
+  } catch {
+    return 'https://thapsus.uk/api/wa/webhook';
+  }
+}
 
 /** GET /api/wa/settings */
 router.get('/', authMiddleware, isAdmin, async (req, res) => {
@@ -91,6 +112,104 @@ router.put('/', authMiddleware, isAdmin, async (req, res) => {
   } catch (err) {
     logRouteError(req, res, err, 'PUT /api/wa/settings');
     res.status(500).json({ success: false, message: 'Failed to save settings' });
+  }
+});
+
+/**
+ * GET /api/wa/settings/webhook-status — what sent.dm has registered vs.
+ * what it should be, plus the last delivery attempts per webhook. The
+ * server holds the API key, so admins get full visibility from /ops/settings.
+ */
+router.get('/webhook-status', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    if (!sentDmConfigured()) {
+      return res.status(503).json({ success: false, message: 'SENTDM_API_KEY is not configured on the server' });
+    }
+    const expected = expectedWebhookUrl();
+    const webhooks = await listWebhooks();
+    const detailed = await Promise.all(webhooks.map(async (w) => {
+      let events = [];
+      try { events = await listWebhookEvents(w.id); } catch { /* best-effort */ }
+      return {
+        id: w.id,
+        endpoint_url: w.endpoint_url,
+        is_active: w.is_active,
+        event_types: w.event_types,
+        consecutive_failures: w.consecutive_failures ?? 0,
+        last_delivery_attempt_at: w.last_delivery_attempt_at ?? null,
+        last_successful_delivery_at: w.last_successful_delivery_at ?? null,
+        url_matches: w.endpoint_url === expected,
+        recent_events: events.map((e) => ({
+          created_at: e.created_at,
+          event_type: e.event_type,
+          delivery_status: e.delivery_status,
+          http_status_code: e.http_status_code ?? null,
+          attempts: e.delivery_attempts,
+          error: e.error_message ?? null,
+        })),
+      };
+    }));
+    res.json({
+      success: true,
+      expected_url: expected,
+      secret_configured: Boolean(process.env.SENTDM_WEBHOOK_SECRET),
+      webhooks: detailed,
+    });
+  } catch (err) {
+    if (err instanceof SentDmError) {
+      return res.status(err.status).json({ success: false, error: err.code, message: err.message });
+    }
+    logRouteError(req, res, err, 'GET /api/wa/settings/webhook-status');
+    res.status(500).json({ success: false, message: 'Failed to load webhook status' });
+  }
+});
+
+/**
+ * POST /api/wa/settings/webhook-repair — make sent.dm's registration
+ * match reality: fix the endpoint URL, re-activate if auto-disabled, or
+ * create the webhook if none exists (returning the one-time signing
+ * secret so the admin can set SENTDM_WEBHOOK_SECRET).
+ */
+router.post('/webhook-repair', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    if (!sentDmConfigured()) {
+      return res.status(503).json({ success: false, message: 'SENTDM_API_KEY is not configured on the server' });
+    }
+    const expected = expectedWebhookUrl();
+    const webhooks = await listWebhooks();
+    const actions = [];
+
+    if (webhooks.length === 0) {
+      const created = await createWebhook(expected);
+      actions.push(`created webhook → ${expected}`);
+      return res.json({
+        success: true,
+        actions,
+        // Shown ONCE by sent.dm — the admin must store it as SENTDM_WEBHOOK_SECRET.
+        signing_secret: created?.data?.signing_secret ?? created?.signing_secret ?? null,
+        note: 'Set the signing_secret as SENTDM_WEBHOOK_SECRET on Railway, then redeploy.',
+      });
+    }
+
+    // Prefer the webhook already pointing at our path, else repair the first.
+    const target = webhooks.find((w) => String(w.endpoint_url || '').includes('/api/wa/webhook')) || webhooks[0];
+    if (target.endpoint_url !== expected) {
+      await updateWebhookUrl(target.id, expected);
+      actions.push(`endpoint_url: ${target.endpoint_url || '∅'} → ${expected}`);
+    }
+    if (target.is_active === false) {
+      await activateWebhook(target.id);
+      actions.push('re-activated');
+    }
+    if (actions.length === 0) actions.push('nothing to repair — registration already matches');
+
+    res.json({ success: true, webhook_id: target.id, actions });
+  } catch (err) {
+    if (err instanceof SentDmError) {
+      return res.status(err.status).json({ success: false, error: err.code, message: err.message });
+    }
+    logRouteError(req, res, err, 'POST /api/wa/settings/webhook-repair');
+    res.status(500).json({ success: false, message: 'Failed to repair webhook' });
   }
 });
 

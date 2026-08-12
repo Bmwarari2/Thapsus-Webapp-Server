@@ -149,6 +149,45 @@ export async function fetchMessage(messageId) {
   return api('GET', `/v3/messages/${encodeURIComponent(messageId)}`);
 }
 
+// ── Webhook management (admin diagnostics / self-repair) ────────────────────
+
+/** @returns {Promise<Array>} registered webhooks (url, active, failure counters) */
+export async function listWebhooks() {
+  const data = await api('GET', '/v3/webhooks?page=1&page_size=20');
+  return data?.webhooks ?? [];
+}
+
+/** @returns {Promise<Array>} recent delivery attempts for a webhook */
+export async function listWebhookEvents(webhookId) {
+  const data = await api('GET', `/v3/webhooks/${encodeURIComponent(webhookId)}/events?page=1&page_size=10`);
+  return data?.events ?? [];
+}
+
+/** Create the inbound-message webhook. Response includes signing_secret (shown only once). */
+export async function createWebhook(endpointUrl) {
+  return api('POST', '/v3/webhooks', {
+    body: {
+      display_name: 'Thapsus Cargo — WhatsApp flow',
+      endpoint_url: endpointUrl,
+      event_types: ['message'],
+    },
+  });
+}
+
+/** Point an existing webhook at a new endpoint URL. */
+export async function updateWebhookUrl(webhookId, endpointUrl) {
+  return api('PUT', `/v3/webhooks/${encodeURIComponent(webhookId)}`, {
+    body: { endpoint_url: endpointUrl },
+  });
+}
+
+/** Re-enable a webhook that sent.dm auto-disabled after failures. */
+export async function activateWebhook(webhookId) {
+  return api('PATCH', `/v3/webhooks/${encodeURIComponent(webhookId)}/toggle-status`, {
+    body: { is_active: true },
+  });
+}
+
 /**
  * Verify a sent.dm webhook delivery (Svix-style scheme, verified against
  * @sentdm/n8n-nodes-sent). Throws nothing; returns { valid, reason }.

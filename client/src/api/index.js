@@ -731,3 +731,9 @@ export const waApi = {
   settings: () => api.get('/wa/settings'),
   saveSettings: (data) => api.put('/wa/settings', data),
 }
+
+// WhatsApp webhook diagnostics (admin) — server-side sent.dm inspection.
+export const waWebhookApi = {
+  status: () => api.get('/wa/settings/webhook-status'),
+  repair: () => api.post('/wa/settings/webhook-repair'),
+}

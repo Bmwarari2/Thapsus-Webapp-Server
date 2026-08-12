@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { Settings2, Save } from 'lucide-react'
+import { Settings2, Save, Stethoscope, Wrench, CheckCircle2, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { waApi } from '../../api'
+import { waApi, waWebhookApi } from '../../api'
 import { GlassStyles, GlassCard, PageHeading } from '../../components/GlassUI'
 
 const inputCls =
@@ -122,7 +122,118 @@ export function WaSettings() {
           className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-ember-600 hover:bg-ember-500 text-white font-semibold disabled:opacity-50">
           <Save size={18} /> Save settings
         </button>
+
+        <WebhookDoctor />
       </div>
     </div>
+  )
+}
+
+/**
+ * sent.dm webhook diagnostics: shows what's registered vs. what should
+ * be, the recent delivery attempts, and a one-click repair (fix URL /
+ * re-activate / create).
+ */
+function WebhookDoctor() {
+  const [status, setStatus] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [secret, setSecret] = useState(null)
+
+  const check = async () => {
+    setBusy(true)
+    try {
+      const res = await waWebhookApi.status()
+      setStatus(res.data)
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to load webhook status')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const repair = async () => {
+    setBusy(true)
+    try {
+      const res = await waWebhookApi.repair()
+      for (const a of res.data.actions || []) toast.success(a)
+      if (res.data.signing_secret) setSecret(res.data.signing_secret)
+      await check()
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Repair failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <GlassCard className="p-5 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-bold text-white">sent.dm webhook</h2>
+          <p className="text-xs text-mute mt-0.5">Inbound messages reach the inbox through this — diagnose delivery failures here.</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={check} disabled={busy}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white/5 border border-line text-white hover:bg-white/10 text-sm disabled:opacity-50">
+            <Stethoscope size={15} /> Check
+          </button>
+          <button onClick={repair} disabled={busy}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-ember-600 hover:bg-ember-500 text-white text-sm font-semibold disabled:opacity-50">
+            <Wrench size={15} /> Repair
+          </button>
+        </div>
+      </div>
+
+      {status && (
+        <div className="space-y-3 text-sm">
+          <p className="text-mute">
+            Expected URL: <span className="text-white font-mono text-xs">{status.expected_url}</span>
+            {' · '}secret {status.secret_configured
+              ? <span className="text-emerald-300">configured</span>
+              : <span className="text-red-300">MISSING on Railway</span>}
+          </p>
+          {status.webhooks.length === 0 && (
+            <p className="text-amber-300">No webhook registered on sent.dm — click Repair to create it.</p>
+          )}
+          {status.webhooks.map((w) => (
+            <div key={w.id} className="rounded-xl bg-white/[0.04] border border-line p-3 space-y-1.5">
+              <p className="flex items-center gap-2 text-white">
+                {w.url_matches && w.is_active
+                  ? <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
+                  : <XCircle size={15} className="text-red-400 shrink-0" />}
+                <span className="font-mono text-xs break-all">{w.endpoint_url || '(no URL)'}</span>
+              </p>
+              <p className="text-xs text-mute">
+                {w.is_active ? 'active' : 'DISABLED'} · {w.consecutive_failures} consecutive failures ·
+                last success: {w.last_successful_delivery_at
+                  ? new Date(w.last_successful_delivery_at).toLocaleString()
+                  : 'never'}
+              </p>
+              {w.recent_events.length > 0 && (
+                <div className="pt-1 space-y-0.5">
+                  {w.recent_events.slice(0, 5).map((e, i) => (
+                    <p key={i} className="text-[11px] font-mono text-mute">
+                      {new Date(e.created_at).toLocaleTimeString()} {e.event_type} → {e.delivery_status}
+                      {e.http_status_code != null ? ` (HTTP ${e.http_status_code})` : ' (no response)'}
+                      {e.error ? ` — ${e.error}` : ''}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {secret && (
+        <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3">
+          <p className="text-sm text-amber-200 font-semibold mb-1">New signing secret — shown only once!</p>
+          <p className="font-mono text-xs text-white break-all select-all">{secret}</p>
+          <p className="text-xs text-amber-200/80 mt-1.5">
+            Set this as <span className="font-mono">SENTDM_WEBHOOK_SECRET</span> on Railway (Thapsus service → Variables), then wait for the redeploy.
+          </p>
+        </div>
+      )}
+    </GlassCard>
   )
 }
