@@ -61,15 +61,12 @@ export const Login = () => {
       setLoading(true)
       const loggedInUser = await login(formData.email, formData.password)
       toast.success(t('auth.loginSuccess') || 'Login successful!')
-      const home = loggedInUser.role === 'admin' ? '/admin'
-        : loggedInUser.role === 'influencer' ? '/influencer'
-        : '/dashboard'
-      // Deep-link (nextPath) wins for ordinary customers; admins and
-      // influencers always land on their own home surface.
-      const dest = (loggedInUser.role !== 'admin' && loggedInUser.role !== 'influencer' && nextPath)
-        ? nextPath
-        : home
-      navigate(dest, { replace: true })
+      // Only staff have logins now. Admins get the admin surface,
+      // everyone else works the WhatsApp inbox. (`/dashboard` and
+      // `/influencer` were customer/partner routes and no longer exist —
+      // sending anyone there is a dead end.)
+      const home = loggedInUser.role === 'admin' ? '/admin' : '/ops/inbox'
+      navigate(nextPath || home, { replace: true })
     } catch (err) {
       const code = err?.response?.data?.code
       const msg = err?.response?.data?.message || err.message || 'Login failed. Please check your credentials.'

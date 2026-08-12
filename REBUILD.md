@@ -324,19 +324,15 @@ receipt, all 13 templates and the homepage WhatsApp prefill. The
 assistant's guardrails forbid them too, so the model can't reintroduce
 what the templates dropped. Operator dashboard chrome keeps its icons.
 
-**The tracking reply is a labelled block, not a list of dates.** Because
-sent.dm flattens newlines, every line carries its own label so the
-flattened form still reads as separate facts:
+**A tracking code gets the parcel's current state, in plain words.** Not
+a status label plus a progress bar plus a next-step line plus the amount
+paid — that restated the same fact three times and buried it, and
+flattening turned it into a smear. Each status owns its own wording:
 
 ```
-Order *TRK-8821* · Status: Out for delivery · Progress: Paid > Purchased >
-In Kenya > *Out for delivery* > Delivered · Dispatched: 12 Aug 2026 ·
-Next: our rider will call you on arrival, usually within 24 hours ·
-Paid: KSh 17,094 · Reply here if you need anything else.
+TRK-8822 — your item was purchased on 12 August and is on its way to our
+facility. We'll message you as soon as it lands in Kenya.
 ```
-
-It shows the newest milestone rather than reciting all five, and bolds
-the stage the parcel is actually at.
 
 **Only unambiguous cases are automated.** A yes-like reply confirms a
 quote only when the contact has *exactly one* order awaiting

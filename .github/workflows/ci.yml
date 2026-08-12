@@ -1,10 +1,15 @@
-name: tests
+# Renamed from test.yml on 2026-08-12. GitHub keys a workflow's
+# enabled/disabled state to its FILE PATH, and both workflows in this repo
+# had been switched off manually since May — every PR since then merged
+# with no CI at all. A new path registers a new workflow, which is enabled
+# by default. Don't rename it back.
+name: CI
 
 on:
   pull_request:
-    branches: [JS1, main]
+    branches: [main]
   push:
-    branches: [JS1, main]
+    branches: [main]
   # Allow manual runs so a developer can re-trigger the integration suite
   # against a specific TEST_DATABASE_URL when debugging — without pushing
   # a fixup commit just to re-run CI.
@@ -14,7 +19,7 @@ on:
 # CI minutes when a developer pushes a fixup commit a second after the
 # previous one started.
 concurrency:
-  group: tests-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -136,10 +141,11 @@ jobs:
           NODE_ENV: development
         run: npm test
 
-  # Browser e2e over the money paths (register→verify→login, order creation,
-  # admin + finance dashboards) — drives the BUILT client against the same
-  # hermetic prod-mirror Postgres the integration job uses. Catches "API
-  # works but the screen wires it wrong" breaks that no server test can see.
+  # Browser e2e over the surfaces staff work in (sign-in, pipeline board,
+  # inbox, payment queue, receipt links) — drives the BUILT client against
+  # the same hermetic prod-mirror Postgres the integration job uses.
+  # Catches "API works but the screen wires it wrong" breaks that no
+  # server test can see.
   e2e:
     name: e2e (browser money paths)
     runs-on: ubuntu-latest

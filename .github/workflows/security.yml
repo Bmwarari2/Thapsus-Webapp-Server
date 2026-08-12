@@ -1,4 +1,6 @@
-name: CodeQL
+# Renamed from codeql.yml on 2026-08-12 to re-register it — the old path
+# was disabled manually and had not run since May.
+name: Security
 
 # CodeQL static analysis (audit F-12). Catches injection, XSS, prototype
 # pollution, regex DoS, hard-coded secrets, etc. that get past the existing
@@ -16,7 +18,7 @@ name: CodeQL
 
 on:
   pull_request:
-    branches: [JS1, main]
+    branches: [main]
     # Skip CodeQL for changes that can't introduce new vulns — saves ~5 min
     # of analysis time on doc-only PRs while still covering every code change.
     paths-ignore:
@@ -24,7 +26,7 @@ on:
       - "docs/**"
       - ".github/dependabot.yml"
   push:
-    branches: [JS1, main]
+    branches: [main]
     paths-ignore:
       - "**/*.md"
       - "docs/**"

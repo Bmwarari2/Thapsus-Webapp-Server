@@ -137,7 +137,7 @@ describe('tracking auto-reply', () => {
     await handleInbound(db, contact(), { id: 'm', body: 'status for trk 8821?' });
     const reply = sendToContact.mock.calls[0][2].text;
     expect(reply).toContain('TRK-8821');
-    expect(reply).toMatch(/Arrived in Kenya/);
+    expect(reply).toMatch(/arrived in Kenya/i);
   });
 
   it('replies not-found for an unknown code', async () => {
@@ -161,24 +161,30 @@ describe('tracking auto-reply', () => {
   const trackDb = (over) => makeDb(async (sql) =>
     (sql.includes('tracking_code') ? { rows: [trackedOrder(over)] } : { rows: [] }));
 
-  it('answers with a labelled block, not a pile of dates', async () => {
+  it("answers with the parcel's current state, in plain words", async () => {
     await handleInbound(trackDb(), contact(), { id: 'm', body: 'TRK-8821' });
     const reply = sendToContact.mock.calls[0][2].text;
-    expect(reply).toContain('Order *TRK-8821*');
-    expect(reply).toContain('Status: Out for delivery');
-    expect(reply).toContain('Progress: Paid > Purchased > In Kenya > *Out for delivery* > Delivered');
-    expect(reply).toContain('Dispatched: 12 Aug 2026');
-    expect(reply).toMatch(/Next: our rider will call you/);
-    expect(reply).toContain('Paid: KSh 17,094');
-    // Only the newest milestone, not every one of them.
-    expect(reply).not.toContain('Purchased: ');
+    expect(reply).toBe(
+      'TRK-8821 — your parcel went out for delivery on 12 August. '
+      + 'Our rider will call you when they arrive, usually within 24 hours.'
+    );
+    // Everything the earlier version padded it out with is gone.
+    expect(reply).not.toMatch(/Progress:|Status:|Next:|KSh/);
   });
 
-  it('bolds the stage the parcel is actually at', async () => {
-    await handleInbound(trackDb({ status: 'in_kenya', dispatched_at: null }), contact(),
-      { id: 'm', body: 'TRK-8821' });
-    expect(sendToContact.mock.calls[0][2].text)
-      .toContain('Paid > Purchased > *In Kenya* > Out for delivery > Delivered');
+  it('words each stage for itself', async () => {
+    const cases = [
+      ['paid', /we received your payment on 1 August and we're buying your item now/],
+      ['purchased', /purchased on 2 August and is on its way to our facility/],
+      ['in_kenya', /arrived in Kenya on 10 August/],
+      ['delivered', /delivered on 13 August\. Asante/],
+      ['cancelled', /this order was cancelled/],
+    ];
+    for (const [status, expected] of cases) {
+      sendToContact.mockClear();
+      await handleInbound(trackDb({ status, delivered_at: '2026-08-13' }), contact(), { id: 'm', body: 'TRK-8821' });
+      expect(sendToContact.mock.calls[0][2].text).toMatch(expected);
+    }
   });
 
   it('spells out an outstanding delivery fee with the till', async () => {
@@ -186,17 +192,15 @@ describe('tracking auto-reply', () => {
       trackDb({ status: 'delivery_fee_pending', dispatched_at: null, delivery_fee_kes: '300' }),
       contact(), { id: 'm', body: 'TRK-8821' });
     const reply = sendToContact.mock.calls[0][2].text;
-    expect(reply).toMatch(/Delivery fee due: KSh 300/);
+    expect(reply).toMatch(/delivery fee of KSh 300/);
     expect(reply).toMatch(/Buy Goods, Till \d+/);
   });
 
-  it('stays readable once sent.dm flattens the newlines', async () => {
+  it('is a single line, so sent.dm has nothing to flatten', async () => {
     await handleInbound(trackDb(), contact(), { id: 'm', body: 'TRK-8821' });
-    const flat = flattenForFreeText(sendToContact.mock.calls[0][2].text);
-    expect(flat).not.toContain('\n');
-    // Every line keeps its own label, so the flattened form still parses
-    // as separate facts rather than one run-on sentence.
-    expect(flat).toMatch(/Order \*TRK-8821\* · Status: Out for delivery · Progress:/);
+    const reply = sendToContact.mock.calls[0][2].text;
+    expect(reply).not.toContain('\n');
+    expect(flattenForFreeText(reply)).toBe(reply);
   });
 });
 
