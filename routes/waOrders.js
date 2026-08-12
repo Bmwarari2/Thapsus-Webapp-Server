@@ -194,7 +194,14 @@ router.post('/:id/quote', authMiddleware, STAFF, idempotency, async (req, res) =
 
     await sendToContact(req.db, { id: order.contact_id, phone: order.phone }, {
       templateKey: 'quote',
-      templateParams: { total_kes: String(quoteKes) },
+      // Must cover every variable of the tc_quote template
+      // (sentdm-templates.json) — WhatsApp rejects partial fills.
+      templateParams: {
+        usd_price: usd.toFixed(2),
+        fx_rate: Number(rate).toFixed(2),
+        markup_pct: String(markup),
+        total_kes: quoteKes.toLocaleString('en-KE'),
+      },
       text:
         `💰 *Your quote is ready!*\n` +
         `Item price: $${usd.toFixed(2)}\n` +

@@ -1,0 +1,189 @@
+{
+  "_readme": "WhatsApp message templates for the Thapsus Cargo flow — upload/create these in the sent.dm console (channel: whatsapp, language: en). Variable names match exactly what the app sends as template parameters; samples are included for Meta review. After approval, map them in /ops/settings → 'sent.dm template map' using the key → name pairs shown in _template_map_after_approval.",
+  "_template_map_after_approval": {
+    "welcome": "tc_welcome",
+    "welcome_media": "tc_welcome_media",
+    "onboarded": "tc_onboarded",
+    "quote": "tc_quote",
+    "payment_prompt": "tc_payment_prompt",
+    "payment_received": "tc_payment_received",
+    "receipt": "tc_receipt",
+    "purchased": "tc_purchased",
+    "arrived_fee": "tc_arrived_fee",
+    "arrived_waived": "tc_arrived_waived",
+    "dispatched": "tc_dispatched",
+    "delivered": "tc_delivered"
+  },
+  "templates": [
+    {
+      "name": "tc_welcome",
+      "channel": "whatsapp",
+      "language": "en",
+      "category": "UTILITY",
+      "body": {
+        "template": "Karibu Thapsus Cargo! 🛒✈️\n\nWe buy items from online stores abroad and deliver them to your door in Kenya. How it works:\n1️⃣ Send us the product link(s)\n2️⃣ We reply with a KES quote\n3️⃣ Pay via M-Pesa\n4️⃣ We buy & ship it — you track it with your code until it's delivered\n\nFirst, let's set you up. What's your full name?",
+        "variables": []
+      }
+    },
+    {
+      "name": "tc_welcome_media",
+      "channel": "whatsapp",
+      "language": "en",
+      "category": "UTILITY",
+      "header": {
+        "type": "image",
+        "variables": [
+          {
+            "name": "media_url",
+            "type": "media",
+            "props": {
+              "mediaType": "image",
+              "sample": "https://thapsus.uk/og-image.png"
+            }
+          }
+        ]
+      },
+      "body": {
+        "template": "Here's how Thapsus Cargo works 👆",
+        "variables": []
+      }
+    },
+    {
+      "name": "tc_onboarded",
+      "channel": "whatsapp",
+      "language": "en",
+      "category": "UTILITY",
+      "body": {
+        "template": "You're all set! 🎉 Your customer code is *{{customer_code}}* — keep it handy, it goes on all your parcels.\n\nSend us a product link any time and we'll get you a quote.",
+        "variables": [
+          { "name": "customer_code", "type": "text", "props": { "sample": "TC-1042" } }
+        ]
+      }
+    },
+    {
+      "name": "tc_quote",
+      "channel": "whatsapp",
+      "language": "en",
+      "category": "UTILITY",
+      "body": {
+        "template": "💰 *Your quote is ready!*\n\nItem price: ${{usd_price}}\nExchange rate: 1 USD = {{fx_rate}} KES\nService margin: {{markup_pct}}%\n*Total: KSh {{total_kes}}*\n\nReply *YES* to confirm and we'll send the M-Pesa payment prompt.",
+        "variables": [
+          { "name": "usd_price", "type": "text", "props": { "sample": "120.00" } },
+          { "name": "fx_rate", "type": "text", "props": { "sample": "129.50" } },
+          { "name": "markup_pct", "type": "text", "props": { "sample": "10" } },
+          { "name": "total_kes", "type": "text", "props": { "sample": "17,094" } }
+        ]
+      }
+    },
+    {
+      "name": "tc_payment_prompt",
+      "channel": "whatsapp",
+      "language": "en",
+      "category": "UTILITY",
+      "body": {
+        "template": "Great! Your order is confirmed at *KSh {{amount_kes}}*.\n\nWe'll send an M-Pesa prompt to your phone shortly — just enter your PIN when it pops up. If you'd rather pay another way, reply here and we'll help.",
+        "variables": [
+          { "name": "amount_kes", "type": "text", "props": { "sample": "17,094" } }
+        ]
+      }
+    },
+    {
+      "name": "tc_payment_received",
+      "channel": "whatsapp",
+      "language": "en",
+      "category": "UTILITY",
+      "body": {
+        "template": "✅ Payment received — asante! 🎉\n\nYour tracking code is *{{tracking_code}}*. Text it to us any time to check on your parcel.\n\nWe're purchasing your item now and will keep you posted.",
+        "variables": [
+          { "name": "tracking_code", "type": "text", "props": { "sample": "TRK-8821" } }
+        ]
+      }
+    },
+    {
+      "name": "tc_receipt",
+      "channel": "whatsapp",
+      "language": "en",
+      "category": "UTILITY",
+      "header": {
+        "type": "document",
+        "variables": [
+          {
+            "name": "media_url",
+            "type": "media",
+            "props": {
+              "mediaType": "document",
+              "sample": "https://thapsus.uk/sample-receipt.pdf"
+            }
+          }
+        ]
+      },
+      "body": {
+        "template": "🧾 Here's your receipt for {{tracking_code}}. Keep it for your records — and remember you can text your tracking code any time for a status update.",
+        "variables": [
+          { "name": "tracking_code", "type": "text", "props": { "sample": "TRK-8821" } }
+        ]
+      }
+    },
+    {
+      "name": "tc_purchased",
+      "channel": "whatsapp",
+      "language": "en",
+      "category": "UTILITY",
+      "body": {
+        "template": "🛒 Your item has been purchased and is on its way to our facility!\n\nTrack it anytime by sending your code *{{tracking_code}}*.",
+        "variables": [
+          { "name": "tracking_code", "type": "text", "props": { "sample": "TRK-8821" } }
+        ]
+      }
+    },
+    {
+      "name": "tc_arrived_fee",
+      "channel": "whatsapp",
+      "language": "en",
+      "category": "UTILITY",
+      "body": {
+        "template": "📦 *{{tracking_code}}* has arrived in Kenya! 🇰🇪\n\nLast step: a delivery fee of *KSh {{fee_kes}}* gets it to your door. We'll send an M-Pesa prompt — or reply here if you have any questions.",
+        "variables": [
+          { "name": "tracking_code", "type": "text", "props": { "sample": "TRK-8821" } },
+          { "name": "fee_kes", "type": "text", "props": { "sample": "300" } }
+        ]
+      }
+    },
+    {
+      "name": "tc_arrived_waived",
+      "channel": "whatsapp",
+      "language": "en",
+      "category": "UTILITY",
+      "body": {
+        "template": "📦 *{{tracking_code}}* has arrived in Kenya! 🇰🇪\n\n🎉 Good news — your delivery fee is on us! We'll dispatch it to your address shortly.",
+        "variables": [
+          { "name": "tracking_code", "type": "text", "props": { "sample": "TRK-8821" } }
+        ]
+      }
+    },
+    {
+      "name": "tc_dispatched",
+      "channel": "whatsapp",
+      "language": "en",
+      "category": "UTILITY",
+      "body": {
+        "template": "🚚 *{{tracking_code}}* is out for delivery to your address!\n\nExpect it within 1–2 business days. Our rider will call you on arrival.",
+        "variables": [
+          { "name": "tracking_code", "type": "text", "props": { "sample": "TRK-8821" } }
+        ]
+      }
+    },
+    {
+      "name": "tc_delivered",
+      "channel": "whatsapp",
+      "language": "en",
+      "category": "UTILITY",
+      "body": {
+        "template": "✅ *{{tracking_code}}* has been delivered — asante for shopping with Thapsus Cargo! 🧡\n\nSend us another link any time.",
+        "variables": [
+          { "name": "tracking_code", "type": "text", "props": { "sample": "TRK-8821" } }
+        ]
+      }
+    }
+  ]
+}
