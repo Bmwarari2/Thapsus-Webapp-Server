@@ -4,13 +4,15 @@
 // Studio API key). Deliberately scoped to the two places language
 // understanding helps and nothing else:
 //
-//   1. Onboarding extraction — interpret the customer's reply when we
-//      asked for name / address / M-Pesa number, so "hi" or "how does
-//      this work?" gets a sensible answer instead of being stored as
-//      their name.
-//   2. Fall-through chat — messages the state machine has nothing for
-//      (general questions) get an answer from the operator-maintained
-//      knowledge base instead of sitting unanswered in the inbox.
+//   1. AI-first onboarding (onboardingTurn) — from the customer's very
+//      first message, the model runs the conversation: welcomes,
+//      explains the service, answers questions, and gathers the three
+//      profile fields in whatever order the chat flows. The state
+//      machine keeps validation, state, and Customer Code minting.
+//   2. Fall-through chat (chatReply) — active-contact messages the state
+//      machine has nothing for (general questions) get an answer from
+//      the operator-maintained knowledge base instead of sitting
+//      unanswered in the inbox.
 //
 // Hard guardrails, enforced by prompt AND by where this is called from:
 // the model never quotes prices, never confirms orders or payments, and
@@ -100,50 +102,74 @@ export async function chatReply({ knowledgeBase, history, message }) {
   return text.slice(0, 1200);
 }
 
-const FIELD_PROMPTS = {
-  full_name: 'their FULL NAME (as it should be written on parcels)',
-  delivery_address: 'their DELIVERY ADDRESS in Kenya (estate/building, street, town)',
-  mpesa_number: 'the M-PESA PHONE NUMBER they will pay with (a Kenyan mobile number)',
-};
-
 /**
- * Interpret an onboarding reply: did the customer answer the question we
- * asked, or say something else?
+ * Drive a whole onboarding turn conversationally (AI-first mode): the
+ * model greets, explains the service, answers questions from the
+ * knowledge base, and gathers the three profile fields in whatever order
+ * the conversation flows — extracting any it finds in this message.
+ * The caller stays in charge of validation, state, and code minting.
  *
- * @returns {Promise<{value: string|null, reply: string|null}>}
- *   value — the extracted field when the message contains it, else null
- *   reply — when value is null, a short response to send (answers their
- *           question from the knowledge base, then re-asks for the field)
+ * @param {object} p
+ * @param {string} p.knowledgeBase
+ * @param {Array<{direction: 'in'|'out', body: string}>} p.history  oldest first
+ * @param {string} p.message      the new inbound text
+ * @param {{full_name: string|null, delivery_address: string|null, mpesa_number: string|null}} p.profile
+ * @returns {Promise<{reply: string|null, full_name: string|null, delivery_address: string|null, mpesa_number: string|null}>}
  */
-export async function extractOnboardingField({ field, message, knowledgeBase }) {
-  const what = FIELD_PROMPTS[field] || field;
+export async function onboardingTurn({ knowledgeBase, history, message, profile }) {
+  const missing = [];
+  if (!profile.full_name) missing.push('full name (as written on parcels)');
+  if (!profile.delivery_address) missing.push('delivery address in Kenya (estate/building, street, town)');
+  if (!profile.mpesa_number) missing.push('M-Pesa phone number they will pay with');
+
   const system =
-    `You are the WhatsApp onboarding assistant for Thapsus Cargo (a Kenyan buy-and-ship ` +
-    `service). We just asked the customer for ${what}.\n` +
-    `Decide whether their message provides it.\n` +
-    `- If YES: set "value" to the cleanly extracted answer (nothing else) and "reply" to null.\n` +
-    `- If NO (greeting, question, anything else): set "value" to null and write a short ` +
-    `"reply" that responds helpfully (using the knowledge base below when relevant) and ` +
-    `ends by asking again for ${what}. One newline-free sentence or two.\n` +
+    `You are the WhatsApp assistant for Thapsus Cargo, a Kenyan service that buys items ` +
+    `from online stores abroad and delivers them to customers' doors in Kenya. Customers ` +
+    `send product links, get a KES quote from the team, pay via M-Pesa, and track parcels ` +
+    `by texting their tracking code.\n\n` +
+    `You are onboarding a NEW customer. Still needed from them: ${missing.join('; ') || 'nothing'}.\n` +
+    `- If this is the conversation's start, welcome them warmly and briefly explain how the ` +
+    `service works before asking for the first missing detail.\n` +
+    `- Ask for ONE missing detail at a time, but extract EVERY detail their message contains ` +
+    `(people often give several at once).\n` +
+    `- Answer any question they ask (using the knowledge base) before steering back to the ` +
+    `next missing detail.\n` +
+    `- Put extracted details in the JSON fields (null when this message doesn't contain ` +
+    `them); "reply" is your next message to the customer.\n` +
     `KNOWLEDGE BASE:\n${knowledgeBase || '(empty)'}\n${GUARDRAILS}`;
+
+  const contents = [
+    ...history.slice(-10).map((m) => ({
+      role: m.direction === 'in' ? 'user' : 'model',
+      parts: [{ text: String(m.body || '').slice(0, 1000) }],
+    })),
+    { role: 'user', parts: [{ text: String(message).slice(0, 2000) }] },
+  ];
 
   const text = await generate({
     system,
+    contents,
     json: true,
     schema: {
       type: 'object',
       properties: {
-        value: { type: 'string', nullable: true },
-        reply: { type: 'string', nullable: true },
+        reply: { type: 'string' },
+        full_name: { type: 'string', nullable: true },
+        delivery_address: { type: 'string', nullable: true },
+        mpesa_number: { type: 'string', nullable: true },
       },
+      required: ['reply'],
     },
-    contents: [{ role: 'user', parts: [{ text: String(message).slice(0, 1000) }] }],
   });
 
   let parsed;
   try { parsed = JSON.parse(text); } catch { throw new Error('Gemini returned invalid JSON'); }
-  const value = typeof parsed?.value === 'string' && parsed.value.trim() ? parsed.value.trim() : null;
-  const reply = typeof parsed?.reply === 'string' && parsed.reply.trim()
-    ? parsed.reply.trim().slice(0, 600) : null;
-  return { value, reply };
+  const str = (v, max) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
+  const reply = str(parsed?.reply, 1200);
+  return {
+    reply: reply && !reply.toUpperCase().includes(HANDOFF) ? reply : null,
+    full_name: str(parsed?.full_name, 120),
+    delivery_address: str(parsed?.delivery_address, 400),
+    mpesa_number: str(parsed?.mpesa_number, 40),
+  };
 }

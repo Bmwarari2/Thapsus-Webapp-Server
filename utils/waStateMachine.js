@@ -33,7 +33,7 @@ import { extractTrackingCode, nextCustomerCode } from './waCodes.js';
 import { normalizeKenyanPhone } from './lipanaClient.js';
 import { pushToStaff } from '../routes/events.js';
 import { getWaSettings } from './waSettings.js';
-import { aiConfigured, chatReply, extractOnboardingField } from './waAi.js';
+import { aiConfigured, chatReply, onboardingTurn } from './waAi.js';
 
 const CONFIRM_WORDS = /^(yes+|yeah|yep|ok(ay)?|confirm(ed)?|proceed|sawa( sawa)?|ndio|ndiyo|poa|1)\b/i;
 
@@ -65,7 +65,18 @@ export async function handleInbound(db, contact, message) {
   const ai = Boolean(settings?.ai_enabled) && aiConfigured();
 
   if (contact.state !== 'active') {
-    return handleOnboarding(db, contact, body, { ai, settings });
+    // AI-first: when enabled, Gemini drives onboarding from the very
+    // first message — greeting, explaining, answering questions, and
+    // gathering the profile in whatever order the conversation flows.
+    // Any AI failure drops to the deterministic script below.
+    if (ai) {
+      try {
+        return await aiOnboarding(db, contact, message, body, settings);
+      } catch (e) {
+        console.warn('[waStateMachine] AI onboarding failed — using scripted flow:', e?.message);
+      }
+    }
+    return handleOnboarding(db, contact, body, { settings });
   }
 
   // 2. Tracking self-service.
@@ -147,29 +158,98 @@ async function setState(db, contactId, state, fields = {}) {
 }
 
 /**
- * When AI is on, interpret the customer's onboarding reply: returns the
- * extracted field value, or null after sending the model's clarifying
- * response (which answers whatever they actually said, then re-asks).
- * Any AI failure returns the raw body so the deterministic path decides.
+ * AI-first onboarding turn. Gemini produces the reply AND any profile
+ * fields it spotted in the message; this function stays in charge of the
+ * rules: field validation (normalizeKenyanPhone is the hard gate on the
+ * M-Pesa number), state bookkeeping (the awaiting_* states track what's
+ * still missing, so the scripted flow can take over seamlessly if AI is
+ * ever disabled mid-conversation), Customer Code minting, and operator
+ * alerts. Throws on AI failure so the caller falls back to the script.
  */
-async function interpretAnswer(db, contact, body, { ai, settings, field, fallbackReprompt }) {
-  if (!ai || !body) return body;
-  try {
-    const { value, reply } = await extractOnboardingField({
-      field,
-      message: body,
-      knowledgeBase: settings.ai_knowledge_base,
+async function aiOnboarding(db, contact, message, body, settings) {
+  const { rows: history } = await db.query(
+    `SELECT direction, body FROM (
+       SELECT direction, body, created_at FROM wa_messages
+        WHERE contact_id = $1 AND body IS NOT NULL AND id <> $2
+        ORDER BY created_at DESC LIMIT 10
+     ) h ORDER BY created_at ASC`,
+    [contact.id, message.id]
+  );
+
+  const turn = await onboardingTurn({
+    knowledgeBase: settings.ai_knowledge_base,
+    history,
+    message: body,
+    profile: {
+      full_name: contact.full_name || null,
+      delivery_address: contact.delivery_address || null,
+      mpesa_number: contact.mpesa_number || null,
+    },
+  });
+
+  // Apply extracted fields under the same rules as the scripted flow.
+  const fields = {};
+  if (!contact.full_name && turn.full_name
+      && turn.full_name.length >= 2 && !/^https?:\/\//i.test(turn.full_name)) {
+    fields.full_name = turn.full_name;
+  }
+  if (!contact.delivery_address && turn.delivery_address && turn.delivery_address.length >= 5) {
+    fields.delivery_address = turn.delivery_address;
+  }
+  if (!contact.mpesa_number && turn.mpesa_number) {
+    const normalized = normalizeKenyanPhone(
+      /^(this( one| number)?|same|hii)$/i.test(turn.mpesa_number) ? contact.phone : turn.mpesa_number
+    );
+    if (normalized) fields.mpesa_number = normalized;
+  }
+
+  const merged = { ...contact, ...fields };
+  const complete = merged.full_name && merged.delivery_address && merged.mpesa_number;
+  const nextState = complete ? 'active'
+    : !merged.full_name ? 'awaiting_name'
+    : !merged.delivery_address ? 'awaiting_address'
+    : 'awaiting_mpesa';
+
+  let customerCode = contact.customer_code;
+  if (complete && !customerCode) {
+    customerCode = await nextCustomerCode(db);
+    fields.customer_code = customerCode;
+  }
+  if (nextState !== contact.state || Object.keys(fields).length > 0) {
+    await setState(db, contact.id, nextState, fields);
+  }
+
+  if (turn.reply) {
+    await sendToContact(db, contact, { text: turn.reply });
+  }
+
+  // First-ever exchange: send the welcome infographics (best-effort).
+  if (contact.state === 'new') {
+    for (const url of (settings.welcome_media_urls || []).slice(0, 3)) {
+      await sendToContact(db, contact, { templateKey: 'welcome_media', mediaUrl: url, mediaType: 'image' });
+    }
+  }
+
+  if (complete && !contact.customer_code) {
+    pushToStaff('wa_new_customer', {
+      contact_id: contact.id,
+      customer_code: customerCode,
+      full_name: merged.full_name,
+      phone: contact.phone,
     });
-    if (value) return value;
-    await sendToContact(db, contact, { text: reply || fallbackReprompt });
-    return null;
-  } catch (e) {
-    console.warn(`[waStateMachine] AI ${field} extraction failed (non-fatal):`, e?.message);
-    return body; // deterministic path takes over
+    await sendToContact(db, contact, {
+      templateKey: 'onboarded',
+      templateParams: { customer_code: customerCode },
+      text:
+        `You're all set! 🎉 Your customer code is *${customerCode}* — keep it handy, it goes on all your parcels.\n\n` +
+        `Send us a product link any time and we'll get you a quote.`,
+    });
   }
 }
 
-async function handleOnboarding(db, contact, body, { ai = false, settings = null } = {}) {
+// The deterministic onboarding script — the fallback whenever the AI is
+// disabled, unconfigured, or errored on a turn.
+async function handleOnboarding(db, contact, body, { settings = null } = {}) {
   switch (contact.state) {
     case 'new': {
       await setState(db, contact.id, 'awaiting_name');
@@ -196,34 +276,24 @@ async function handleOnboarding(db, contact, body, { ai = false, settings = null
     }
 
     case 'awaiting_name': {
-      const answer = await interpretAnswer(db, contact, body, {
-        ai, settings, field: 'full_name',
-        fallbackReprompt: `Please reply with your full name (as we should write it on your parcels).`,
-      });
-      if (answer === null) return; // AI already responded + re-asked
-      if (answer.length < 2 || /^https?:\/\//i.test(answer)) {
+      if (body.length < 2 || /^https?:\/\//i.test(body)) {
         return sendToContact(db, contact, {
           text: `Please reply with your full name (as we should write it on your parcels).`,
         });
       }
-      await setState(db, contact.id, 'awaiting_address', { full_name: answer.slice(0, 120) });
+      await setState(db, contact.id, 'awaiting_address', { full_name: body.slice(0, 120) });
       return sendToContact(db, contact, {
-        text: `Thanks ${answer.split(/\s+/)[0]}! What's your delivery address? (Estate/building, street, town)`,
+        text: `Thanks ${body.split(/\s+/)[0]}! What's your delivery address? (Estate/building, street, town)`,
       });
     }
 
     case 'awaiting_address': {
-      const answer = await interpretAnswer(db, contact, body, {
-        ai, settings, field: 'delivery_address',
-        fallbackReprompt: `Please send your delivery address — estate/building, street and town — so our rider can find you.`,
-      });
-      if (answer === null) return;
-      if (answer.length < 5) {
+      if (body.length < 5) {
         return sendToContact(db, contact, {
           text: `Please send your delivery address — estate/building, street and town — so our rider can find you.`,
         });
       }
-      await setState(db, contact.id, 'awaiting_mpesa', { delivery_address: answer.slice(0, 400) });
+      await setState(db, contact.id, 'awaiting_mpesa', { delivery_address: body.slice(0, 400) });
       return sendToContact(db, contact, {
         text: `Almost done! Which M-Pesa number will you pay with? (You can reply "this one" to use this WhatsApp number.)`,
       });
@@ -231,19 +301,7 @@ async function handleOnboarding(db, contact, body, { ai = false, settings = null
 
     case 'awaiting_mpesa': {
       const useThis = /^(this( one| number)?|same|hii)$/i.test(body);
-      let candidate = body;
-      if (!useThis && !normalizeKenyanPhone(body)) {
-        // Not obviously a phone number — let the AI figure out what they
-        // meant (a question, a number written with words, etc).
-        const answer = await interpretAnswer(db, contact, body, {
-          ai, settings, field: 'mpesa_number',
-          fallbackReprompt: `That doesn't look like a valid Kenyan M-Pesa number 🤔 — please send it like 0712 345 678.`,
-        });
-        if (answer === null) return;
-        candidate = answer;
-      }
-      // normalizeKenyanPhone stays the hard gate no matter what the AI said.
-      const normalized = normalizeKenyanPhone(useThis ? contact.phone : candidate);
+      const normalized = normalizeKenyanPhone(useThis ? contact.phone : body);
       if (!normalized) {
         return sendToContact(db, contact, {
           text: `That doesn't look like a valid Kenyan M-Pesa number 🤔 — please send it like 0712 345 678.`,

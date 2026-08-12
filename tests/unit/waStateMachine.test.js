@@ -193,10 +193,10 @@ vi.mock('../../utils/waAi.js', () => ({
   HANDOFF: 'HANDOFF',
   aiConfigured: vi.fn(() => false),
   chatReply: vi.fn(),
-  extractOnboardingField: vi.fn(),
+  onboardingTurn: vi.fn(),
 }));
 
-describe('AI assistant integration', () => {
+describe('AI-first mode', () => {
   const aiSettings = {
     markup_pct: 10, promo_active: false, promo_type: 'waive_fee',
     promo_message: '', default_delivery_fee_kes: 300,
@@ -204,14 +204,93 @@ describe('AI assistant integration', () => {
     ai_enabled: true, ai_knowledge_base: 'Delivery takes 10-14 days.',
   };
 
-  async function ai() {
+  async function ai(settings = aiSettings) {
     const waAi = await import('../../utils/waAi.js');
     waAi.aiConfigured.mockReturnValue(true);
-    getWaSettings.mockResolvedValue(aiSettings);
+    getWaSettings.mockResolvedValue(settings);
     return waAi;
   }
 
-  it('answers a fall-through question from the knowledge base', async () => {
+  const emptyTurn = { reply: 'Karibu! What is your full name?', full_name: null, delivery_address: null, mpesa_number: null };
+
+  it('the FIRST message goes to the AI, not the scripted welcome', async () => {
+    const waAi = await ai();
+    waAi.onboardingTurn.mockResolvedValueOnce(emptyTurn);
+    const db = makeDb();
+    await handleInbound(db, contact({ state: 'new', full_name: null, delivery_address: null, mpesa_number: null, customer_code: null }),
+      { id: 'm1', body: 'Hi' });
+    expect(waAi.onboardingTurn).toHaveBeenCalledTimes(1);
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/full name/i);
+    // state bookkeeping still tracks the missing field
+    const update = db.query.mock.calls.find(([sql]) => sql.includes('UPDATE wa_contacts'));
+    expect(update[1]).toContain('awaiting_name');
+  });
+
+  it('stores several fields from one message and asks for the rest', async () => {
+    const waAi = await ai();
+    waAi.onboardingTurn.mockResolvedValueOnce({
+      reply: 'Asante John! Which M-Pesa number will you pay with?',
+      full_name: 'John Kamau',
+      delivery_address: 'Greenspan Estate, Donholm, Nairobi',
+      mpesa_number: null,
+    });
+    const db = makeDb();
+    await handleInbound(db, contact({ state: 'new', full_name: null, delivery_address: null, mpesa_number: null, customer_code: null }),
+      { id: 'm1', body: 'Hi, I am John Kamau, Greenspan Estate Donholm Nairobi' });
+    const update = db.query.mock.calls.find(([sql]) => sql.includes('UPDATE wa_contacts'));
+    expect(update[1]).toContain('awaiting_mpesa');
+    expect(update[1]).toContain('John Kamau');
+    expect(update[1]).toContain('Greenspan Estate, Donholm, Nairobi');
+  });
+
+  it('completes onboarding: validates the number, mints the code, alerts staff', async () => {
+    const waAi = await ai();
+    waAi.onboardingTurn.mockResolvedValueOnce({
+      reply: 'Perfect!', full_name: null, delivery_address: null, mpesa_number: '0712 345 678',
+    });
+    const db = makeDb(async (sql) => {
+      if (sql.includes('nextval')) return { rows: [{ n: '1042' }] };
+      return { rows: [], rowCount: 1 };
+    });
+    await handleInbound(db, contact({
+      state: 'awaiting_mpesa', full_name: 'John Kamau',
+      delivery_address: 'Donholm', mpesa_number: null, customer_code: null,
+    }), { id: 'm1', body: 'use 0712 345 678' });
+    const update = db.query.mock.calls.find(([sql]) => sql.includes('UPDATE wa_contacts'));
+    expect(update[1]).toContain('254712345678'); // normalized by the hard gate
+    expect(update[1]).toContain('TC-1042');
+    expect(pushToStaff).toHaveBeenCalledWith('wa_new_customer', expect.objectContaining({ customer_code: 'TC-1042' }));
+    // completion announcement went out after the AI reply
+    const texts = sendToContact.mock.calls.map(([, , o]) => o.text || '');
+    expect(texts.some((t) => t.includes('TC-1042'))).toBe(true);
+  });
+
+  it('an invalid AI-extracted M-Pesa number is NOT stored (hard gate)', async () => {
+    const waAi = await ai();
+    waAi.onboardingTurn.mockResolvedValueOnce({
+      reply: 'Got it!', full_name: null, delivery_address: null, mpesa_number: '12345',
+    });
+    const db = makeDb();
+    await handleInbound(db, contact({
+      state: 'awaiting_mpesa', full_name: 'John', delivery_address: 'Donholm',
+      mpesa_number: null, customer_code: null,
+    }), { id: 'm1', body: 'one two three' });
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('mpesa_number'))).toBe(false);
+    expect(pushToStaff).not.toHaveBeenCalledWith('wa_new_customer', expect.anything());
+  });
+
+  it('falls back to the scripted welcome when the AI throws', async () => {
+    const waAi = await ai();
+    waAi.onboardingTurn.mockRejectedValueOnce(new Error('Gemini HTTP 500'));
+    const db = makeDb();
+    await handleInbound(db, contact({ state: 'new', full_name: null, customer_code: null }), { id: 'm1', body: 'Hi' });
+    // scripted welcome ran instead
+    const update = db.query.mock.calls.find(([sql]) => sql.includes('UPDATE wa_contacts'));
+    expect(update[1]).toContain('awaiting_name');
+    expect(sendToContact.mock.calls.some(([, , o]) => /Karibu Thapsus Cargo/.test(o.text || ''))).toBe(true);
+  });
+
+  it('answers a fall-through question for an active contact', async () => {
     const waAi = await ai();
     waAi.chatReply.mockResolvedValueOnce('Delivery usually takes 10-14 days. Asante!');
     const db = makeDb(async (sql) => {
@@ -223,45 +302,19 @@ describe('AI assistant integration', () => {
     expect(sendToContact.mock.calls[0][2].text).toMatch(/10-14 days/);
   });
 
-  it('stays silent on HANDOFF (message stays with the operator)', async () => {
+  it('stays silent on HANDOFF and on AI errors (inbox keeps the message)', async () => {
     const waAi = await ai();
     waAi.chatReply.mockResolvedValueOnce(null);
     const db = makeDb(async () => ({ rows: [] }));
-    await handleInbound(db, contact(), { id: 'm1', body: 'I want to complain about my order' });
+    await handleInbound(db, contact(), { id: 'm1', body: 'I want to complain' });
     expect(sendToContact).not.toHaveBeenCalled();
-  });
 
-  it('stays silent when the AI call throws (fail-safe to inbox)', async () => {
-    const waAi = await ai();
     waAi.chatReply.mockRejectedValueOnce(new Error('Gemini HTTP 500'));
-    const db = makeDb(async () => ({ rows: [] }));
-    await handleInbound(db, contact(), { id: 'm1', body: 'Random question' });
+    await handleInbound(db, contact(), { id: 'm2', body: 'random question' });
     expect(sendToContact).not.toHaveBeenCalled();
   });
 
-  it('extracts the name from a chatty onboarding reply', async () => {
-    const waAi = await ai();
-    waAi.extractOnboardingField.mockResolvedValueOnce({ value: 'John Kamau', reply: null });
-    const db = makeDb();
-    await handleInbound(db, contact({ state: 'awaiting_name' }),
-      { id: 'm1', body: 'oh sure, the name is John Kamau by the way' });
-    const update = db.query.mock.calls.find(([sql]) => sql.includes('full_name'));
-    expect(update[1]).toContain('John Kamau');
-  });
-
-  it('sends the AI clarifying reply when the customer said something else', async () => {
-    const waAi = await ai();
-    waAi.extractOnboardingField.mockResolvedValueOnce({
-      value: null,
-      reply: 'Karibu! We deliver in 10-14 days. What name should we put on your parcels?',
-    });
-    const db = makeDb();
-    await handleInbound(db, contact({ state: 'awaiting_name' }), { id: 'm1', body: 'hi, how long is delivery?' });
-    expect(db.query.mock.calls.some(([sql]) => sql.includes('full_name'))).toBe(false);
-    expect(sendToContact.mock.calls[0][2].text).toMatch(/what name/i);
-  });
-
-  it('tracking codes bypass the AI entirely (deterministic first)', async () => {
+  it('tracking codes still bypass the AI entirely', async () => {
     const waAi = await ai();
     const db = makeDb(async (sql) => {
       if (sql.includes('tracking_code')) {
@@ -275,14 +328,5 @@ describe('AI assistant integration', () => {
     await handleInbound(db, contact(), { id: 'm1', body: 'TRK-8821' });
     expect(waAi.chatReply).not.toHaveBeenCalled();
     expect(sendToContact.mock.calls[0][2].text).toContain('TRK-8821');
-  });
-
-  it('an invalid AI-extracted M-Pesa number is still rejected by the hard gate', async () => {
-    const waAi = await ai();
-    waAi.extractOnboardingField.mockResolvedValueOnce({ value: '12345', reply: null });
-    const db = makeDb();
-    await handleInbound(db, contact({ state: 'awaiting_mpesa' }), { id: 'm1', body: 'use one two three' });
-    expect(db.query.mock.calls.some(([sql]) => sql.includes('mpesa_number'))).toBe(false);
-    expect(sendToContact.mock.calls[0][2].text).toMatch(/valid/i);
   });
 });
