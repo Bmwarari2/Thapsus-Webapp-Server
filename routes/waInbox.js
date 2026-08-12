@@ -34,7 +34,7 @@ router.get('/conversations', authMiddleware, STAFF, async (req, res) => {
     params.push(limit);
     const { rows } = await req.db.query(
       `SELECT id, phone, customer_code, full_name, state, unread_count,
-              last_message_at, last_message_preview, created_at
+              last_message_at, last_message_preview, created_at, human_takeover_at
          FROM wa_contacts
          ${where}
         ORDER BY last_message_at DESC NULLS LAST
@@ -132,7 +132,14 @@ router.post('/conversations/:contactId/messages', authMiddleware, STAFF, async (
     if (!result.ok) {
       return res.status(502).json({ success: false, message: `Send failed: ${result.error}`, message_id: result.id });
     }
-    res.status(201).json({ success: true, message_id: result.id });
+    // A human just replied — pause the assistant on this thread so the
+    // customer isn't answered by two voices. It resumes on its own after
+    // ai_resume_after_minutes of silence, or via the toggle below.
+    await req.db.query(
+      `UPDATE wa_contacts SET human_takeover_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [contact.id]
+    );
+    res.status(201).json({ success: true, message_id: result.id, ai_paused: true });
   } catch (err) {
     logRouteError(req, res, err, 'POST /api/wa/conversations/:contactId/messages');
     res.status(500).json({ success: false, message: 'Failed to send message' });
@@ -181,6 +188,31 @@ router.put('/contacts/:contactId', authMiddleware, STAFF, async (req, res) => {
   } catch (err) {
     logRouteError(req, res, err, 'PUT /api/wa/contacts/:contactId');
     res.status(500).json({ success: false, message: 'Failed to update contact' });
+  }
+});
+
+/**
+ * POST /api/wa/conversations/:contactId/ai  { enabled: boolean }
+ * Hand the thread back to the assistant (enabled=true) or keep it with
+ * the humans (enabled=false). Replying from the inbox pauses it
+ * automatically; this is the explicit override in both directions.
+ */
+router.post('/conversations/:contactId/ai', authMiddleware, STAFF, async (req, res) => {
+  try {
+    const enabled = req.body?.enabled === true;
+    const { rows } = await req.db.query(
+      enabled
+        ? `UPDATE wa_contacts SET human_takeover_at = NULL, updated_at = NOW()
+            WHERE id = $1 RETURNING id, human_takeover_at`
+        : `UPDATE wa_contacts SET human_takeover_at = NOW(), updated_at = NOW()
+            WHERE id = $1 RETURNING id, human_takeover_at`,
+      [req.params.contactId]
+    );
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'Contact not found' });
+    res.json({ success: true, ai_paused: Boolean(rows[0].human_takeover_at) });
+  } catch (err) {
+    logRouteError(req, res, err, 'POST /api/wa/conversations/:contactId/ai');
+    res.status(500).json({ success: false, message: 'Failed to update assistant state' });
   }
 });
 

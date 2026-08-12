@@ -704,6 +704,7 @@ export const waApi = {
   sendMessage: (contactId, payload) =>
     api.post(`/wa/conversations/${contactId}/messages`, payload),
   markRead: (contactId) => api.post(`/wa/conversations/${contactId}/read`),
+  setAi: (contactId, enabled) => api.post(`/wa/conversations/${contactId}/ai`, { enabled }),
   updateContact: (contactId, data) => api.put(`/wa/contacts/${contactId}`, data),
   uploadUrl: (filename, content_type) =>
     api.post('/wa/upload-url', { filename, content_type }),

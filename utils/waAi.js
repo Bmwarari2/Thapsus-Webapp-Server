@@ -170,12 +170,14 @@ STRICT RULES you must never break:
  *   without an exact tracking code
  * @returns {Promise<string|null>} reply text, or null when the model handed off
  */
-export async function chatReply({ knowledgeBase, history, message, orderContext }) {
+export async function chatReply({ knowledgeBase, history, message, orderContext, profile, summary }) {
   const system =
     `You are the WhatsApp assistant for Thapsus Cargo, a Kenyan service that buys items ` +
     `from online stores abroad and delivers them to customers' doors in Kenya. Customers ` +
     `send product links, receive a KES quote from the team, pay via M-Pesa, and track ` +
     `parcels by texting their tracking code.\n\n` +
+    `WHO YOU ARE TALKING TO:\n${profile || '(unknown)'}\n\n` +
+    `WHAT YOU KNOW ABOUT THEM FROM EARLIER CONVERSATIONS:\n${summary || '(nothing recorded yet)'}\n\n` +
     `THIS CUSTOMER'S ORDERS (live from our system):\n${orderContext || '(none on file)'}\n\n` +
     `KNOWLEDGE BASE:\n${knowledgeBase || '(empty)'}\n${GUARDRAILS}`;
 
@@ -263,4 +265,39 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
     delivery_address: str(parsed?.delivery_address, 400),
     mpesa_number: str(parsed?.mpesa_number, 40),
   };
+}
+
+/**
+ * Distil a conversation into durable memory — the facts worth carrying
+ * once the verbatim transcript scrolls out of the prompt window. Called
+ * in the background after a reply, never in the customer's critical path.
+ *
+ * @param {object} p
+ * @param {string} [p.previous]  the existing summary to build on
+ * @param {Array<{direction: 'in'|'out', body: string}>} p.history  oldest first
+ * @returns {Promise<string>} a compact précis (a few lines)
+ */
+export async function summarizeConversation({ previous, history }) {
+  const system =
+    `You maintain a short memory note about a Thapsus Cargo customer, for a support ` +
+    `assistant that will read it before replying to them in future.\n` +
+    `Merge the EXISTING NOTE with anything new in the transcript. Keep only durable, ` +
+    `useful facts: what they buy, preferences (delivery method, sizes, stores), ` +
+    `constraints, promises we made, complaints raised and whether they were resolved, ` +
+    `and anything they asked us to remember.\n` +
+    `Do NOT record prices, order statuses or tracking codes — the assistant already ` +
+    `receives those live from the system, and stale copies would mislead it.\n` +
+    `Reply with the note only: at most 8 short lines, no preamble.\n\n` +
+    `EXISTING NOTE:\n${previous || '(none)'}`;
+
+  const transcript = history
+    .map((m) => `${m.direction === 'in' ? 'Customer' : 'Us'}: ${String(m.body || '').slice(0, 500)}`)
+    .join('\n')
+    .slice(0, 12000);
+
+  const text = await generate({
+    system,
+    contents: [{ role: 'user', parts: [{ text: `TRANSCRIPT:\n${transcript}` }] }],
+  });
+  return text.slice(0, 2000);
 }

@@ -104,6 +104,13 @@ router.put('/', authMiddleware, isAdmin, async (req, res) => {
       }
       updates.push(['ai_knowledge_base', body.ai_knowledge_base.trim()]);
     }
+    if (body.ai_resume_after_minutes !== undefined) {
+      const v = Number(body.ai_resume_after_minutes);
+      if (!Number.isFinite(v) || v < 1 || v > 10_080) {
+        return res.status(400).json({ success: false, message: 'ai_resume_after_minutes must be 1–10080 (a week)' });
+      }
+      updates.push(['ai_resume_after_minutes', String(Math.round(v))]);
+    }
     if (body.staff_alert_numbers !== undefined) {
       if (!Array.isArray(body.staff_alert_numbers) || body.staff_alert_numbers.length > 10
           || body.staff_alert_numbers.some((n) => typeof n !== 'string' || n.length > 20)) {

@@ -3405,6 +3405,21 @@
     "t": "timestamptz",
     "nn": true,
     "hd": true
+   },
+   "human_takeover_at": {
+    "t": "timestamptz",
+    "nn": false,
+    "hd": false
+   },
+   "ai_summary": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "ai_summary_at": {
+    "t": "timestamptz",
+    "nn": false,
+    "hd": false
    }
   },
   "wa_messages": {

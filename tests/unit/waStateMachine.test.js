@@ -198,6 +198,7 @@ vi.mock('../../utils/waAi.js', () => ({
   aiConfigured: vi.fn(() => false),
   chatReply: vi.fn(),
   onboardingTurn: vi.fn(),
+  summarizeConversation: vi.fn(async () => 'note'),
 }));
 
 describe('AI-first mode', () => {
@@ -306,15 +307,18 @@ describe('AI-first mode', () => {
     expect(sendToContact.mock.calls[0][2].text).toMatch(/10-14 days/);
   });
 
-  it('stays silent on HANDOFF and on AI errors (inbox keeps the message)', async () => {
+  it('acknowledges the customer on HANDOFF instead of going silent', async () => {
     const waAi = await ai();
     waAi.chatReply.mockResolvedValueOnce(null);
     const db = makeDb(async () => ({ rows: [] }));
     await handleInbound(db, contact(), { id: 'm1', body: 'I want to complain' });
-    expect(sendToContact).not.toHaveBeenCalled();
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/team will reply/i);
+  });
 
+  it('stays silent when the AI errors (inbox keeps the message)', async () => {
+    const waAi = await ai();
     waAi.chatReply.mockRejectedValueOnce(new Error('Gemini HTTP 500'));
-    await handleInbound(db, contact(), { id: 'm2', body: 'random question' });
+    await handleInbound(makeDb(async () => ({ rows: [] })), contact(), { id: 'm2', body: 'random question' });
     expect(sendToContact).not.toHaveBeenCalled();
   });
 
@@ -454,7 +458,8 @@ describe('staff WhatsApp alerts', () => {
       title: expect.stringMatching(/needs a human/i),
       detail: expect.stringContaining('customer rep'),
     }));
-    expect(sendToContact).not.toHaveBeenCalled();
+    // and the customer is told a person is coming
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/team will reply/i);
   });
 
   it('does not alert on an ordinary answered question', async () => {
@@ -479,5 +484,129 @@ describe('staff WhatsApp alerts', () => {
     const text = sendToContact.mock.calls[0][2].text;
     expect(text).toContain('5530500');
     expect(text).not.toMatch(/enter your PIN/i);   // STK language is gone
+  });
+});
+
+describe('human takeover and AI memory', () => {
+  async function ai(extra = {}) {
+    const waAi = await import('../../utils/waAi.js');
+    waAi.aiConfigured.mockReturnValue(true);
+    getWaSettings.mockResolvedValue({
+      markup_pct: 10, promo_active: false, promo_type: 'waive_fee',
+      promo_message: '', default_delivery_fee_kes: 300,
+      welcome_media_urls: [], template_map: {},
+      ai_enabled: true, ai_knowledge_base: 'kb', ai_resume_after_minutes: 120,
+      ...extra,
+    });
+    return waAi;
+  }
+
+  // db where the previous message was `minutesAgo` old
+  function dbSince(minutesAgo) {
+    return makeDb(async (sql) => {
+      if (sql.includes('MAX(created_at)')) {
+        return { rows: [{ at: new Date(Date.now() - minutesAgo * 60_000).toISOString() }] };
+      }
+      if (sql.includes('count(*)')) return { rows: [{ n: 0 }] };
+      return { rows: [] };
+    });
+  }
+
+  it('tells the customer a human is coming, hands over, and alerts staff', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce(null); // HANDOFF
+    const db = makeDb(async (sql) => {
+      if (sql.includes('count(*)')) return { rows: [{ n: 0 }] };
+      return { rows: [] };
+    });
+    await handleInbound(db, contact(), { id: 'm1', body: 'Can I speak to a customer rep?' });
+
+    // customer is acknowledged, not left in silence
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/team will reply/i);
+    // thread handed to the humans
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('human_takeover_at = NOW()'))).toBe(true);
+    expect(notifyStaff).toHaveBeenCalledWith(db, expect.objectContaining({
+      title: expect.stringMatching(/needs a human/i),
+    }));
+  });
+
+  it('stays quiet while a human has the chat (within the resume window)', async () => {
+    const waAi = await ai();
+    const db = dbSince(30); // last message 30 min ago, window is 120
+    await handleInbound(db, contact({ human_takeover_at: new Date().toISOString() }),
+      { id: 'm1', body: 'any update?' });
+    expect(waAi.chatReply).not.toHaveBeenCalled();
+    expect(sendToContact).not.toHaveBeenCalled();
+  });
+
+  it('resumes automatically after the quiet period', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce('Karibu back! How can I help?');
+    const db = dbSince(180); // 3h of silence, window is 120 min
+    await handleInbound(db, contact({ human_takeover_at: new Date(Date.now() - 3 * 3600_000).toISOString() }),
+      { id: 'm1', body: 'hello again' });
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('human_takeover_at = NULL'))).toBe(true);
+    expect(waAi.chatReply).toHaveBeenCalled();
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/karibu back/i);
+  });
+
+  it('honours a custom resume window', async () => {
+    const waAi = await ai({ ai_resume_after_minutes: 15 });
+    waAi.chatReply.mockResolvedValueOnce('back');
+    const db = dbSince(20); // 20 min silence vs a 15 min window
+    await handleInbound(db, contact({ human_takeover_at: new Date().toISOString() }),
+      { id: 'm1', body: 'hi' });
+    expect(waAi.chatReply).toHaveBeenCalled();
+  });
+
+  it('deterministic replies still work while a human has the chat', async () => {
+    const waAi = await ai();
+    const db = makeDb(async (sql) => {
+      if (sql.includes('MAX(created_at)')) return { rows: [{ at: new Date().toISOString() }] };
+      if (sql.includes('tracking_code = $1')) return { rows: [{
+        id: 'o1', status: 'dispatched', tracking_code: 'TRK-8821',
+        paid_at: '2026-08-01', purchased_at: null, arrived_at: null,
+        dispatched_at: '2026-08-11', delivered_at: null,
+        delivery_fee_waived: false, delivery_fee_kes: null, customer_code: 'TC-1042',
+      }] };
+      return { rows: [] };
+    });
+    await handleInbound(db, contact({ human_takeover_at: new Date().toISOString() }),
+      { id: 'm1', body: 'TRK-8821' });
+    expect(sendToContact.mock.calls[0][2].text).toContain('TRK-8821');
+    expect(waAi.chatReply).not.toHaveBeenCalled();
+  });
+
+  it('passes the stored memory note and customer profile into the prompt', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce('sure');
+    const db = makeDb(async (sql) => {
+      if (sql.includes('count(*)')) return { rows: [{ n: 0 }] };
+      return { rows: [] };
+    });
+    await handleInbound(db, contact({
+      ai_summary: 'Prefers Pickup Mtaani. Buys trainers, size 42.',
+      delivery_address: 'C1 Muraya Road, Ongata Rongai',
+      created_at: '2026-06-01T00:00:00Z',
+    }), { id: 'm1', body: 'what did I order last time?' });
+
+    const args = waAi.chatReply.mock.calls[0][0];
+    expect(args.summary).toMatch(/Pickup Mtaani/);
+    expect(args.profile).toContain('TC-1042');
+    expect(args.profile).toContain('Muraya Road');
+  });
+
+  it('refreshes the memory note once enough new messages have accumulated', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce('ok');
+    waAi.summarizeConversation.mockResolvedValueOnce('Wants shoes. Prefers Rongai delivery.');
+    const db = makeDb(async (sql) => {
+      if (sql.includes('count(*)')) return { rows: [{ n: 25 }] };  // over the threshold
+      return { rows: [] };
+    });
+    await handleInbound(db, contact(), { id: 'm1', body: 'hi' });
+    await new Promise((r) => setTimeout(r, 10)); // background refresh
+    expect(waAi.summarizeConversation).toHaveBeenCalled();
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('SET ai_summary'))).toBe(true);
   });
 });

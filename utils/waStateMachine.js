@@ -27,6 +27,11 @@
 // fall-through. Money and state (tracking replies, confirmations, quotes,
 // payments, pipeline moves) run BEFORE it and stay fully deterministic.
 //
+// Human takeover: while wa_contacts.human_takeover_at is set (an operator
+// replied, or the assistant handed off) the AI stays quiet. It clears
+// itself after ai_resume_after_minutes of silence, or when an operator
+// re-enables it for that chat from the inbox.
+//
 // State lives entirely on wa_contacts.state — no in-memory sessions, so
 // deploys/restarts never lose a customer mid-onboarding.
 
@@ -35,7 +40,7 @@ import { extractTrackingCode, nextCustomerCode } from './waCodes.js';
 import { normalizeKenyanPhone } from './lipanaClient.js';
 import { pushToStaff } from '../routes/events.js';
 import { getWaSettings } from './waSettings.js';
-import { aiConfigured, chatReply, onboardingTurn } from './waAi.js';
+import { aiConfigured, chatReply, onboardingTurn, summarizeConversation } from './waAi.js';
 import { notifyStaff } from './waStaffAlert.js';
 
 const CONFIRM_WORDS = /^(yes+|yeah|yep|ok(ay)?|confirm(ed)?|proceed|sawa( sawa)?|ndio|ndiyo|poa|1)\b/i;
@@ -44,6 +49,11 @@ const CONFIRM_WORDS = /^(yes+|yeah|yep|ok(ay)?|confirm(ed)?|proceed|sawa( sawa)?
 // pasted M-Pesa confirmation (which always carries a 10-char reference).
 const PAID_CLAIM = /\b(i('| ha)?ve )?(paid|sent|nimelipa|nimetuma|lipa)\b|\bconfirmed\b.*\bksh\b|\bM-?PESA\b.*\bconfirm/i;
 const MPESA_REF = /\b[A-Z0-9]{10}\b/;
+
+// How much verbatim transcript rides in the prompt, and how often the
+// durable memory note behind it gets refreshed.
+const HISTORY_WINDOW = 30;
+const SUMMARY_EVERY_MESSAGES = 20;
 
 const STATUS_LABEL = {
   quoting: 'Being quoted',
@@ -85,6 +95,32 @@ export async function handleInbound(db, contact, message) {
       }
     }
     return handleOnboarding(db, contact, body, { settings });
+  }
+
+  // 1b. Human takeover. Once an operator replies (or the assistant hands
+  // off) the assistant goes quiet so the customer isn't answered by two
+  // voices. It resumes by itself once the conversation has been silent
+  // for ai_resume_after_minutes — or the moment an operator flips it back
+  // on from the inbox. Deterministic replies (tracking codes, quote
+  // confirmations) keep working throughout; only the AI chat pauses.
+  let aiPaused = false;
+  if (contact.human_takeover_at) {
+    const { rows: prev } = await db.query(
+      `SELECT MAX(created_at) AS at FROM wa_messages WHERE contact_id = $1 AND id <> $2`,
+      [contact.id, message.id]
+    );
+    const lastAt = prev[0]?.at ? new Date(prev[0].at).getTime() : 0;
+    const quietMs = Date.now() - lastAt;
+    const resumeAfterMs = Math.max(1, Number(settings?.ai_resume_after_minutes ?? 120)) * 60_000;
+    if (lastAt && quietMs >= resumeAfterMs) {
+      await db.query(
+        `UPDATE wa_contacts SET human_takeover_at = NULL, updated_at = NOW() WHERE id = $1`,
+        [contact.id]
+      );
+      console.info(`[waStateMachine] AI resumed for ${contact.id} after ${Math.round(quietMs / 60000)}m of silence`);
+    } else {
+      aiPaused = true;
+    }
   }
 
   // 2. Tracking self-service.
@@ -150,14 +186,15 @@ export async function handleInbound(db, contact, message) {
     });
   }
 
-  // 4. AI answer from the knowledge base — or the operator inbox.
-  if (ai && body) {
+  // 4. AI answer — knowledge base + who they are + what we remember +
+  // their live orders. Skipped while a human has the conversation.
+  if (ai && body && !aiPaused) {
     try {
       const { rows: history } = await db.query(
         `SELECT direction, body FROM (
            SELECT direction, body, created_at FROM wa_messages
             WHERE contact_id = $1 AND body IS NOT NULL AND id <> $2
-            ORDER BY created_at DESC LIMIT 10
+            ORDER BY created_at DESC LIMIT ${HISTORY_WINDOW}
          ) h ORDER BY created_at ASC`,
         [contact.id, message.id]
       );
@@ -166,23 +203,80 @@ export async function handleInbound(db, contact, message) {
         history,
         message: body,
         orderContext: await loadOrderContext(db, contact.id),
+        profile: describeContact(contact),
+        summary: contact.ai_summary,
       });
+
       if (reply) {
         await sendToContact(db, contact, { text: reply });
       } else {
-        // HANDOFF — the AI deliberately stepped back (human requested,
-        // complaint, or something outside the knowledge base). Silence is
-        // right for the customer, but staff need to know now.
+        // HANDOFF — the assistant deliberately stepped back (human
+        // requested, complaint, something outside the knowledge base).
+        // Tell the customer a person is coming rather than going silent
+        // on them, hand the thread to the humans, and alert staff.
+        await sendToContact(db, contact, {
+          text: `Let me get a colleague for you 🙏 Someone from our team will reply here shortly.`,
+        });
+        await db.query(
+          `UPDATE wa_contacts SET human_takeover_at = NOW(), updated_at = NOW() WHERE id = $1`,
+          [contact.id]
+        );
         notifyStaff(db, {
           title: 'Customer needs a human',
           detail: `${contact.full_name || contact.phone} (${contact.customer_code || 'no code'}): "${body.slice(0, 200)}"`,
           dedupeKey: `handoff:${contact.id}:${body.slice(0, 40)}`,
         });
       }
+
+      // Refresh durable memory in the background every so often, so the
+      // assistant still recalls this conversation once it scrolls out of
+      // the verbatim window. Never blocks the reply.
+      maybeRefreshSummary(db, contact).catch(() => {});
     } catch (e) {
       console.warn('[waStateMachine] AI fallthrough failed (non-fatal):', e?.message);
     }
   }
+}
+
+/** One-line profile for the prompt: who the assistant is talking to. */
+function describeContact(contact) {
+  const bits = [];
+  if (contact.full_name) bits.push(`Name: ${contact.full_name}`);
+  if (contact.customer_code) bits.push(`Customer code: ${contact.customer_code}`);
+  if (contact.delivery_address) bits.push(`Delivery address: ${contact.delivery_address}`);
+  if (contact.created_at) {
+    bits.push(`Customer since: ${new Date(contact.created_at).toLocaleDateString('en-KE', { month: 'long', year: 'numeric' })}`);
+  }
+  return bits.length ? bits.join('; ') : '(unknown)';
+}
+
+/**
+ * Rebuild the durable memory note when enough has been said since the
+ * last one. Best-effort and out of band — a failure just means the note
+ * is a little stale.
+ */
+async function maybeRefreshSummary(db, contact) {
+  const { rows } = await db.query(
+    `SELECT count(*)::int AS n FROM wa_messages
+      WHERE contact_id = $1 AND ($2::timestamptz IS NULL OR created_at > $2)`,
+    [contact.id, contact.ai_summary_at || null]
+  );
+  if ((rows[0]?.n ?? 0) < SUMMARY_EVERY_MESSAGES) return;
+
+  const { rows: history } = await db.query(
+    `SELECT direction, body FROM (
+       SELECT direction, body, created_at FROM wa_messages
+        WHERE contact_id = $1 AND body IS NOT NULL
+        ORDER BY created_at DESC LIMIT 60
+     ) h ORDER BY created_at ASC`,
+    [contact.id]
+  );
+  const summary = await summarizeConversation({ previous: contact.ai_summary, history });
+  await db.query(
+    `UPDATE wa_contacts SET ai_summary = $2, ai_summary_at = NOW(), updated_at = NOW() WHERE id = $1`,
+    [contact.id, summary]
+  );
+  console.info(`[waStateMachine] refreshed AI memory for ${contact.id}`);
 }
 
 // ── Onboarding ──────────────────────────────────────────────────────────────

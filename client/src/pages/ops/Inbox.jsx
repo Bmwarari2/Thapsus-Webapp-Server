@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   MessageSquareText, Search, Send, Paperclip, PackagePlus,
-  Phone, MapPin, Wallet, Pencil, RefreshCw,
+  Phone, MapPin, Wallet, Pencil, RefreshCw, Bot, BotOff,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { waApi } from '../../api'
@@ -77,6 +77,7 @@ export function Inbox() {
       await waApi.sendMessage(selected.id, { text })
       setDraft('')
       await openConversation(selected.id)
+      setSelected((c) => (c ? { ...c, human_takeover_at: new Date().toISOString() } : c))
     } catch (e) {
       toast.error(e.response?.data?.message || 'Send failed')
     } finally {
@@ -128,6 +129,22 @@ export function Inbox() {
     }
   }
 
+  // The assistant pauses automatically when you reply (so the customer
+  // isn't answered twice) and resumes after the configured quiet period.
+  // This is the manual override.
+  const toggleAi = async () => {
+    if (!selected) return
+    const enable = Boolean(selected.human_takeover_at)
+    try {
+      const res = await waApi.setAi(selected.id, enable)
+      setSelected((c) => ({ ...c, human_takeover_at: res.data.ai_paused ? new Date().toISOString() : null }))
+      toast.success(res.data.ai_paused ? 'Assistant paused — you have this chat' : 'Assistant back on for this chat')
+      loadConversations(q)
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to update assistant')
+    }
+  }
+
   const editContact = async () => {
     if (!selected) return
     const full_name = window.prompt('Full name', selected.full_name || '')
@@ -176,9 +193,12 @@ export function Inbox() {
                 </div>
                 <div className="flex items-center justify-between gap-2 mt-0.5">
                   <span className="text-xs text-mute truncate">{c.last_message_preview || '—'}</span>
-                  {c.customer_code && (
-                    <span className="shrink-0 text-[10px] font-bold text-ember-400">{c.customer_code}</span>
-                  )}
+                  <span className="shrink-0 flex items-center gap-1.5">
+                    {c.human_takeover_at && <BotOff size={12} className="text-amber-400" title="You are handling this" />}
+                    {c.customer_code && (
+                      <span className="text-[10px] font-bold text-ember-400">{c.customer_code}</span>
+                    )}
+                  </span>
                 </div>
               </button>
             ))}
@@ -209,6 +229,17 @@ export function Inbox() {
                   </p>
                 </div>
                 <div className="flex gap-2">
+                  <button onClick={toggleAi}
+                    title={selected.human_takeover_at
+                      ? 'You are handling this chat — tap to hand it back to the assistant'
+                      : 'Assistant is answering — tap to take over'}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg border text-xs font-semibold transition-colors ${
+                      selected.human_takeover_at
+                        ? 'bg-amber-500/15 border-amber-500/30 text-amber-300 hover:bg-amber-500/25'
+                        : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300 hover:bg-emerald-500/20'
+                    }`}>
+                    {selected.human_takeover_at ? <><BotOff size={15} /> You</> : <><Bot size={15} /> AI</>}
+                  </button>
                   <button onClick={editContact} title="Edit contact"
                     className="p-2 rounded-lg bg-white/5 border border-line text-white hover:bg-white/10">
                     <Pencil size={16} />

@@ -28,6 +28,7 @@ export function WaSettings() {
           template_map: JSON.stringify(s.template_map || {}, null, 2),
           ai_enabled: s.ai_enabled === true,
           ai_knowledge_base: s.ai_knowledge_base || '',
+          ai_resume_after_minutes: String(s.ai_resume_after_minutes ?? 120),
           staff_alert_numbers: (s.staff_alert_numbers || []).join('\n'),
           staff_alert_template: s.staff_alert_template || 'Staff_Alert',
         })
@@ -51,6 +52,7 @@ export function WaSettings() {
         template_map: templateMap,
         ai_enabled: form.ai_enabled,
         ai_knowledge_base: form.ai_knowledge_base,
+        ai_resume_after_minutes: Number(form.ai_resume_after_minutes),
         staff_alert_numbers: form.staff_alert_numbers.split('\n').map((n) => n.trim()).filter(Boolean),
         staff_alert_template: form.staff_alert_template,
       })
@@ -141,6 +143,16 @@ export function WaSettings() {
             <input type="checkbox" checked={form.ai_enabled} onChange={set('ai_enabled')}
               className="w-5 h-5 accent-orange-600" />
           </label>
+          <div>
+            <label className="block text-sm font-semibold text-white mb-1.5">Resume after (minutes of silence)</label>
+            <input value={form.ai_resume_after_minutes} onChange={set('ai_resume_after_minutes')} inputMode="numeric"
+              className={inputCls} />
+            <p className="text-xs text-mute mt-1">
+              When you reply to a chat the assistant steps back so the customer isn't answered twice.
+              It starts answering that chat again after this much quiet — or immediately when you tap
+              the AI toggle in the inbox.
+            </p>
+          </div>
           <div>
             <label className="block text-sm font-semibold text-white mb-1.5">Knowledge base</label>
             <textarea rows={10} value={form.ai_knowledge_base} onChange={set('ai_knowledge_base')}
