@@ -19,6 +19,14 @@ describe('app boot — middleware chain', () => {
     });
   });
 
+  it('serves the receipt redirect ahead of the SPA fallback', async () => {
+    // A malformed token must 404 from routes/receiptRedirect.js, not fall
+    // through to index.html — that ordering is easy to break in server.js.
+    const r = await request(app).get('/r/not-a-real-token');
+    expect(r.status).toBe(404);
+    expect(r.text).toMatch(/receipt link is not valid/i);
+  });
+
   it('echoes a fresh X-Request-Id when none is supplied', async () => {
     const r = await request(app).get('/api/__nope__');
     const id = r.headers['x-request-id'];

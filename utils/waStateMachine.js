@@ -75,10 +75,10 @@ const STATUS_LABEL = {
   confirmed: 'Confirmed — awaiting payment',
   paid: 'Paid — purchase in progress',
   purchased: 'Purchased — on its way to our facility',
-  in_kenya: 'Arrived in Kenya 🇰🇪',
+  in_kenya: 'Arrived in Kenya',
   delivery_fee_pending: 'Arrived in Kenya — delivery fee pending',
-  dispatched: 'Out for delivery 🚚',
-  delivered: 'Delivered ✅',
+  dispatched: 'Out for delivery',
+  delivered: 'Delivered',
   cancelled: 'Cancelled',
 };
 
@@ -240,7 +240,7 @@ export async function handleInbound(db, contact, message) {
         templateKey: 'payment_verifying',
         templateParams: { reference: ref || 'pending confirmation' },
         text:
-          `Asante 🙏 We've got your payment notification${ref ? ` (ref *${ref}*)` : ''}` +
+          `Asante. We've got your payment notification${ref ? ` (ref *${ref}*)` : ''}` +
           `${amountKes ? ` for KSh ${amountKes.toLocaleString('en-KE')}` : ''} and our team is ` +
           `${VERIFYING_MARKER} now.\n\n` +
           `We'll confirm here as soon as it clears and send your tracking code — usually within a few minutes.`,
@@ -278,7 +278,7 @@ export async function handleInbound(db, contact, message) {
         // Tell the customer a person is coming rather than going silent
         // on them, hand the thread to the humans, and alert staff.
         await sendToContact(db, contact, {
-          text: `Let me get a colleague for you 🙏 Someone from our team will reply here shortly.`,
+          text: `Let me get a colleague for you — someone from our team will reply here shortly.`,
         });
         await db.query(
           `UPDATE wa_contacts SET human_takeover_at = NOW(), updated_at = NOW() WHERE id = $1`,
@@ -483,7 +483,7 @@ async function aiOnboarding(db, contact, message, body, settings) {
       templateKey: 'onboarded',
       templateParams: { customer_code: customerCode },
       text:
-        `You're all set! 🎉 Your customer code is *${customerCode}* — keep it handy, it goes on all your parcels.\n\n` +
+        `You're all set. Your customer code is *${customerCode}* — keep it handy, it goes on all your parcels.\n\n` +
         `Send us a product link any time and we'll get you a quote.`,
     });
   }
@@ -498,13 +498,13 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
       await sendToContact(db, contact, {
         templateKey: 'welcome',
         text:
-          `Karibu Thapsus Cargo! 🛒✈️\n\n` +
+          `Karibu Thapsus Cargo.\n\n` +
           `We buy items from online stores abroad and deliver them to your door in Kenya. ` +
           `How it works:\n` +
-          `1️⃣ Send us the product link(s)\n` +
-          `2️⃣ We reply with a KES quote\n` +
-          `3️⃣ Pay via M-Pesa\n` +
-          `4️⃣ We buy & ship it — you track it with your code until it's delivered\n\n` +
+          `1. Send us the product link(s)\n` +
+          `2. We reply with a KES quote\n` +
+          `3. Pay via M-Pesa\n` +
+          `4. We buy and ship it — you track it with your code until it's delivered\n\n` +
           `First, let's set you up. What's your full name?`,
       });
       // Welcome infographics (operator-configurable). Best-effort.
@@ -546,7 +546,7 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
       const normalized = normalizeKenyanPhone(useThis ? contact.phone : body);
       if (!normalized) {
         return sendToContact(db, contact, {
-          text: `That doesn't look like a valid Kenyan M-Pesa number 🤔 — please send it like 0712 345 678.`,
+          text: `That doesn't look like a valid Kenyan M-Pesa number — please send it like 0712 345 678.`,
         });
       }
       const customerCode = await nextCustomerCode(db);
@@ -569,7 +569,7 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
         templateKey: 'onboarded',
         templateParams: { customer_code: customerCode },
         text:
-          `You're all set! 🎉 Your customer code is *${customerCode}* — keep it handy, it goes on all your parcels.\n\n` +
+          `You're all set. Your customer code is *${customerCode}* — keep it handy, it goes on all your parcels.\n\n` +
           `Send us a product link any time and we'll get you a quote.`,
       });
     }
@@ -593,12 +593,12 @@ async function replyTrackingStatus(db, contact, trackingCode) {
   if (!order) {
     return sendToContact(db, contact, {
       text:
-        `We couldn't find a parcel with code ${trackingCode} 🤔 — double-check the code on your receipt. ` +
+        `We couldn't find a parcel with code ${trackingCode} — double-check the code on your receipt. ` +
         `If it still doesn't work, reply here and our team will help you out.`,
     });
   }
 
-  const lines = [`📦 *${trackingCode}* — ${STATUS_LABEL[order.status] || order.status}`];
+  const lines = [`*${trackingCode}* — ${STATUS_LABEL[order.status] || order.status}`];
   const steps = [
     ['Paid', order.paid_at],
     ['Purchased', order.purchased_at],
@@ -607,10 +607,10 @@ async function replyTrackingStatus(db, contact, trackingCode) {
     ['Delivered', order.delivered_at],
   ];
   for (const [label, at] of steps) {
-    if (at) lines.push(`✅ ${label} — ${new Date(at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}`);
+    if (at) lines.push(`${label} — ${new Date(at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}`);
   }
   if (order.status === 'delivery_fee_pending' && !order.delivery_fee_waived && order.delivery_fee_kes) {
-    lines.push(`\nLast-mile delivery fee: KSh ${Number(order.delivery_fee_kes).toLocaleString('en-KE')} — we'll send the payment prompt.`);
+    lines.push(`\nLast-mile delivery fee: KSh ${Number(order.delivery_fee_kes).toLocaleString('en-KE')} — pay it on Buy Goods, Till ${mpesaTill()}, then reply here.`);
   }
   return sendToContact(db, contact, { text: lines.join('\n') });
 }

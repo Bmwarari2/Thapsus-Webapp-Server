@@ -345,8 +345,8 @@ async function fireWaOrderPostPaidHook(db, payment) {
   if (['in_kenya', 'delivery_fee_pending'].includes(order.status)) {
     await sendToContact(db, contact, {
       text:
-        `💚 Delivery fee received for ${order.tracking_code}. ` +
-        `Your parcel will be dispatched to your address shortly!`,
+        `Delivery fee received for ${order.tracking_code}. ` +
+        `Your parcel will be dispatched to your address shortly.`,
     });
     return;
   }
@@ -357,28 +357,27 @@ async function fireWaOrderPostPaidHook(db, payment) {
     templateKey: 'payment_received',
     templateParams: { tracking_code: order.tracking_code || '' },
     text:
-      `✅ Payment received — asante! 🎉\n` +
+      `Payment received — asante!\n` +
       `Your tracking code is *${order.tracking_code}*. Text it to us any time to check on your parcel.\n` +
       `We're purchasing your item now and will keep you posted.`,
   });
 
   try {
     const { generateAndStoreReceipt } = await import('./receiptPdf.js');
-    const { createSignedDownloadUrl } = await import('./supabaseAdmin.js');
+    const { receiptShortUrl } = await import('./receiptLink.js');
     const path = await generateAndStoreReceipt({ order, contact, payment });
     await db.query(
       `UPDATE wa_orders SET receipt_path = $2, updated_at = NOW() WHERE id = $1`,
       [order.id, path]
     );
-    const signed = await createSignedDownloadUrl('receipts', path, 7 * 24 * 3600);
-    const signedUrl = signed?.signedUrl || null;
-    if (signedUrl) {
+    // Short link rather than the ~600-character Supabase signed URL —
+    // /r/:token re-signs on click, so it also never goes stale.
+    const url = receiptShortUrl(order);
+    if (url) {
       await sendToContact(db, contact, {
         templateKey: 'receipt',
-        templateParams: { tracking_code: order.tracking_code || '' },
-        mediaUrl: signedUrl,
-        mediaType: 'document',
-        text: `🧾 Here's your receipt for ${order.tracking_code}:`,
+        templateParams: { tracking_code: order.tracking_code || '', receipt_url: url },
+        text: `Here's your receipt for ${order.tracking_code}: ${url}`,
       });
     }
   } catch (e) {

@@ -93,7 +93,7 @@ export function renderReceiptPdf({ order, contact, payment }) {
       50, doc.y, { width: 495 }
     );
     doc.moveDown(0.5);
-    doc.fontSize(9).fillColor(MUTED).text('Asante for shopping with Thapsus Cargo! 🧡', 50);
+    doc.fontSize(9).fillColor(MUTED).text('Asante for shopping with Thapsus Cargo.', 50);
 
     doc.end();
   });

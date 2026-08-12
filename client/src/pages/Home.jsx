@@ -43,7 +43,7 @@ export function Home() {
   const [code, setCode] = useState('')
   const navigate = useNavigate()
 
-  const waLink = `https://wa.me/${support_whatsapp}?text=${encodeURIComponent('Hi Thapsus! I want to order something 🛒')}`
+  const waLink = `https://wa.me/${support_whatsapp}?text=${encodeURIComponent('Hi Thapsus, I want to order something')}`
 
   const track = (e) => {
     e.preventDefault()

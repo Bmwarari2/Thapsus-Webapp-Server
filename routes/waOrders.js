@@ -19,6 +19,7 @@ import { transition, isValidEdge } from '../utils/waOrderFlow.js';
 import { sendToContact } from '../utils/waSend.js';
 import { extractTrackingCode, extractCustomerCode } from '../utils/waCodes.js';
 import { createSignedDownloadUrl } from '../utils/supabaseAdmin.js';
+import { receiptShortUrl } from '../utils/receiptLink.js';
 import { markPaymentPaid } from '../utils/markPaymentPaid.js';
 import {
   attachMpesaReference, ensureManualPayment, extractMpesaReference,
@@ -217,12 +218,12 @@ router.post('/:id/quote', authMiddleware, STAFF, idempotency, async (req, res) =
         total_kes: quoteKes.toLocaleString('en-KE'),
       },
       text:
-        `💰 *Your quote is ready!*\n` +
+        `*Your quote is ready*\n` +
         `Item price: $${usd.toFixed(2)}\n` +
         `Exchange rate: 1 USD = ${Number(rate).toFixed(2)} KES\n` +
         `Service margin: ${markup}%\n` +
         `*Total: KSh ${quoteKes.toLocaleString('en-KE')}*\n\n` +
-        `Reply *YES* to confirm and we'll send the M-Pesa payment prompt.`,
+        `Reply *YES* to confirm and we'll send the M-Pesa payment details.`,
       sentBy: req.user.id,
     });
 
@@ -360,7 +361,7 @@ router.post('/:id/request-payment', authMiddleware, STAFF, idempotency, async (r
       );
       await sendToContact(req.db, contact, {
         text:
-          `📲 We've sent an M-Pesa prompt for KSh ${amountKes.toLocaleString('en-KE')} to ` +
+          `We've sent an M-Pesa prompt for KSh ${amountKes.toLocaleString('en-KE')} to ` +
           `${phone.replace(/^254/, '0')} — just enter your PIN to complete the payment.`,
         sentBy: req.user.id,
       });
@@ -368,9 +369,9 @@ router.post('/:id/request-payment', authMiddleware, STAFF, idempotency, async (r
       await sendToContact(req.db, contact, {
         text:
           `To pay KSh ${amountKes.toLocaleString('en-KE')}:\n` +
-          `1️⃣ Lipa na M-Pesa → Buy Goods (Till)\n` +
-          `2️⃣ Till number: *${MPESA_TILL}*\n` +
-          `3️⃣ Amount: KSh ${amountKes.toLocaleString('en-KE')}\n\n` +
+          `1. Lipa na M-Pesa, Buy Goods (Till)\n` +
+          `2. Till number: *${MPESA_TILL}*\n` +
+          `3. Amount: KSh ${amountKes.toLocaleString('en-KE')}\n\n` +
           `Reply here once you've paid and we'll confirm it right away.`,
         sentBy: req.user.id,
       });
@@ -522,7 +523,7 @@ router.post('/:id/waive-fee', authMiddleware, STAFF, async (req, res) => {
     const { rows: c } = await req.db.query(`SELECT id, phone FROM wa_contacts WHERE id = $1`, [order.contact_id]);
     if (c[0]) {
       await sendToContact(req.db, c[0], {
-        text: `🎉 Good news — your delivery fee for ${order.tracking_code} has been waived! We'll dispatch your parcel shortly.`,
+        text: `Good news — your delivery fee for ${order.tracking_code} has been waived. We'll dispatch your parcel shortly.`,
         sentBy: req.user.id,
       });
     }
@@ -578,13 +579,16 @@ router.post('/:id/receipt/resend', authMiddleware, STAFF, async (req, res) => {
       `UPDATE wa_orders SET receipt_path = $2, updated_at = NOW() WHERE id = $1`,
       [order.id, path]
     );
-    const signed = await createSignedDownloadUrl('receipts', path, 7 * 24 * 3600);
+    // Short /r/ link — the signed Supabase URL is ~600 chars of JWT and
+    // looks like spam on WhatsApp. The redirect re-signs on each click.
+    const url = receiptShortUrl(order);
     await sendToContact(req.db, contact, {
-      mediaUrl: signed?.signedUrl || undefined, mediaType: 'document',
-      text: `🧾 Here's your receipt for ${order.tracking_code}:`,
+      templateKey: 'receipt',
+      templateParams: { tracking_code: order.tracking_code || '', receipt_url: url },
+      text: `Here's your receipt for ${order.tracking_code}: ${url}`,
       sentBy: req.user.id,
     });
-    res.json({ success: true, path });
+    res.json({ success: true, path, url });
   } catch (err) {
     logRouteError(req, res, err, 'POST /api/wa/orders/:id/receipt/resend');
     res.status(500).json({ success: false, message: 'Failed to resend receipt' });

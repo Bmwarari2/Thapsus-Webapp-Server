@@ -92,6 +92,7 @@ import sitemapRoutes       from './routes/sitemap.js';
 import parcelsRoutes       from './routes/parcels.js';  // legacy drain
 import opsRoutes           from './routes/ops.js';      // legacy drain
 import appConfigRoutes     from './routes/appConfig.js';
+import receiptRedirectRoutes from './routes/receiptRedirect.js';
 import { waWebhookHandler } from './routes/waWebhook.js';
 import waOrdersRoutes      from './routes/waOrders.js';
 import waInboxRoutes       from './routes/waInbox.js';
@@ -486,6 +487,8 @@ app.use('/api/wa/upload-url',                      uploadLimiter); // inbox outb
 
 // Tracking (public, unauthenticated)
 app.use('/api/tracking', trackingLimiter);
+// Short receipt links handed out on WhatsApp — public, token-authenticated.
+app.use('/r', trackingLimiter);
 
 // Catch-all — anything not matched above. Mount LAST so the specific
 // limiters above get first crack.
@@ -549,6 +552,10 @@ app.use('/api/app-config',     appConfigRoutes);
 app.use('/api/wa/orders',      waOrdersRoutes);
 app.use('/api/wa/settings',    waSettingsRoutes);
 app.use('/api/wa',             waInboxRoutes);
+
+// Public short receipt links (/r/TRK-8821.<sig>) — must sit above the SPA
+// fallback, which otherwise swallows every non-/api path.
+app.use('/r',                  receiptRedirectRoutes);
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 app.get(/^\/(?!api).*/, (req, res) => {

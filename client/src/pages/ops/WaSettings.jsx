@@ -107,7 +107,7 @@ export function WaSettings() {
           <div>
             <label className="block text-sm font-semibold text-white mb-1.5">Promo message</label>
             <input value={form.promo_message} onChange={set('promo_message')}
-              placeholder="e.g. Free delivery on all orders through mid-August! 🎉" className={inputCls} />
+              placeholder="e.g. Free delivery on all orders through mid-August" className={inputCls} />
           </div>
         </GlassCard>
 

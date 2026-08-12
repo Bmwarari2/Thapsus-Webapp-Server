@@ -18,6 +18,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { sendToContact } from './waSend.js';
 import { getWaSettings } from './waSettings.js';
 import { pushToStaff } from '../routes/events.js';
+import { mpesaTill } from './waPayments.js';
 
 // status → set of statuses an operator/system may move it to.
 const EDGES = {
@@ -147,19 +148,19 @@ async function sendCustomerStatusMessage(db, contact, order, settings) {
         templateKey: 'purchased',
         templateParams: { tracking_code: code },
         text:
-          `🛒 Your item has been purchased and is on its way to our facility! ` +
+          `Your item has been purchased and is on its way to our facility. ` +
           `Track it anytime by sending your code ${code}.`,
       });
     case 'in_kenya': {
       // Fee waived (promo) — arrival + promo message, ready to dispatch.
       const promoLine = settings?.promo_message
-        ? `\n🎉 ${settings.promo_message}`
-        : `\n🎉 Good news — your delivery fee is on us!`;
+        ? `\n${settings.promo_message}`
+        : `\nGood news — your delivery fee is on us.`;
       return sendToContact(db, contact, {
         templateKey: 'arrived_waived',
         templateParams: { tracking_code: code },
         text:
-          `📦 ${code} has arrived in Kenya! 🇰🇪${promoLine}\n` +
+          `${code} has arrived in Kenya.${promoLine}\n` +
           `We'll dispatch it to your address shortly.`,
       });
     }
@@ -169,9 +170,9 @@ async function sendCustomerStatusMessage(db, contact, order, settings) {
         templateKey: 'arrived_fee',
         templateParams: { tracking_code: code, fee_kes: String(fee) },
         text:
-          `📦 ${code} has arrived in Kenya! 🇰🇪\n` +
+          `${code} has arrived in Kenya.\n` +
           `Last step: a delivery fee of KSh ${fee.toLocaleString('en-KE')} gets it to your door. ` +
-          `We'll send an M-Pesa prompt — or reply here if you have any questions.`,
+          `Pay it on Lipa na M-Pesa, Buy Goods, Till ${mpesaTill()}, then reply here and we'll confirm it.`,
       });
     }
     case 'dispatched':
@@ -179,16 +180,16 @@ async function sendCustomerStatusMessage(db, contact, order, settings) {
         templateKey: 'dispatched',
         templateParams: { tracking_code: code },
         text:
-          `🚚 ${code} is out for delivery to your address! ` +
-          `Expect it within 1–2 business days. Our rider will call you on arrival.`,
+          `${code} is out for delivery to your address. ` +
+          `Expect it within 24 hours. Our rider will call you on arrival.`,
       });
     case 'delivered':
       return sendToContact(db, contact, {
         templateKey: 'delivered',
         templateParams: { tracking_code: code },
         text:
-          `✅ ${code} has been delivered — asante for shopping with Thapsus Cargo! ` +
-          `Send us another link any time. 🧡`,
+          `${code} has been delivered — asante for shopping with Thapsus Cargo. ` +
+          `Send us another link any time.`,
       });
     case 'cancelled':
       return sendToContact(db, contact, {

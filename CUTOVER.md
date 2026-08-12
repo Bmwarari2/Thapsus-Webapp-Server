@@ -53,8 +53,11 @@ Send a WhatsApp message from a test phone to the business number:
    **/ops/payments** ("Payments to approve"). Pay the till, reply "I have
    paid" (the bot answers that it's being verified and pages staff), then
    approve it — from `/ops/payments` or the **Payment received** button on
-   the order screen. Tracking code + PDF receipt arrive; the card moves to
-   **Paid**.
+   the order screen. Tracking code + receipt link arrive; the card moves to
+   **Paid**. The receipt link is short (`/r/TRK-8821.<sig>`) and re-signs
+   the Supabase URL on each click, so it never expires — check it opens.
+   It is built from `SITE_URL` (falling back to `APP_URL`/`FRONTEND_URL`),
+   so that must be the apex domain the app actually serves, not `www.`.
 4. Advance through Purchased → In Kenya → Dispatch → Delivered and watch
    each WhatsApp alert.
 5. Text the tracking code from the test phone → automatic status reply.
@@ -67,10 +70,9 @@ fire **outside** that window (e.g. "arrived in Kenya" days later) need
 pre-approved templates:
 
 1. Create templates in the sent.dm console for: welcome, quote,
-   payment_prompt, payment_verifying, payment_received, receipt (with a
-   *document* header), purchased, arrived_fee, arrived_waived,
-   dispatched, delivered. `sentdm-templates.json` has all 13 ready to
-   upload.
+   payment_prompt, payment_verifying, payment_received, receipt,
+   purchased, arrived_fee, arrived_waived, dispatched, delivered.
+   `sentdm-templates.json` has all 13 ready to upload.
 2. Once approved, map them in `/ops/settings` → "sent.dm template map",
    e.g. `{ "purchased": "tc_purchased_v1", … }`. Unmapped keys keep
    falling back to free-form text.
@@ -89,6 +91,7 @@ Remove now-dead Railway variables (nothing in the new code reads them):
 Keep: `ADMIN_*`, `APP_*`, `CORS_ORIGIN`, `DATABASE_URL`, `GMAIL_*`
 (password-reset email), `JWT_SECRET`, `LIPANA_*`, `MPESA_PROVIDER`,
 `MPESA_TILL_NUMBER`, `NODE_ENV`, `SITE_URL`/`FRONTEND_URL`/`APP_URL`,
+`SITE_URL` (apex domain — receipt links are built from it),
 `SUPABASE_*`, plus the new `SENTDM_*`.
 
 ## 6. Draining the legacy pipeline

@@ -92,7 +92,7 @@ export function WaPayments() {
 
       {!loading && payments.length === 0 && (
         <GlassCard className="p-8 text-center">
-          <p className="text-white font-semibold">Nothing waiting 🎉</p>
+          <p className="text-white font-semibold">Nothing waiting</p>
           <p className="text-sm text-mute mt-1">
             Payments show up here the moment a customer confirms a quote on WhatsApp.
           </p>
