@@ -17,11 +17,18 @@ import {
 const router = express.Router();
 
 /**
- * The URL sent.dm must deliver to. Built from SITE_URL/FRONTEND_URL with
- * the host normalized to the apex — Railway serves the apex custom domain
- * only, so a www-registered webhook dies with no HTTP response.
+ * The URL sent.dm must deliver to. Prefer the Railway-injected service
+ * domain (RAILWAY_PUBLIC_DOMAIN) — it reaches the app directly with a
+ * plain A record and no Cloudflare proxy/WAF in the path, which removes
+ * every network variable from webhook delivery. Fall back to
+ * SITE_URL/FRONTEND_URL with the host normalized to the apex (Railway
+ * serves only the apex custom domain, so a www-registered webhook dies
+ * with no HTTP response).
  */
 function expectedWebhookUrl() {
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/wa/webhook`;
+  }
   const base = process.env.SITE_URL || process.env.FRONTEND_URL || process.env.APP_URL || 'https://thapsus.uk';
   try {
     const u = new URL(base);
