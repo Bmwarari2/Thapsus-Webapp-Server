@@ -143,6 +143,10 @@ describe('parseInboundEvent — live production payload shape', () => {
     expect(event.kind).toBe('message_received');
     expect(event.messageId).toBe('68f60a01-a97c-4400-8463-2c0970a7851a');
     expect(event.text).toBe('Hi');
-    expect(event.senderPhone).toBe('254740825215');
+    // inbound_number = the external sender; outbound_number = the
+    // business's own sent.dm line (confirmed: customers message
+    // 254740825215, so the 447… number was the test sender here).
+    expect(event.inboundNumber).toBe('447424531483');
+    expect(event.outboundNumber).toBe('254740825215');
   });
 });

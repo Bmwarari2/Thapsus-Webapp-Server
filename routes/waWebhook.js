@@ -102,19 +102,25 @@ async function ingestInboundMessage(db, event) {
   );
   if (seen.length > 0) return { duplicate: true };
 
-  // Prefer the webhook payload's own content (live payloads carry
-  // text + the counterparty number); fall back to hydrating from the API.
-  let phone = fromE164(event.senderPhone);
+  // The sender phone comes from the authoritative GET /v3/messages/{id}
+  // (its `phone` is the counterparty, alongside an explicit direction).
+  // The webhook payload's text rides along as the body fast-path, and its
+  // inbound_number (the external sender — semantics confirmed against a
+  // production event) is the emergency fallback if the fetch fails.
+  let phone = null;
   let body = typeof event.text === 'string' ? event.text : null;
-  if (!phone || body === null) {
+  try {
     const msg = await fetchMessage(providerMessageId);
     // Only ingest genuine inbound traffic — our own sends also generate
     // message events, and those are already in wa_messages via waSend.
     if (msg?.direction && !/^in/i.test(String(msg.direction))) {
       return { ignored: 'outbound message event' };
     }
-    phone = phone || fromE164(msg?.phone_international || msg?.phone);
+    phone = fromE164(msg?.phone_international || msg?.phone);
     body = body ?? (msg?.message_body?.content ?? null);
+  } catch (e) {
+    console.warn(`[wa-webhook] message hydration failed (${e?.message}) — falling back to payload fields`);
+    phone = fromE164(event.inboundNumber);
   }
   if (!phone) return { ignored: 'no sender phone' };
 

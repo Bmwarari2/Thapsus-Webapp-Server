@@ -200,18 +200,21 @@ export function verifyWebhookSignature(headers, rawBody) {
 
 /**
  * Normalize a verified webhook body into one of:
- *   { kind: 'message_received', messageId, text?, senderPhone? }
+ *   { kind: 'message_received', messageId, text?, inboundNumber?, outboundNumber? }
  *   { kind: 'message_status',   messageId, status }   status: sent.dm's
  *       QUEUED/PROCESSED/ROUTED/SENT/DELIVERED/READ/FAILED
  *   { kind: 'ignored', reason }
  *
  * Live message.received payloads (verified against production deliveries)
  * carry the content inline:
- *   payload: { text, channel, message_id, inbound_number (the business
- *              line the message arrived on), outbound_number (the
- *              counterparty — where our replies go), received_at, … }
- * so the webhook can ingest without a GET /v3/messages round-trip; the
- * fetch stays as the fallback when these fields are absent.
+ *   payload: { text, channel, message_id, inbound_number (the EXTERNAL
+ *              sender the inbound came from), outbound_number (OUR
+ *              business line — the number replies go out from),
+ *              received_at, … }
+ * Field semantics confirmed against a production event where the
+ * business's sent.dm line appeared as outbound_number. The sender phone
+ * is still resolved authoritatively via GET /v3/messages/{id} during
+ * ingestion — these fields are the fast path / fallback only.
  */
 export function parseInboundEvent(payloadJson) {
   const event = payloadJson || {};
@@ -231,7 +234,9 @@ export function parseInboundEvent(payloadJson) {
       kind: 'message_received',
       messageId,
       text: typeof p.text === 'string' ? p.text : undefined,
-      senderPhone: typeof p.outbound_number === 'string' && p.outbound_number
+      inboundNumber: typeof p.inbound_number === 'string' && p.inbound_number
+        ? p.inbound_number : undefined,
+      outboundNumber: typeof p.outbound_number === 'string' && p.outbound_number
         ? p.outbound_number : undefined,
     };
   }
