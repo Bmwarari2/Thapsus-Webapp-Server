@@ -32,7 +32,7 @@ missing — sends are recorded as `failed` in the inbox instead of crashing
    - `SENTDM_API_KEY` = your `sk_live_…` key from the sent.dm console.
 2. Register the inbound webhook (after the deploy is live):
    ```bash
-   SENTDM_API_KEY=sk_live_… node scripts/register-sentdm-webhook.mjs https://www.thapsus.uk
+   SENTDM_API_KEY=sk_live_… node scripts/register-sentdm-webhook.mjs https://thapsus.uk
    ```
    The script prints the webhook **signing secret** (`whsec_…`) — shown
    only once. Set it on Railway as:

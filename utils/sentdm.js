@@ -200,10 +200,18 @@ export function verifyWebhookSignature(headers, rawBody) {
 
 /**
  * Normalize a verified webhook body into one of:
- *   { kind: 'message_received', messageId }
+ *   { kind: 'message_received', messageId, text?, senderPhone? }
  *   { kind: 'message_status',   messageId, status }   status: sent.dm's
  *       QUEUED/PROCESSED/ROUTED/SENT/DELIVERED/READ/FAILED
  *   { kind: 'ignored', reason }
+ *
+ * Live message.received payloads (verified against production deliveries)
+ * carry the content inline:
+ *   payload: { text, channel, message_id, inbound_number (the business
+ *              line the message arrived on), outbound_number (the
+ *              counterparty — where our replies go), received_at, … }
+ * so the webhook can ingest without a GET /v3/messages round-trip; the
+ * fetch stays as the fallback when these fields are absent.
  */
 export function parseInboundEvent(payloadJson) {
   const event = payloadJson || {};
@@ -218,7 +226,15 @@ export function parseInboundEvent(payloadJson) {
   }
   if (!messageId) return { kind: 'ignored', reason: 'no payload.message_id' };
 
-  if (/received/i.test(name)) return { kind: 'message_received', messageId };
+  if (/received/i.test(name)) {
+    return {
+      kind: 'message_received',
+      messageId,
+      text: typeof p.text === 'string' ? p.text : undefined,
+      senderPhone: typeof p.outbound_number === 'string' && p.outbound_number
+        ? p.outbound_number : undefined,
+    };
+  }
   if (typeof p.message_status === 'string' && p.message_status) {
     return { kind: 'message_status', messageId, status: p.message_status };
   }

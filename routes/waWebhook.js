@@ -7,11 +7,15 @@
 //
 // Flow per delivery:
 //   verify HMAC (x-webhook-id/-timestamp/-signature) → parse → normalize
-//   → 'message_received':  GET /v3/messages/{id} to hydrate sender phone
-//        + body (webhook payloads only carry ids reliably), upsert the
+//   → 'message_received':  ingest the sender phone + text straight from
+//        the webhook payload (live payloads carry both; GET
+//        /v3/messages/{id} is the fallback when they don't), upsert the
 //        wa_contacts row, insert the wa_messages row (provider_message_id
-//        UNIQUE = replay idempotency), bump unread + SSE, then hand off
-//        to the conversation state machine.
+//        UNIQUE = replay idempotency), bump unread + SSE, ACK — and only
+//        THEN run the conversation state machine. The bot's replies can
+//        take seconds (several outbound sends); doing them before the ACK
+//        risked tripping sent.dm's delivery timeout, which surfaces as
+//        RETRYING deliveries and duplicate processing.
 //   → 'message_status':    map the provider status onto our wa_messages row.
 //
 // Always 200 once the signature checks out — sent.dm retries non-2xx
@@ -50,8 +54,20 @@ export async function waWebhookHandler(req, res) {
 
   try {
     if (event.kind === 'message_received') {
-      const result = await ingestInboundMessage(req.db, event.messageId);
-      return res.json({ received: true, ...result });
+      const result = await ingestInboundMessage(req.db, event);
+      res.json({ received: true, ...(result.ingested ? { ok: true } : result) });
+      // Bot logic runs AFTER the ACK — see the header comment.
+      if (result.ingested) {
+        handleInbound(req.db, result.contact, result.message).catch((err) => {
+          console.error('[wa-webhook] state machine failed:', err);
+          logError({
+            level: 'error', source: 'wa-webhook',
+            message: `state machine failed: ${err?.message}`,
+            stack: err?.stack,
+          });
+        });
+      }
+      return;
     }
     if (event.kind === 'message_status') {
       const mapped = mapProviderStatus(event.status);
@@ -77,24 +93,30 @@ export async function waWebhookHandler(req, res) {
   }
 }
 
-async function ingestInboundMessage(db, providerMessageId) {
-  // Replay short-circuit before the API round-trip.
+async function ingestInboundMessage(db, event) {
+  const providerMessageId = event.messageId;
+  // Replay short-circuit before any API round-trip.
   const { rows: seen } = await db.query(
     `SELECT 1 FROM wa_messages WHERE provider_message_id = $1`,
     [providerMessageId]
   );
   if (seen.length > 0) return { duplicate: true };
 
-  const msg = await fetchMessage(providerMessageId);
-  // Only ingest genuine inbound traffic — our own sends also generate
-  // message events, and those are already in wa_messages via waSend.
-  if (msg?.direction && !/^in/i.test(String(msg.direction))) {
-    return { ignored: 'outbound message event' };
+  // Prefer the webhook payload's own content (live payloads carry
+  // text + the counterparty number); fall back to hydrating from the API.
+  let phone = fromE164(event.senderPhone);
+  let body = typeof event.text === 'string' ? event.text : null;
+  if (!phone || body === null) {
+    const msg = await fetchMessage(providerMessageId);
+    // Only ingest genuine inbound traffic — our own sends also generate
+    // message events, and those are already in wa_messages via waSend.
+    if (msg?.direction && !/^in/i.test(String(msg.direction))) {
+      return { ignored: 'outbound message event' };
+    }
+    phone = phone || fromE164(msg?.phone_international || msg?.phone);
+    body = body ?? (msg?.message_body?.content ?? null);
   }
-  const phone = fromE164(msg?.phone_international || msg?.phone);
   if (!phone) return { ignored: 'no sender phone' };
-
-  const body = msg?.message_body?.content ?? null;
 
   // Upsert the contact (phone is the identity).
   const contactId = uuidv4();
@@ -137,8 +159,6 @@ async function ingestInboundMessage(db, providerMessageId) {
     phone: contact.phone,
   });
 
-  // Bot logic — onboarding, tracking auto-reply, quote confirmation.
-  await handleInbound(db, contact, { id: messageId, body, mediaUrl: null });
-
-  return { ok: true };
+  // Caller ACKs, then runs the state machine on this.
+  return { ingested: true, contact, message: { id: messageId, body, mediaUrl: null } };
 }

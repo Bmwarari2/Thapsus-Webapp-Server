@@ -122,3 +122,27 @@ describe('status mapping + phone helpers', () => {
     expect(fromE164('+254712345678')).toBe('254712345678');
   });
 });
+
+describe('parseInboundEvent — live production payload shape', () => {
+  it('extracts text + counterparty from a real message.received delivery', () => {
+    const event = parseInboundEvent({
+      event: 'message.received',
+      field: 'message',
+      payload: {
+        text: 'Hi',
+        channel: 'whatsapp',
+        account_id: 'c56c6220-bb32-46d3-a302-42b15b372e2c',
+        message_id: '68f60a01-a97c-4400-8463-2c0970a7851a',
+        updated_at: '2026-08-12T06:22:24Z',
+        received_at: '2026-08-12T06:22:24Z',
+        inbound_number: '447424531483',
+        outbound_number: '254740825215',
+      },
+      timestamp: '2026-08-12T06:22:27Z',
+    });
+    expect(event.kind).toBe('message_received');
+    expect(event.messageId).toBe('68f60a01-a97c-4400-8463-2c0970a7851a');
+    expect(event.text).toBe('Hi');
+    expect(event.senderPhone).toBe('254740825215');
+  });
+});
