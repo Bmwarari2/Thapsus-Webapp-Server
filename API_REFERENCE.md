@@ -1,464 +1,183 @@
 # Thapsus Cargo API Reference
 
-For the why-behind-the-what — auth model, RLS posture, webhook idempotency — read [`ARCHITECTURE.md`](./ARCHITECTURE.md) first. The authoritative source for endpoint shapes is `routes/*.js`; this document is best-effort.
+`routes/*.js` is authoritative — this document drifts. It was regenerated
+against the routers on 2026-08-12, after the WhatsApp-first rebuild.
 
 ## Base URL
 
 ```
-http://localhost:5000/api       # dev
-https://thapsus.uk/api          # production (proxied to Railway)
+production   https://thapsus.uk/api
+local        http://localhost:5000/api
 ```
 
 ## Authentication
 
-Protected endpoints require a Bearer token:
+Staff only. There are no customer accounts — customers interact over
+WhatsApp and never authenticate.
 
 ```
 Authorization: Bearer <sc_token>
 ```
 
-The `sc_token` is an HS256-signed JWT (`{ id, email, role, warehouse_id, iat }`), default lifetime **7 days** (`JWT_EXPIRY`, see #149). Web and mobile clients silently refresh on `/auth/me` — the server attaches a fresh `refreshed_token` to that response whenever it's close to expiry.
+`sc_token` is an HS256 JWT from `POST /auth/login`, default 7-day expiry
+with silent refresh on `/auth/me`. Roles in use: `operator` and `admin`;
+admins pass every `requireRole` gate.
 
-For direct Supabase PostgREST / Realtime calls the iOS app exchanges its `sc_token` for a short-lived `supabase_token` via `POST /auth/supabase-token`.
+Errors are `{ success: false, message, error? }` with a conventional
+status. Rate limits: 10/15min on auth, 30/15min on signed-URL mints,
+60/15min on public tracking and `/r`, 200/15min global.
 
-Roles: `customer`, `operator`, `clearing_agent`, `rider`, `influencer`, `admin`. Admin always satisfies any role gate. `influencer` accounts are confined to `/influencer` (the partner dashboard) — the app bounces them off every customer/ops/admin route.
-
----
-
-## Auth
-
-### Register
-```
-POST /auth/register
-{
-  "name": "John Doe",
-  "email": "john@example.com",
-  "password": "<≥8 chars, ≥1 letter, ≥1 number — NIST SP 800-63B>",
-  "phone": "+254712345678",
-  "country": "KE",
-  "accepted_terms": true,
-  "referral_code": "REF_OPTIONAL"
-}
-
-Response 201: { success, token, supabase_token, user }
-```
-
-### Login
-```
-POST /auth/login
-{ "email": "...", "password": "..." }
-
-Response 200: { success, token, supabase_token, user }
-```
-
-### Current user (silent refresh)
-```
-GET /auth/me   (Bearer)
-
-Response 200: { success, user, refreshed_token? }
-```
-
-`refreshed_token` is included only when the current token is close to expiry. Web and iOS replace their cached token whenever the field is present.
-
-### Logout (revoke)
-```
-POST /auth/logout   (Bearer)
-
-The SHA-256 hash of the presented token is inserted into `revoked_tokens`. The plaintext is never stored. Subsequent calls with that token are rejected.
-```
-
-### Forgot / reset password
-```
-POST /auth/forgot-password   { "email": "..." }
-POST /auth/reset-password    { "token": "<hex>", "new_password": "..." }
-```
-
-Resetting the password bumps `users.password_changed_at`. Any JWT whose `iat` predates that timestamp is rejected by the auth middleware — every outstanding token for the user is invalidated.
-
-### Supabase token exchange
-```
-POST /auth/supabase-token   (Bearer)
-
-Response 200: { supabase_token, expires_at }
-```
-
-Used by the iOS app for direct PostgREST + Realtime access under RLS.
+Mutating endpoints marked **idempotent** accept an `Idempotency-Key`
+header and replay the stored response for a repeated key.
 
 ---
 
-## Orders (parcel forwarding)
+## WhatsApp — inbound
 
-UK-only since 2026-05-11. The `market` parameter was removed in migration 052; clients should omit it.
+### `POST /api/wa/webhook`
 
-### Create
-```
-POST /orders   (Bearer)
-{
-  "retailer": "Amazon UK",
-  "description": "Electronics",
-  "weight_kg": 2.5,
-  "dimensions": { "length": 30, "width": 20, "height": 15 },
-  "declared_value_gbp": 150,
-  "insurance": true,
-  "shipping_speed": "economy"
-}
-
-Response 201: { success, order: { ..., tracking_number, status } }
-```
-
-### List / detail
-```
-GET  /orders?page=1&limit=10&status=pending
-GET  /orders/:id
-PUT  /orders/:id          (admin)
-```
-
-### Public tracking
-```
-GET /tracking/:trackingNumber           # no auth — limited fields
-GET /tracking/user/packages             # Bearer — user's parcels
-PUT /tracking/:packageId/status         # admin/operator
-```
+sent.dm delivery. Mounted before the JSON body parser with the raw body
+preserved; verified as Svix-style HMAC over
+`${x-webhook-id}.${x-webhook-timestamp}.${rawBody}` with a ±300s
+tolerance. Deduped on `provider_message_id`. Returns 200 before running
+bot replies. Not called by anything you own.
 
 ---
 
-## Buy-for-me (primary product)
+## WhatsApp — inbox (`/api/wa`, operator)
 
-Concierge "Shop & ship" flow. As of 2026-05-13 this is the default surface across customer + operator + admin consoles.
-
-```
-POST /buy-for-me                # create request (retailer + URL + items + notes)
-GET  /buy-for-me                # customer list
-GET  /buy-for-me/:id            # customer detail
-POST /buy-for-me/:id/cancel
-GET  /buy-for-me/operator/queue # operator queue
-POST /buy-for-me/:id/quote      # operator → set quote breakdown
-POST /buy-for-me/:id/accept     # customer accepts → invoice issued
-POST /buy-for-me/:id/pay        # routes through /api/payments
-```
-
-The quote is calculated server-side from the six-knob pricing model (`pricing_settings`, `customs_tiers`, `hs_code_tiers`, `electronics_fees`). Customer surfaces show KES; operator surfaces show GBP. The web `/calculator` shows the same breakdown but hides the customs estimate (KRA charges separately on clearance).
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/wa/conversations?q=` | Conversation list, newest first, unread counts. `q` matches name, phone and `TC-` code. |
+| GET | `/wa/conversations/:contactId` | Contact record + counters. |
+| GET | `/wa/conversations/:contactId/messages?before=` | Paginated transcript, oldest first. |
+| POST | `/wa/conversations/:contactId/messages` | Send. `{ text?, media_url?, media_type? }`. Recorded as sent by the operator. |
+| POST | `/wa/conversations/:contactId/read` | Clear the unread badge. |
+| POST | `/wa/conversations/:contactId/ai` | `{ enabled }` — resume or pause the assistant on this chat (clears/sets `human_takeover_at`). |
+| PUT | `/wa/contacts/:contactId` | Edit name, delivery address, M-Pesa number. |
+| POST | `/wa/upload-url` | `{ filename, content_type }` → signed Supabase Storage PUT for outbound media. |
 
 ---
 
-## Influencer referrals & analytics
+## WhatsApp — orders (`/api/wa/orders`, operator)
 
-Admin-driven marketing programme (migrations 0002 + 0003), **separate** from the
-account-to-account `referral_code` scheme that pays wallet credit between
-customers. An admin mints a short code for an influencer who has no account,
-the influencer shares `/i/<CODE>`, and the admin tracks the funnel — link opens
-→ signups → orders — to pay them. Influencers can be given their own login to a
-self-serve analytics dashboard.
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/wa/orders?status=&q=&limit=&offset=` | Pipeline board and global search. `status` accepts a comma list. `q` matches `TRK-`/`TC-` codes in any formatting, names, phone digits. |
+| GET | `/wa/orders/scan/:code` | Scanner resolver — tracking code in any formatting → the order. 404 if unknown. |
+| POST | `/wa/orders` | `{ contact_id, product_links[], product_note? }` → a `quoting` order. |
+| GET | `/wa/orders/:id` | Order + contact + audit trail + payments. |
+| POST | `/wa/orders/:id/quote` | **Idempotent.** `{ usd_price }`. Server computes `usd × live USD_KES × (1 + markup/100)`, snapshots the inputs, sends the quote. 409 unless status is `quoting`/`quoted`; 503 if the FX rate is stale. |
+| POST | `/wa/orders/:id/confirm` | Operator confirms on the customer's behalf. Silent — the payment prompt follows separately. |
+| POST | `/wa/orders/:id/request-payment` | **Idempotent.** `{ method: 'stk'\|'manual', purpose: 'order'\|'delivery_fee', phone? }`. `manual` opens/reuses an `awaiting_review` payment and sends till instructions. `stk` returns 409 `stk_unavailable` unless `MPESA_PROVIDER=lipana`. |
+| POST | `/wa/orders/:id/mark-paid` | **Admin. Idempotent.** `{ mpesa_reference?, note? }`. Get-or-creates the payment for whatever the order owes, stamps the reference, settles through `markPaymentPaid` — minting the tracking code and sending the receipt. |
+| POST | `/wa/orders/:id/advance` | `{ to_status, note? }`. Validated single-step move; each fires its WhatsApp alert. `paid` is not operator-advanceable. Refuses `dispatched` while an unwaived fee is outstanding. |
+| POST | `/wa/orders/:id/waive-fee` | Waive the last-mile fee and tell the customer. 409 unless the order is awaiting one. |
+| GET | `/wa/orders/:id/receipt` | 7-day signed download URL for the operator. |
+| POST | `/wa/orders/:id/receipt/resend` | Regenerate and re-push the short receipt link to the customer. 409 with no settled payment. |
 
-**Public** (no auth):
-```
-GET  /i/:code                   # SSR landing page; <meta> preview carries the influencer's name
-GET  /i/:code/og.png            # per-influencer 1200×630 preview image (name rendered on a branded card)
-GET  /api/influencer/:code      # { valid, influencer_name } — validate a code
-POST /api/influencer/:code/visit  # record a link open (device + coarse geo); returns { visit_id }
-POST /api/influencer/:code/signup # create an account (attributed) + turn item links into buy-for-me requests
-POST /api/influencer/:code/click  # legacy counter bump (superseded by /visit)
-```
-`/visit` writes an `influencer_link_events` row and returns a `visit_id`; the
-landing page threads that id into `/signup`, which flips the visit to
-`converted` — that's how "opened but never signed up" is distinguished. Location
-is estimated from the IP via ipwho.is out-of-band; the **raw IP is never stored**
-(only a salted hash + coarse country/region/city). Link-preview crawlers get the
-name in server-rendered `<meta>` tags because they don't run JS.
+**Statuses:** `quoting`, `quoted`, `confirmed`, `paid`, `purchased`,
+`in_kenya`, `delivery_fee_pending`, `dispatched`, `delivered`,
+`cancelled`. Legal edges are declared in `utils/waOrderFlow.js`.
 
-**Influencer portal** (role `influencer`; admins also allowed, scoped to codes they own):
-```
-GET /api/influencer-portal/dashboard?days=30
-    # KPIs (opens, unique visitors, signups, orders, earnings, opened-not-signed-up),
-    # per-link funnels, a zero-filled daily time-series, location + device breakdowns,
-    # and a recent-activity feed — all scoped to the caller's own codes.
-```
+---
 
-**Admin** (`authMiddleware` + `isAdmin`):
-```
-GET   /admin/influencers                    # all codes + funnel numbers + account status
-POST  /admin/influencers                    # mint a code { influencer_name, code?, reward_per_order?, ... }
-GET   /admin/influencers/:code              # one code + its signups + conversions
-PATCH /admin/influencers/:code              # edit name/contact/reward/notes/is_active
-POST  /admin/influencers/:code/account      # provision (or re-invite) the influencer's dashboard login
-POST  /admin/influencers/conversions/:id/pay  # mark a conversion compensated (or not)
-```
-Provisioning creates a `role='influencer'` user (or links an existing one),
-sets `influencer_codes.owner_user_id`, and emails a set-password invite (reuses
-the reset-password flow, which also verifies the email); the response includes a
-fallback `setup_link` for when email delivery is down.
+## WhatsApp — settings (`/api/wa/settings`, admin)
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/wa/settings` | Current settings + `capabilities` (e.g. `stk_available`). |
+| PUT | `/wa/settings` | `markup_pct`, `promo_active`, `promo_type`, `promo_message`, `default_delivery_fee_kes`, `welcome_media_urls[]`, `template_map{}`, `ai_enabled`, `ai_knowledge_base`, `ai_resume_after_minutes`, `staff_alert_numbers[]`, `staff_alert_template`. |
+| GET | `/wa/settings/webhook-status` | Webhook doctor — the live sent.dm registration, recent delivery events, AI self-test. |
+| POST | `/wa/settings/webhook-repair` | Re-point and re-activate the registration at this deployment. |
 
 ---
 
 ## Payments
 
-Unified surface for Stripe + M-Pesa Lipana. Replaces the retired wallet (`/api/wallet` → HTTP 410 Gone since migration 028).
-
-```
-POST /payments/stripe/intent       # creates a PaymentIntent
-POST /payments/lipana/initiate     # initiates an STK Push prompt to user's phone
-POST /payments/stripe/webhook      # raw body — Stripe-Signature verified
-POST /payments/lipana/webhook      # raw body — X-Lipana-Signature verified (HMAC-SHA256)
-GET  /payments/public/:id          # public payment lookup (used by /public-pay)
-GET  /payments                     # customer payment history
-```
-
-Both webhooks:
-- Are mounted with `express.raw({ limit: '1mb' })` **before** `express.json()`.
-- Insert into a per-provider `*_events_seen` table (PK on `event_id`) before any side-effect, so retries / replays land twice on the row but only run side-effects once.
-- Converge on `utils/markPaymentPaid.js` — the same code path that the admin M-Pesa manual approval route uses. Parcel status flip, credit ledger debit, receipt email all happen exactly once regardless of provider.
-
-### Credit Centre (replaces wallet)
-```
-GET  /payments/credits             # current balance + ledger
-POST /payments/credits/use         # apply credits to a Buy-for-me invoice or order
-```
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/admin/payments/pending` | admin | Every M-Pesa payment awaiting review, joined to the user *or* WhatsApp contact and its order. |
+| POST | `/admin/payments/:id/approve` | admin | Settles via `markPaymentPaid`. Blocks a short payment unless `override_reason` (≥10 chars) is supplied; `wa_order` payments skip the SMS-paste requirement. |
+| POST | `/admin/payments/:id/reject` | admin | `{ reason }` — customer can pay again. |
+| GET | `/payments/methods` | public | Enabled methods and the till number. |
+| POST | `/payments/lipana/webhook` | signature | Raw-body Lipana webhook. Inert while `MPESA_PROVIDER=manual`. |
+| GET | `/payments`, `/payments/:id`, `/payments/me/credit`, `/payments/me/credit/ledger` | mixed | Legacy surface, kept for draining. |
+| POST | `/payments`, `/payments/:id/mpesa-confirmation` | legacy | Legacy customer payment path. |
 
 ---
 
-## Consolidations
+## Public
 
-Framework v2 is the supported surface.
-
-```
-GET  /consolidations                       # operator queue + customer-facing per-id
-POST /consolidations                       # operator create
-GET  /consolidations/:id
-POST /consolidations/:id/dispatch
-POST /consolidations/:id/printable-manifest # A4 manifest
-GET  /customer-consolidations              # customer's consolidations
-```
-
-The v1 surface (`/api/consolidation/*`) is deprecated. Calls receive RFC 8594 `Deprecation: true`, `Sunset: 2026-05-23`, `Link: rel="successor-version"` headers.
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/api/tracking/:trackingNumber` | Status-only lookup, rate-limited. Checks `wa_orders.tracking_code` first, falls back to legacy `orders.tracking_number`. |
+| GET | `/r/:token` | Short receipt link. Verifies the HMAC and 302s to a freshly signed 10-minute PDF URL. 404 (HTML) on anything malformed, unknown or unsigned. |
+| GET | `/api/exchange/rates` · `/convert` · `/health` | FX rates. |
+| GET | `/api/app-config` | Runtime client config. |
+| GET | `/sitemap.xml` · `/robots.txt` | SEO. |
+| GET | `/health` | Liveness probe with DB status. |
 
 ---
 
-## Customs · Last-mile · Insurance · DSAR · Notifications · NPS
+## Auth (`/api/auth`)
 
-```
-GET /customs                  # customs entries / declarations
-…   /last-mile/runs           # rider run lifecycle: assign, start, complete, POD
-POST /last-mile/pod           # POD photo + signature + OTP
-GET /insurance/quote          # declared-value insurance quote
-POST /insurance/claim
-POST /dsar                    # GDPR DSAR request (export emailed to user)
-GET /admin/dsar               # admin DSAR queue (PR #144)
-GET /notifications            # customer inbox (PR #143)
-POST /nps/respond             # NPS survey
-```
-
----
-
-## Tickets
-
-```
-POST /tickets                       # multipart/form-data — subject, description, priority, photo
-GET  /tickets?page=1&status=open
-GET  /tickets/:id
-POST /tickets/:id/message
-PUT  /tickets/:id/status            # admin/operator
-GET  /tickets/admin/all             # staff queue
-```
-
----
-
-## Pricing (six-knob model)
-
-Live quote engine. The web public calculator and the iOS/Android quote screens all call this.
-
-```
-POST /pricing/calculate
-{
-  "weight_kg": 2.5,
-  "dimensions": { "length": 30, "width": 20, "height": 15 },
-  "declared_value_gbp": 0,            # zeroed in public calculator (web parity)
-  "hs_code": "",                       # optional — drives hs_code_tiers
-  "is_electronics": false,             # drives electronics_fees
-  "insurance": false
-}
-
-Response 200:
-{
-  "summary": {
-    "total_gbp": …,                    # operator-facing
-    "total_kes": …,                    # customer-facing (server-side FX, parity with iOS)
-    "actual_kg": 2.5,
-    "vol_kg": 1.8,                     # L·W·H/6000
-    "chargeable_kg": 2.5
-  },
-  "breakdown": {
-    "base_shipping": …,
-    "weight_tier":  …,                 # via pricing_settings + customs_tiers
-    "electronics":  …,                 # if applicable
-    "insurance":    …,
-    "handling":     …,
-    "card_processing": …               # Stripe processing line (PR #206)
-  }
-}
-```
-
-The public calculator omits the customs estimate (PR #207) — KRA charges on clearance.
-
-### Pricing tiers (public + admin)
-```
-GET  /pricing-tiers/tiers     # public read
-GET  /pricing-tiers/fees      # public read
-POST /pricing-tiers           # admin create/update promotion
-```
-
----
-
-## FX
-
-```
-GET  /exchange/rates           # cached daily refresh from frankfurter.dev (PR #199)
-POST /exchange/convert
-POST /admin/exchange/refresh   # admin manual trigger
-```
-
-Rates land in DB with the `_KES` suffix convention.
-
----
-
-## Prohibited items (UK → KE)
-
-```
-GET /prohibited/check?item=fireworks
-GET /prohibited/categories
-GET /prohibited/categories/:category
-POST /prohibited                    # admin CRUD
-```
-
-Catalogue seeded by migration 030 — 18 categories covering UK-export and KE-import restrictions.
-
----
-
-## Operator console & parcels
-
-```
-POST /parcels                     # operator intake (camera barcode → zxing)
-POST /parcels/:id/label           # browser-print thermal label
-GET  /ops/today                   # operator today queue (BFM-first)
-POST /ops/consolidations          # build manifest
-GET  /ops/scanner                 # SKU scanner config
-```
-
----
-
-## Clearing-agent invoices · AML
-
-```
-GET  /agent-invoices              # agent's queue
-POST /agent-invoices              # upload (signed URL → Supabase Storage)
-GET  /agent-invoices/admin        # admin queue
-GET  /admin/aml-flags             # AML review queue
-POST /admin/aml-flags/:id/resolve
-```
-
-Uploads never traverse Express. Clients request a signed URL from `/agent-invoices/upload-url`, then PUT directly to Supabase Storage (`agent-invoices` private bucket).
-
----
-
-## Admin
-
-```
-GET  /admin/users?search=&role=&page=1
-GET  /admin/users/:userId
-PUT  /admin/users/:userId
-GET  /admin/orders
-PUT  /admin/orders/bulk-update
-GET  /admin/stats                 # includes payments table since PR #209
-GET  /admin/revenue               # daily rows include Stripe + M-Pesa (PR #210)
-GET  /admin/revenue/export        # CSV
-GET  /admin/logs                  # admin actions audit log
-GET  /admin/error-logs            # threaded with X-Request-Id (PR #135)
-GET  /admin/email-diagnostics     # surfaces whether Gmail OAuth env is visible to the process
-```
-
----
-
-## KPIs · App config · Warehouse · Retailers
-
-```
-GET /kpi/dashboard                # KPI dashboard data
-GET /app-config                   # runtime client config
-GET /warehouse/addresses          # UK warehouse details
-GET /retailers                    # UK retailers catalogue (filters BFM picker, PR #203)
-```
+| Method | Path | Notes |
+| --- | --- | --- |
+| POST | `/auth/login` | `{ email, password }` → `{ token, supabase_token, user }`. |
+| GET | `/auth/me` | Current user; attaches `refreshed_token` near expiry. |
+| POST | `/auth/logout` | Revokes the presented token (SHA-256 hash stored). |
+| PUT | `/auth/profile` · `/auth/password` | Self-service. |
+| POST | `/auth/forgot-password` · `/auth/reset-password` | Emailed one-shot token; bumps `password_changed_at`, invalidating every outstanding JWT for that user. |
+| GET | `/auth/reset-context` | Metadata for the reset screen. |
+| POST | `/auth/supabase-token` | Short-lived Supabase JWT for direct PostgREST access. |
+| POST | `/auth/register` | **410 Gone** — no customer accounts. |
+| POST | `/auth/verify-email` · `/auth/resend-verification` | Vestigial; registration is closed. |
 
 ---
 
 ## Realtime
 
-### Server-Sent Events (web)
+### `GET /api/events`
+
+SSE stream for the dashboard. Events: `wa_inbox_update`,
+`wa_pipeline_update`, `wa_new_customer`.
+
+```bash
+curl -N -H "Authorization: Bearer <sc_token>" https://thapsus.uk/api/events
 ```
-GET /events   (Bearer; long-lived stream)
-```
-
-The web client opens a single `EventSource` and receives JSON-encoded events from the in-memory emitter `server.js` fires whenever a mutation should fan out. EventSource auto-reconnects on transport hiccups (handled by the browser).
-
-### Supabase Realtime (iOS / Android)
-
-Mobile clients subscribe directly to Supabase Realtime channels for `packages`, `consolidations`, `customer_consolidations`, `notifications`. Subscriptions are gated by `supabase_token` claims and RLS. The KMP layer in `thapsus-v1.1` (`shared/.../RealtimeSync.kt`) consolidates these into a single coroutine flow.
 
 ---
 
-## Universal Links
+## Admin
 
-```
-GET /.well-known/apple-app-site-association
-```
-
-Served as `Content-Type: application/json` with no redirects (Apple is strict). If you touch the SPA fallback wildcard, keep this handler above it.
+`/api/admin/*` (36 endpoints) keeps user management, error logs, exchange
+rates and the legacy order/transaction surfaces. The live dashboard uses
+users and error logs; the rest exists to finish pre-WhatsApp work.
 
 ---
 
-## Error responses
+## Legacy drain — operator only
 
-```json
-{ "success": false, "message": "<human-readable>", "code": "<optional>" }
+`/api/orders` (GET/PUT only — **`POST` is 410 Gone**), `/api/parcels`,
+`/api/ops/*` (8 endpoints: today, parcels, receive, screen, hold,
+release, customer, by-barcode). These retire once the last pre-WhatsApp
+order is delivered.
+
+---
+
+## Smoke checks
+
+```bash
+curl -s https://thapsus.uk/health | jq
+
+curl -s -X POST https://thapsus.uk/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"...","password":"..."}' | jq '{token}'
+
+curl -s -H "Authorization: Bearer $T" https://thapsus.uk/api/wa/settings/webhook-status | jq
+
+curl -s https://thapsus.uk/api/tracking/TRK-8821 | jq
+
+curl -i https://thapsus.uk/r/not-a-real-token       # expect 404 HTML, not the SPA
 ```
-
-| Status | Meaning |
-| --- | --- |
-| 400 | Bad request / validation failure |
-| 401 | Missing / invalid / revoked JWT; password changed; user deactivated |
-| 403 | Role gate refused; CORS origin not allowlisted |
-| 404 | Resource not found |
-| 409 | Conflict (e.g. email already registered) |
-| 410 | Resource permanently gone (`/api/wallet` since mig 028) |
-| 413 | Body too large (200 KB global cap; sanitizer recursion / key count exceeded) |
-| 429 | Rate-limited |
-| 500 | Server error — `error_logs` row written, threaded with `X-Request-Id` |
-
-Every response includes the `X-Request-Id` header for correlation against `error_logs.meta.request_id` and the morgan access log.
-
----
-
-## Rate limits
-
-| Scope | Limit |
-| --- | --- |
-| Auth (`/auth/*` mutations) | 10 / 15 min |
-| Influencer landing signup (`/influencer/:code/signup`) | 10 / 15 min |
-| Forgot-password | 5 / hour |
-| Reset-password | 10 / hour |
-| Payments | 10 / 15 min |
-| Signed-URL mints | 30 / 15 min |
-| Public tracking | 60 / 15 min |
-| Global `/api/*` | 200 / 15 min |
-
-Webhooks bypass all limiters — signature verification is the defence; dropping a legitimate retry is worse than absorbing the cost.
-
----
-
-## Best practices
-
-1. Always honour the `refreshed_token` in `/auth/me` responses — replace your cached token in place.
-2. Check `success` before processing data; pre-flight on `code` for typed branches.
-3. Use pagination on list endpoints (`?page`, `?limit`).
-4. Implement exponential backoff for retries.
-5. Cache `/exchange/rates` for ~5 minutes — the server refreshes once daily.
-6. Store JWTs in Keychain (iOS) / EncryptedSharedPreferences (Android) / `localStorage` is acceptable for the SPA pending CSRF mitigations on the API.
-7. Send Stripe / M-Pesa webhooks only at the documented `/webhook` paths — they're the only routes mounted with raw-body parsing.
-8. For very-public endpoints (`/tracking/:n`, `/pricing-tiers/tiers`, `/prohibited/categories`, `/exchange/rates`) prefer GETs without auth — the rate limit is more permissive.

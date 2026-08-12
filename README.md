@@ -1,198 +1,190 @@
-# Thapsus Cargo — webapp + API (`Swiftcargo-main`)
+# Thapsus Cargo — WhatsApp-first parcel forwarding
 
-UK → Kenya parcel-forwarding, consolidation and **Buy-for-me** (concierge "Shop & ship") logistics. Backed by an Express 5 API on Railway and Postgres on Supabase. The companion native mobile apps (iOS + Android) live in [`thapsus-v1.1`](https://github.com/Bmwarari2/thapsus-v1.1) (private).
+Customers in Kenya send a product link over WhatsApp; we buy it abroad,
+ship it, and deliver it to their door. The whole customer journey happens
+inside one WhatsApp conversation. This repo is the Express 5 API that
+runs that conversation, plus the small React dashboard operators use to
+work the pipeline behind it.
 
-> **Product positioning (2026-05-13):** Buy-for-me is the primary customer journey across web, iOS, and Android. Standalone parcel forwarding remains supported but is no longer the default surface. China retailers were removed in 2026-05-11; the platform is UK-origin only.
+> **The system was rebuilt in August 2026.** It previously carried a
+> customer portal, influencer programme, clearing-agent and rider
+> portals, a finance module, consolidation and buy-for-me flows and
+> Stripe. All of that is gone. See [`REBUILD.md`](./REBUILD.md) for what
+> changed and why.
 
 ## Stack
 
 - **API:** Node **22.x**, Express **5**, ES modules, deployed to Railway.
-- **DB:** Postgres on Supabase. Realtime via Postgres logical replication. Schema is migration-driven (see below).
-- **Auth:** Express mints `sc_token` (JWT, HS256, default 7d) for `/api/*`, plus a short-lived `supabase_token` for PostgREST/Realtime under RLS. Tab-focus silent refresh is wired on `/auth/me`.
-- **Payments:** Stripe (cards) + M-Pesa **Lipana STK Push** (live). Manual M-Pesa SMS approval is retained as a fallback via `MPESA_PROVIDER`.
-- **Email:** Gmail API via `googleapis` with OAuth2 refresh tokens.
-- **Frontend:** React **19** + Vite under `client/`. Tailwind 3, react-router 7, Stripe Elements, zxing barcode scanning, recharts 3 (lazy-loaded).
-- **PWA:** offline-first Web Outbox (IndexedDB) + Service Worker Background Sync for rider/operator flows.
+- **DB:** Postgres on Supabase, accessed through a raw `pg` pool. Schema is migration-driven.
+- **Messaging:** [sent.dm](https://sent.dm) v3 for WhatsApp — inbound webhook + outbound text/template.
+- **Assistant:** Gemini via Google AI Studio, scoped to onboarding and knowledge-base answers. Never touches money.
+- **Payments:** M-Pesa. STK Push (Lipana) is coded but disabled — production runs manual Buy Goods till payments with admin approval.
+- **Frontend:** React **19** + Vite under `client/`, Tailwind 3, react-router 7. Served by the same Express process.
+- **Realtime:** Server-Sent Events to the operator dashboard.
+- **PDF:** pdfkit for receipts; files land in a private Supabase Storage bucket.
+
+## How it works
+
+```
+WhatsApp ──▶ POST /api/wa/webhook ──▶ persist + SSE ──▶ waStateMachine.handleInbound
+                                                              │
+      ┌───────────────────────────────────────────────────────┤
+      │  1. human takeover?   → stay quiet, operator has it
+      │  2. onboarding        → name, address, M-Pesa → TC-####
+      │  3. TRK-#### in text  → live status reply
+      │  4. "yes" to a quote  → confirm + open payment + till details
+      │  5. "I have paid"     → verifying reply + staff alert
+      │  6. anything else     → Gemini (knowledge base + their orders)
+      └───────────────────────────────────────────────────────┘
+```
+
+Money and state run **before** the assistant is ever consulted, and stay
+fully deterministic. The pipeline is `quoting → quoted → confirmed → paid
+→ purchased → in_kenya → (delivery_fee_pending) → dispatched →
+delivered`, with `cancelled` reachable from the early stages.
+
+Customer codes (`TC-1042`) and tracking codes (`TRK-8821`) come from
+Postgres sequences and are the customer's identity on parcels and in
+conversation.
 
 ## Local dev
 
 ```bash
 nvm use                # Node 22 (see .nvmrc)
 npm install
-cp .env.example .env   # fill in JWT_SECRET, DATABASE_URL, GMAIL_*, STRIPE_*, MPESA_*, ADMIN_*
-npm start              # API on :5000
-cd client && npm install && npm run dev   # SPA on :5173
+cp .env.example .env   # fill in JWT_SECRET, DATABASE_URL, ADMIN_*, SENTDM_*, GEMINI_API_KEY
+npm start              # API + built SPA on :5000
+
+cd client && npm install && npm run dev   # SPA dev server on :5173
 ```
 
-See [`SETUP.md`](./SETUP.md) for a fuller walkthrough including Supabase project bootstrap, Gmail OAuth, and Stripe / Lipana webhook configuration.
+[`SETUP.md`](./SETUP.md) has the full walkthrough — Supabase bootstrap,
+sent.dm webhook registration, Gmail OAuth for operator password reset.
 
-## Database migrations
-
-All schema lives under `database/migrations/`. The bootstrap consults the `_migrations` ledger (`filename PRIMARY KEY`) and only applies files that haven't already run.
-
-**Important (since 2026-05-11):** the boot-time migration runner is **opt-in** — set `RUN_MIGRATIONS_ON_BOOT=true` to enable it. By default the server starts without touching the schema. This prevents Railway redeploys from racing each other on DDL while we shift migrations into the Supabase Dashboard / CI as the canonical apply path.
-
-```
-database/
-├── init.js                                          # pool, _migrations ledger, opt-in runner
-├── seed.js
-├── migrations/
-│   ├── 0000_baseline_schema.sql                     # baseline: base tables + indexes
-│   ├── 000_repair_phase4_tables.sql                 # idempotency repair for v2 tables
-│   ├── 001_framework_v2_additions.sql               # consolidations, customs, last-mile, …
-│   └── …                                            # 002+ … 052 — additive, idempotent
-├── manual-migrations/                               # out-of-band SQL (apply via Supabase Editor)
-└── scripts/purge_test_data.sql
-```
-
-Migration milestones worth knowing:
-- `028` retires the legacy `wallet` table in favour of `user_credits` + `credit_ledger`. `/api/wallet` now returns **HTTP 410 Gone**; replacement is `/api/payments` + Credit Centre.
-- `045` renames `users.password` → `users.password_hash` (matches the bcrypt content).
-- `051` adds the six-knob pricing model (`pricing_settings`, `customs_tiers`, `hs_code_tiers`, `electronics_fees`).
-- `052` drops `orders.market` (only one market remains).
-- `0002` adds the influencer referral programme (`influencer_codes`, `influencer_conversions`, `users.influencer_code`).
-- `0003` adds influencer partner logins (`influencer` role, `influencer_codes.owner_user_id`) + link-open analytics with coarse geolocation (`influencer_link_events`).
-
-### Provisioning a fresh Supabase project
-
-1. Set `DATABASE_URL` to the new project's **direct connection** string (port 5432 — the transaction pooler on 6543 is read-only and blocks DDL).
-2. Boot the server with `RUN_MIGRATIONS_ON_BOOT=true` (locally `RUN_MIGRATIONS_ON_BOOT=true npm start`, on Railway as a one-shot deploy env). `init.js` opens the pool, runs every `database/migrations/*.sql` against the empty DB in alphabetical order, then `ensureAdminUser()` seeds the bootstrap admin from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
-3. Turn `RUN_MIGRATIONS_ON_BOOT` back off (or remove it) for steady-state deploys.
-
-## Required env vars on Railway
+## Environment
 
 | Var | Used by | Notes |
 | --- | --- | --- |
-| `JWT_SECRET` | Express auth | Long random string. |
-| `JWT_EXPIRY` | Express auth | Default **`7d`** (was 30d before #149). Silent refresh on `/me` keeps live sessions warm. |
-| `DATABASE_URL` | `database/init.js` | Supabase direct connection (port 5432). |
-| `SUPABASE_JWT_SECRET` | `utils/supabaseJwt.js` | Matches Supabase → Project Settings → API → JWT Settings. |
-| `SUPABASE_JWT_TTL_SECONDS` | Same | Optional, defaults to 3600. |
-| `MPESA_PROVIDER` | Payments | `lipana` (default) for STK Push; legacy SMS path stays available as fallback. |
-| `MPESA_CONSUMER_KEY` / `MPESA_CONSUMER_SECRET` / `MPESA_PASSKEY` / `MPESA_SHORTCODE` / `MPESA_BUSINESS_TYPE` | `utils/lipanaClient.js` | Daraja STK credentials. |
-| `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY` / `STRIPE_WEBHOOK_SECRET` | `utils/stripeClient.js`, `routes/payments.js` | API version pinned at `2024-11-20.acacia`. |
-| `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` / `GMAIL_REFRESH_TOKEN` / `GMAIL_SENDER_EMAIL` | `utils/email.js` | OAuth2 for transactional mail. |
-| `SUPPORT_EMAIL` | Tickets | Defaults to sender if unset. |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | First-run seed | Used to create the initial admin row at boot. **`ADMIN_PASSWORD` must be set or boot aborts.** |
-| `CORS_ORIGIN` | Express | Comma-separated allowlist in production; `'*'` is rejected when `NODE_ENV !== development`. |
-| `FRONTEND_URL` / `APP_URL` / `SITE_URL` | Email links, sitemap | Public URL of the SPA. |
-| `RUN_MIGRATIONS_ON_BOOT` | `database/init.js` | Set `true` only when intentionally provisioning / re-running migrations. Off by default. |
-| `TEST_DATABASE_URL` | CI integration tests | Distinct DB used by the integration job in `.github/workflows/test.yml`. |
+| `JWT_SECRET` | auth, receipt links | Long random string. Rotating it invalidates every session **and every outstanding receipt link**. |
+| `DATABASE_URL` | `database/init.js` | Supabase **direct** connection, port 5432 (6543 is read-only and blocks DDL). |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | first-run seed | Boot aborts if `ADMIN_PASSWORD` is unset. |
+| `SENTDM_API_KEY` | `utils/sentdm.js` | `x-api-key` for the sent.dm v3 API. |
+| `SENTDM_WEBHOOK_SECRET` | `routes/waWebhook.js` | `whsec_…`; Svix-style HMAC verification. |
+| `SENTDM_BASE_URL` | `utils/sentdm.js` | Optional, defaults to `https://api.sent.dm`. |
+| `GEMINI_API_KEY` | `utils/waAi.js` | Google AI Studio key. Without it the assistant is off and messages queue in the inbox. |
+| `GEMINI_MODEL` | `utils/waAi.js` | Optional pin. **Leave unset** — the model is discovered from ListModels, because Google retires names on a rolling basis. |
+| `MPESA_PROVIDER` | payments | `manual` in production. `lipana` re-enables STK Push. |
+| `MPESA_TILL_NUMBER` | payments | Buy Goods till quoted to customers. |
+| `LIPANA_API_KEY` / `LIPANA_BASE_URL` / `LIPANA_WEBHOOK_SECRET` | `utils/lipanaClient.js` | Only needed when `MPESA_PROVIDER=lipana`. |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` | `utils/supabaseAdmin.js` | Storage signing for receipts and inbox media. |
+| `SUPABASE_JWT_SECRET` | `utils/supabaseJwt.js` | Matches Supabase → Settings → API → JWT Settings. |
+| `SITE_URL` (or `APP_URL` / `FRONTEND_URL`) | receipt links, sitemap | **Apex domain only** — a `www.` host is not served and is stripped automatically. |
+| `GMAIL_*` | `utils/email.js` | Operator password-reset mail. |
+| `CORS_ORIGIN` | Express | Comma-separated allowlist in production; `'*'` is rejected outside development. |
+| `RUN_MIGRATIONS_ON_BOOT` | `database/init.js` | Off by default. Set `true` only when intentionally provisioning. |
+| `TEST_DATABASE_URL` | CI | Integration suites self-skip without it. |
 
-FX (`utils/fxRefresh.js`) auto-refreshes daily from `frankfurter.dev`. Log retention (`utils/logRetention.js`) prunes `error_logs` / `admin_logs` / `email_logs` on a daily cron. Both are started in `server.js` and stopped on SIGTERM/SIGINT.
+FX (`utils/fxRefresh.js`) refreshes `USD_KES` daily from frankfurter.dev —
+quoting reads it directly. Log retention prunes `error_logs` /
+`admin_logs` / `email_logs` daily. Both start in `server.js` and stop on
+SIGTERM/SIGINT.
 
-After changing any var on Railway, **redeploy the service** — Node reads `process.env` at call time but Railway only injects new env on container restart. The admin email diagnostic surfaces whether the running process actually sees the credentials.
+Railway only injects new env on container restart, so **redeploy after
+changing a variable**.
+
+## Database
+
+Schema lives in `database/migrations/`, applied through the `_migrations`
+ledger. The boot-time runner is opt-in (`RUN_MIGRATIONS_ON_BOOT=true`) so
+concurrent Railway deploys can't race on DDL.
+
+```
+0000_baseline.sql                      # base tables + indexes
+0000a_baseline_reference_data.sql      # seed reference rows
+0001_drop_plaintext_tokens.sql
+0002_influencer_referrals.sql          # retired feature, tables left in place
+0003_influencer_accounts_and_analytics.sql
+0004_wa_core.sql                       # WhatsApp core — see below
+0005_wa_human_takeover_and_memory.sql  # takeover + AI memory columns
+```
+
+`0004` adds `wa_contacts`, `wa_messages`, `wa_orders`, `wa_order_events`
+and `wa_settings`, the two code sequences, and extends `payments` so a
+payment can belong to a WhatsApp contact instead of a user. It is
+additive only. Every table has RLS enabled and forced; the API is the
+only writer.
+
+```bash
+npm run migrate            # apply pending migrations
+npm run migrate:check      # what would run
+npm run check:drift        # code SQL vs live schema
+npm run schema:snapshot    # refresh database/schema-snapshot.json after a migration
+```
+
+**Retired tables are never dropped or renamed.** Dropping them breaks the
+drift tooling for no operational gain, and legacy orders still read them.
 
 ## Routing overview
 
 ```
-/api/auth                 — login, register, profile, password reset, /me, /supabase-token, logout (with revocation)
-/api/orders               — customer parcel orders (no market param — UK only)
-/api/buy-for-me           — concierge "Shop & ship" lifecycle: create, quote, pay, cancel, operator queue
-/api/payments             — Stripe + Lipana M-Pesa STK Push, payment intents, public payment lookup
-/api/payments/stripe/webhook    — raw-body Stripe webhook (idempotent via stripe_events_seen)
-/api/payments/lipana/webhook    — raw-body Lipana webhook (idempotent via lipana_events_seen)
-/api/admin                — provisioning, orders edit/cancel, payments approval, error logs, email diagnostics
-/api/adminPayments        — admin payments management surface
-/api/admin/aml-flags      — AML review queue
-/api/notifications        — customer inbox (/notifications) + preference toggles
-/api/tickets              — support tickets (customer scope + /admin/all for staff)
-/api/consolidations       — Framework v2 operator + customer consolidation surface
-/api/consolidation        — v1 (deprecated; 410-ish via Deprecation/Sunset headers until 2026-05-23)
-/api/customs              — customs entries, declarations
-/api/last-mile            — rider runs, run-stops, POD upload, OTP
-/api/insurance            — declared-value insurance quote / issue / claim
-/api/dsar                 — GDPR DSAR requests + admin queue
-/api/referral             — account-to-account referral codes and credit
-/api/influencer           — public influencer landing/visit/signup (+ /i/:code SSR preview & og.png)
-/api/influencer-portal    — influencer self-serve analytics dashboard (role: influencer)
-/api/admin/influencers    — admin: mint codes, provision partner logins, mark payouts
-/api/prohibited           — categories + DB-backed search + admin CRUD (UK→KE catalogue seeded by mig 030)
-/api/pricing              — public quote engine (six-knob model; customs hidden — KRA charges separately)
-/api/pricing-tiers        — public tiers/fees + admin promotions
-/api/exchange             — current FX rates and conversion
-/api/agent-invoices       — clearing-agent invoices + admin queue + signed upload URLs
-/api/ops                  — operations console (barcode intake, label print, manifest)
-/api/parcels              — operator parcel intake
-/api/customer-consolidations — customer-facing consolidation view
-/api/nps                  — NPS surveys + invitations
-/api/kpi                  — KPI dashboard data
-/api/app-config           — runtime client config
-/api/warehouse            — warehouse address config
-/api/retailers            — UK retailers catalogue (filters Buy-for-me picker)
-/api/sitemap              — dynamic sitemap.xml + robots.txt
-/api/backup               — admin DB backups
-/api/events               — Server-Sent Events fanout for web realtime
-/.well-known/apple-app-site-association   — Universal Links manifest for the iOS app
-/health                   — liveness probe (used by Railway healthcheck)
+POST /api/wa/webhook              — inbound WhatsApp (raw body, HMAC-verified, mounted pre-json)
+     /api/wa/conversations…       — operator inbox: threads, messages, send, read, per-chat AI toggle
+     /api/wa/orders…              — pipeline: list/search, quote, confirm, request payment, mark paid,
+                                    advance, waive fee, receipt, scan resolver
+     /api/wa/settings             — markup, promo, fees, welcome media, template map, AI, staff alerts,
+                                    webhook doctor (admin)
+     /api/admin/payments          — manual M-Pesa approval queue (admin)
+     /api/auth                    — operator login, /me, password reset, logout, supabase-token
+     /api/tracking/:code          — public tracking (wa_orders first, legacy orders as fallback)
+     /api/events                  — SSE fanout to the dashboard
+     /api/exchange, /api/app-config
+GET  /r/:token                    — short receipt link → signed PDF redirect
+     /sitemap.xml, /robots.txt, /health
+
+     /api/orders, /api/parcels, /api/ops, /api/admin   — legacy drain, operator-only
+POST /api/orders                  — 410 Gone: new orders come through WhatsApp
+POST /api/auth/register           — 410 Gone: no customer accounts
 ```
 
-Deprecation headers (RFC 8594) are emitted by `middleware/deprecation.js` on v1 consolidation routes.
+[`API_REFERENCE.md`](./API_REFERENCE.md) has the full list; `routes/*.js`
+is authoritative.
+
+## Operator dashboard
+
+| Route | Who | What |
+| --- | --- | --- |
+| `/ops/inbox` | operator | Unified WhatsApp inbox, live over SSE |
+| `/ops/pipeline` | operator | Five-column board, global code search, barcode scanner |
+| `/ops/orders/:id` | operator | Quote, payment, status, fee, receipt, printable label |
+| `/ops/payments` | admin | Manual M-Pesa approval queue |
+| `/ops/settings` | admin | Markup, promo, AI knowledge base, templates, webhook doctor |
+| `/ops` | operator | Legacy warehouse console — drains pre-WhatsApp parcels |
+| `/admin` | admin | User management + error logs |
 
 ## Testing & CI
 
-Vitest + supertest cover the backend. See [`tests/README.md`](./tests/README.md) for the contract.
-
 ```bash
-npm test                  # vitest unit + integration (integration self-skips without TEST_DATABASE_URL)
-npm run test:coverage     # v8 coverage over middleware/, routes/, utils/
-npm run test:db           # standalone DB connectivity smoke
+npm test                  # vitest; integration suites self-skip without TEST_DATABASE_URL
+npm run test:coverage
+npm run check:drift -- --snapshot
+npm run build             # client build + article prerender
+npm run smoke             # deployed smoke checks
 ```
 
-Unit suites cover: `sanitize`, `stripeWebhook`, `lipanaWebhook`, `deprecation`, `fxRefresh`, `logRetention`, `outboxShouldQueue`, `pricing`. Integration suites (gated on `TEST_DATABASE_URL`): `appBoot`, `auth`, `roleMatrix`.
+Unit suites: `waStateMachine`, `waAiClassify`, `waOrderFlow`, `waCodes`,
+`sentdm`, `receiptPdf`, `receiptLink`, `markPaymentPaidRecovery`,
+`lipanaWebhook`, `pricing`, `fxRefresh`, `logRetention`, `sanitize`,
+`idempotency`, `outboxShouldQueue`, `schemaDrift`. Integration (gated on
+`TEST_DATABASE_URL`): `appBoot`, `auth`, `roleMatrix`.
 
-GitHub Actions (`.github/workflows/test.yml`) runs three jobs on every PR / push to `JS1` and `main`:
-
-1. **unit** — `npm ci`, `npm test`, then a client build to catch lockfile drift.
-2. **integration** — Postgres-backed auth + role-matrix suite. Self-skips on Dependabot PRs and when `TEST_DATABASE_URL` is missing.
-3. **lighthouse** — builds the SPA and runs `lhci collect` against `client/dist`; asserts `categories:accessibility >= 0.9`.
-
-CodeQL (`.github/workflows/codeql.yml`) runs SAST weekly + on PR with the `security-extended` query pack. SARIF is uploaded as a workflow artifact (the repo is private and not on GHAS).
-
-Dependabot is configured (`.github/dependabot.yml`) for npm + actions with grouped patches. Known major-bump traps are blocked.
-
-## Smoke tests
-
-```bash
-# Auth + supabase token
-curl -s -X POST https://your-app.up.railway.app/api/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"...","password":"..."}' | jq '{token, supabase_token}'
-
-# Public pricing
-curl -s https://your-app.up.railway.app/api/pricing-tiers/tiers
-curl -s https://your-app.up.railway.app/api/pricing-tiers/fees
-
-# Public prohibited categories (UK→KE)
-curl -s https://your-app.up.railway.app/api/prohibited/categories
-
-# AASA (Universal Links)
-curl -i https://thapsus.uk/.well-known/apple-app-site-association
-# Expect: 200 with Content-Type: application/json
-
-# Server-Sent Events (web realtime)
-curl -N -H "Authorization: Bearer <sc_token>" https://your-app.up.railway.app/api/events
-```
-
-## Mobile companion repo
-
-[`thapsus-v1.1`](https://github.com/Bmwarari2/thapsus-v1.1) ships the Kotlin Multiplatform shared core + native iOS (SwiftUI) and Android (Jetpack Compose) apps. Both consume the public API surface above. Notable directories:
-
-```
-thapsus-v1.1/
-├── shared/          # Kotlin (DTOs, repos, ViewModels, QuoteEngine, prohibited catalog)
-├── iosApp/          # SwiftUI app (iOS 26 Liquid Glass)
-├── androidApp/      # Jetpack Compose app
-└── server-patches/  # SQL + setup notes that belong on this repo or in Supabase
-```
-
-If you change a public API contract here, sync the DTOs in `shared/src/commonMain/kotlin/com/thapsus/cargo/data/dto/`.
+GitHub Actions runs unit, integration and Lighthouse on every PR. CodeQL
+runs `security-extended` weekly and on PR.
 
 ## Further reading
 
-- [`SETUP.md`](./SETUP.md) — local dev + Supabase / Stripe / Gmail / Lipana wiring.
-- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — auth, RLS, webhook idempotency, middleware ordering.
-- [`API_REFERENCE.md`](./API_REFERENCE.md) — endpoint contracts (routes/*.js is authoritative).
+- [`REBUILD.md`](./REBUILD.md) — what changed in the rebuild and why.
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — auth, RLS, webhooks, middleware ordering, the WhatsApp layer.
+- [`API_REFERENCE.md`](./API_REFERENCE.md) — endpoint contracts.
+- [`CUTOVER.md`](./CUTOVER.md) — deploy runbook and go-live checks.
+- [`SETUP.md`](./SETUP.md) — local dev and third-party wiring.
 - [`SECURITY.md`](./SECURITY.md) — disclosure policy and threat model.
-- [`README_BACKEND.md`](./README_BACKEND.md) — backend feature notes.
-- [`SETUP_CHECKLIST.md`](./SETUP_CHECKLIST.md) — go-live checklist.

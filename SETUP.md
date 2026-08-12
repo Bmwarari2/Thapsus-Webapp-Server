@@ -7,7 +7,7 @@ Local-dev walkthrough for the Express 5 API + React 19 SPA. For the why-behind-t
 - **Node 22.x** — pinned via `.nvmrc`. `nvm use` from the repo root.
 - **A Supabase project.** Free tier is fine. You'll need the direct connection string (port 5432, not the 6543 pooler) and the JWT secret.
 - **Gmail OAuth2 refresh token** for transactional email (registration confirmations, ticket replies, receipts, DSAR exports). One-time consent flow — see Gmail section.
-- **Stripe test keys** (publishable + secret + webhook secret).
+- **sent.dm account** with an API key and a WhatsApp sender.
 - **M-Pesa Daraja sandbox credentials** (consumer key/secret, passkey, shortcode) for Lipana STK Push.
 
 ## 1. Install
@@ -45,7 +45,7 @@ SUPABASE_JWT_SECRET=<from Supabase dashboard>
 SUPABASE_JWT_TTL_SECONDS=3600
 ```
 
-For real workflows you'll also need the payment + email vars in the next sections.
+For a working WhatsApp flow you also need the sent.dm, M-Pesa and Supabase Storage vars in the next sections.
 
 ## 3. Provision the database
 
@@ -67,36 +67,96 @@ npm start
 
 If you need to apply a single SQL file out-of-band, paste it into the Supabase SQL Editor; the `_migrations` ledger is the source of truth for what's already applied.
 
-## 4. Stripe webhook (cards)
+## 4. sent.dm (WhatsApp)
 
-1. In the Stripe dashboard create a restricted key and a webhook endpoint pointed at `https://<your-host>/api/payments/stripe/webhook`.
-2. Set the secret in `.env`:
-   ```
-   STRIPE_SECRET_KEY=sk_test_...
-   STRIPE_PUBLISHABLE_KEY=pk_test_...
-   STRIPE_WEBHOOK_SECRET=whsec_...
-   ```
-3. The webhook route is mounted with `express.raw({ limit: '1mb' })` **before** `express.json()` so `stripe.webhooks.constructEvent()` sees the unmodified body. Don't reorder that in `server.js`.
-4. Idempotency: every accepted event is inserted into `stripe_events_seen` (PK on `event_id`); retries short-circuit on conflict. The shared "money received" side-effect lives in `utils/markPaymentPaid.js` and is called from both webhooks plus the admin M-Pesa approval route.
+WhatsApp is the customer surface, so this is the integration to get right.
 
-For local dev use the Stripe CLI:
-
-```bash
-stripe listen --forward-to localhost:5000/api/payments/stripe/webhook
+```
+SENTDM_API_KEY=<from the sent.dm console>
+SENTDM_WEBHOOK_SECRET=whsec_...
+# SENTDM_BASE_URL=https://api.sent.dm   # optional override
 ```
 
-## 5. M-Pesa Lipana STK Push
+Register the inbound webhook against your deployment:
+
+```bash
+node scripts/register-sentdm-webhook.mjs --url https://<your-host>/api/wa/webhook
+node scripts/register-sentdm-webhook.mjs --list        # what is registered now
+node scripts/register-sentdm-webhook.mjs --events      # recent delivery attempts
+node scripts/register-sentdm-webhook.mjs --activate    # re-arm a disabled endpoint
+node scripts/register-sentdm-webhook.mjs --rotate      # new signing secret
+```
+
+Use the **apex** host. A `www.` endpoint is not served and the webhook
+will sit in `RETRYING` with a null status code — this cost us an
+afternoon once already. `/ops/settings` has an in-app webhook doctor
+that shows the live registration and recent events, and can re-point it.
+
+The route is mounted with `express.raw()` **before** `express.json()` so
+the Svix-style signature verifies against the unmodified body. Don't
+reorder that in `server.js`. Idempotency comes from the unique
+`wa_messages.provider_message_id`.
+
+Two provider behaviours worth reading `utils/sentdm.js` for before you
+debug anything: free text rides a system template so newlines are
+rejected and flattened, and `inbound_number` is the *sender* while
+`outbound_number` is our own line.
+
+## 5. Payments — M-Pesa
+
+Production runs manual Buy Goods payments. Lipana withdrew STK Push for
+regulatory reasons.
+
+```
+MPESA_PROVIDER=manual
+MPESA_TILL_NUMBER=5530500
+```
+
+The customer pays the till, replies on WhatsApp, and an admin approves
+from `/ops/payments` or the order screen. Approval mints the tracking
+code and sends the receipt.
+
+STK Push is still implemented and returns if a provider becomes
+available:
 
 ```
 MPESA_PROVIDER=lipana
-MPESA_CONSUMER_KEY=...
-MPESA_CONSUMER_SECRET=...
-MPESA_PASSKEY=...
-MPESA_SHORTCODE=...
-MPESA_BUSINESS_TYPE=till   # or paybill
+LIPANA_API_KEY=...
+LIPANA_BASE_URL=...
+LIPANA_WEBHOOK_SECRET=...
 ```
 
-The Lipana webhook is at `/api/payments/lipana/webhook`. It verifies HMAC-SHA256 over the raw body against `X-Lipana-Signature` and inserts into `lipana_events_seen` for idempotency. `MPESA_PROVIDER=manual` falls back to the legacy SMS-approval flow (admin posts STK confirmation manually).
+Its webhook is `/api/payments/lipana/webhook` — HMAC-SHA256 over the raw
+body, idempotent via `lipana_events_seen`. The shared "money received"
+side effect lives in `utils/markPaymentPaid.js` and is called from the
+webhook **and** the admin approval routes. Never duplicate it.
+
+## 5a. Gemini assistant (optional)
+
+```
+GEMINI_API_KEY=<Google AI Studio key>
+# GEMINI_MODEL=...   # leave unset — see below
+```
+
+Leave `GEMINI_MODEL` unset. The model is discovered from the ListModels
+API and cached for 6 hours, because Google retires model names on a
+rolling basis and a hardcoded default silently takes the assistant down.
+
+Turn the assistant on and paste the knowledge base at `/ops/settings`.
+Without a key, or with the toggle off, inbound messages simply queue in
+the operator inbox.
+
+## 5b. Supabase Storage
+
+Create a **private** bucket named `receipts`. PDF receipts are written to
+`receipts/<orderId>/<paymentId>.pdf`; the customer gets a short
+`/r/<token>` link that re-signs on each click.
+
+```
+SUPABASE_URL=...
+SUPABASE_SERVICE_KEY=...
+SITE_URL=https://thapsus.uk      # apex only — receipt links are built from it
+```
 
 ## 6. Gmail OAuth2
 
@@ -121,7 +181,7 @@ npm install
 npm run dev          # Vite on :5173
 ```
 
-The SPA calls the API on `http://localhost:5000` (configured in `client/src/api/`). Stripe Elements expects `VITE_STRIPE_PUBLISHABLE_KEY` in `client/.env`.
+The SPA calls the API on `http://localhost:5000` (configured in `client/src/api/`). Log in with the bootstrap admin — there is no customer-facing sign-up.
 
 ## 8. Tests
 
@@ -134,7 +194,10 @@ npm run test:db                # standalone DB connectivity smoke
 
 Unit suites (no DB required):
 - `tests/unit/sanitize.test.js` — XSS scrub middleware
-- `tests/unit/stripeWebhook.test.js` / `lipanaWebhook.test.js` — payment webhook branches with mocked SDKs
+- `tests/unit/waStateMachine.test.js` — the conversation dispatcher, 61 cases
+- `tests/unit/waAiClassify.test.js` / `waOrderFlow.test.js` / `waCodes.test.js` — AI sentinel boundary, pipeline edges, code minting
+- `tests/unit/sentdm.test.js` / `lipanaWebhook.test.js` — webhook signature verification
+- `tests/unit/receiptPdf.test.js` / `receiptLink.test.js` — receipt rendering and short links
 - `tests/unit/deprecation.test.js` — RFC 8594 header emission
 - `tests/unit/fxRefresh.test.js` / `logRetention.test.js` — daily-cron helpers
 - `tests/unit/outboxShouldQueue.test.js` — web-outbox eligibility
@@ -145,7 +208,7 @@ Integration suites (require a separate `TEST_DATABASE_URL`):
 - `tests/integration/auth.test.js` — register / login / `/me` refresh / logout / token revocation
 - `tests/integration/roleMatrix.test.js` — table-driven 5×5 role-gate matrix
 
-Integration tests self-skip via `describe.skipIf(!process.env.TEST_DATABASE_URL)`. `tests/setup.js` installs safe placeholders for fail-fast env vars (`JWT_SECRET`, `STRIPE_SECRET_KEY`, etc.) so route modules can be imported without throwing.
+Integration tests self-skip via `describe.skipIf(!process.env.TEST_DATABASE_URL)`. `tests/setup.js` installs safe placeholders for fail-fast env vars (`JWT_SECRET`, `DATABASE_URL`, etc.) so route modules can be imported without throwing.
 
 ## 9. Production deploy (Railway)
 
@@ -157,97 +220,83 @@ Integration tests self-skip via `describe.skipIf(!process.env.TEST_DATABASE_URL)
 ## 10. Project structure
 
 ```
-swiftcargo-main/
-├── server.js                # Express bootstrap (~700 LOC): CORS, helmet, request-id, raw-body webhooks, rate limit, routes
+Thapsus-Webapp-Server/
+├── server.js                # Express bootstrap: CORS, helmet, request-id, raw-body webhooks, rate limits, routes
 ├── polyfills/webcrypto.js   # populates globalThis.crypto before uuid/Supabase load
 ├── client/                  # React 19 + Vite SPA (own package.json, own build)
 │   └── src/
-│       ├── api/             # axios client + outbox interceptor
-│       ├── pages/           # 40+ pages (customer, admin, ops, partner)
-│       ├── components/      # shared UI
-│       └── ...
+│       ├── api/             # axios client + typed endpoint modules
+│       ├── pages/           # public site + ops/ dashboard (5 screens)
+│       ├── components/      # shared UI, printable label, barcode scanner
+│       └── hooks/           # SSE subscriptions
 ├── database/
 │   ├── init.js              # pg.Pool, _migrations ledger, opt-in runner
-│   ├── seed.js
-│   ├── migrations/          # numbered forward-only migrations (0000..052+)
-│   ├── manual-migrations/   # out-of-band SQL
-│   └── scripts/             # purge_test_data.sql, etc.
+│   ├── migrations/          # 0000 baseline … 0005 WhatsApp takeover + memory
+│   └── schema-snapshot.json # drift-checker baseline
 ├── middleware/
-│   ├── auth.js              # HS256-pinned JWT verify, revocation, password-changed-at, is_active
+│   ├── auth.js              # HS256-pinned verify, revocation, password-changed-at, is_active
 │   ├── sanitize.js          # xss-lib scrub, MAX_DEPTH=16, MAX_KEYS=256
-│   └── deprecation.js       # RFC 8594 Deprecation/Sunset/Link headers
-├── routes/                  # 36 route modules — see README.md routing overview
-├── utils/                   # 22 helpers: email, fx, lipanaClient, stripeClient, pricing, …
-├── public/                  # service worker, PWA manifest
-├── tests/                   # vitest + supertest
-│   ├── unit/
-│   └── integration/
+│   └── idempotency.js       # Idempotency-Key replay
+├── routes/                  # 17 modules — wa* are the live surface, the rest drain legacy work
+├── utils/                   # wa* (sentdm, state machine, AI, send, order flow, payments, codes,
+│                            #  settings, staff alerts), receiptPdf, receiptLink, markPaymentPaid, fx, email
+├── scripts/                 # migrate, check-schema-drift, register-sentdm-webhook, smoke, prerender
+├── tests/                   # vitest + supertest (unit/ and integration/)
+├── sentdm-templates.json    # the 13 WhatsApp templates, ready to upload
 ├── .github/workflows/       # test.yml (unit + integration + lighthouse), codeql.yml
 ├── railway.toml
-├── .lighthouserc.json
-├── vitest.config.js
-├── package.json
 └── .env.example
 ```
 
 ## Features (current)
 
-### Core
-- JWT auth with revocation + password-changed-at + is_active enforcement
-- Roles: customer · operator · clearing-agent · rider · admin
-- Buy-for-me primary lifecycle (request → quote → invoice → pay → receive → consolidate → dispatch → POD)
-- Parcel forwarding (UK → Kenya — China retired 2026-05-11)
-- Six-knob pricing model: `pricing_settings`, `customs_tiers`, `hs_code_tiers`, `electronics_fees`
-- Customer KES / operator GBP currency convention. FX auto-refreshes daily from frankfurter.dev.
+### Customer — WhatsApp only
+- Conversational onboarding to a permanent Customer Code (`TC-####`)
+- Send a product link, get a KES quote (live USD→KES × configurable markup)
+- Confirm with "yes", pay the Buy Goods till, get a Tracking Code (`TRK-####`) and a PDF receipt
+- Text the tracking code any time for a live status reply
+- Gemini assistant for general questions, fenced away from money and prices
 
-### Payments (live)
-- Stripe Checkout / PaymentIntents with raw-body webhook + `stripe_events_seen` idempotency
-- M-Pesa **Lipana STK Push** with HMAC-verified webhook + `lipana_events_seen` idempotency
-- Manual M-Pesa SMS approval retained as fallback (`MPESA_PROVIDER=manual`)
-- Credit ledger (`user_credits` + `credit_ledger`) — replaces retired wallet table
+### Operator dashboard
+- Unified WhatsApp inbox, live over SSE, with a per-chat AI toggle
+- Five-column pipeline board, global `TC-`/`TRK-` search, camera + wedge barcode scanning
+- Quote entry with live KES preview; status advance with automatic customer alerts
+- Manual M-Pesa approval queue (admin)
+- Promo toggle to waive last-mile delivery fees, globally or per order
+- 100 × 150 mm thermal parcel labels with Code128 barcodes
 
-### Operations
-- Operator console: camera-driven barcode intake (`@zxing/browser`), browser-print thermal labels, A4 consolidation manifest
-- Rider runs with POD capture, signature pad, OTP
-- Clearing-agent invoice queue with private signed-URL uploads
-- Customer notifications inbox at `/notifications`
-- Admin DSAR queue at `/admin/dsar`
-- KPI dashboard + audit / error logs + admin revenue reports
-
-### PWA
-- Web Outbox: IndexedDB queue + axios interceptor replay for offline mutations
-- Service Worker Background Sync for closed-tab outbox replay
-- Lighthouse a11y gate (≥0.9) in CI
-
-### Email
-- Gmail API with OAuth2 refresh tokens
-- Templates live in `utils/email.js`
+### Payments
+- Manual M-Pesa Buy Goods with admin approval (`MPESA_PROVIDER=manual`)
+- Lipana STK Push implemented behind the same flag, with HMAC webhook + `lipana_events_seen` idempotency
+- Shared settlement path (`utils/markPaymentPaid.js`) for every payment route
 
 ### Security
-- Helmet + strict CSP (Stripe, GA, FB pixel, Google Fonts allowlisted)
-- HSTS 1y `includeSubDomains` `preload`
+- Helmet + strict CSP; HSTS 1y `includeSubDomains` `preload`
 - CORS fails closed in production (`'*'` rejected unless `NODE_ENV=development`)
 - 200 KB global body limit; uploads bypass Express via Supabase Storage signed URLs
-- Tiered rate limiting (auth 10/15m, payments 10/15m, signed-URL mints 30/15m, tracking 60/15m, global 200/15m); webhooks bypass
+- Tiered rate limiting (auth 10/15m, signed-URL mints 30/15m, tracking and `/r` 60/15m, global 200/15m); webhooks bypass
 - XSS sanitiser with bounded recursion + key count
-- Pinned JWT algorithm `HS256` (defends against alg-confusion)
-- Token revocation by SHA-256 hash; password-reset bumps `password_changed_at`
+- Pinned JWT algorithm `HS256`; revocation by SHA-256 hash; password reset bumps `password_changed_at`
+- RLS enabled on every public table, forced on the `wa_*` tables
 - CodeQL SAST weekly; Dependabot grouped patches
 
 ## Test credentials
 
-There is no longer a baked-in sample dataset. The first admin row is created from `ADMIN_EMAIL` / `ADMIN_PASSWORD` at boot. Create customer accounts via the SPA (`/register`) or programmatically against `/api/auth/register`.
+There is no baked-in sample dataset, and there are no customer accounts — customers exist only as WhatsApp contacts. The first admin row is created from `ADMIN_EMAIL` / `ADMIN_PASSWORD` at boot; add further operators from the admin dashboard.
 
 ## Troubleshooting
 
 ### `ECONNREFUSED` / can't reach DB
 Verify `DATABASE_URL` uses the **direct** Supabase connection (port 5432). The 6543 pooler is read-only and rejects DDL — useful for read traffic but not for `npm start` with migrations enabled.
 
-### `ERROR: 42703: column "<X>" does not exist` during migration 001
-A prior attempt left a v2 table half-built. Make sure `database/migrations/000_repair_phase4_tables.sql` is present — it runs before 001 and issues `ALTER TABLE ADD COLUMN IF NOT EXISTS` for every column 001 needs.
-
 ### Webhook signature verification fails
-Almost always one of: `STRIPE_WEBHOOK_SECRET` mismatched against the Stripe dashboard, Lipana key rotated and not re-pasted, or someone reordered `express.json()` ahead of the raw-body webhook routes in `server.js`. The raw mount must come **first**.
+Almost always one of: `SENTDM_WEBHOOK_SECRET` mismatched against the sent.dm console (rotate with `scripts/register-sentdm-webhook.mjs --rotate` and re-paste), or someone reordered `express.json()` ahead of the raw-body webhook routes in `server.js`. The raw mount must come **first**.
+
+### Inbound WhatsApp messages never arrive
+Check `/ops/settings` → webhook doctor. A registration stuck in `RETRYING` with a null status code almost always means the endpoint points at a host that isn't served — `www.` instead of the apex, most often. Repair it from that screen or with `scripts/register-sentdm-webhook.mjs --url https://<apex>/api/wa/webhook`.
+
+### The assistant stops replying
+Read the Railway logs for a Gemini `404 … model is no longer available`. `GEMINI_MODEL` should be unset so discovery picks a live model; if it is pinned to a retired name, clear it. `/ops/settings` runs a self-test that surfaces this.
 
 ### CORS errors in production
 Check `CORS_ORIGIN` is a comma-separated allowlist of origins (e.g. `https://thapsus.uk,https://www.thapsus.uk`). `'*'` is rejected outside development.
