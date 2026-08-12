@@ -28,6 +28,10 @@ const Articles       = lazy(() => import('./pages/Articles').then(m => ({ defaul
 const Article        = lazy(() => import('./pages/Article').then(m => ({ default: m.Article })))
 
 // ── Operator / admin pages ──────────────────────────────────────────────────
+const Inbox          = lazy(() => import('./pages/ops/Inbox').then(m => ({ default: m.Inbox })))
+const Pipeline       = lazy(() => import('./pages/ops/Pipeline').then(m => ({ default: m.Pipeline })))
+const WaOrderDetail  = lazy(() => import('./pages/ops/WaOrderDetail').then(m => ({ default: m.WaOrderDetail })))
+const WaSettings     = lazy(() => import('./pages/ops/WaSettings').then(m => ({ default: m.WaSettings })))
 const OpsConsole     = lazy(() => import('./pages/OpsConsole').then(m => ({ default: m.OpsConsole })))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })))
 
@@ -77,6 +81,11 @@ function App() {
             <Route path="/terms"   element={<TermsOfService />} />
 
             {/* Operator console (operator + admin) */}
+            <Route path="/ops/inbox" element={<ProtectedRoute roles={['operator']}><Inbox /></ProtectedRoute>} />
+            <Route path="/ops/pipeline" element={<ProtectedRoute roles={['operator']}><Pipeline /></ProtectedRoute>} />
+            <Route path="/ops/orders/:id" element={<ProtectedRoute roles={['operator']}><WaOrderDetail /></ProtectedRoute>} />
+            <Route path="/ops/settings" element={<ProtectedRoute adminOnly={true}><WaSettings /></ProtectedRoute>} />
+            {/* Legacy warehouse console — drains pre-WhatsApp orders */}
             <Route path="/ops" element={<ProtectedRoute roles={['operator']}><OpsConsole /></ProtectedRoute>} />
 
             {/* Admin */}

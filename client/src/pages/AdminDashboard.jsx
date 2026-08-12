@@ -165,7 +165,6 @@ export const AdminDashboard = () => {
         adminApi.listOrders(),
         adminApi.getExchangeRates(),
         adminApi.getPendingPayments(),
-        adminApi.listTickets({ page: 1, limit: 20 }),
       ])
       if (results[0].status === 'fulfilled') setStats(results[0].value.data?.stats || null)
       if (results[1].status === 'fulfilled') setUsers(results[1].value.data?.users || [])
@@ -175,7 +174,6 @@ export const AdminDashboard = () => {
         if (ratesData?.rates) setExchangeRates(ratesData.rates)
       }
       if (results[4].status === 'fulfilled') setPendingPayments(results[4].value.data?.payments || [])
-      if (results[5].status === 'fulfilled') setTickets(results[5].value.data?.tickets || [])
 
       try {
         const statsRes = await adminApi.getErrorLogStats()
@@ -609,8 +607,8 @@ export const AdminDashboard = () => {
             </div>
           </div>
           <div className="flex bg-surface-2 backdrop-blur-2xl p-2 rounded-[2rem] border border-line shadow-sm overflow-x-auto no-scrollbar">
-            {['overview', 'users', 'orders', 'payments', 'revenue', 'tickets', 'aml', 'exchange', 'settings', 'auditLogs', 'errorLogs'].map((tab) => (
-              <button key={tab} onClick={() => { setActiveTab(tab); if(tab === 'errorLogs') fetchErrorLogs(); if(tab === 'auditLogs') fetchAuditLogs(); if(tab === 'aml') fetchAmlFlags(amlStatusFilter); }}
+            {['overview', 'users', 'orders', 'payments', 'revenue', 'exchange', 'settings', 'auditLogs', 'errorLogs'].map((tab) => (
+              <button key={tab} onClick={() => { setActiveTab(tab); if(tab === 'errorLogs') fetchErrorLogs(); if(tab === 'auditLogs') fetchAuditLogs(); }}
                 className={`relative px-4 md:px-6 py-2.5 md:py-3 rounded-[1.5rem] font-black text-[11px] md:text-xs uppercase tracking-widest whitespace-nowrap transition-all ${activeTab === tab ? 'bg-surface text-white shadow-xl glass-sheen' : 'text-mute hover:text-white hover:bg-surface-2'}`}>
                 {tab.replace(/([A-Z])/g, ' $1')}
                 {tab === 'errorLogs' && errorLogStats && parseInt(errorLogStats.last_24h) > 0 && (

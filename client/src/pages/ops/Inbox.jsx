@@ -1,0 +1,292 @@
+import React, { useEffect, useRef, useState, useCallback } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import {
+  MessageSquareText, Search, Send, Paperclip, PackagePlus,
+  Phone, MapPin, Wallet, Pencil, RefreshCw,
+} from 'lucide-react'
+import toast from 'react-hot-toast'
+import { waApi } from '../../api'
+import { GlassStyles, GlassCard, PageHeading, StatusBadge } from '../../components/GlassUI'
+import { useWaInboxUpdates, useWaNewCustomer } from '../../hooks/useRealtimeUpdates'
+
+const URL_RE = /https?:\/\/[^\s<>"')]+/g
+
+export function Inbox() {
+  const [conversations, setConversations] = useState([])
+  const [q, setQ] = useState('')
+  const [selected, setSelected] = useState(null)       // contact row
+  const [orders, setOrders] = useState([])
+  const [messages, setMessages] = useState([])
+  const [draft, setDraft] = useState('')
+  const [sending, setSending] = useState(false)
+  const bottomRef = useRef(null)
+  const fileRef = useRef(null)
+  const navigate = useNavigate()
+  const [params] = useSearchParams()
+
+  const loadConversations = useCallback(async (query = '') => {
+    try {
+      const res = await waApi.conversations(query)
+      setConversations(res.data.conversations || [])
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to load inbox')
+    }
+  }, [])
+
+  const openConversation = useCallback(async (contactId) => {
+    try {
+      const [conv, msgs] = await Promise.all([
+        waApi.conversation(contactId),
+        waApi.messages(contactId),
+      ])
+      setSelected(conv.data.contact)
+      setOrders(conv.data.orders || [])
+      setMessages(msgs.data.messages || [])
+      waApi.markRead(contactId).catch(() => {})
+      setConversations((prev) =>
+        prev.map((c) => (c.id === contactId ? { ...c, unread_count: 0 } : c)))
+      setTimeout(() => bottomRef.current?.scrollIntoView({ block: 'end' }), 50)
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to open conversation')
+    }
+  }, [])
+
+  useEffect(() => { loadConversations() }, [loadConversations])
+  // Deep link: /ops/inbox?contact=<id>
+  useEffect(() => {
+    const contactId = params.get('contact')
+    if (contactId) openConversation(contactId)
+  }, [params, openConversation])
+
+  useWaInboxUpdates((data) => {
+    loadConversations(q)
+    if (selected && data.contact_id === selected.id) openConversation(selected.id)
+  })
+  useWaNewCustomer((data) => {
+    toast.success(`New customer onboarded: ${data.full_name || data.phone} (${data.customer_code})`)
+    loadConversations(q)
+  })
+
+  const onSearch = (e) => { e.preventDefault(); loadConversations(q.trim()) }
+
+  const sendText = async () => {
+    const text = draft.trim()
+    if (!text || !selected) return
+    setSending(true)
+    try {
+      await waApi.sendMessage(selected.id, { text })
+      setDraft('')
+      await openConversation(selected.id)
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Send failed')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const sendFile = async (file) => {
+    if (!file || !selected) return
+    setSending(true)
+    try {
+      const { data } = await waApi.uploadUrl(file.name, file.type)
+      const put = await fetch(data.signedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: file,
+      })
+      if (!put.ok) throw new Error(`upload failed (${put.status})`)
+      await waApi.sendMessage(selected.id, {
+        media_path: data.path,
+        media_type: file.type === 'application/pdf' ? 'document' : 'image',
+        caption: draft.trim() || undefined,
+      })
+      setDraft('')
+      await openConversation(selected.id)
+      toast.success('Sent')
+    } catch (e) {
+      toast.error(e.response?.data?.message || e.message || 'Attachment failed')
+    } finally {
+      setSending(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  // Create a quote-stage order, pre-filling product links found in the
+  // customer's recent inbound messages.
+  const createOrder = async () => {
+    if (!selected) return
+    const links = [...new Set(
+      messages.filter((m) => m.direction === 'in')
+        .flatMap((m) => (m.body || '').match(URL_RE) || [])
+    )].slice(-10)
+    try {
+      const res = await waApi.createOrder(selected.id, links)
+      toast.success('Order created — enter the USD price to quote')
+      navigate(`/ops/orders/${res.data.order.id}`)
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to create order')
+    }
+  }
+
+  const editContact = async () => {
+    if (!selected) return
+    const full_name = window.prompt('Full name', selected.full_name || '')
+    if (full_name === null) return
+    const delivery_address = window.prompt('Delivery address', selected.delivery_address || '')
+    if (delivery_address === null) return
+    const mpesa_number = window.prompt('M-Pesa number', selected.mpesa_number || '')
+    if (mpesa_number === null) return
+    try {
+      const res = await waApi.updateContact(selected.id, { full_name, delivery_address, mpesa_number })
+      setSelected(res.data.contact)
+      toast.success('Contact updated')
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Update failed')
+    }
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-8">
+      <GlassStyles />
+      <PageHeading icon={MessageSquareText} title="WhatsApp Inbox"
+        subtitle="Every customer conversation, live" />
+
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4 items-start">
+        {/* ── Conversation list ── */}
+        <GlassCard className="p-0 overflow-hidden">
+          <form onSubmit={onSearch} className="relative p-3 border-b border-line">
+            <Search size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-mute" />
+            <input value={q} onChange={(e) => setQ(e.target.value)}
+              placeholder="Name, phone or TC-code…"
+              className="w-full pl-9 pr-3 py-2 rounded-lg bg-white/5 border border-line text-sm text-white placeholder:text-mute focus:outline-none" />
+          </form>
+          <div className="max-h-[65vh] overflow-y-auto divide-y divide-line">
+            {conversations.map((c) => (
+              <button key={c.id} onClick={() => openConversation(c.id)}
+                className={`w-full text-left px-4 py-3 hover:bg-white/5 transition-colors ${selected?.id === c.id ? 'bg-white/10' : ''}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-white text-sm truncate">
+                    {c.full_name || c.phone}
+                  </span>
+                  {c.unread_count > 0 && (
+                    <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-ember-500 text-white text-[11px] font-bold flex items-center justify-center">
+                      {c.unread_count}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between gap-2 mt-0.5">
+                  <span className="text-xs text-mute truncate">{c.last_message_preview || '—'}</span>
+                  {c.customer_code && (
+                    <span className="shrink-0 text-[10px] font-bold text-ember-400">{c.customer_code}</span>
+                  )}
+                </div>
+              </button>
+            ))}
+            {conversations.length === 0 && (
+              <p className="p-4 text-sm text-mute">No conversations yet — they appear the moment a customer messages the WhatsApp line.</p>
+            )}
+          </div>
+        </GlassCard>
+
+        {/* ── Thread ── */}
+        <GlassCard className="p-0 overflow-hidden">
+          {!selected ? (
+            <div className="p-10 text-center text-mute text-sm">Select a conversation</div>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-line">
+                <div className="min-w-0">
+                  <p className="font-bold text-white truncate">
+                    {selected.full_name || selected.phone}
+                    {selected.customer_code && (
+                      <span className="ml-2 text-xs font-bold text-ember-400">{selected.customer_code}</span>
+                    )}
+                  </p>
+                  <p className="text-xs text-mute flex flex-wrap gap-x-3 mt-0.5">
+                    <span className="inline-flex items-center gap-1"><Phone size={11} />{selected.phone}</span>
+                    {selected.mpesa_number && <span className="inline-flex items-center gap-1"><Wallet size={11} />{selected.mpesa_number}</span>}
+                    {selected.delivery_address && <span className="inline-flex items-center gap-1 truncate max-w-[260px]"><MapPin size={11} />{selected.delivery_address}</span>}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={editContact} title="Edit contact"
+                    className="p-2 rounded-lg bg-white/5 border border-line text-white hover:bg-white/10">
+                    <Pencil size={16} />
+                  </button>
+                  <button onClick={() => openConversation(selected.id)} title="Refresh"
+                    className="p-2 rounded-lg bg-white/5 border border-line text-white hover:bg-white/10">
+                    <RefreshCw size={16} />
+                  </button>
+                  <button onClick={createOrder}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-ember-600 hover:bg-ember-500 text-white text-sm font-semibold transition-colors">
+                    <PackagePlus size={16} /> New order
+                  </button>
+                </div>
+              </div>
+
+              {orders.length > 0 && (
+                <div className="flex gap-2 px-4 py-2 border-b border-line overflow-x-auto">
+                  {orders.slice(0, 6).map((o) => (
+                    <button key={o.id} onClick={() => navigate(`/ops/orders/${o.id}`)}
+                      className="shrink-0 inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-white/5 border border-line hover:bg-white/10">
+                      <span className="text-xs font-bold text-white">{o.tracking_code || 'Quote'}</span>
+                      <StatusBadge status={o.status} />
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="h-[48vh] overflow-y-auto px-4 py-4 space-y-2">
+                {messages.map((m) => (
+                  <div key={m.id} className={`flex ${m.direction === 'out' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words ${
+                      m.direction === 'out'
+                        ? 'bg-ember-600/90 text-white rounded-br-sm'
+                        : 'bg-white/10 text-white rounded-bl-sm'
+                    }`}>
+                      {m.media_url && (
+                        <a href={m.media_url} target="_blank" rel="noreferrer"
+                          className="block underline text-xs mb-1">
+                          📎 {m.media_type || 'attachment'}
+                        </a>
+                      )}
+                      {m.body}
+                      <div className={`text-[10px] mt-1 ${m.direction === 'out' ? 'text-white/70' : 'text-mute'}`}>
+                        {new Date(m.created_at).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}
+                        {m.direction === 'out' && ` · ${m.status}`}
+                        {m.direction === 'out' && !m.sent_by && ' · bot'}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <div ref={bottomRef} />
+              </div>
+
+              <div className="flex items-end gap-2 p-3 border-t border-line">
+                <input ref={fileRef} type="file" accept="image/*,application/pdf" hidden
+                  onChange={(e) => sendFile(e.target.files?.[0])} />
+                <button onClick={() => fileRef.current?.click()} disabled={sending}
+                  title="Attach image or PDF"
+                  className="p-2.5 rounded-xl bg-white/5 border border-line text-white hover:bg-white/10 disabled:opacity-50">
+                  <Paperclip size={18} />
+                </button>
+                <textarea
+                  value={draft} rows={1}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText() }
+                  }}
+                  placeholder="Type a reply… (Enter to send)"
+                  className="flex-1 resize-none px-3.5 py-2.5 rounded-xl bg-white/5 border border-line text-sm text-white placeholder:text-mute focus:outline-none focus:border-ember-500/50" />
+                <button onClick={sendText} disabled={sending || !draft.trim()}
+                  className="p-2.5 rounded-xl bg-ember-600 hover:bg-ember-500 text-white disabled:opacity-50">
+                  <Send size={18} />
+                </button>
+              </div>
+            </>
+          )}
+        </GlassCard>
+      </div>
+    </div>
+  )
+}
