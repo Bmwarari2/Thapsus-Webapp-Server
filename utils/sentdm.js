@@ -108,17 +108,58 @@ async function api(method, path, { body, idempotencyKey } = {}) {
 }
 
 /**
+ * sent.dm delivers free-form text through a system template
+ * (FREE_TEXT_SYS_TEMPLATE) with the text as the template variable, and
+ * WhatsApp forbids newlines/tabs/4+ consecutive spaces inside template
+ * variables — a multi-line body is rejected at request time with
+ * VALIDATION_008 (observed in production). Flatten line structure into
+ * inline separators: blank-line paragraph breaks become " — ", single
+ * newlines become " · ".
+ */
+export function flattenForFreeText(text) {
+  return String(text)
+    .replace(/\s*\n{2,}\s*/g, '  —  ')
+    .replace(/\s*\n\s*/g, ' · ')
+    .replace(/\t/g, ' ')
+    .replace(/ {4,}/g, '   ')
+    .trim();
+}
+
+/**
  * Send a free-form text (works inside WhatsApp's 24h customer-service
- * window, which every reply-to-a-customer flow is in).
+ * window, which every reply-to-a-customer flow is in). Multi-line bodies
+ * are sent as-is first, and retried flattened when the API rejects the
+ * line structure (VALIDATION_008) — so if sent.dm ever starts accepting
+ * newlines, formatting comes back for free.
  *
  * @returns {Promise<{messageId: string|null}>}
  */
 export async function sendText(phoneDigits, text, { idempotencyKey } = {}) {
-  const data = await api('POST', '/v3/messages', {
-    idempotencyKey,
-    body: { to: [toE164(phoneDigits)], channel: ['whatsapp'], text },
-  });
-  return { messageId: data?.recipients?.[0]?.message_id ?? null };
+  try {
+    const data = await api('POST', '/v3/messages', {
+      idempotencyKey,
+      body: { to: [toE164(phoneDigits)], channel: ['whatsapp'], text },
+    });
+    return { messageId: data?.recipients?.[0]?.message_id ?? null };
+  } catch (e) {
+    const flattened = flattenForFreeText(text);
+    const validationReject = e instanceof SentDmError
+      && (String(e.code).startsWith('VALIDATION') || /template variable/i.test(e.message));
+    if (!validationReject || flattened === text) throw e;
+    // Fresh idempotency key — the original is cached with the rejection.
+    const data = await api('POST', '/v3/messages', {
+      idempotencyKey: idempotencyKey ? `${idempotencyKey}-flat` : undefined,
+      body: { to: [toE164(phoneDigits)], channel: ['whatsapp'], text: flattened },
+    });
+    return { messageId: data?.recipients?.[0]?.message_id ?? null };
+  }
+}
+
+/** Activity log for one message — per-step status + provider descriptions
+ *  (the place downstream WhatsApp failures explain themselves). */
+export async function fetchMessageActivities(messageId) {
+  const data = await api('GET', `/v3/messages/${encodeURIComponent(messageId)}/activities`);
+  return data?.activities ?? [];
 }
 
 /**

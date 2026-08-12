@@ -225,6 +225,27 @@ function WebhookDoctor() {
         </div>
       )}
 
+      {status?.outbound_failures?.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-white">Recent failed sends</p>
+          {status.outbound_failures.map((f, i) => (
+            <div key={i} className="rounded-xl bg-red-500/5 border border-red-500/20 p-3 space-y-1">
+              <p className="text-xs text-white">
+                → {f.to} · {new Date(f.at).toLocaleTimeString()} · <span className="text-mute">"{f.body}"</span>
+              </p>
+              {f.request_error && (
+                <p className="text-[11px] font-mono text-red-300">rejected: {f.request_error}</p>
+              )}
+              {f.activities.map((a, j) => (
+                <p key={j} className="text-[11px] font-mono text-mute">
+                  {a.status}{a.description ? ` — ${a.description}` : ''}
+                </p>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
       {secret && (
         <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3">
           <p className="text-sm text-amber-200 font-semibold mb-1">New signing secret — shown only once!</p>

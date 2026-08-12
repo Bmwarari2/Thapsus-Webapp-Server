@@ -150,3 +150,19 @@ describe('parseInboundEvent — live production payload shape', () => {
     expect(event.outboundNumber).toBe('254740825215');
   });
 });
+
+describe('flattenForFreeText', () => {
+  it('flattens paragraph breaks and single newlines into inline separators', async () => {
+    const { flattenForFreeText } = await import('../../utils/sentdm.js');
+    const input = 'Karibu!\n\nHow it works:\n1. Send a link\n2. Pay via M-Pesa\n\nAsante!';
+    const out = flattenForFreeText(input);
+    expect(out).not.toMatch(/\n/);
+    expect(out).not.toMatch(/ {4,}/);
+    expect(out).toContain('1. Send a link · 2. Pay via M-Pesa');
+    expect(out).toContain('Karibu!  —  How it works');
+  });
+  it('leaves single-line text untouched', async () => {
+    const { flattenForFreeText } = await import('../../utils/sentdm.js');
+    expect(flattenForFreeText('Test')).toBe('Test');
+  });
+});

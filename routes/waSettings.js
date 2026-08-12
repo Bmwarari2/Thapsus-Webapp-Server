@@ -11,7 +11,7 @@ import { getWaSettings, invalidateWaSettings } from '../utils/waSettings.js';
 import {
   sentDmConfigured, SentDmError,
   listWebhooks, listWebhookEvents, createWebhook,
-  updateWebhookUrl, activateWebhook,
+  updateWebhookUrl, activateWebhook, fetchMessageActivities,
 } from '../utils/sentdm.js';
 
 const router = express.Router();
@@ -149,11 +149,41 @@ router.get('/webhook-status', authMiddleware, isAdmin, async (req, res) => {
         })),
       };
     }));
+    // Why did recent outbound sends fail? Pull sent.dm's per-message
+    // activity log for the last few failed sends — downstream WhatsApp
+    // failures (balance, sender state, policy) explain themselves there.
+    let outboundFailures = [];
+    try {
+      const { rows } = await req.db.query(
+        `SELECT m.id, m.body, m.error, m.provider_message_id, m.created_at, c.phone
+           FROM wa_messages m JOIN wa_contacts c ON c.id = m.contact_id
+          WHERE m.direction = 'out' AND m.status = 'failed'
+          ORDER BY m.created_at DESC LIMIT 3`
+      );
+      outboundFailures = await Promise.all(rows.map(async (m) => {
+        let activities = [];
+        if (m.provider_message_id) {
+          try {
+            activities = (await fetchMessageActivities(m.provider_message_id))
+              .map((a) => ({ status: a.status, description: a.description, at: a.timestamp }));
+          } catch { /* best-effort */ }
+        }
+        return {
+          at: m.created_at,
+          to: m.phone,
+          body: String(m.body || '').slice(0, 80),
+          request_error: m.error,
+          activities,
+        };
+      }));
+    } catch { /* table empty / best-effort */ }
+
     res.json({
       success: true,
       expected_url: expected,
       secret_configured: Boolean(process.env.SENTDM_WEBHOOK_SECRET),
       webhooks: detailed,
+      outbound_failures: outboundFailures,
     });
   } catch (err) {
     if (err instanceof SentDmError) {
