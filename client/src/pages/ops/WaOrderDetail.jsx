@@ -28,6 +28,7 @@ export function WaOrderDetail() {
   const [events, setEvents] = useState([])
   const [payments, setPayments] = useState([])
   const [usd, setUsd] = useState('')
+  const [mpesaRef, setMpesaRef] = useState('')
   const [busy, setBusy] = useState(false)
   const [printOpen, setPrintOpen] = useState(false)
   // M-Pesa STK is unavailable in production (provider withdrawn), so the
@@ -81,6 +82,14 @@ export function WaOrderDetail() {
       method === 'stk' ? 'STK push sent' : 'Payment instructions sent')()
   const approvePayment = (paymentId) =>
     run(() => paymentsApi.approve(paymentId), 'Payment approved')()
+  // Record a till payment even when no payments row exists yet — the
+  // common case, since customers who confirm a quote on WhatsApp pay
+  // immediately without an operator ever pressing "request payment".
+  const markPaid = run(async () => {
+    const res = await waApi.markPaid(id, { mpesa_reference: mpesaRef.trim() || null })
+    setMpesaRef('')
+    return res
+  }, 'Payment recorded — tracking code and receipt sent')
   const resendReceipt = run(() => waApi.resendReceipt(id), 'Receipt re-sent')
   const openReceipt = async () => {
     try {
@@ -99,6 +108,13 @@ export function WaOrderDetail() {
   const awaitingReview = payments.find((p) => p.status === 'awaiting_review')
   const feePayable = ['in_kenya', 'delivery_fee_pending'].includes(order.status)
     && !order.delivery_fee_waived && !order.delivery_fee_paid_at && Number(order.delivery_fee_kes) > 0
+  const isAdmin = user?.role === 'admin'
+  // What the customer still owes, by stage — mirrors the server's rule in
+  // POST /wa/orders/:id/mark-paid.
+  const outstandingKes = ['quoting', 'quoted', 'confirmed'].includes(order.status)
+    ? Number(order.quote_kes || 0)
+    : feePayable ? Number(order.delivery_fee_kes || 0) : 0
+  const owesMoney = outstandingKes > 0
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
@@ -200,6 +216,36 @@ export function WaOrderDetail() {
             )}
           </div>
 
+          {/* Payment received — the manual-M-Pesa approval, in the place
+              the operator is already looking. Always visible while money
+              is outstanding, whether or not a payments row exists yet. */}
+          {owesMoney && (
+            <div className="mt-5 pt-4 border-t border-line">
+              <h3 className="text-sm font-bold text-white mb-1">Payment</h3>
+              <p className="text-xs text-mute mb-3">
+                KSh {Number(outstandingKes).toLocaleString()} outstanding · Buy Goods till
+                {awaitingReview?.mpesa_reference
+                  ? ` · customer's ref ${awaitingReview.mpesa_reference}`
+                  : ''}
+              </p>
+              {isAdmin ? (
+                <div className="flex flex-wrap gap-2">
+                  <input value={mpesaRef} onChange={(e) => setMpesaRef(e.target.value.toUpperCase())}
+                    placeholder="M-Pesa ref (optional)" maxLength={32}
+                    className="flex-1 min-w-[10rem] px-3 py-2 rounded-lg bg-white/5 border border-line text-white placeholder:text-mute text-sm focus:outline-none focus:border-ember-500/50" />
+                  <button onClick={markPaid} disabled={busy}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold disabled:opacity-50">
+                    <CheckCircle2 size={15} /> Payment received
+                  </button>
+                </div>
+              ) : (
+                <p className="text-xs text-amber-300/80">
+                  An admin confirms till payments (Admin → Payments to approve).
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Delivery fee */}
           {['in_kenya', 'delivery_fee_pending'].includes(order.status) && (
             <div className="mt-5 pt-4 border-t border-line">
@@ -255,7 +301,7 @@ export function WaOrderDetail() {
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusBadge status={p.status} />
-                    {p.status === 'awaiting_review' && user?.role === 'admin' && (
+                    {p.status === 'awaiting_review' && isAdmin && (
                       <button onClick={() => approvePayment(p.id)} disabled={busy}
                         className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold">
                         Approve
@@ -265,7 +311,7 @@ export function WaOrderDetail() {
                 </div>
               ))}
             </div>
-            {awaitingReview && user?.role !== 'admin' && (
+            {awaitingReview && !isAdmin && (
               <p className="text-xs text-amber-300/80 mt-3">An admin approves manual payments (Admin → payments queue).</p>
             )}
           </GlassCard>

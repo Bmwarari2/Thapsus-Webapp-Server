@@ -48,9 +48,13 @@ Send a WhatsApp message from a test phone to the business number:
    `/ops/inbox` with a live badge.
 2. Send a product link → in `/ops/inbox`, "New order" → enter a USD
    price → quote lands on WhatsApp.
-3. Reply `YES` → confirmation + payment prompt; run an STK push from the
-   order screen (small KES amount) → on payment: tracking code + PDF
-   receipt arrive; order card moves to **Paid**.
+3. Reply `YES` → confirmation + Buy Goods till instructions. The order
+   opens an `awaiting_review` payment straight away, so it shows up in
+   **/ops/payments** ("Payments to approve"). Pay the till, reply "I have
+   paid" (the bot answers that it's being verified and pages staff), then
+   approve it — from `/ops/payments` or the **Payment received** button on
+   the order screen. Tracking code + PDF receipt arrive; the card moves to
+   **Paid**.
 4. Advance through Purchased → In Kenya → Dispatch → Delivered and watch
    each WhatsApp alert.
 5. Text the tracking code from the test phone → automatic status reply.
@@ -63,8 +67,10 @@ fire **outside** that window (e.g. "arrived in Kenya" days later) need
 pre-approved templates:
 
 1. Create templates in the sent.dm console for: welcome, quote,
-   payment_prompt, payment_received, receipt (with a *document* header),
-   purchased, arrived_fee, arrived_waived, dispatched, delivered.
+   payment_prompt, payment_verifying, payment_received, receipt (with a
+   *document* header), purchased, arrived_fee, arrived_waived,
+   dispatched, delivered. `sentdm-templates.json` has all 13 ready to
+   upload.
 2. Once approved, map them in `/ops/settings` → "sent.dm template map",
    e.g. `{ "purchased": "tc_purchased_v1", … }`. Unmapped keys keep
    falling back to free-form text.

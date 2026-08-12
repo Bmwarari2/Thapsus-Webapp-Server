@@ -6,6 +6,7 @@
     "onboarded": "tc_onboarded",
     "quote": "tc_quote",
     "payment_prompt": "tc_payment_prompt",
+    "payment_verifying": "tc_payment_verifying",
     "payment_received": "tc_payment_received",
     "receipt": "tc_receipt",
     "purchased": "tc_purchased",
@@ -81,9 +82,21 @@
       "language": "en",
       "category": "UTILITY",
       "body": {
-        "template": "Great! Your order is confirmed at *KSh {{amount_kes}}*.\n\nWe'll send an M-Pesa prompt to your phone shortly — just enter your PIN when it pops up. If you'd rather pay another way, reply here and we'll help.",
+        "template": "Great! Your order is confirmed at *KSh {{amount_kes}}*.\n\nTo pay: Lipa na M-Pesa → Buy Goods → Till *5530500* → KSh {{amount_kes}}.\n\nReply here once you've paid and we'll confirm it right away.",
         "variables": [
           { "name": "amount_kes", "type": "text", "props": { "sample": "17,094" } }
+        ]
+      }
+    },
+    {
+      "name": "tc_payment_verifying",
+      "channel": "whatsapp",
+      "language": "en",
+      "category": "UTILITY",
+      "body": {
+        "template": "Asante 🙏 We've got your payment notification ({{reference}}) and our team is verifying it with M-Pesa now.\n\nWe'll confirm here as soon as it clears and send your tracking code — usually within a few minutes.",
+        "variables": [
+          { "name": "reference", "type": "text", "props": { "sample": "SHL9XK2QRT" } }
         ]
       }
     },

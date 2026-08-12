@@ -725,6 +725,10 @@ export const waApi = {
   advance: (id, to_status, note = null) =>
     api.post(`/wa/orders/${id}/advance`, { to_status, note }),
   waiveFee: (id) => api.post(`/wa/orders/${id}/waive-fee`),
+  /** Admin: record a manual M-Pesa payment against whatever the order owes. */
+  markPaid: (id, { mpesa_reference = null, note = null } = {}) =>
+    api.post(`/wa/orders/${id}/mark-paid`, { mpesa_reference, note },
+      { headers: { 'Idempotency-Key': newIdempotencyKey() } }),
   receiptUrl: (id) => api.get(`/wa/orders/${id}/receipt`),
   resendReceipt: (id) => api.post(`/wa/orders/${id}/receipt/resend`),
 

@@ -12,9 +12,12 @@
 //      gets the order's live status back, no operator needed (Phase 4
 //      self-service).
 //   3. Quote confirmation — a "yes"-like reply while the contact has
-//      exactly one order awaiting confirmation flips it to 'confirmed'
-//      and prompts for payment. Anything ambiguous falls through to a
-//      human.
+//      exactly one order awaiting confirmation flips it to 'confirmed',
+//      opens the awaiting_review payment row, and sends till
+//      instructions. Anything ambiguous falls through to a human.
+//   3b. Payment claim — "I've paid" / a pasted M-Pesa SMS gets an
+//      it's-being-verified reply (never a handoff), the reference stamped
+//      onto the open payment, and a staff alert.
 //   4. Everything else: when the Gemini layer is enabled (wa_settings
 //      ai_enabled + GEMINI_API_KEY), it answers from the operator's
 //      knowledge base PLUS a live summary of this customer's own orders
@@ -42,13 +45,24 @@ import { pushToStaff } from '../routes/events.js';
 import { getWaSettings } from './waSettings.js';
 import { aiConfigured, chatReply, onboardingTurn, summarizeConversation } from './waAi.js';
 import { notifyStaff } from './waStaffAlert.js';
+import {
+  attachMpesaReference, ensureManualPayment, extractMpesaReference,
+  findOpenContactPayment, mpesaTill,
+} from './waPayments.js';
 
 const CONFIRM_WORDS = /^(yes+|yeah|yep|ok(ay)?|confirm(ed)?|proceed|sawa( sawa)?|ndio|ndiyo|poa|1)\b/i;
 
 // "I've paid" in the shapes Kenyan customers actually type, including a
 // pasted M-Pesa confirmation (which always carries a 10-char reference).
-const PAID_CLAIM = /\b(i('| ha)?ve )?(paid|sent|nimelipa|nimetuma|lipa)\b|\bconfirmed\b.*\bksh\b|\bM-?PESA\b.*\bconfirm/i;
-const MPESA_REF = /\b[A-Z0-9]{10}\b/;
+// Deliberately narrower than "sent"/"lipa" on their own — those show up in
+// "I sent the link" and in our own "Lipa na M-Pesa" instructions quoted
+// back at us, and a false positive here silences the assistant.
+const PAID_CLAIM =
+  /\bpaid\b|\bnimelipa\b|\bnimeshalipa\b|\bnimetuma\b|\bpayment (sent|made|done|complete)\b|\bsent (the |you )?(money|payment|cash|funds)\b|\bconfirmed\b[\s\S]{0,80}\bksh/i;
+
+// Stable phrase inside the verification reply — also how we recognise that
+// we already sent one recently (template_key isn't recorded for free text).
+const VERIFYING_MARKER = 'verifying it with M-Pesa';
 
 // How much verbatim transcript rides in the prompt, and how often the
 // durable memory note behind it gets refreshed.
@@ -159,8 +173,20 @@ export async function handleInbound(db, contact, message) {
         dedupeKey: `confirmed:${order.id}`,
       });
       // M-Pesa STK is unavailable (provider withdrawn), so every payment
-      // is a Buy Goods transfer the team verifies by hand.
-      const till = process.env.MPESA_TILL_NUMBER || '';
+      // is a Buy Goods transfer the team verifies by hand. Open the
+      // awaiting_review payment now: the operator's "Approve payment"
+      // action needs a row to act on, and the customer is about to pay.
+      try {
+        await ensureManualPayment(db, {
+          orderId: order.id,
+          contactId: contact.id,
+          amountKes: Number(order.quote_kes),
+          phone: contact.mpesa_number || contact.phone || null,
+        });
+      } catch (e) {
+        console.warn('[waStateMachine] could not open payment row:', e?.message);
+      }
+      const till = mpesaTill();
       await sendToContact(db, contact, {
         templateKey: 'payment_prompt',
         templateParams: { amount_kes: String(order.quote_kes) },
@@ -175,15 +201,52 @@ export async function handleInbound(db, contact, message) {
   }
 
   // 3b. Customer says they've paid. With STK unavailable every payment is
-  // verified by hand, so this must reach a person immediately. We still
-  // let the AI reply (it reassures them) — this only adds the alert.
+  // checked against the M-Pesa statement by hand, so we answer this
+  // ourselves rather than letting the AI improvise (it used to read the
+  // message as a complaint and hand off with "let me get a colleague",
+  // which reads like nobody has their money). Tell them it's being
+  // verified, stamp the reference onto their open payment so the operator
+  // can match it, and page staff.
   if (body && PAID_CLAIM.test(body)) {
-    const ref = (body.match(MPESA_REF) || [])[0];
+    const ref = extractMpesaReference(body);
     notifyStaff(db, {
       title: 'Payment claimed — verify on M-Pesa',
       detail: `${contact.full_name || contact.phone} (${contact.customer_code || 'no code'}): "${body.slice(0, 160)}"${ref ? ` — ref ${ref}` : ''}`,
       dedupeKey: `paid:${contact.id}:${ref || body.slice(0, 40)}`,
     });
+
+    let amountKes = null;
+    try {
+      const open = await findOpenContactPayment(db, contact.id);
+      if (open) {
+        amountKes = Number(open.amount_due_kes);
+        if (ref) await attachMpesaReference(db, open.id, ref);
+      }
+    } catch (e) {
+      console.warn('[waStateMachine] payment-claim bookkeeping failed:', e?.message);
+    }
+
+    // One reassurance per burst — customers often send the M-Pesa SMS and
+    // "I have paid" as two messages seconds apart.
+    const { rows: recent } = await db.query(
+      `SELECT 1 FROM wa_messages
+        WHERE contact_id = $1 AND direction = 'out'
+          AND body LIKE $2 AND created_at > NOW() - INTERVAL '30 minutes'
+        LIMIT 1`,
+      [contact.id, `%${VERIFYING_MARKER}%`]
+    );
+    if (recent.length === 0) {
+      await sendToContact(db, contact, {
+        templateKey: 'payment_verifying',
+        templateParams: { reference: ref || 'pending confirmation' },
+        text:
+          `Asante 🙏 We've got your payment notification${ref ? ` (ref *${ref}*)` : ''}` +
+          `${amountKes ? ` for KSh ${amountKes.toLocaleString('en-KE')}` : ''} and our team is ` +
+          `${VERIFYING_MARKER} now.\n\n` +
+          `We'll confirm here as soon as it clears and send your tracking code — usually within a few minutes.`,
+      });
+    }
+    return;
   }
 
   // 4. AI answer — knowledge base + who they are + what we remember +

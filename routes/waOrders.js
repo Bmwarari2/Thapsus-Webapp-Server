@@ -21,6 +21,10 @@ import { extractTrackingCode, extractCustomerCode } from '../utils/waCodes.js';
 import { createSignedDownloadUrl } from '../utils/supabaseAdmin.js';
 import { markPaymentPaid } from '../utils/markPaymentPaid.js';
 import {
+  attachMpesaReference, ensureManualPayment, extractMpesaReference,
+  findOpenOrderPayment, mpesaTill,
+} from '../utils/waPayments.js';
+import {
   initiateStkPush as lipanaInitiateStkPush,
   normalizeKenyanPhone,
   LipanaError,
@@ -29,7 +33,7 @@ import {
 const router = express.Router();
 const STAFF = requireRole('operator'); // admins pass via requireRole's bypass
 
-const MPESA_TILL = process.env.MPESA_TILL_NUMBER || '5530500';
+const MPESA_TILL = mpesaTill();
 
 /**
  * STK Push is only offered when an M-Pesa API provider is actually wired
@@ -299,33 +303,40 @@ router.post('/:id/request-payment', authMiddleware, STAFF, idempotency, async (r
       return res.status(400).json({ success: false, message: 'No valid M-Pesa number on file — pass phone or use manual' });
     }
 
-    // One live payment per (order, purpose): reuse an existing open row.
-    const { rows: existing } = await req.db.query(
-      `SELECT * FROM payments
-        WHERE target_kind = 'wa_order' AND target_id = $1
-          AND status IN ('pending', 'awaiting_review')
-        ORDER BY created_at DESC LIMIT 1`,
-      [order.id]
-    );
-    if (existing[0]) {
+    // One live payment per order. A pending STK is a genuine conflict —
+    // two prompts on one phone is a mess. A manual awaiting_review row is
+    // not: the customer may already have one from confirming the quote on
+    // WhatsApp, and re-sending them the till details is exactly what the
+    // operator meant to do, so we reuse it.
+    const existing = await findOpenOrderPayment(req.db, order.id);
+    if (existing && (method === 'stk' || existing.status === 'pending')) {
       return res.status(409).json({
         success: false,
-        message: `A ${existing[0].status} payment (${existing[0].id}) already exists for this order — approve, reject, or wait for it first.`,
-        payment: existing[0],
+        message: `A ${existing.status} payment (${existing.id}) already exists for this order — approve, reject, or wait for it first.`,
+        payment: existing,
       });
     }
 
-    const paymentId = `PAY-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const initialStatus = method === 'stk' ? 'pending' : 'awaiting_review';
-    const provider = method === 'stk' ? 'lipana' : 'manual';
-    await req.db.query(
-      `INSERT INTO payments
-         (id, user_id, wa_contact_id, target_kind, target_id,
-          amount_gross_kes, amount_credit_kes, amount_due_kes,
-          currency, method, status, mpesa_provider, mpesa_phone_used)
-       VALUES ($1, NULL, $2, 'wa_order', $3, $4, 0, $4, 'KES', 'mpesa', $5, $6, $7)`,
-      [paymentId, order.contact_id, order.id, amountKes, initialStatus, provider, phone]
-    );
+    let paymentId;
+    if (method === 'stk') {
+      paymentId = `PAY-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      await req.db.query(
+        `INSERT INTO payments
+           (id, user_id, wa_contact_id, target_kind, target_id,
+            amount_gross_kes, amount_credit_kes, amount_due_kes,
+            currency, method, status, mpesa_provider, mpesa_phone_used)
+         VALUES ($1, NULL, $2, 'wa_order', $3, $4, 0, $4, 'KES', 'mpesa', 'pending', 'lipana', $5)`,
+        [paymentId, order.contact_id, order.id, amountKes, phone]
+      );
+    } else {
+      const { payment } = await ensureManualPayment(req.db, {
+        orderId: order.id,
+        contactId: order.contact_id,
+        amountKes,
+        phone,
+      });
+      paymentId = payment.id;
+    }
 
     const contact = { id: order.contact_id, phone: order.phone };
     if (method === 'stk') {
@@ -369,6 +380,86 @@ router.post('/:id/request-payment', authMiddleware, STAFF, idempotency, async (r
   } catch (err) {
     logRouteError(req, res, err, 'POST /api/wa/orders/:id/request-payment');
     res.status(500).json({ success: false, message: 'Failed to request payment' });
+  }
+});
+
+/**
+ * POST /api/wa/orders/:id/mark-paid  { mpesa_reference?, note? }
+ *
+ * The manual-M-Pesa approval, on the order screen where the operator
+ * already is. STK is gone, so "approving a payment" is really "I can see
+ * this money on the till statement" — and the payments row it acts on may
+ * not exist yet (a customer who confirms their quote on WhatsApp and pays
+ * straight away never goes through request-payment). So: get-or-create the
+ * awaiting_review row for whatever this order currently owes, stamp the
+ * M-Pesa reference on it, then settle it through the same
+ * markPaymentPaid state machine the admin queue uses — which mints the
+ * tracking code, sends it, and pushes the PDF receipt.
+ *
+ * Admin-gated, matching routes/adminPayments.js: only admins settle money.
+ */
+router.post('/:id/mark-paid', authMiddleware, requireRole('admin'), idempotency, async (req, res) => {
+  try {
+    const { rows } = await req.db.query(`${ORDER_SELECT} WHERE o.id = $1`, [req.params.id]);
+    const order = rows[0];
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+
+    // Which money is outstanding is decided by the order's status — the
+    // same rule markPaymentPaid uses when it flips the target row.
+    let amountKes;
+    if (['quoting', 'quoted', 'confirmed'].includes(order.status)) {
+      amountKes = Number(order.quote_kes);
+      if (!Number.isFinite(amountKes) || amountKes <= 0) {
+        return res.status(409).json({ success: false, message: 'Quote the order before recording a payment' });
+      }
+    } else if (['in_kenya', 'delivery_fee_pending'].includes(order.status)) {
+      if (order.delivery_fee_waived || order.delivery_fee_paid_at) {
+        return res.status(409).json({ success: false, message: 'Nothing outstanding on this order' });
+      }
+      amountKes = Number(order.delivery_fee_kes);
+      if (!Number.isFinite(amountKes) || amountKes <= 0) {
+        return res.status(409).json({ success: false, message: 'No delivery fee set on this order' });
+      }
+    } else {
+      return res.status(409).json({
+        success: false,
+        message: `Nothing to pay for on an order in status '${order.status}'`,
+      });
+    }
+
+    const reference = extractMpesaReference(req.body?.mpesa_reference || '')
+      || (typeof req.body?.mpesa_reference === 'string' && req.body.mpesa_reference.trim()
+        ? req.body.mpesa_reference.trim().toUpperCase().slice(0, 32) : null);
+
+    const { payment } = await ensureManualPayment(req.db, {
+      orderId: order.id,
+      contactId: order.contact_id,
+      amountKes,
+      phone: normalizeKenyanPhone(order.mpesa_number || order.phone),
+    });
+    if (payment.status === 'pending') {
+      return res.status(409).json({
+        success: false,
+        message: 'An M-Pesa STK push is still pending on this order — wait for it to settle or fail.',
+      });
+    }
+    if (reference) await attachMpesaReference(req.db, payment.id, reference);
+
+    const result = await markPaymentPaid(req.db, payment.id, { adminUserId: req.user.id });
+    if (!result.ok) {
+      return res.status(409).json({ success: false, message: result.reason || 'Failed to record payment' });
+    }
+    await req.db.query(
+      `INSERT INTO wa_order_events (id, order_id, from_status, to_status, actor_user_id, note)
+       VALUES ($1, $2, $3, $3, $4, $5)`,
+      [uuidv4(), order.id, order.status, req.user.id,
+       `Manual M-Pesa payment recorded${reference ? ` (ref ${reference})` : ''}${req.body?.note ? ` — ${String(req.body.note).slice(0, 200)}` : ''}`]
+    );
+
+    res.json({ success: true, payment_id: payment.id, already_paid: Boolean(result.alreadyPaid) });
+  } catch (err) {
+    logRouteError(req, res, err, 'POST /api/wa/orders/:id/mark-paid');
+    res.status(500).json({ success: false, message: 'Failed to record payment' });
   }
 });
 

@@ -169,6 +169,15 @@ describe('quote confirmation', () => {
     }
   );
 
+  it('opens the awaiting_review payment so there is something to approve', async () => {
+    const db = confirmDb({ quotedRows: [quotedOrder] });
+    await handleInbound(db, contact(), { id: 'm', body: 'yes' });
+    const insert = db.query.mock.calls.find(([sql]) =>
+      sql.includes('INSERT INTO payments') && sql.includes("'awaiting_review'"));
+    expect(insert).toBeTruthy();
+    expect(insert[1]).toEqual(expect.arrayContaining(['c1', 'o1', 14500]));
+  });
+
   it('does nothing automated when several orders are quoted (ambiguous)', async () => {
     const db = confirmDb({ quotedRows: [quotedOrder, { id: 'o2', quote_kes: '9000' }] });
     await handleInbound(db, contact(), { id: 'm', body: 'yes' });
@@ -429,23 +438,62 @@ describe('staff WhatsApp alerts', () => {
 
   it('alerts staff when a customer says they have paid, with the M-Pesa ref', async () => {
     const waAi = await ai();
-    waAi.chatReply.mockResolvedValueOnce('Thanks! We are confirming your payment now.');
     const db = makeDb(async () => ({ rows: [] }));
     await handleInbound(db, contact(), { id: 'm1', body: 'I have paid, SHL9XK2QRT confirmed Ksh 17,094' });
     expect(notifyStaff).toHaveBeenCalledWith(db, expect.objectContaining({
       title: expect.stringMatching(/payment claimed/i),
       detail: expect.stringContaining('SHL9XK2QRT'),
     }));
+    // The customer hears that it's being checked — never the handoff line,
+    // which reads like nobody can see their money.
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/verifying it with M-Pesa/i);
+    expect(sendToContact.mock.calls[0][2].text).toContain('SHL9XK2QRT');
+    expect(sendToContact.mock.calls[0][2].text).not.toMatch(/colleague/i);
+    expect(waAi.chatReply).not.toHaveBeenCalled();
+  });
+
+  it('stamps the M-Pesa ref on the open payment so the operator can match it', async () => {
+    await ai();
+    const db = makeDb(async (sql) => {
+      if (sql.includes('wa_contact_id = $1') && sql.includes('payments')) {
+        return { rows: [{ id: 'PAY-1', amount_due_kes: '17094' }] };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    await handleInbound(db, contact(), { id: 'm1', body: 'I have paid, SHL9XK2QRT confirmed Ksh 17,094' });
+    const stamp = db.query.mock.calls.find(([sql]) => sql.includes('SET mpesa_reference'));
+    expect(stamp[1]).toEqual(['PAY-1', 'SHL9XK2QRT']);
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/KSh 17,094/);
+  });
+
+  it('only reassures once per burst of payment messages', async () => {
+    await ai();
+    const db = makeDb(async (sql) => {
+      if (sql.includes("direction = 'out'")) return { rows: [{ '?column?': 1 }] };
+      return { rows: [] };
+    });
+    await handleInbound(db, contact(), { id: 'm1', body: 'I have paid' });
+    expect(sendToContact).not.toHaveBeenCalled();
+    expect(notifyStaff).toHaveBeenCalled(); // staff still get paged
   });
 
   it.each(['nimelipa', 'I paid already', 'nimetuma the money'])(
     'recognises "%s" as a payment claim', async (msg) => {
-      const waAi = await ai();
-      waAi.chatReply.mockResolvedValueOnce('ok');
+      await ai();
       await handleInbound(makeDb(async () => ({ rows: [] })), contact(), { id: 'm1', body: msg });
       expect(notifyStaff).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
         title: expect.stringMatching(/payment claimed/i),
       }));
+    }
+  );
+
+  it.each(['I sent the link', 'can I pay with Lipa na M-Pesa?'])(
+    'does not read "%s" as a payment claim', async (msg) => {
+      const waAi = await ai();
+      waAi.chatReply.mockResolvedValueOnce('Sure — here is how.');
+      await handleInbound(makeDb(async () => ({ rows: [] })), contact(), { id: 'm1', body: msg });
+      expect(notifyStaff).not.toHaveBeenCalled();
+      expect(waAi.chatReply).toHaveBeenCalled();
     }
   );
 

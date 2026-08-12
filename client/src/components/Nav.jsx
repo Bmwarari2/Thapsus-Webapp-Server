@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   Menu, X, LogOut, Settings, BarChart3, Truck,
   Home as HomeIcon, Search, LogIn, FileText, BookOpen, ScrollText,
-  ChevronDown, MoreHorizontal, Newspaper, MessageSquareText, KanbanSquare,
+  ChevronDown, MoreHorizontal, Newspaper, MessageSquareText, KanbanSquare, HandCoins,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import brandMark1x from '../assets/brand-mark.webp'
@@ -45,11 +45,19 @@ function buildNav({ isAuthenticated, isAdmin }) {
     }
   }
 
-  const tabs = [
+  // Admins get the payment queue in the bottom bar — approving till
+  // payments is the step that unblocks every order, so it can't live two
+  // menus deep.
+  const tabs = isAdmin ? [
+    { to: '/ops/inbox',    label: 'Inbox',    icon: MessageSquareText },
+    { to: '/ops/pipeline', label: 'Pipeline', icon: KanbanSquare },
+    { to: '/ops/payments', label: 'Payments', icon: HandCoins },
+    { to: '/admin',        label: 'Admin',    icon: BarChart3 },
+  ] : [
     { to: '/ops/inbox',    label: 'Inbox',    icon: MessageSquareText },
     { to: '/ops/pipeline', label: 'Pipeline', icon: KanbanSquare },
     { to: '/track',        label: 'Track',    icon: Search },
-    { to: isAdmin ? '/admin' : '/ops', label: isAdmin ? 'Admin' : 'Legacy', icon: isAdmin ? BarChart3 : Truck },
+    { to: '/ops',          label: 'Legacy',   icon: Truck },
   ]
 
   const groups = [
@@ -63,8 +71,9 @@ function buildNav({ isAuthenticated, isAdmin }) {
 
   if (isAdmin) {
     groups.push({ key: 'admin', label: 'Admin', links: [
-      { to: '/admin',        label: 'Admin dashboard',   icon: BarChart3 },
-      { to: '/ops/settings', label: 'WhatsApp settings', icon: Settings },
+      { to: '/ops/payments', label: 'Payments to approve', icon: HandCoins },
+      { to: '/admin',        label: 'Admin dashboard',     icon: BarChart3 },
+      { to: '/ops/settings', label: 'WhatsApp settings',   icon: Settings },
     ]})
   }
 
