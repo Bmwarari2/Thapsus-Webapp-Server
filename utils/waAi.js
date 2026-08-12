@@ -17,9 +17,11 @@
 // Hard guardrails, enforced by prompt AND by where this is called from:
 // the model never quotes prices, never confirms orders or payments, and
 // never advances the pipeline — those paths run before the AI is ever
-// consulted. When unsure (or the customer wants a human) it returns
-// HANDOFF and the message just lands in the operator inbox, which is
-// exactly the pre-AI behavior. Every failure mode degrades to that.
+// consulted. When a person is needed it returns HANDOFF, and when the
+// message has nothing to do with this business it returns OFF_TOPIC —
+// two different outcomes, because paging an operator for every wrong
+// number is as bad as answering one. Every failure mode degrades to
+// HANDOFF, which is the pre-AI behavior.
 //
 // Config: GEMINI_API_KEY (Google AI Studio). GEMINI_MODEL optionally
 // pins a model; when unset the model is DISCOVERED from the API (see
@@ -33,7 +35,28 @@ const BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const TIMEOUT_MS = 15_000;
 const MODEL_CACHE_MS = 6 * 60 * 60 * 1000; // re-discover a few times a day
 
+// Sentinels the model returns instead of prose. They mean different
+// things and must not be conflated: HANDOFF is "a person is needed
+// here", OFF_TOPIC is "this has nothing to do with us". Escalating the
+// second would page an operator for every wrong number and joke.
 export const HANDOFF = 'HANDOFF';
+export const OFF_TOPIC = 'OFF_TOPIC';
+
+/**
+ * Classify raw model output into a reply or one of the sentinels.
+ * Callers get a tagged object rather than a bare string so a sentinel
+ * can never be mistaken for a message and sent to a customer.
+ *
+ * @param {string|null} text
+ * @returns {{kind: 'reply'|'handoff'|'off_topic', text: string|null}}
+ */
+export function classifyReply(text) {
+  if (!text) return { kind: 'handoff', text: null };
+  const upper = text.toUpperCase();
+  if (upper.includes(OFF_TOPIC)) return { kind: 'off_topic', text: null };
+  if (upper.includes(HANDOFF)) return { kind: 'handoff', text: null };
+  return { kind: 'reply', text: text.slice(0, 1200) };
+}
 
 export function aiConfigured() {
   return Boolean(process.env.GEMINI_API_KEY);
@@ -155,8 +178,11 @@ STRICT RULES you must never break:
 - NEVER state, estimate, or negotiate prices, quotes, exchange rates, or fees. If asked about cost, explain that they should send the product link and the team will reply with an exact KES quote.
 - NEVER confirm orders, confirm payments, promise delivery dates, or claim an action was taken.
 - NEVER ask for card numbers, PINs, or passwords.
-- Only state facts found in the KNOWLEDGE BASE or in THIS CUSTOMER'S ORDERS. If the answer is not there, or you are unsure, or the customer asks for a human, is upset, or has a complaint — respond with exactly: ${HANDOFF}
-- You MAY tell the customer the status, tracking code, dates and agreed total of the orders listed under THIS CUSTOMER'S ORDERS — that is live data from our system. NEVER invent an order, code, date or status: if they ask about an order or code that is not listed, respond with exactly: ${HANDOFF}
+- Only state facts found in the KNOWLEDGE BASE or in THIS CUSTOMER'S ORDERS.
+- You MAY tell the customer the status, tracking code, dates and agreed total of the orders listed under THIS CUSTOMER'S ORDERS — that is live data from our system. NEVER invent an order, code, date or status.
+- Reply with exactly ${HANDOFF} — nothing else — when a PERSON is needed: the customer asks for a human, is upset, is complaining, wants a refund or a cancellation, or asks something about our service or their order that you cannot answer from the knowledge base or the order list above. This reaches an operator, so use it whenever their question is genuinely ours to answer.
+- Reply with exactly ${OFF_TOPIC} — nothing else — when the message has NOTHING to do with Thapsus Cargo, shopping, shipping or their orders: general-knowledge questions, news, sport, politics, medical or legal advice, maths, requests to write or translate something, jokes, chit-chat past a greeting, or an obvious wrong number. Do NOT answer these and do NOT escalate them — ${OFF_TOPIC} is not a failure, it is the correct answer.
+- When you are torn between the two, choose ${HANDOFF}: a person can always redirect someone, but nobody sees an ${OFF_TOPIC}.
 - Keep replies short (1–3 sentences), warm, and clear. A little Swahili (karibu, asante) is welcome. Plain text only — no markdown, no lists with newlines.
 - NEVER use emojis. Thapsus Cargo writes plainly and professionally.`;
 
@@ -169,7 +195,7 @@ STRICT RULES you must never break:
  * @param {string} [p.orderContext]  pre-formatted summary of this customer's
  *   orders (statuses, codes, dates) so "where is my parcel?" can be answered
  *   without an exact tracking code
- * @returns {Promise<string|null>} reply text, or null when the model handed off
+ * @returns {Promise<{kind: 'reply'|'handoff'|'off_topic', text: string|null}>}
  */
 export async function chatReply({ knowledgeBase, history, message, orderContext, profile, summary }) {
   const system =
@@ -190,9 +216,7 @@ export async function chatReply({ knowledgeBase, history, message, orderContext,
     { role: 'user', parts: [{ text: String(message).slice(0, 2000) }] },
   ];
 
-  const text = await generate({ system, contents });
-  if (!text || text.toUpperCase().includes(HANDOFF)) return null;
-  return text.slice(0, 1200);
+  return classifyReply(await generate({ system, contents }));
 }
 
 /**
@@ -207,7 +231,7 @@ export async function chatReply({ knowledgeBase, history, message, orderContext,
  * @param {Array<{direction: 'in'|'out', body: string}>} p.history  oldest first
  * @param {string} p.message      the new inbound text
  * @param {{full_name: string|null, delivery_address: string|null, mpesa_number: string|null}} p.profile
- * @returns {Promise<{reply: string|null, full_name: string|null, delivery_address: string|null, mpesa_number: string|null}>}
+ * @returns {Promise<{kind: 'reply'|'handoff'|'off_topic', reply: string|null, full_name: string|null, delivery_address: string|null, mpesa_number: string|null}>}
  */
 export async function onboardingTurn({ knowledgeBase, history, message, profile, orderContext }) {
   const missing = [];
@@ -259,9 +283,13 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
   let parsed;
   try { parsed = JSON.parse(text); } catch { throw new Error('Gemini returned invalid JSON'); }
   const str = (v, max) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
-  const reply = str(parsed?.reply, 1200);
+  // Fields the model extracted stand even when the reply itself is a
+  // sentinel — someone can give their name and ask an off-topic question
+  // in the same breath.
+  const { kind, text: reply } = classifyReply(str(parsed?.reply, 1200));
   return {
-    reply: reply && !reply.toUpperCase().includes(HANDOFF) ? reply : null,
+    kind,
+    reply,
     full_name: str(parsed?.full_name, 120),
     delivery_address: str(parsed?.delivery_address, 400),
     mpesa_number: str(parsed?.mpesa_number, 40),

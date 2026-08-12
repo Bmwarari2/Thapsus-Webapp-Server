@@ -22,9 +22,15 @@
 //      ai_enabled + GEMINI_API_KEY), it answers from the operator's
 //      knowledge base PLUS a live summary of this customer's own orders
 //      (loadOrderContext), so "where is my parcel?" works without an
-//      exact code; otherwise — and on any AI failure or handoff — the
-//      message just sits in the operator inbox (the webhook already
-//      bumped unread + SSE before calling us).
+//      exact code. It can also decline in two distinct ways:
+//        HANDOFF   → a person is needed (complaint, refund, a question
+//                    about our service we can't answer): acknowledge,
+//                    hand the thread over, page staff.
+//        OFF_TOPIC → nothing to do with us (wrong number, general
+//                    knowledge, jokes): say what we do, once an hour,
+//                    and leave the assistant live. No alert, no takeover.
+//      On any AI failure the message just sits in the operator inbox
+//      (the webhook already bumped unread + SSE before calling us).
 //
 // The AI is consulted ONLY for onboarding interpretation and the final
 // fall-through. Money and state (tracking replies, confirmations, quotes,
@@ -60,9 +66,11 @@ const CONFIRM_WORDS = /^(yes+|yeah|yep|ok(ay)?|confirm(ed)?|proceed|sawa( sawa)?
 const PAID_CLAIM =
   /\bpaid\b|\bnimelipa\b|\bnimeshalipa\b|\bnimetuma\b|\bpayment (sent|made|done|complete)\b|\bsent (the |you )?(money|payment|cash|funds)\b|\bconfirmed\b[\s\S]{0,80}\bksh/i;
 
-// Stable phrase inside the verification reply — also how we recognise that
-// we already sent one recently (template_key isn't recorded for free text).
+// Stable phrases inside two of our own replies — also how we recognise
+// that we already sent one recently (template_key isn't recorded for
+// free text, so the transcript body is what we have to match on).
 const VERIFYING_MARKER = 'verifying it with M-Pesa';
+const OFF_TOPIC_MARKER = 'only help with Thapsus Cargo';
 
 // How much verbatim transcript rides in the prompt, and how often the
 // durable memory note behind it gets refreshed.
@@ -96,45 +104,30 @@ export async function handleInbound(db, contact, message) {
   try { settings = await getWaSettings(db); } catch { /* run without AI */ }
   const ai = Boolean(settings?.ai_enabled) && aiConfigured();
 
+  // 1. Human takeover, evaluated before anything else so it applies to
+  // onboarding too — the assistant can hand a signup over (a complaint
+  // arrives mid-questionnaire) and must then stay quiet like anywhere
+  // else. Deterministic replies (tracking codes, quote confirmations)
+  // keep working throughout; only the AI chat pauses.
+  const aiPaused = await aiOnHold(db, contact, message, settings);
+
   if (contact.state !== 'active') {
     // AI-first: when enabled, Gemini drives onboarding from the very
     // first message — greeting, explaining, answering questions, and
     // gathering the profile in whatever order the conversation flows.
     // Any AI failure drops to the deterministic script below.
-    if (ai) {
+    if (ai && !aiPaused) {
       try {
         return await aiOnboarding(db, contact, message, body, settings);
       } catch (e) {
         console.warn('[waStateMachine] AI onboarding failed — using scripted flow:', e?.message);
       }
     }
+    // While a human has the thread, the scripted questionnaire would
+    // talk over them just as loudly as the AI would. Leave it in the
+    // inbox.
+    if (aiPaused) return;
     return handleOnboarding(db, contact, body, { settings });
-  }
-
-  // 1b. Human takeover. Once an operator replies (or the assistant hands
-  // off) the assistant goes quiet so the customer isn't answered by two
-  // voices. It resumes by itself once the conversation has been silent
-  // for ai_resume_after_minutes — or the moment an operator flips it back
-  // on from the inbox. Deterministic replies (tracking codes, quote
-  // confirmations) keep working throughout; only the AI chat pauses.
-  let aiPaused = false;
-  if (contact.human_takeover_at) {
-    const { rows: prev } = await db.query(
-      `SELECT MAX(created_at) AS at FROM wa_messages WHERE contact_id = $1 AND id <> $2`,
-      [contact.id, message.id]
-    );
-    const lastAt = prev[0]?.at ? new Date(prev[0].at).getTime() : 0;
-    const quietMs = Date.now() - lastAt;
-    const resumeAfterMs = Math.max(1, Number(settings?.ai_resume_after_minutes ?? 120)) * 60_000;
-    if (lastAt && quietMs >= resumeAfterMs) {
-      await db.query(
-        `UPDATE wa_contacts SET human_takeover_at = NULL, updated_at = NOW() WHERE id = $1`,
-        [contact.id]
-      );
-      console.info(`[waStateMachine] AI resumed for ${contact.id} after ${Math.round(quietMs / 60000)}m of silence`);
-    } else {
-      aiPaused = true;
-    }
   }
 
   // 2. Tracking self-service.
@@ -228,14 +221,7 @@ export async function handleInbound(db, contact, message) {
 
     // One reassurance per burst — customers often send the M-Pesa SMS and
     // "I have paid" as two messages seconds apart.
-    const { rows: recent } = await db.query(
-      `SELECT 1 FROM wa_messages
-        WHERE contact_id = $1 AND direction = 'out'
-          AND body LIKE $2 AND created_at > NOW() - INTERVAL '30 minutes'
-        LIMIT 1`,
-      [contact.id, `%${VERIFYING_MARKER}%`]
-    );
-    if (recent.length === 0) {
+    if (!await sentRecently(db, contact.id, VERIFYING_MARKER, 30)) {
       await sendToContact(db, contact, {
         templateKey: 'payment_verifying',
         templateParams: { reference: ref || 'pending confirmation' },
@@ -261,7 +247,7 @@ export async function handleInbound(db, contact, message) {
          ) h ORDER BY created_at ASC`,
         [contact.id, message.id]
       );
-      const reply = await chatReply({
+      const answer = await chatReply({
         knowledgeBase: settings.ai_knowledge_base,
         history,
         message: body,
@@ -270,25 +256,17 @@ export async function handleInbound(db, contact, message) {
         summary: contact.ai_summary,
       });
 
-      if (reply) {
-        await sendToContact(db, contact, { text: reply });
+      if (answer.kind === 'reply') {
+        await sendToContact(db, contact, { text: answer.text });
+      } else if (answer.kind === 'off_topic') {
+        // Nothing to do with us — a wrong number, a joke, a general
+        // question. Say what we do and stop there: no staff alert, no
+        // takeover, the assistant stays live for their next real
+        // message. Escalating these would page an operator for every
+        // stray text.
+        await replyOffTopic(db, contact);
       } else {
-        // HANDOFF — the assistant deliberately stepped back (human
-        // requested, complaint, something outside the knowledge base).
-        // Tell the customer a person is coming rather than going silent
-        // on them, hand the thread to the humans, and alert staff.
-        await sendToContact(db, contact, {
-          text: `Let me get a colleague for you — someone from our team will reply here shortly.`,
-        });
-        await db.query(
-          `UPDATE wa_contacts SET human_takeover_at = NOW(), updated_at = NOW() WHERE id = $1`,
-          [contact.id]
-        );
-        notifyStaff(db, {
-          title: 'Customer needs a human',
-          detail: `${contact.full_name || contact.phone} (${contact.customer_code || 'no code'}): "${body.slice(0, 200)}"`,
-          dedupeKey: `handoff:${contact.id}:${body.slice(0, 40)}`,
-        });
+        await handOffToHuman(db, contact, body);
       }
 
       // Refresh durable memory in the background every so often, so the
@@ -342,6 +320,85 @@ async function maybeRefreshSummary(db, contact) {
   console.info(`[waStateMachine] refreshed AI memory for ${contact.id}`);
 }
 
+/**
+ * Is the assistant paused on this conversation? True while a human has
+ * it (an operator replied, or the AI handed off). Clears itself once the
+ * chat has been silent for ai_resume_after_minutes, so a customer who
+ * comes back days later isn't stuck waiting on a person who has moved on.
+ */
+async function aiOnHold(db, contact, message, settings) {
+  if (!contact.human_takeover_at) return false;
+
+  const { rows } = await db.query(
+    `SELECT MAX(created_at) AS at FROM wa_messages WHERE contact_id = $1 AND id <> $2`,
+    [contact.id, message.id]
+  );
+  const lastAt = rows[0]?.at ? new Date(rows[0].at).getTime() : 0;
+  const quietMs = Date.now() - lastAt;
+  const resumeAfterMs = Math.max(1, Number(settings?.ai_resume_after_minutes ?? 120)) * 60_000;
+  if (!lastAt || quietMs < resumeAfterMs) return true;
+
+  await db.query(
+    `UPDATE wa_contacts SET human_takeover_at = NULL, updated_at = NOW() WHERE id = $1`,
+    [contact.id]
+  );
+  console.info(`[waStateMachine] AI resumed for ${contact.id} after ${Math.round(quietMs / 60000)}m of silence`);
+  return false;
+}
+
+/** Did we already send this line to this contact recently? */
+async function sentRecently(db, contactId, marker, minutes) {
+  const { rows } = await db.query(
+    `SELECT 1 FROM wa_messages
+      WHERE contact_id = $1 AND direction = 'out' AND body LIKE $2
+        AND created_at > NOW() - ($3 || ' minutes')::interval
+      LIMIT 1`,
+    [contactId, `%${marker}%`, String(minutes)]
+  );
+  return rows.length > 0;
+}
+
+/**
+ * The message has nothing to do with us. Say what we do, once, and stay
+ * out of the way — no operator alert, no takeover, the assistant is
+ * still live for their next real message. Repeats are suppressed for an
+ * hour so a chatty wrong number doesn't get the same line ten times;
+ * their messages still land in the inbox either way.
+ *
+ * @param {string} [followUp] appended when we still need something from
+ *   them (mid-onboarding), so the redirect also moves the flow along.
+ */
+async function replyOffTopic(db, contact, followUp = '') {
+  if (await sentRecently(db, contact.id, OFF_TOPIC_MARKER, 60)) return;
+  await sendToContact(db, contact, {
+    text:
+      `Sorry, I can ${OFF_TOPIC_MARKER} orders — quotes, payments, tracking and delivery. `
+      + (followUp || `Send us a product link any time and we'll get you a quote, `
+        + `or text your tracking code for an update.`),
+  });
+}
+
+/**
+ * A person is needed: a complaint, a refund, a human request, or a
+ * question about our service the assistant can't answer. Acknowledge so
+ * the customer isn't left in silence, hand the thread over (the AI goes
+ * quiet until it times out or an operator re-enables it), and page staff.
+ */
+async function handOffToHuman(db, contact, body) {
+  await sendToContact(db, contact, {
+    text: `Let me get a colleague for you — someone from our team will reply here shortly.`,
+  });
+  await db.query(
+    `UPDATE wa_contacts SET human_takeover_at = NOW(), updated_at = NOW() WHERE id = $1`,
+    [contact.id]
+  );
+  notifyStaff(db, {
+    title: 'Customer needs a human',
+    detail: `${contact.full_name || contact.phone} (${contact.customer_code || 'no code'}): "${body.slice(0, 200)}"`,
+    dedupeKey: `handoff:${contact.id}:${body.slice(0, 40)}`,
+  });
+}
+
 // ── Onboarding ──────────────────────────────────────────────────────────────
 
 async function setState(db, contactId, state, fields = {}) {
@@ -392,6 +449,15 @@ async function loadOrderContext(db, contactId) {
     return `- ${bits.join('; ')}`;
   }).join('\n');
 }
+
+// What to ask for next, keyed by the awaiting_* state. Used when an
+// off-topic message interrupts signup — the redirect carries the
+// question so the flow keeps moving.
+const MISSING_FIELD_PROMPT = {
+  awaiting_name: `To set you up, what's your full name?`,
+  awaiting_address: `To set you up, what's your delivery address? (Estate/building, street, town)`,
+  awaiting_mpesa: `To finish setting you up, which M-Pesa number will you pay with?`,
+};
 
 /**
  * AI-first onboarding turn. Gemini produces the reply AND any profile
@@ -456,8 +522,17 @@ async function aiOnboarding(db, contact, message, body, settings) {
     await setState(db, contact.id, nextState, fields);
   }
 
-  if (turn.reply) {
+  if (turn.kind === 'reply' && turn.reply) {
     await sendToContact(db, contact, { text: turn.reply });
+  } else if (turn.kind === 'off_topic') {
+    // Off-topic mid-signup: redirect, then re-ask whatever we still
+    // need so the conversation doesn't stall. (Before this branch
+    // existed the sentinel was stripped to null and the customer got
+    // nothing back at all.)
+    await replyOffTopic(db, contact, complete ? '' : `${MISSING_FIELD_PROMPT[nextState]}`);
+  } else if (turn.kind === 'handoff') {
+    await handOffToHuman(db, contact, body);
+    return; // a person has the thread now — don't also run the welcome media
   }
 
   // First-ever exchange: send the welcome infographics (best-effort).

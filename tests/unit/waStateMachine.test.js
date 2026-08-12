@@ -258,11 +258,18 @@ describe('quote confirmation', () => {
 // pre-AI test above runs the deterministic paths unchanged.
 vi.mock('../../utils/waAi.js', () => ({
   HANDOFF: 'HANDOFF',
+  OFF_TOPIC: 'OFF_TOPIC',
   aiConfigured: vi.fn(() => false),
   chatReply: vi.fn(),
   onboardingTurn: vi.fn(),
   summarizeConversation: vi.fn(async () => 'note'),
 }));
+
+// chatReply/onboardingTurn return a tagged result so a sentinel can
+// never be mistaken for a message. These wrap the three shapes.
+const says = (text) => ({ kind: 'reply', text });
+const HANDS_OFF = { kind: 'handoff', text: null };
+const OFF_TOPIC_REPLY = { kind: 'off_topic', text: null };
 
 describe('AI-first mode', () => {
   const aiSettings = {
@@ -279,7 +286,7 @@ describe('AI-first mode', () => {
     return waAi;
   }
 
-  const emptyTurn = { reply: 'Karibu! What is your full name?', full_name: null, delivery_address: null, mpesa_number: null };
+  const emptyTurn = { kind: 'reply', reply: 'Karibu! What is your full name?', full_name: null, delivery_address: null, mpesa_number: null };
 
   it('the FIRST message goes to the AI, not the scripted welcome', async () => {
     const waAi = await ai();
@@ -297,6 +304,7 @@ describe('AI-first mode', () => {
   it('stores several fields from one message and asks for the rest', async () => {
     const waAi = await ai();
     waAi.onboardingTurn.mockResolvedValueOnce({
+      kind: 'reply',
       reply: 'Asante John! Which M-Pesa number will you pay with?',
       full_name: 'John Kamau',
       delivery_address: 'Greenspan Estate, Donholm, Nairobi',
@@ -314,6 +322,7 @@ describe('AI-first mode', () => {
   it('completes onboarding: validates the number, mints the code, alerts staff', async () => {
     const waAi = await ai();
     waAi.onboardingTurn.mockResolvedValueOnce({
+      kind: 'reply',
       reply: 'Perfect!', full_name: null, delivery_address: null, mpesa_number: '0712 345 678',
     });
     const db = makeDb(async (sql) => {
@@ -336,6 +345,7 @@ describe('AI-first mode', () => {
   it('an invalid AI-extracted M-Pesa number is NOT stored (hard gate)', async () => {
     const waAi = await ai();
     waAi.onboardingTurn.mockResolvedValueOnce({
+      kind: 'reply',
       reply: 'Got it!', full_name: null, delivery_address: null, mpesa_number: '12345',
     });
     const db = makeDb();
@@ -345,6 +355,44 @@ describe('AI-first mode', () => {
     }), { id: 'm1', body: 'one two three' });
     expect(db.query.mock.calls.some(([sql]) => sql.includes('mpesa_number'))).toBe(false);
     expect(pushToStaff).not.toHaveBeenCalledWith('wa_new_customer', expect.anything());
+  });
+
+  it('redirects and re-asks when an off-topic question interrupts signup', async () => {
+    // Regression: the sentinel used to be stripped to null and the
+    // customer got total silence mid-signup.
+    const waAi = await ai();
+    waAi.onboardingTurn.mockResolvedValueOnce({
+      kind: 'off_topic', reply: null, full_name: null, delivery_address: null, mpesa_number: null,
+    });
+    const db = makeDb();
+    await handleInbound(db, contact({
+      state: 'awaiting_name', full_name: null, delivery_address: null,
+      mpesa_number: null, customer_code: null,
+    }), { id: 'm1', body: 'what is the capital of France?' });
+
+    const reply = sendToContact.mock.calls[0][2].text;
+    expect(reply).toMatch(/only help with Thapsus Cargo/i);
+    // ...and it still moves signup along
+    expect(reply).toMatch(/full name/i);
+    expect(notifyStaff).not.toHaveBeenCalled();
+  });
+
+  it('hands a mid-signup complaint to a human instead of going quiet', async () => {
+    const waAi = await ai();
+    waAi.onboardingTurn.mockResolvedValueOnce({
+      kind: 'handoff', reply: null, full_name: null, delivery_address: null, mpesa_number: null,
+    });
+    const db = makeDb();
+    await handleInbound(db, contact({
+      state: 'awaiting_address', full_name: 'John', delivery_address: null,
+      mpesa_number: null, customer_code: null,
+    }), { id: 'm1', body: 'your driver was rude to my sister last week' });
+
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/team will reply/i);
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('human_takeover_at = NOW()'))).toBe(true);
+    expect(notifyStaff).toHaveBeenCalledWith(db, expect.objectContaining({
+      title: expect.stringMatching(/needs a human/i),
+    }));
   });
 
   it('falls back to the scripted welcome when the AI throws', async () => {
@@ -360,7 +408,7 @@ describe('AI-first mode', () => {
 
   it('answers a fall-through question for an active contact', async () => {
     const waAi = await ai();
-    waAi.chatReply.mockResolvedValueOnce('Delivery usually takes 10-14 days. Asante!');
+    waAi.chatReply.mockResolvedValueOnce(says('Delivery usually takes 10-14 days. Asante!'));
     const db = makeDb(async (sql) => {
       if (sql.includes('FROM wa_messages')) return { rows: [{ direction: 'in', body: 'Hi' }] };
       return { rows: [] };
@@ -372,7 +420,7 @@ describe('AI-first mode', () => {
 
   it('acknowledges the customer on HANDOFF instead of going silent', async () => {
     const waAi = await ai();
-    waAi.chatReply.mockResolvedValueOnce(null);
+    waAi.chatReply.mockResolvedValueOnce(HANDS_OFF);
     const db = makeDb(async () => ({ rows: [] }));
     await handleInbound(db, contact(), { id: 'm1', body: 'I want to complain' });
     expect(sendToContact.mock.calls[0][2].text).toMatch(/team will reply/i);
@@ -432,7 +480,7 @@ describe('AI order awareness', () => {
 
   it('passes the live order summary to the AI for a vague "where is my parcel?"', async () => {
     const waAi = await ai();
-    waAi.chatReply.mockResolvedValueOnce('Your parcel TRK-8821 is out for delivery!');
+    waAi.chatReply.mockResolvedValueOnce(says('Your parcel TRK-8821 is out for delivery!'));
     await handleInbound(dbWithOrders(), contact(), { id: 'm1', body: 'where is my parcel?' });
 
     const ctx = waAi.chatReply.mock.calls[0][0].orderContext;
@@ -445,7 +493,7 @@ describe('AI order awareness', () => {
 
   it('flags an outstanding delivery fee in the context', async () => {
     const waAi = await ai();
-    waAi.chatReply.mockResolvedValueOnce('reply');
+    waAi.chatReply.mockResolvedValueOnce(says('reply'));
     await handleInbound(dbWithOrders([{
       ...orderRows[0], status: 'delivery_fee_pending',
       dispatched_at: null, delivery_fee_paid_at: null,
@@ -455,7 +503,7 @@ describe('AI order awareness', () => {
 
   it('reports no orders on file when the customer has none', async () => {
     const waAi = await ai();
-    waAi.chatReply.mockResolvedValueOnce('reply');
+    waAi.chatReply.mockResolvedValueOnce(says('reply'));
     await handleInbound(dbWithOrders([]), contact(), { id: 'm1', body: 'hello' });
     expect(waAi.chatReply.mock.calls[0][0].orderContext).toBe('(none on file)');
   });
@@ -544,7 +592,7 @@ describe('staff WhatsApp alerts', () => {
   it.each(['I sent the link', 'can I pay with Lipa na M-Pesa?'])(
     'does not read "%s" as a payment claim', async (msg) => {
       const waAi = await ai();
-      waAi.chatReply.mockResolvedValueOnce('Sure — here is how.');
+      waAi.chatReply.mockResolvedValueOnce(says('Sure — here is how.'));
       await handleInbound(makeDb(async () => ({ rows: [] })), contact(), { id: 'm1', body: msg });
       expect(notifyStaff).not.toHaveBeenCalled();
       expect(waAi.chatReply).toHaveBeenCalled();
@@ -553,7 +601,7 @@ describe('staff WhatsApp alerts', () => {
 
   it('alerts staff when the AI hands off (customer wants a human)', async () => {
     const waAi = await ai();
-    waAi.chatReply.mockResolvedValueOnce(null);
+    waAi.chatReply.mockResolvedValueOnce(HANDS_OFF);
     await handleInbound(makeDb(async () => ({ rows: [] })), contact(),
       { id: 'm1', body: 'Can I speak to a customer rep?' });
     expect(notifyStaff).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
@@ -564,9 +612,33 @@ describe('staff WhatsApp alerts', () => {
     expect(sendToContact.mock.calls[0][2].text).toMatch(/team will reply/i);
   });
 
+  it('redirects an off-topic message without paging anyone', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce(OFF_TOPIC_REPLY);
+    const db = makeDb(async () => ({ rows: [] }));
+    await handleInbound(db, contact(), { id: 'm1', body: 'who won the match last night?' });
+
+    const reply = sendToContact.mock.calls[0][2].text;
+    expect(reply).toMatch(/only help with Thapsus Cargo/i);
+    expect(reply).toMatch(/product link/i);
+    // The three things that separate this from a handoff.
+    expect(notifyStaff).not.toHaveBeenCalled();
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('human_takeover_at = NOW()'))).toBe(false);
+  });
+
+  it('only redirects once an hour, however chatty the wrong number is', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce(OFF_TOPIC_REPLY);
+    const db = makeDb(async (sql) =>
+      (sql.includes("direction = 'out'") ? { rows: [{ '?column?': 1 }] } : { rows: [] }));
+    await handleInbound(db, contact(), { id: 'm1', body: 'tell me a joke' });
+    expect(sendToContact).not.toHaveBeenCalled();
+    expect(notifyStaff).not.toHaveBeenCalled();
+  });
+
   it('does not alert on an ordinary answered question', async () => {
     const waAi = await ai();
-    waAi.chatReply.mockResolvedValueOnce('We deliver in 10-14 days.');
+    waAi.chatReply.mockResolvedValueOnce(says('We deliver in 10-14 days.'));
     await handleInbound(makeDb(async () => ({ rows: [] })), contact(), { id: 'm1', body: 'how long is delivery?' });
     expect(notifyStaff).not.toHaveBeenCalled();
   });
@@ -616,7 +688,7 @@ describe('human takeover and AI memory', () => {
 
   it('tells the customer a human is coming, hands over, and alerts staff', async () => {
     const waAi = await ai();
-    waAi.chatReply.mockResolvedValueOnce(null); // HANDOFF
+    waAi.chatReply.mockResolvedValueOnce(HANDS_OFF);
     const db = makeDb(async (sql) => {
       if (sql.includes('count(*)')) return { rows: [{ n: 0 }] };
       return { rows: [] };
@@ -632,6 +704,19 @@ describe('human takeover and AI memory', () => {
     }));
   });
 
+  it('stays quiet mid-signup too while a human has the chat', async () => {
+    // The takeover check used to sit after the onboarding branch, so a
+    // handed-over signup kept getting questionnaire messages.
+    const waAi = await ai();
+    const db = dbSince(30);
+    await handleInbound(db, contact({
+      state: 'awaiting_address', human_takeover_at: new Date().toISOString(),
+      full_name: 'John', delivery_address: null, customer_code: null,
+    }), { id: 'm1', body: 'Donholm, Nairobi' });
+    expect(waAi.onboardingTurn).not.toHaveBeenCalled();
+    expect(sendToContact).not.toHaveBeenCalled();
+  });
+
   it('stays quiet while a human has the chat (within the resume window)', async () => {
     const waAi = await ai();
     const db = dbSince(30); // last message 30 min ago, window is 120
@@ -643,7 +728,7 @@ describe('human takeover and AI memory', () => {
 
   it('resumes automatically after the quiet period', async () => {
     const waAi = await ai();
-    waAi.chatReply.mockResolvedValueOnce('Karibu back! How can I help?');
+    waAi.chatReply.mockResolvedValueOnce(says('Karibu back! How can I help?'));
     const db = dbSince(180); // 3h of silence, window is 120 min
     await handleInbound(db, contact({ human_takeover_at: new Date(Date.now() - 3 * 3600_000).toISOString() }),
       { id: 'm1', body: 'hello again' });
@@ -654,7 +739,7 @@ describe('human takeover and AI memory', () => {
 
   it('honours a custom resume window', async () => {
     const waAi = await ai({ ai_resume_after_minutes: 15 });
-    waAi.chatReply.mockResolvedValueOnce('back');
+    waAi.chatReply.mockResolvedValueOnce(says('back'));
     const db = dbSince(20); // 20 min silence vs a 15 min window
     await handleInbound(db, contact({ human_takeover_at: new Date().toISOString() }),
       { id: 'm1', body: 'hi' });
@@ -681,7 +766,7 @@ describe('human takeover and AI memory', () => {
 
   it('passes the stored memory note and customer profile into the prompt', async () => {
     const waAi = await ai();
-    waAi.chatReply.mockResolvedValueOnce('sure');
+    waAi.chatReply.mockResolvedValueOnce(says('sure'));
     const db = makeDb(async (sql) => {
       if (sql.includes('count(*)')) return { rows: [{ n: 0 }] };
       return { rows: [] };
@@ -700,7 +785,7 @@ describe('human takeover and AI memory', () => {
 
   it('refreshes the memory note once enough new messages have accumulated', async () => {
     const waAi = await ai();
-    waAi.chatReply.mockResolvedValueOnce('ok');
+    waAi.chatReply.mockResolvedValueOnce(says('ok'));
     waAi.summarizeConversation.mockResolvedValueOnce('Wants shoes. Prefers Rongai delivery.');
     const db = makeDb(async (sql) => {
       if (sql.includes('count(*)')) return { rows: [{ n: 25 }] };  // over the threshold
