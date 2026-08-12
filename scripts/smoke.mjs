@@ -91,22 +91,10 @@ async function main() {
   {
     const r = await call('GET', '/api/payments/methods');
     const m = r.json?.methods || r.json || {};
-    const stripeOn = m.stripe?.enabled, mpesaOn = m.mpesa?.enabled;
+    const mpesaOn = m.mpesa?.enabled;
     record(r.status === 200 ? 'PASS' : 'FAIL', 'payment method matrix',
-      `stripe=${stripeOn ?? '?'} mpesa=${mpesaOn ?? '?'}`);
-    if (stripeOn === false) record('WARN', 'stripe disabled by flags/config');
+      `mpesa=${mpesaOn ?? '?'} provider=${m.mpesa?.provider ?? '?'}`);
     if (mpesaOn === false) record('WARN', 'mpesa disabled by flags/config');
-  }
-  {
-    const r = await call('GET', '/api/payments/config/stripe');
-    const key = r.json?.publishable_key || r.json?.publishableKey;
-    record(key ? 'PASS' : 'WARN', 'stripe publishable key exposed', key ? key.slice(0, 12) + '…' : `HTTP ${r.status} — card payments unavailable`);
-  }
-  {
-    const r = await call('GET', '/api/push/public-key');
-    const key = r.json?.publicKey;
-    record(key && r.json?.enabled !== false ? 'PASS' : 'WARN', 'web push VAPID key',
-      key ? 'configured' : `HTTP ${r.status} — push disabled`);
   }
   for (const p of ['/sitemap.xml', '/robots.txt']) {
     const r = await call('GET', p, { raw: true });
@@ -142,12 +130,9 @@ async function main() {
           r.json?.message || `HTTP ${r.status}`);
       }
       // One signed-upload mint + real PUT per bucket. requireRole has an
-      // admin bypass, so the admin token can mint all four kinds.
+      // admin bypass, so the admin token can mint every kind.
       const uploadKinds = [
-        ['ticket attachments', 'POST', '/api/tickets/attachments/upload-url', { filename: 'smoke.bin' }],
         ['parcel intake photos', 'POST', '/api/parcels/upload-url', { filename: 'smoke.jpg', content_type: 'image/jpeg' }],
-        ['POD photos', 'POST', '/api/last-mile/pod/upload-url', { filename: 'smoke.jpg', content_type: 'image/jpeg', kind: 'photo' }],
-        ['agent invoices', 'POST', '/api/agent-invoices/upload-url', { filename: 'smoke.pdf', content_type: 'application/pdf' }],
       ];
       for (const [label, method, path, body] of uploadKinds) {
         const r = await call(method, path, { token: admin, body });

@@ -1,20 +1,14 @@
 // routes/payments.js
-// Customer-facing payments router. Replaces the legacy wallet-debit flow
-// from buyForMe / consolidations / orders with a per-payment row keyed by
-// (target_kind, target_id). Two methods supported:
-//
-//   stripe → server creates a Stripe PaymentIntent in GBP (UK account),
-//            returns the client_secret for PaymentSheet. Stripe webhook
-//            (POST /webhook) flips status when payment_intent.succeeded.
-//
-//   mpesa  → two providers, picked per-environment via MPESA_PROVIDER:
-//             • 'lipana' (default once configured) — server fires an
-//               STK Push via Lipana (lipana.dev). Customer enters their
-//               PIN on their phone. Lipana webhook → markPaymentPaid().
-//             • 'manual' (legacy) — server returns Till + reference,
-//               customer pays manually then pastes the confirmation
-//               SMS into POST /:id/mpesa-confirmation. Status flips
-//               to 'awaiting_review' until an admin approves.
+// Payments router — M-Pesa only (Stripe card payments removed in the lean
+// rebuild). Per-payment row keyed by (target_kind, target_id). Providers,
+// picked per-environment via MPESA_PROVIDER:
+//   • 'lipana' (default once configured) — server fires an STK Push via
+//     Lipana (lipana.dev). Customer enters their PIN on their phone.
+//     Lipana webhook → markPaymentPaid().
+//   • 'manual' (legacy) — server returns Till + reference, customer pays
+//     manually then pastes the confirmation SMS into
+//     POST /:id/mpesa-confirmation. Status flips to 'awaiting_review'
+//     until an admin approves.
 //
 // Credit (referrals etc.) is auto-applied at create time: amount_due_kes =
 // amount_gross_kes - min(credit_balance, amount_gross_kes). Locked into
@@ -23,7 +17,6 @@
 import express from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import { logRouteError } from '../utils/errorLogger.js';
-import { getStripe, stripePublishableKey, stripeWebhookSecret } from '../utils/stripeClient.js';
 import { parseMpesaMessage } from '../utils/mpesaParser.js';
 import { markPaymentPaid } from '../utils/markPaymentPaid.js';
 import { getGbpToKesRate, FxRateUnavailableError } from '../utils/fx.js';
@@ -46,55 +39,24 @@ function mpesaProvider() {
 
 /**
  * Resolve which payment methods are available in this environment.
+ * M-Pesa only — card payments were removed in the lean rebuild. The
+ * `stripe: {enabled: false}` stub stays in the matrix so stale clients
+ * that still read it simply hide the card button.
  *
- * Per-environment kill-switches via env vars (Railway):
- *   PAYMENT_METHOD_STRIPE_ENABLED  'true' | 'false'  (default: derived from STRIPE_SECRET_KEY presence)
- *   PAYMENT_METHOD_MPESA_ENABLED   'true' | 'false'  (default: 'true')
- *   APPLE_PAY_ENABLED              'true' | 'false'  (default: 'false')
- *
- * Single source of truth — both /api/payments/methods (matrix) and the
- * legacy /api/payments/config/stripe (publishable_key + apple_pay) read
- * from this; POST /api/payments rejects creates against disabled methods.
+ * Kill-switch via env var (Railway):
+ *   PAYMENT_METHOD_MPESA_ENABLED  'true' | 'false'  (default: 'true')
  */
 function resolvePaymentMethods() {
-  const pk = stripePublishableKey();
-  const stripeEnabledFlag = process.env.PAYMENT_METHOD_STRIPE_ENABLED;
-  const mpesaEnabledFlag  = process.env.PAYMENT_METHOD_MPESA_ENABLED;
-  const applePayFlag      = process.env.APPLE_PAY_ENABLED;
-
-  const stripeEnabled = stripeEnabledFlag === 'false'
-    ? false
-    : (stripeEnabledFlag === 'true' ? true : Boolean(pk)); // auto when flag unset
-  const mpesaEnabled  = mpesaEnabledFlag === 'false' ? false : true;
-  const applePay      = applePayFlag === 'true';
-
+  const mpesaEnabled = process.env.PAYMENT_METHOD_MPESA_ENABLED === 'false' ? false : true;
   return {
-    stripe: { enabled: stripeEnabled, publishable_key: stripeEnabled ? pk : null, apple_pay: applePay },
-    mpesa:  { enabled: mpesaEnabled,  till_number: MPESA_TILL, provider: mpesaProvider() },
+    stripe: { enabled: false, publishable_key: null, apple_pay: false },
+    mpesa:  { enabled: mpesaEnabled, till_number: MPESA_TILL, provider: mpesaProvider() },
   };
 }
 
-/**
- * GET /api/payments/methods — full payment-method matrix.
- * iOS PayInvoiceView and webapp PayInvoiceModal call this at bootstrap
- * to decide which buttons to render. Hides "Pay with card" when Stripe
- * is disabled, hides "Pay via M-Pesa" when M-Pesa is disabled.
- */
+/** GET /api/payments/methods — payment-method matrix for clients. */
 router.get('/methods', (_req, res) => {
   res.json({ success: true, methods: resolvePaymentMethods() });
-});
-
-/**
- * GET /api/payments/config/stripe — legacy shape, kept for older
- * iOS clients that pre-date PR F. Returns the publishable key + Apple
- * Pay flag flat at the top level. New clients should call /methods.
- */
-router.get('/config/stripe', (_req, res) => {
-  const m = resolvePaymentMethods();
-  if (!m.stripe.enabled || !m.stripe.publishable_key) {
-    return res.status(503).json({ success: false, message: 'Stripe not configured' });
-  }
-  res.json({ success: true, publishable_key: m.stripe.publishable_key, apple_pay: m.stripe.apple_pay });
 });
 
 /** GET /api/me/credit — running KES credit balance for the auth'd user. */
@@ -115,15 +77,15 @@ router.get('/me/credit', authMiddleware, async (req, res) => {
 
 /**
  * POST /api/payments
- * Body: { target_kind: 'order'|'consolidation'|'buy_for_me',
+ * Body: { target_kind: 'consolidation'|'buy_for_me',
  *         target_id: string,
- *         method: 'stripe'|'mpesa',
+ *         method: 'mpesa',
  *         apply_credit?: boolean (default true) }
  *
  * Validates ownership + status of the target, computes amount_due after
  * credit, and returns the next-step payload:
- *   stripe → { payment_id, client_secret, amount_pence_gbp, fx_rate_kes_gbp }
- *   mpesa  → { payment_id, paybill, account, amount_due_kes }
+ *   mpesa → { payment_id, paybill, account, amount_due_kes } (manual)
+ *           or STK-push details (lipana)
  */
 router.post('/', authMiddleware, async (req, res) => {
   const { target_kind, target_id, method, apply_credit = true, phone: rawPhone } = req.body || {};
@@ -156,19 +118,15 @@ router.post('/', authMiddleware, async (req, res) => {
   if (!target_id || typeof target_id !== 'string') {
     return res.status(400).json({ success: false, message: 'Missing target_id' });
   }
-  if (!['stripe','mpesa'].includes(method)) {
-    return res.status(400).json({ success: false, message: 'method must be stripe or mpesa' });
+  if (method !== 'mpesa') {
+    return res.status(400).json({ success: false, message: 'method must be mpesa' });
   }
-  // PR F: enforce per-environment method kill-switches. Same matrix
-  // surfaces via GET /api/payments/methods so the client can hide the
-  // button up-front; this 409 is the belt-and-braces check for stale
-  // clients that didn't refresh after a flag flip.
+  // Enforce the per-environment kill-switch. Same matrix surfaces via
+  // GET /api/payments/methods so the client can hide the button
+  // up-front; this 409 is the belt-and-braces check for stale clients.
   const enabledMethods = resolvePaymentMethods();
-  if (method === 'stripe' && (!enabledMethods.stripe.enabled || !enabledMethods.stripe.publishable_key)) {
-    return res.status(409).json({ success: false, message: 'Card payments are not available right now. Please use M-Pesa.' });
-  }
-  if (method === 'mpesa' && !enabledMethods.mpesa.enabled) {
-    return res.status(409).json({ success: false, message: 'M-Pesa payments are not available right now. Please use a card.' });
+  if (!enabledMethods.mpesa.enabled) {
+    return res.status(409).json({ success: false, message: 'M-Pesa payments are not available right now. Please try again later.' });
   }
 
   const client = await req.db.connect();
@@ -202,56 +160,21 @@ router.post('/', authMiddleware, async (req, res) => {
     if (existingRows[0] && existingRows[0].method === method) {
       await client.query('ROLLBACK');
       const existing = existingRows[0];
-      // For Stripe rehydrate the client_secret from Stripe — we don't
-      // store it (it's session-scoped and Stripe lets you re-retrieve).
-      let existingClientSecret = null;
-      if (existing.method === 'stripe' && existing.stripe_payment_intent_id) {
-        try {
-          const stripe = getStripe();
-          const intent = await stripe.paymentIntents.retrieve(existing.stripe_payment_intent_id);
-          existingClientSecret = intent.client_secret || null;
-        } catch (e) {
-          console.warn(`[payments] retrieve PI ${existing.stripe_payment_intent_id} failed:`, e.message);
-        }
-      }
       return res.json({ success: true, payment: serializePayment(existing),
-                        ...nextStep(existing, existingClientSecret) });
+                        ...nextStep(existing) });
     }
 
-    // Customer is switching method (e.g. abandoned M-Pesa, now trying card).
     // Cancel ALL prior pending/awaiting_review rows for this target so the
-    // Transactions list doesn't show them as visual duplicates. Best-effort
-    // Stripe PI cancel for any pending Stripe attempts to release the FX
-    // lock — failures here MUST NOT block creating the new payment.
-    const { rows: stale } = await client.query(
-      `SELECT id, method, stripe_payment_intent_id
-         FROM payments
+    // Transactions list doesn't show them as visual duplicates.
+    await client.query(
+      `UPDATE payments
+          SET status = 'cancelled',
+              rejection_reason = COALESCE(rejection_reason, 'Superseded by new payment attempt'),
+              updated_at = NOW()
         WHERE target_kind = $1 AND target_id = $2 AND user_id = $3
           AND status IN ('pending','awaiting_review')`,
       [target_kind, target_id, req.user.id]
     );
-    if (stale.length > 0) {
-      await client.query(
-        `UPDATE payments
-            SET status = 'cancelled',
-                rejection_reason = COALESCE(rejection_reason, 'Superseded by new payment attempt'),
-                updated_at = NOW()
-          WHERE target_kind = $1 AND target_id = $2 AND user_id = $3
-            AND status IN ('pending','awaiting_review')`,
-        [target_kind, target_id, req.user.id]
-      );
-      for (const s of stale) {
-        if (s.method === 'stripe' && s.stripe_payment_intent_id) {
-          try {
-            const stripe = getStripe();
-            await stripe.paymentIntents.cancel(s.stripe_payment_intent_id);
-          } catch (e) {
-            // Already-cancelled or already-succeeded PIs throw — log + move on.
-            console.warn(`[payments] cancel PI ${s.stripe_payment_intent_id} failed:`, e.message);
-          }
-        }
-      }
-    }
 
     // Apply credit (read FOR UPDATE so a concurrent payment can't double-spend).
     let creditApplied = 0;
@@ -267,60 +190,22 @@ router.post('/', authMiddleware, async (req, res) => {
 
     // Build the payment row.
     const paymentId = `PAY-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-    let stripePi = null;
-    let stripePence = null;
-    let fxRate = null;
-    let stripeClientSecret = null;
-
-    if (method === 'stripe') {
-      // FX KES → GBP. Lock the rate into the payment row so the customer
-      // can't be re-quoted mid-flow. Audit P1.3: hard-fail when the
-      // exchange_rates row is missing — silent fallback risked locking
-      // a wrong rate into the receipt with no audit trail.
-      const { rate: gbpToKes } = await getGbpToKesRate(client);
-      fxRate = gbpToKes;
-      // Stripe charges in pence GBP. Round up so we never under-charge.
-      const gbp = amountDueKes / gbpToKes;
-      stripePence = Math.max(50, Math.ceil(gbp * 100)); // £0.50 minimum (Stripe floor)
-
-      // Create the PaymentIntent BEFORE inserting so a Stripe failure rolls
-      // back cleanly. Idempotency-key on paymentId means safe to retry.
-      const stripe = getStripe();
-      const intent = await stripe.paymentIntents.create({
-        amount: stripePence,
-        currency: 'gbp',
-        automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
-        metadata: {
-          payment_id: paymentId,
-          user_id: req.user.id,
-          target_kind,
-          target_id,
-        },
-      }, { idempotencyKey: paymentId });
-      stripePi = intent.id;
-      stripeClientSecret = intent.client_secret;
-    }
-
-    const mpesaProviderTag = method === 'mpesa' ? provider : null;
     const { rows: insertedRows } = await client.query(
       `INSERT INTO payments
         (id, user_id, target_kind, target_id,
          amount_gross_kes, amount_credit_kes, amount_due_kes,
          currency, method, status,
-         stripe_payment_intent_id, stripe_amount_pence_gbp, stripe_fx_rate_kes_gbp,
          mpesa_provider, mpesa_phone_used)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'KES',$8,'pending',$9,$10,$11,$12,$13)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'KES',$8,'pending',$9,$10)
        RETURNING *`,
       [paymentId, req.user.id, target_kind, target_id,
        target.amount_kes, creditApplied, amountDueKes,
-       method, stripePi, stripePence, fxRate,
-       mpesaProviderTag, normalizedPhone]
+       method, provider, normalizedPhone]
     );
     let payment = insertedRows[0];
 
-    // For Stripe with amount_due == 0 (credit fully covers it), short-circuit
-    // to paid immediately — no need to invoke Stripe at all. (M-Pesa with
-    // amount_due == 0 also short-circuits — no STK push, no SMS paste.)
+    // amount_due == 0 (credit fully covers it) short-circuits straight
+    // to paid — no STK push, no SMS paste.
     if (amountDueKes === 0) {
       await client.query('COMMIT');
       const result = await markPaymentPaid(req.db, paymentId);
@@ -373,13 +258,12 @@ router.post('/', authMiddleware, async (req, res) => {
     return res.json({
       success: true,
       payment: serializePayment(payment),
-      ...nextStep(payment, stripeClientSecret, lipanaInit),
+      ...nextStep(payment, lipanaInit),
     });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
-    // Audit P1.3: surface FX outages as a clean 503 so the iOS / web
-    // PaymentSheet renders the "card payments temporarily unavailable"
-    // banner instead of a generic 500.
+    // Audit P1.3: surface FX outages as a clean 503 so the client
+    // renders a "temporarily unavailable" banner instead of a generic 500.
     if (err instanceof FxRateUnavailableError) {
       return res.status(503).json({
         success: false,
@@ -396,8 +280,8 @@ router.post('/', authMiddleware, async (req, res) => {
     }
     logRouteError(req, res, err, 'POST /api/payments');
     // Don't echo `err.message` to clients — the catch arm runs on
-    // unexpected throws (Stripe SDK errors, transient DB failures,
-    // etc.) and those messages can include internal details.
+    // unexpected throws (transient DB failures etc.) and those
+    // messages can include internal details.
     res.status(500).json({ success: false, message: 'Failed to create payment' });
   } finally {
     client.release();
@@ -688,30 +572,8 @@ async function loadTarget(client, kind, id) {
   return { ok: false, status: 400, message: 'Unknown target_kind' };
 }
 
-/**
- * Build the next-step payload returned to the client.
- *
- * For stripe payments the iOS PaymentSheet needs the PaymentIntent
- * `client_secret` — without it the sheet bails with
- * "Stripe client_secret missing — refresh and retry". Caller is
- * responsible for sourcing the secret:
- *   - On fresh create: pass `intent.client_secret` from the
- *     `stripe.paymentIntents.create()` return.
- *   - On replaying an existing pending payment: retrieve the
- *     PaymentIntent via `stripe.paymentIntents.retrieve(id)` and
- *     pass that returned `client_secret`.
- */
-function nextStep(payment, stripeClientSecret = null, lipanaInit = null) {
-  if (payment.method === 'stripe') {
-    return {
-      next: {
-        kind: 'stripe',
-        client_secret: stripeClientSecret,
-        amount_pence_gbp: payment.stripe_amount_pence_gbp,
-        fx_rate_kes_gbp: payment.stripe_fx_rate_kes_gbp,
-      },
-    };
-  }
+/** Build the next-step payload returned to the client. */
+function nextStep(payment, lipanaInit = null) {
   // M-Pesa: branch on provider. Lipana = STK push already kicked off.
   // Manual = legacy paste-the-SMS instructions.
   if (payment.mpesa_provider === 'lipana' || lipanaInit) {
@@ -751,9 +613,6 @@ function serializePayment(p) {
     currency: p.currency,
     method: p.method,
     status: p.status,
-    stripe_payment_intent_id: p.stripe_payment_intent_id,
-    stripe_amount_pence_gbp: p.stripe_amount_pence_gbp ? Number(p.stripe_amount_pence_gbp) : null,
-    stripe_fx_rate_kes_gbp: p.stripe_fx_rate_kes_gbp ? Number(p.stripe_fx_rate_kes_gbp) : null,
     mpesa_reference: p.mpesa_reference,
     mpesa_phone: p.mpesa_phone,
     mpesa_provider: p.mpesa_provider || null,
@@ -766,84 +625,15 @@ function serializePayment(p) {
   };
 }
 
-// ─── Stripe webhook ────────────────────────────────────────────────────────
-// MOUNTED SEPARATELY via app.post('/api/payments/stripe/webhook',
-// express.raw({type:'application/json'}), ...) in server.js — Stripe signature
-// verification needs the raw bytes, which means it MUST be registered before
-// express.json() runs. The handler is exported here so server.js can mount it
-// at the right spot without re-importing Stripe.
-export async function stripeWebhookHandler(req, res) {
-  const secret = stripeWebhookSecret();
-  if (!secret) {
-    return res.status(503).json({ success: false, message: 'Stripe webhook not configured' });
-  }
-  const sig = req.headers['stripe-signature'];
-  if (!sig) return res.status(400).send('Missing stripe-signature header');
-
-  let event;
-  try {
-    const stripe = getStripe();
-    event = stripe.webhooks.constructEvent(req.body, sig, secret);
-  } catch (err) {
-    console.error('[stripe-webhook] signature verification failed:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  // Idempotency: skip if we've already processed this Stripe event id.
-  try {
-    const { rowCount } = await req.db.query(
-      `INSERT INTO stripe_events_seen (event_id, event_type)
-       VALUES ($1, $2) ON CONFLICT (event_id) DO NOTHING`,
-      [event.id, event.type]
-    );
-    if (rowCount === 0) {
-      return res.json({ received: true, duplicate: true });
-    }
-  } catch (e) {
-    console.warn('[stripe-webhook] idempotency check failed:', e.message);
-  }
-
-  switch (event.type) {
-    case 'payment_intent.succeeded': {
-      const intent = event.data.object;
-      const paymentId = intent.metadata?.payment_id;
-      if (!paymentId) {
-        console.warn('[stripe-webhook] payment_intent.succeeded with no metadata.payment_id', intent.id);
-        return res.json({ received: true, no_payment_id: true });
-      }
-      const result = await markPaymentPaid(req.db, paymentId, {
-        stripeChargeId: intent.latest_charge || null,
-      });
-      if (!result.ok) console.warn('[stripe-webhook] markPaid failed:', result.reason);
-      return res.json({ received: true, ok: result.ok });
-    }
-    case 'payment_intent.payment_failed': {
-      const intent = event.data.object;
-      const paymentId = intent.metadata?.payment_id;
-      if (paymentId) {
-        await req.db.query(
-          `UPDATE payments SET status = 'failed', updated_at = NOW()
-            WHERE id = $1 AND status IN ('pending','awaiting_review')`,
-          [paymentId]
-        );
-      }
-      return res.json({ received: true });
-    }
-    default:
-      // ignore other event types
-      return res.json({ received: true, ignored: event.type });
-  }
-}
-
 // ─── Lipana webhook ───────────────────────────────────────────────────────
 // MOUNTED SEPARATELY in server.js with express.raw({type:'application/json'})
-// — HMAC-SHA256 verification needs the unparsed bytes, same recipe as
-// the Stripe webhook. The handler attaches req.db itself in server.js.
+// — HMAC-SHA256 verification needs the unparsed bytes, so it MUST be
+// registered before express.json() runs.
 //
 // Lipana fires `event: payment.success | payment.failed | payment.initiated`
 // with a `data` block keyed by `transactionId`. We match payments by
 // `lipana_transaction_id` and call markPaymentPaid() on success — same
-// code path as Stripe + admin-approve, so post-paid hooks (target flip,
+// code path as admin-approve, so post-paid hooks (target flip,
 // credit-ledger debit, receipt email) are identical regardless of method.
 //
 // Idempotency: lipana_events_seen short-circuits replays. The unique

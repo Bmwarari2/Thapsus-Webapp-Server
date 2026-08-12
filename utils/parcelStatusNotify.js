@@ -25,7 +25,6 @@ import {
   sendNpsInvitationEmail,
 } from './email.js';
 import { pushToUser, pushToAdmins } from '../routes/events.js';
-import { sendWebPushToUser } from './webpush.js';
 
 const STATUS_MESSAGE = {
   received_at_warehouse: (tn) => `Good news — your parcel ${tn} has arrived at our warehouse.`,
@@ -130,14 +129,6 @@ export async function notifyParcelStatus(client, parcelId, newStatus, opts = {})
   } catch (err) {
     console.warn('[parcelStatusNotify] SSE push failed:', err.message);
   }
-
-  // Web Push to closed PWAs (best-effort).
-  sendWebPushToUser(client, owner.user_id, {
-    title: '📦 Parcel update',
-    body: message,
-    url: parcelId ? `/orders/${parcelId}` : '/orders',
-    tag: `order-${parcelId}`,
-  }).catch(() => {});
 
   // 3. Transactional email — picks the right template per status. All
   //    paths log + swallow so a Gmail outage doesn't propagate up to the

@@ -7,7 +7,6 @@ import { pushToUser, pushToAdmins } from './events.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { sendOrderCreatedEmail } from '../utils/email.js';
 import { insertWithUniqueTrackingNumber } from '../utils/trackingNumber.js';
-import { recordInfluencerConversion } from '../utils/influencerConversion.js';
 import { isValidOrderStatus } from '../utils/orderStatuses.js';
 import { createSignedDownloadUrl } from '../utils/supabaseAdmin.js';
 
@@ -207,11 +206,6 @@ router.post('/', authMiddleware, idempotency, async (req, res) => {
     // Push to the customer who placed the order + all admins
     pushToUser(userId, 'order_update', { action: 'created', order });
     pushToAdmins('admin_stats', { action: 'new_order', order });
-
-    // Influencer attribution (migration 0002) — records the customer's first
-    // order against the code they signed up with, so the admin can compensate
-    // the influencer. Best-effort; never blocks the order.
-    recordInfluencerConversion(db, userId, orderId, 'order');
 
     // Auto-generated confirmation email — same template the admin
     // create-for-client flow uses, so customer-initiated orders get the
