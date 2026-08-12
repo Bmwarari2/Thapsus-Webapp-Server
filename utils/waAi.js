@@ -155,7 +155,8 @@ STRICT RULES you must never break:
 - NEVER state, estimate, or negotiate prices, quotes, exchange rates, or fees. If asked about cost, explain that they should send the product link and the team will reply with an exact KES quote.
 - NEVER confirm orders, confirm payments, promise delivery dates, or claim an action was taken.
 - NEVER ask for card numbers, PINs, or passwords.
-- Only state facts found in the KNOWLEDGE BASE. If the answer is not there, or you are unsure, or the customer asks for a human, is upset, or has a complaint — respond with exactly: ${HANDOFF}
+- Only state facts found in the KNOWLEDGE BASE or in THIS CUSTOMER'S ORDERS. If the answer is not there, or you are unsure, or the customer asks for a human, is upset, or has a complaint — respond with exactly: ${HANDOFF}
+- You MAY tell the customer the status, tracking code, dates and agreed total of the orders listed under THIS CUSTOMER'S ORDERS — that is live data from our system. NEVER invent an order, code, date or status: if they ask about an order or code that is not listed, respond with exactly: ${HANDOFF}
 - Keep replies short (1–3 sentences), warm, and clear. A little Swahili (karibu, asante) is welcome. Plain text only — no markdown, no lists with newlines.`;
 
 /**
@@ -164,14 +165,19 @@ STRICT RULES you must never break:
  * @param {string} p.knowledgeBase  operator-maintained facts
  * @param {Array<{direction: 'in'|'out', body: string}>} p.history  recent transcript, oldest first
  * @param {string} p.message  the new inbound text
+ * @param {string} [p.orderContext]  pre-formatted summary of this customer's
+ *   orders (statuses, codes, dates) so "where is my parcel?" can be answered
+ *   without an exact tracking code
  * @returns {Promise<string|null>} reply text, or null when the model handed off
  */
-export async function chatReply({ knowledgeBase, history, message }) {
+export async function chatReply({ knowledgeBase, history, message, orderContext }) {
   const system =
     `You are the WhatsApp assistant for Thapsus Cargo, a Kenyan service that buys items ` +
     `from online stores abroad and delivers them to customers' doors in Kenya. Customers ` +
     `send product links, receive a KES quote from the team, pay via M-Pesa, and track ` +
-    `parcels by texting their tracking code.\n\nKNOWLEDGE BASE:\n${knowledgeBase || '(empty)'}\n${GUARDRAILS}`;
+    `parcels by texting their tracking code.\n\n` +
+    `THIS CUSTOMER'S ORDERS (live from our system):\n${orderContext || '(none on file)'}\n\n` +
+    `KNOWLEDGE BASE:\n${knowledgeBase || '(empty)'}\n${GUARDRAILS}`;
 
   const contents = [
     ...history.slice(-10).map((m) => ({
@@ -200,7 +206,7 @@ export async function chatReply({ knowledgeBase, history, message }) {
  * @param {{full_name: string|null, delivery_address: string|null, mpesa_number: string|null}} p.profile
  * @returns {Promise<{reply: string|null, full_name: string|null, delivery_address: string|null, mpesa_number: string|null}>}
  */
-export async function onboardingTurn({ knowledgeBase, history, message, profile }) {
+export async function onboardingTurn({ knowledgeBase, history, message, profile, orderContext }) {
   const missing = [];
   if (!profile.full_name) missing.push('full name (as written on parcels)');
   if (!profile.delivery_address) missing.push('delivery address in Kenya (estate/building, street, town)');
@@ -219,7 +225,8 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile 
     `- Answer any question they ask (using the knowledge base) before steering back to the ` +
     `next missing detail.\n` +
     `- Put extracted details in the JSON fields (null when this message doesn't contain ` +
-    `them); "reply" is your next message to the customer.\n` +
+    `them); "reply" is your next message to the customer.\n\n` +
+    `THIS CUSTOMER'S ORDERS (live from our system):\n${orderContext || '(none on file)'}\n\n` +
     `KNOWLEDGE BASE:\n${knowledgeBase || '(empty)'}\n${GUARDRAILS}`;
 
   const contents = [

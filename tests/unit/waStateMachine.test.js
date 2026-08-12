@@ -330,3 +330,78 @@ describe('AI-first mode', () => {
     expect(sendToContact.mock.calls[0][2].text).toContain('TRK-8821');
   });
 });
+
+describe('AI order awareness', () => {
+  async function ai() {
+    const waAi = await import('../../utils/waAi.js');
+    waAi.aiConfigured.mockReturnValue(true);
+    getWaSettings.mockResolvedValue({
+      markup_pct: 10, promo_active: false, promo_type: 'waive_fee',
+      promo_message: '', default_delivery_fee_kes: 300,
+      welcome_media_urls: [], template_map: {},
+      ai_enabled: true, ai_knowledge_base: 'Delivery takes 10-14 days.',
+    });
+    return waAi;
+  }
+
+  const orderRows = [{
+    tracking_code: 'TRK-8821', status: 'dispatched', quote_kes: '17094',
+    delivery_fee_kes: 300, delivery_fee_waived: false, delivery_fee_paid_at: '2026-08-11',
+    paid_at: '2026-08-01', purchased_at: '2026-08-02', arrived_at: '2026-08-10',
+    dispatched_at: '2026-08-11', delivered_at: null, created_at: '2026-08-01',
+  }];
+
+  function dbWithOrders(rows = orderRows) {
+    return makeDb(async (sql) => {
+      if (sql.includes('FROM wa_orders')) return { rows };
+      if (sql.includes('FROM wa_messages')) return { rows: [] };
+      return { rows: [] };
+    });
+  }
+
+  it('passes the live order summary to the AI for a vague "where is my parcel?"', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce('Your parcel TRK-8821 is out for delivery!');
+    await handleInbound(dbWithOrders(), contact(), { id: 'm1', body: 'where is my parcel?' });
+
+    const ctx = waAi.chatReply.mock.calls[0][0].orderContext;
+    expect(ctx).toContain('TRK-8821');
+    expect(ctx).toContain('Out for delivery');
+    expect(ctx).toContain('17,094');
+    expect(ctx).toMatch(/paid 1 Aug/);
+    expect(sendToContact.mock.calls[0][2].text).toContain('TRK-8821');
+  });
+
+  it('flags an outstanding delivery fee in the context', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce('reply');
+    await handleInbound(dbWithOrders([{
+      ...orderRows[0], status: 'delivery_fee_pending',
+      dispatched_at: null, delivery_fee_paid_at: null,
+    }]), contact(), { id: 'm1', body: 'any update?' });
+    expect(waAi.chatReply.mock.calls[0][0].orderContext).toContain('delivery fee outstanding: KSh 300');
+  });
+
+  it('reports no orders on file when the customer has none', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce('reply');
+    await handleInbound(dbWithOrders([]), contact(), { id: 'm1', body: 'hello' });
+    expect(waAi.chatReply.mock.calls[0][0].orderContext).toBe('(none on file)');
+  });
+
+  it('still prefers the deterministic lookup for an exact TRK code', async () => {
+    const waAi = await ai();
+    const db = makeDb(async (sql) => {
+      if (sql.includes('tracking_code = $1')) return { rows: [{
+        id: 'o1', status: 'dispatched', tracking_code: 'TRK-8821',
+        paid_at: '2026-08-01', purchased_at: null, arrived_at: null,
+        dispatched_at: '2026-08-11', delivered_at: null,
+        delivery_fee_waived: false, delivery_fee_kes: null, customer_code: 'TC-1042',
+      }] };
+      return { rows: [] };
+    });
+    await handleInbound(db, contact(), { id: 'm1', body: 'TRK-8821' });
+    expect(waAi.chatReply).not.toHaveBeenCalled();
+    expect(sendToContact.mock.calls[0][2].text).toContain('TRK-8821');
+  });
+});

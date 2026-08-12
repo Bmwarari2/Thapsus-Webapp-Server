@@ -17,8 +17,10 @@
 //      human.
 //   4. Everything else: when the Gemini layer is enabled (wa_settings
 //      ai_enabled + GEMINI_API_KEY), it answers from the operator's
-//      knowledge base; otherwise — and on any AI failure or handoff —
-//      the message just sits in the operator inbox (the webhook already
+//      knowledge base PLUS a live summary of this customer's own orders
+//      (loadOrderContext), so "where is my parcel?" works without an
+//      exact code; otherwise — and on any AI failure or handoff — the
+//      message just sits in the operator inbox (the webhook already
 //      bumped unread + SSE before calling us).
 //
 // The AI is consulted ONLY for onboarding interpretation and the final
@@ -136,6 +138,7 @@ export async function handleInbound(db, contact, message) {
         knowledgeBase: settings.ai_knowledge_base,
         history,
         message: body,
+        orderContext: await loadOrderContext(db, contact.id),
       });
       if (reply) await sendToContact(db, contact, { text: reply });
       // null = HANDOFF → stay silent; the inbox already has the message.
@@ -155,6 +158,45 @@ async function setState(db, contactId, state, fields = {}) {
     sets.push(`${col} = $${params.length}`);
   }
   await db.query(`UPDATE wa_contacts SET ${sets.join(', ')} WHERE id = $1`, params);
+}
+
+/**
+ * Render this customer's orders for the AI prompt so questions like
+ * "where is my parcel?" or a half-remembered code can be answered without
+ * an exact TRK match. Read-only: the model is told these are live facts it
+ * may state, and that it must hand off for anything not listed.
+ */
+async function loadOrderContext(db, contactId) {
+  const { rows } = await db.query(
+    `SELECT tracking_code, status, quote_kes, delivery_fee_kes, delivery_fee_waived,
+            delivery_fee_paid_at, paid_at, purchased_at, arrived_at,
+            dispatched_at, delivered_at, created_at
+       FROM wa_orders
+      WHERE contact_id = $1 AND status <> 'cancelled'
+      ORDER BY created_at DESC LIMIT 5`,
+    [contactId]
+  );
+  if (rows.length === 0) return '(none on file)';
+
+  const day = (d) => (d ? new Date(d).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' }) : null);
+  return rows.map((o) => {
+    const steps = [
+      ['paid', o.paid_at], ['purchased', o.purchased_at], ['arrived in Kenya', o.arrived_at],
+      ['out for delivery', o.dispatched_at], ['delivered', o.delivered_at],
+    ].filter(([, at]) => at).map(([label, at]) => `${label} ${day(at)}`);
+
+    const bits = [
+      o.tracking_code ? `Tracking ${o.tracking_code}` : 'No tracking code yet (not paid)',
+      `status: ${STATUS_LABEL[o.status] || o.status}`,
+    ];
+    if (o.quote_kes) bits.push(`agreed total KSh ${Number(o.quote_kes).toLocaleString('en-KE')}`);
+    if (steps.length) bits.push(`history: ${steps.join(', ')}`);
+    if (o.status === 'delivery_fee_pending' && !o.delivery_fee_waived && !o.delivery_fee_paid_at) {
+      bits.push(`delivery fee outstanding: KSh ${Number(o.delivery_fee_kes || 0).toLocaleString('en-KE')}`);
+    }
+    if (o.delivery_fee_waived) bits.push('delivery fee waived');
+    return `- ${bits.join('; ')}`;
+  }).join('\n');
 }
 
 /**
@@ -180,6 +222,7 @@ async function aiOnboarding(db, contact, message, body, settings) {
     knowledgeBase: settings.ai_knowledge_base,
     history,
     message: body,
+    orderContext: await loadOrderContext(db, contact.id),
     profile: {
       full_name: contact.full_name || null,
       delivery_address: contact.delivery_address || null,
