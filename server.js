@@ -93,6 +93,9 @@ import parcelsRoutes       from './routes/parcels.js';  // legacy drain
 import opsRoutes           from './routes/ops.js';      // legacy drain
 import appConfigRoutes     from './routes/appConfig.js';
 import { waWebhookHandler } from './routes/waWebhook.js';
+import waOrdersRoutes      from './routes/waOrders.js';
+import waInboxRoutes       from './routes/waInbox.js';
+import waSettingsRoutes    from './routes/waSettings.js';
 
 const app      = express();
 const PORT     = process.env.PORT     || 5000;
@@ -479,6 +482,7 @@ app.use('/api/payments/:id/mpesa-confirmation',  paymentLimiter);
 // mint requests can still inflate Supabase storage cost or be used as a
 // vehicle to enumerate parcel/ticket ids.
 app.use('/api/parcels/upload-url',                 uploadLimiter); // operator intake photo
+app.use('/api/wa/upload-url',                      uploadLimiter); // inbox outbound media
 
 // Tracking (public, unauthenticated)
 app.use('/api/tracking', trackingLimiter);
@@ -533,6 +537,11 @@ app.use('/api/events',         eventsRoutes);
 app.use('/api/parcels',        parcelsRoutes);  // legacy drain
 app.use('/api/ops',            opsRoutes);      // legacy drain
 app.use('/api/app-config',     appConfigRoutes);
+// WhatsApp flow — inbound webhook is mounted above (raw body); these are
+// the operator-facing APIs.
+app.use('/api/wa/orders',      waOrdersRoutes);
+app.use('/api/wa/settings',    waSettingsRoutes);
+app.use('/api/wa',             waInboxRoutes);
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 app.get(/^\/(?!api).*/, (req, res) => {
