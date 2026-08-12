@@ -2226,7 +2226,7 @@
    },
    "user_id": {
     "t": "text",
-    "nn": true,
+    "nn": false,
     "hd": false
    },
    "target_kind": {
@@ -2360,6 +2360,11 @@
     "hd": false
    },
    "mpesa_phone_used": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "wa_contact_id": {
     "t": "text",
     "nn": false,
     "hd": false
@@ -3337,6 +3342,306 @@
    "created_at": {
     "t": "timestamptz",
     "nn": false,
+    "hd": true
+   }
+  },
+  "wa_contacts": {
+   "id": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "phone": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "customer_code": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "full_name": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "delivery_address": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "mpesa_number": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "state": {
+    "t": "text",
+    "nn": true,
+    "hd": true
+   },
+   "unread_count": {
+    "t": "integer",
+    "nn": true,
+    "hd": true
+   },
+   "last_message_at": {
+    "t": "timestamptz",
+    "nn": false,
+    "hd": false
+   },
+   "last_message_preview": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "created_at": {
+    "t": "timestamptz",
+    "nn": true,
+    "hd": true
+   },
+   "updated_at": {
+    "t": "timestamptz",
+    "nn": true,
+    "hd": true
+   }
+  },
+  "wa_messages": {
+   "id": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "contact_id": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "direction": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "body": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "media_url": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "media_type": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "template_key": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "provider_message_id": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "status": {
+    "t": "text",
+    "nn": true,
+    "hd": true
+   },
+   "error": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "sent_by": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "created_at": {
+    "t": "timestamptz",
+    "nn": true,
+    "hd": true
+   }
+  },
+  "wa_order_events": {
+   "id": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "order_id": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "from_status": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "to_status": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "actor_user_id": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "note": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "created_at": {
+    "t": "timestamptz",
+    "nn": true,
+    "hd": true
+   }
+  },
+  "wa_orders": {
+   "id": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "contact_id": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "tracking_code": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "product_links": {
+    "t": "jsonb",
+    "nn": true,
+    "hd": true
+   },
+   "product_note": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "usd_price": {
+    "t": "numeric",
+    "nn": false,
+    "hd": false
+   },
+   "fx_rate": {
+    "t": "numeric",
+    "nn": false,
+    "hd": false
+   },
+   "markup_pct": {
+    "t": "numeric",
+    "nn": false,
+    "hd": false
+   },
+   "quote_kes": {
+    "t": "bigint",
+    "nn": false,
+    "hd": false
+   },
+   "status": {
+    "t": "text",
+    "nn": true,
+    "hd": true
+   },
+   "delivery_fee_kes": {
+    "t": "bigint",
+    "nn": false,
+    "hd": false
+   },
+   "delivery_fee_waived": {
+    "t": "boolean",
+    "nn": true,
+    "hd": true
+   },
+   "delivery_fee_paid_at": {
+    "t": "timestamptz",
+    "nn": false,
+    "hd": false
+   },
+   "receipt_path": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "quoted_at": {
+    "t": "timestamptz",
+    "nn": false,
+    "hd": false
+   },
+   "confirmed_at": {
+    "t": "timestamptz",
+    "nn": false,
+    "hd": false
+   },
+   "paid_at": {
+    "t": "timestamptz",
+    "nn": false,
+    "hd": false
+   },
+   "purchased_at": {
+    "t": "timestamptz",
+    "nn": false,
+    "hd": false
+   },
+   "arrived_at": {
+    "t": "timestamptz",
+    "nn": false,
+    "hd": false
+   },
+   "dispatched_at": {
+    "t": "timestamptz",
+    "nn": false,
+    "hd": false
+   },
+   "delivered_at": {
+    "t": "timestamptz",
+    "nn": false,
+    "hd": false
+   },
+   "created_at": {
+    "t": "timestamptz",
+    "nn": true,
+    "hd": true
+   },
+   "updated_at": {
+    "t": "timestamptz",
+    "nn": true,
+    "hd": true
+   }
+  },
+  "wa_settings": {
+   "key": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "value": {
+    "t": "text",
+    "nn": true,
+    "hd": false
+   },
+   "updated_by": {
+    "t": "text",
+    "nn": false,
+    "hd": false
+   },
+   "updated_at": {
+    "t": "timestamptz",
+    "nn": true,
     "hd": true
    }
   }
