@@ -130,9 +130,10 @@ multi-line body is rejected with `VALIDATION_008` and retried flattened
 flattens up front instead of paying a wasted round-trip every time.
 
 **Consequence: all customer copy must read correctly as one line.** The
-tracking reply, for example, labels every line so the flattened form
-still parses as separate facts. Approved templates are exempt — their
-body text can contain newlines, only the *variables* can't.
+tracking reply is a plain sentence or two for exactly this reason — an
+earlier version used a labelled block with a progress bar, and flattening
+turned it into a run-on smear. Approved templates are exempt: their body
+text can contain newlines, only the *variables* can't.
 
 ---
 
@@ -367,8 +368,17 @@ that the reply survives flattening. `waAiClassify` covers the sentinel
 boundary, `waOrderFlow` the transition edges, `sentdm` signature
 verification, `receiptPdf` and `receiptLink` the customer artefacts.
 
-CI (`.github/workflows/test.yml`) runs unit, Postgres-backed integration
-and Lighthouse on every PR. CodeQL runs `security-extended` weekly.
+CI (`.github/workflows/ci.yml`) runs four jobs on every PR: unit +
+client build, a Postgres-backed integration job that also gates
+migrations and schema drift, a Playwright e2e pass over the operator
+screens, and a Lighthouse accessibility assertion. `security.yml` runs
+CodeQL `security-extended` weekly.
+
+Both workflows were **disabled manually in May 2026** and only came back
+on 2026-08-12. GitHub keys that state to the workflow's file path, which
+is why they were renamed from `test.yml` / `codeql.yml` — a new path
+registers a new, enabled workflow. Renaming them back would switch CI
+off again.
 
 ---
 

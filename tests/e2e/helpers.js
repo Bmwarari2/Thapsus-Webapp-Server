@@ -1,9 +1,7 @@
 import pg from 'pg';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
 
-// Shared helpers for the browser e2e suite. The specs need a handful of
-// DB reads/writes that production performs out-of-band (clicking the link
-// in a real email, an owner granting the finance flag in the DB console).
+// Shared helpers for the browser e2e suite: a pool for the specs that
+// need to read or plant rows, and the sign-in most of them start with.
 
 const DB = process.env.E2E_DATABASE_URL || process.env.DATABASE_URL;
 let pool;
@@ -21,34 +19,14 @@ export async function closeDb() {
   if (p) await p.end();
 }
 
-// Tokens are hash-at-rest only (migration 0001) — the plaintext exists
-// solely in the email. Stand in for the mailbox by minting a token whose
-// hash we insert ourselves; /verify-email consumes every pending token for
-// the user, so the register-issued row is cleaned up alongside ours.
-export async function verificationTokenFor(email) {
-  const plaintext = randomBytes(32).toString('hex');
-  const hash = createHash('sha256').update(plaintext).digest();
-  const { rows } = await db().query(`SELECT id FROM users WHERE email = $1`, [email.toLowerCase()]);
-  if (!rows[0]) return null;
-  await db().query(
-    `INSERT INTO email_verification_tokens (id, user_id, token_sha256, expires_at)
-     VALUES ($1, $2, $3, NOW() + interval '1 hour')`,
-    [randomUUID(), rows[0].id, hash]
-  );
-  return plaintext;
-}
-
-export async function grantFinance(email) {
-  await db().query(`UPDATE users SET can_manage_finances = true WHERE email = $1`, [email.toLowerCase()]);
-}
-
-export async function deleteUser(email) {
-  await db().query(`DELETE FROM users WHERE email = $1`, [email.toLowerCase()]);
-}
-
+// Waits for the redirect off /login before returning. Without that, a
+// caller that goes straight to page.goto('/ops/…') races the token
+// write: the SPA boots unauthenticated and ProtectedRoute bounces it
+// back to the sign-in screen.
 export async function login(page, email, password) {
   await page.goto('/login');
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', password);
   await page.click('button[type="submit"]');
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 });
 }

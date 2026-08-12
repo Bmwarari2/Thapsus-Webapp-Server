@@ -177,8 +177,15 @@ Unit suites: `waStateMachine`, `waAiClassify`, `waOrderFlow`, `waCodes`,
 `idempotency`, `outboxShouldQueue`, `schemaDrift`. Integration (gated on
 `TEST_DATABASE_URL`): `appBoot`, `auth`, `roleMatrix`.
 
-GitHub Actions runs unit, integration and Lighthouse on every PR. CodeQL
-runs `security-extended` weekly and on PR.
+GitHub Actions (`.github/workflows/ci.yml`) runs unit + client build,
+Postgres-backed integration (which also gates migrations and schema
+drift), Playwright e2e over the operator screens, and a Lighthouse a11y
+assertion — on every PR. `security.yml` runs CodeQL weekly.
+
+> Both workflows sat **disabled** from May to August 2026, so everything
+> merged in between landed without CI. They were re-registered under new
+> filenames (GitHub keys the disabled state to the path). Don't rename
+> them back.
 
 ## Further reading
 

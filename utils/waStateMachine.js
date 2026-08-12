@@ -673,79 +673,63 @@ async function replyTrackingStatus(db, contact, trackingCode) {
     });
   }
 
-  const day = (d) => new Date(d).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' });
+  return sendToContact(db, contact, { text: parcelStateSentence(order, trackingCode) });
+}
 
-  // A labelled block beats a list of dates: the customer wants to know
-  // where the parcel is, how far along that is, and what happens next.
-  // Written to survive sent.dm's newline flattening — every line stands
-  // on its own once the breaks become " · " separators.
-  const lines = [
-    `Order *${trackingCode}*`,
-    `Status: ${STATUS_LABEL[order.status] || order.status}`,
-    `Progress: ${progressBar(order.status)}`,
-  ];
+/**
+ * Where the parcel is, in a sentence or two. That is the entire question
+ * behind "TRK-8822?" — an earlier version answered with a status label, a
+ * progress bar, a next-step line and the amount paid, which restated the
+ * same fact three times and buried it. Each status owns its own wording
+ * so the update reads like a person wrote it.
+ */
+function parcelStateSentence(order, trackingCode) {
+  const on = (d) => (d ? ` on ${new Date(d).toLocaleDateString('en-KE', { day: 'numeric', month: 'long' })}` : '');
+  const feeDue = order.status === 'delivery_fee_pending' && !order.delivery_fee_waived
+    && !order.delivery_fee_paid_at && Number(order.delivery_fee_kes) > 0;
 
-  const [lastLabel, lastAt] = latestMilestone(order);
-  if (lastAt) lines.push(`${lastLabel}: ${day(lastAt)}`);
+  switch (order.status) {
+    case 'paid':
+      return `${trackingCode} — we received your payment${on(order.paid_at)} and we're buying your item now. `
+        + `We'll let you know the moment it's purchased.`;
 
-  const next = NEXT_STEP[order.status];
-  if (next) lines.push(`Next: ${next}`);
+    case 'purchased':
+      return `${trackingCode} — your item was purchased${on(order.purchased_at)} and is on its way to our facility. `
+        + `We'll message you as soon as it lands in Kenya.`;
 
-  if (order.quote_kes) {
-    lines.push(`${order.paid_at ? 'Paid' : 'Order total'}: KSh ${Number(order.quote_kes).toLocaleString('en-KE')}`);
+    case 'in_kenya':
+      return `${trackingCode} — your parcel arrived in Kenya${on(order.arrived_at)}. `
+        + `We're getting it ready and will dispatch it to your address shortly.`;
+
+    case 'delivery_fee_pending':
+      return feeDue
+        ? `${trackingCode} — your parcel arrived in Kenya${on(order.arrived_at)} and is ready to send out. `
+          + `Last step is the delivery fee of KSh ${Number(order.delivery_fee_kes).toLocaleString('en-KE')}: `
+          + `Lipa na M-Pesa, Buy Goods, Till ${mpesaTill()}. Reply here once you've paid and we'll dispatch it.`
+        : `${trackingCode} — your parcel arrived in Kenya${on(order.arrived_at)} and will be dispatched to your address shortly.`;
+
+    case 'dispatched':
+      return `${trackingCode} — your parcel went out for delivery${on(order.dispatched_at)}. `
+        + `Our rider will call you when they arrive, usually within 24 hours.`;
+
+    case 'delivered':
+      return `${trackingCode} — delivered${on(order.delivered_at)}. Asante for shopping with Thapsus Cargo. `
+        + `Send us another link whenever you're ready.`;
+
+    case 'cancelled':
+      return `${trackingCode} — this order was cancelled. Reply here if that's unexpected and we'll sort it out.`;
+
+    // Pre-payment states can't normally be reached by a tracking lookup
+    // (the code is minted when the payment settles), but an operator can
+    // move an order backwards, so answer rather than say nothing.
+    case 'confirmed':
+      return `${trackingCode} — we're waiting on your payment to start buying. Reply here if you need the till details again.`;
+    case 'quoting':
+    case 'quoted':
+      return `${trackingCode} — we're still finalising your quote. We'll send it here shortly.`;
+
+    default:
+      return `${trackingCode} — ${STATUS_LABEL[order.status] || order.status}. Reply here if you need anything else.`;
   }
-  if (order.status === 'delivery_fee_pending' && !order.delivery_fee_waived
-      && !order.delivery_fee_paid_at && Number(order.delivery_fee_kes) > 0) {
-    lines.push(
-      `Delivery fee due: KSh ${Number(order.delivery_fee_kes).toLocaleString('en-KE')} ` +
-      `— Lipa na M-Pesa, Buy Goods, Till ${mpesaTill()}, then reply here.`
-    );
-  }
-  lines.push('Reply here if you need anything else.');
-
-  return sendToContact(db, contact, { text: lines.join('\n') });
 }
 
-// The five customer-visible stages, in order. Statuses before payment
-// can't be reached by a tracking lookup (the code is minted on payment),
-// so the bar always starts at Paid.
-const JOURNEY = [
-  { key: 'paid', label: 'Paid' },
-  { key: 'purchased', label: 'Purchased' },
-  { key: 'in_kenya', label: 'In Kenya' },
-  { key: 'dispatched', label: 'Out for delivery' },
-  { key: 'delivered', label: 'Delivered' },
-];
-
-// Which journey stage each order status sits at.
-const STAGE_OF = {
-  quoting: -1, quoted: -1, confirmed: -1,
-  paid: 0, purchased: 1, in_kenya: 2, delivery_fee_pending: 2,
-  dispatched: 3, delivered: 4,
-};
-
-const NEXT_STEP = {
-  paid: "we're buying your item now",
-  purchased: "it's on its way to our facility",
-  in_kenya: "we'll dispatch it to your address shortly",
-  delivery_fee_pending: 'pay the delivery fee and we dispatch',
-  dispatched: 'our rider will call you on arrival, usually within 24 hours',
-};
-
-/** `Paid > Purchased > In Kenya > *Out for delivery* > Delivered` */
-function progressBar(status) {
-  const at = STAGE_OF[status] ?? -1;
-  return JOURNEY.map((s, i) => (i === at ? `*${s.label}*` : s.label)).join(' > ');
-}
-
-/** The most recent stage that actually has a timestamp. */
-function latestMilestone(order) {
-  const stamps = [
-    ['Paid', order.paid_at],
-    ['Purchased', order.purchased_at],
-    ['Arrived in Kenya', order.arrived_at],
-    ['Dispatched', order.dispatched_at],
-    ['Delivered', order.delivered_at],
-  ].filter(([, at]) => at);
-  return stamps.length ? stamps[stamps.length - 1] : [null, null];
-}
