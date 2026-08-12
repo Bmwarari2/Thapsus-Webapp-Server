@@ -68,9 +68,7 @@ export async function transition(db, orderId, toStatus, opts = {}) {
   try {
     await client.query('BEGIN');
     const { rows } = await client.query(
-      `SELECT o.*, c.phone, c.id AS contact_id, c.full_name, c.customer_code
-         FROM wa_orders o JOIN wa_contacts c ON c.id = o.contact_id
-        WHERE o.id = $1 FOR UPDATE OF o`,
+      `SELECT * FROM wa_orders WHERE id = $1 FOR UPDATE`,
       [orderId]
     );
     order = rows[0];
@@ -82,7 +80,11 @@ export async function transition(db, orderId, toStatus, opts = {}) {
       await client.query('ROLLBACK');
       return { ok: false, reason: `invalid transition ${order.status} → ${toStatus}` };
     }
-    contact = { id: order.contact_id, phone: order.phone };
+    const { rows: contactRows } = await client.query(
+      `SELECT id, phone FROM wa_contacts WHERE id = $1`,
+      [order.contact_id]
+    );
+    contact = contactRows[0] || { id: order.contact_id, phone: null };
 
     // Arrival branches on the promo toggle.
     finalStatus = toStatus;

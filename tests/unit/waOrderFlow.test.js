@@ -23,7 +23,10 @@ function makeDb(orderRow) {
   const client = {
     query: vi.fn(async (sql, params) => {
       calls.push([sql, params]);
-      if (sql.includes('FOR UPDATE OF o')) return { rows: orderRow ? [orderRow] : [] };
+      if (sql.includes('FOR UPDATE')) return { rows: orderRow ? [orderRow] : [] };
+      if (sql.includes('FROM wa_contacts')) {
+        return { rows: [{ id: orderRow?.contact_id || 'c1', phone: orderRow?.phone || '254712345678' }] };
+      }
       return { rows: [], rowCount: 1 };
     }),
     release: vi.fn(),
