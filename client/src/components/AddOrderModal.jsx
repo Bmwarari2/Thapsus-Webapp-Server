@@ -58,7 +58,7 @@ export function AddCustomerModal({ onClose, onAdded }) {
     try {
       const res = await waApi.addContact(f)
       const c = res.data.contact
-      toast.success(c.customer_code ? `Added — ${c.customer_code}` : 'Added, profile still incomplete')
+      toast.success(c.customer_code ? `Added — ${c.customer_code}` : 'Added — give them a name to issue a customer code')
       onAdded?.(c)
       onClose()
     } catch (err) {
@@ -71,7 +71,7 @@ export function AddCustomerModal({ onClose, onAdded }) {
       <form onSubmit={submit} className="space-y-3">
         <div>
           <span className={label}>WhatsApp number *</span>
-          <input value={f.phone} onChange={set('phone')} placeholder="0712 345 678 or +254712345678" className={field} autoFocus />
+          <input value={f.phone} onChange={set('phone')} placeholder="0712 345 678, or +44… with the country code" className={field} autoFocus />
         </div>
         <div>
           <span className={label}>Full name</span>
@@ -92,8 +92,8 @@ export function AddCustomerModal({ onClose, onAdded }) {
           </div>
         </div>
         <p className="text-xs text-mute">
-          All three of name, address and M-Pesa number gets them a customer code straight away.
-          Leave any of them blank and the assistant will ask for the rest when they message.
+          A name is enough to get them a customer code. Whatever you leave blank, the
+          assistant asks for the next time they message.
         </p>
         <button disabled={busy}
           className="w-full py-2.5 rounded-xl bg-ember-600 hover:bg-ember-500 text-white font-semibold disabled:opacity-50">

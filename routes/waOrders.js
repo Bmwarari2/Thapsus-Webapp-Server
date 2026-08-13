@@ -30,6 +30,7 @@ import {
   normalizeKenyanPhone,
   LipanaError,
 } from '../utils/lipanaClient.js';
+import { pushToStaff } from './events.js';
 
 const router = express.Router();
 const STAFF = requireRole('operator'); // admins pass via requireRole's bypass
@@ -200,27 +201,50 @@ router.post('/', authMiddleware, STAFF, async (req, res) => {
     const stampCols = Object.keys(stamps);
 
     const id = uuidv4();
-    const trackingCode = stage >= STAGE_ORDER.indexOf('paid') ? await nextTrackingCode(req.db) : null;
 
-    const { rows } = await req.db.query(
-      `INSERT INTO wa_orders (id, contact_id, product_links, product_note, status,
-              tracking_code, quote_kes, delivery_fee_kes
-              ${stampCols.length ? ', ' + stampCols.join(', ') : ''})
-       VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8
-              ${stampCols.length ? ', ' + stampCols.map(() => 'NOW()').join(', ') : ''})
-       RETURNING *`,
-      [id, contact_id, JSON.stringify(links), product_note || null, status,
-       trackingCode, quoteKes, feeKes]
-    );
-    const order = rows[0];
+    // One connection, one transaction. Without this an error thrown after
+    // the INSERT (as one was, on an unimported pushToStaff) leaves a real
+    // order — holding a real tracking code — behind a 500 that tells the
+    // operator nothing was created. They retry, and the customer has two.
+    const client = await req.db.connect();
+    let order;
+    try {
+      await client.query('BEGIN');
+      const trackingCode = stage >= STAGE_ORDER.indexOf('paid') ? await nextTrackingCode(client) : null;
 
-    await req.db.query(
-      `INSERT INTO wa_order_events (id, order_id, from_status, to_status, actor_user_id, note)
-       VALUES ($1, $2, NULL, $3, $4, $5)`,
-      [uuidv4(), id, status, req.user.id,
-       status === 'quoting' ? 'Order created' : `Order added directly at '${status}' by an operator`]
-    );
-    pushToStaff('wa_pipeline_update', { order_id: id, status, contact_id });
+      const { rows } = await client.query(
+        `INSERT INTO wa_orders (id, contact_id, product_links, product_note, status,
+                tracking_code, quote_kes, delivery_fee_kes
+                ${stampCols.length ? ', ' + stampCols.join(', ') : ''})
+         VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8
+                ${stampCols.length ? ', ' + stampCols.map(() => 'NOW()').join(', ') : ''})
+         RETURNING *`,
+        [id, contact_id, JSON.stringify(links), product_note || null, status,
+         trackingCode, quoteKes, feeKes]
+      );
+      order = rows[0];
+
+      await client.query(
+        `INSERT INTO wa_order_events (id, order_id, from_status, to_status, actor_user_id, note)
+         VALUES ($1, $2, NULL, $3, $4, $5)`,
+        [uuidv4(), id, status, req.user.id,
+         status === 'quoting' ? 'Order created' : `Order added directly at '${status}' by an operator`]
+      );
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    // Everything below is post-commit: the order exists, so a failure here
+    // must not turn into "creation failed".
+    try {
+      pushToStaff('wa_pipeline_update', { order_id: id, status, contact_id });
+    } catch (e) {
+      console.warn('[waOrders] pipeline broadcast failed (non-fatal):', e?.message);
+    }
 
     // Opt-in only — see the note above about texting people about parcels
     // they already have.

@@ -153,10 +153,15 @@ export function Inbox() {
     if (delivery_address === null) return
     const mpesa_number = window.prompt('M-Pesa number', selected.mpesa_number || '')
     if (mpesa_number === null) return
+    // Editable because a mistyped number leaves the customer unreachable.
+    const phone = window.prompt('WhatsApp number (include the country code if not Kenyan)', selected.phone || '')
+    if (phone === null) return
     try {
-      const res = await waApi.updateContact(selected.id, { full_name, delivery_address, mpesa_number })
+      const res = await waApi.updateContact(selected.id, { full_name, delivery_address, mpesa_number, phone })
       setSelected(res.data.contact)
-      toast.success('Contact updated')
+      toast.success(res.data.contact.customer_code
+        ? `Contact updated — ${res.data.contact.customer_code}`
+        : 'Contact updated')
     } catch (e) {
       toast.error(e.response?.data?.message || 'Update failed')
     }
