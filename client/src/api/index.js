@@ -520,14 +520,6 @@ export const buyForMeApi = {
 }
 
 /** Operator console */
-export const opsApi = {
-  today:     ()            => api.get('/ops/today'),
-  parcels:   (params = {}) => api.get('/ops/parcels', { params }),
-  receive:   (id, data)    => api.post(`/ops/parcels/${id}/receive`, data),
-  screen:    (id, desc)    => api.post(`/ops/parcels/${id}/screen`, { description: desc }),
-  hold:      (id, reason)  => api.post(`/ops/parcels/${id}/hold`, { reason }),
-  release:   (id)          => api.post(`/ops/parcels/${id}/release`),
-}
 
 /** Editable pricing tiers + fees + promotions */
 export const pricingTiersApi = {

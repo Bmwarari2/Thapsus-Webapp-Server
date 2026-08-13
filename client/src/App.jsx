@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { Nav } from './components/Nav'
 import { Footer } from './components/Footer'
 import { ProtectedRoute } from './components/ProtectedRoute'
@@ -33,8 +33,7 @@ const Pipeline       = lazy(() => import('./pages/ops/Pipeline').then(m => ({ de
 const WaOrderDetail  = lazy(() => import('./pages/ops/WaOrderDetail').then(m => ({ default: m.WaOrderDetail })))
 const WaPayments     = lazy(() => import('./pages/ops/WaPayments').then(m => ({ default: m.WaPayments })))
 const WaSettings     = lazy(() => import('./pages/ops/WaSettings').then(m => ({ default: m.WaSettings })))
-const OpsConsole     = lazy(() => import('./pages/OpsConsole').then(m => ({ default: m.OpsConsole })))
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })))
+const Team           = lazy(() => import('./pages/ops/Team').then(m => ({ default: m.Team })))
 
 // ── Minimal loading spinner (shown briefly while lazy chunks load) ──────────
 const PageLoader = () => (
@@ -87,11 +86,13 @@ function App() {
             <Route path="/ops/orders/:id" element={<ProtectedRoute roles={['operator']}><WaOrderDetail /></ProtectedRoute>} />
             <Route path="/ops/payments" element={<ProtectedRoute adminOnly={true}><WaPayments /></ProtectedRoute>} />
             <Route path="/ops/settings" element={<ProtectedRoute adminOnly={true}><WaSettings /></ProtectedRoute>} />
-            {/* Legacy warehouse console — drains pre-WhatsApp orders */}
-            <Route path="/ops" element={<ProtectedRoute roles={['operator']}><OpsConsole /></ProtectedRoute>} />
+            <Route path="/ops/team" element={<ProtectedRoute adminOnly={true}><Team /></ProtectedRoute>} />
 
-            {/* Admin */}
-            <Route path="/admin" element={<ProtectedRoute adminOnly={true}><AdminDashboard /></ProtectedRoute>} />
+            {/* The legacy warehouse console and the old admin dashboard were
+                retired; both URLs are still in browser histories and bookmarks,
+                so send them somewhere useful rather than to the 404. */}
+            <Route path="/ops" element={<Navigate to="/ops/inbox" replace />} />
+            <Route path="/admin" element={<Navigate to="/ops/team" replace />} />
 
             {/* 404 */}
             <Route path="*" element={

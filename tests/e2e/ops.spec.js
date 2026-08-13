@@ -14,10 +14,25 @@ const ADMIN = { email: 'admin@thapsus.uk', password: 'AdminPass123!' };
 
 test.afterAll(async () => { await closeDb(); });
 
-test('admin signs in and lands on a rendering dashboard', async ({ page }) => {
+test('admin signs in and lands on the inbox', async ({ page }) => {
   await login(page, ADMIN.email, ADMIN.password);
-  await expect(page).toHaveURL(/\/admin/);
-  await expect(page.getByText(/users|error logs/i).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page).toHaveURL(/\/ops\/inbox/);
+  await expect(page.getByText('WhatsApp Inbox')).toBeVisible({ timeout: 15_000 });
+});
+
+test('the team screen lists staff accounts', async ({ page }) => {
+  await login(page, ADMIN.email, ADMIN.password);
+  await page.goto('/ops/team');
+  await expect(page.getByText('Team')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(ADMIN.email).first()).toBeVisible({ timeout: 15_000 });
+});
+
+test('the retired /admin and /ops URLs redirect instead of 404ing', async ({ page }) => {
+  await login(page, ADMIN.email, ADMIN.password);
+  await page.goto('/admin');
+  await expect(page).toHaveURL(/\/ops\/team/);
+  await page.goto('/ops');
+  await expect(page).toHaveURL(/\/ops\/inbox/);
 });
 
 test('the pipeline board renders all five stages', async ({ page }) => {

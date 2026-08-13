@@ -137,8 +137,11 @@ operational gain, and in-flight legacy orders still read from them.
 
 ### Still mounted, deliberately
 
-`routes/orders.js`, `parcels.js`, `ops.js`, a trimmed `admin.js` and
+`routes/orders.js`, `parcels.js`, a trimmed `admin.js` and
 `adminPayments.js` remain so operators can finish pre-WhatsApp orders.
+The warehouse console (`/ops`) and the old admin dashboard (`/admin`)
+were retired in August 2026 along with `routes/ops.js`; both URLs now
+redirect, and user management plus error logs moved to `/ops/team`.
 `/api/tracking/:code` checks `wa_orders.tracking_code` first and falls
 back to legacy `orders.tracking_number`. These retire in a final cleanup
 pass once the last legacy order is delivered — ask for "stage F cleanup".
@@ -307,6 +310,7 @@ Five screens under `/ops`, all behind the operator role:
 | `/ops/orders/:id` | Quote entry with live KES preview, payment actions, status advance, fee settle/waive, receipt, printable label |
 | `/ops/payments` | Manual M-Pesa approval queue (admin) — the pipeline's real bottleneck, so it gets its own screen and nav item |
 | `/ops/settings` | Markup, promo toggle, default fee, welcome media, template map, AI toggle + knowledge base, staff alert numbers, webhook doctor (admin) |
+| `/ops/team` | Staff accounts and recent server errors (admin) — what survived the old admin dashboard |
 
 The public site keeps the home page, public tracking, FAQ, articles,
 legal pages and operator login. Everything else is gone.

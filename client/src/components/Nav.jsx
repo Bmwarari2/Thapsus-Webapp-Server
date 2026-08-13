@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Menu, X, LogOut, Settings, BarChart3, Truck,
+  Menu, X, LogOut, Settings, 
   Home as HomeIcon, Search, LogIn, FileText, BookOpen, ScrollText,
-  ChevronDown, MoreHorizontal, Newspaper, MessageSquareText, KanbanSquare, HandCoins,
+  ChevronDown, MoreHorizontal, Newspaper, MessageSquareText, KanbanSquare, HandCoins, Users,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import brandMark1x from '../assets/brand-mark.webp'
@@ -52,19 +52,18 @@ function buildNav({ isAuthenticated, isAdmin }) {
     { to: '/ops/inbox',    label: 'Inbox',    icon: MessageSquareText },
     { to: '/ops/pipeline', label: 'Pipeline', icon: KanbanSquare },
     { to: '/ops/payments', label: 'Payments', icon: HandCoins },
-    { to: '/admin',        label: 'Admin',    icon: BarChart3 },
+    { to: '/ops/team',     label: 'Team',     icon: Users },
   ] : [
     { to: '/ops/inbox',    label: 'Inbox',    icon: MessageSquareText },
     { to: '/ops/pipeline', label: 'Pipeline', icon: KanbanSquare },
     { to: '/track',        label: 'Track',    icon: Search },
-    { to: '/ops',          label: 'Legacy',   icon: Truck },
+    { to: '/track',        label: 'Track',    icon: Search },
   ]
 
   const groups = [
     { key: 'operations', label: 'Operations', links: [
       { to: '/ops/inbox',    label: 'WhatsApp inbox',   icon: MessageSquareText },
       { to: '/ops/pipeline', label: 'Order pipeline',   icon: KanbanSquare },
-      { to: '/ops',          label: 'Legacy console',   icon: Truck },
       { to: '/track',        label: 'Public tracking',  icon: Search },
     ]},
   ]
@@ -72,7 +71,7 @@ function buildNav({ isAuthenticated, isAdmin }) {
   if (isAdmin) {
     groups.push({ key: 'admin', label: 'Admin', links: [
       { to: '/ops/payments', label: 'Payments to approve', icon: HandCoins },
-      { to: '/admin',        label: 'Admin dashboard',     icon: BarChart3 },
+      { to: '/ops/team',     label: 'Team and errors',     icon: Users },
       { to: '/ops/settings', label: 'WhatsApp settings',   icon: Settings },
     ]})
   }

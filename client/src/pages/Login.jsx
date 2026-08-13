@@ -61,11 +61,10 @@ export const Login = () => {
       setLoading(true)
       const loggedInUser = await login(formData.email, formData.password)
       toast.success(t('auth.loginSuccess') || 'Login successful!')
-      // Only staff have logins now. Admins get the admin surface,
-      // everyone else works the WhatsApp inbox. (`/dashboard` and
-      // `/influencer` were customer/partner routes and no longer exist —
-      // sending anyone there is a dead end.)
-      const home = loggedInUser.role === 'admin' ? '/admin' : '/ops/inbox'
+      // Only staff have logins now, and the inbox is where the work is —
+      // admins included. The old /admin dashboard was retired; team
+      // management lives at /ops/team behind the menu.
+      const home = '/ops/inbox'
       navigate(nextPath || home, { replace: true })
     } catch (err) {
       const code = err?.response?.data?.code
