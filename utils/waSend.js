@@ -17,6 +17,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sendText, sendTemplate, sentDmConfigured, SentDmError } from './sentdm.js';
 import { getWaSettings } from './waSettings.js';
+import { toPositionalParams } from './waTemplateVars.js';
 import { pushToStaff } from '../routes/events.js';
 
 const PREVIEW_LEN = 120;
@@ -67,7 +68,9 @@ export async function sendToContact(db, contact, opts = {}) {
     try {
       const result = templateName
         ? await sendTemplate(contact.phone, templateName, {
-            ...(templateParams || {}),
+            // Approved templates take var_1..var_N in body order; our
+            // callers pass meaningful names. See utils/waTemplateVars.js.
+            ...toPositionalParams(templateKey, templateParams || {}),
             ...(mediaUrl ? { media_url: mediaUrl } : {}),
           }, { idempotencyKey: id })
         : await sendText(contact.phone, effectiveText, { idempotencyKey: id });

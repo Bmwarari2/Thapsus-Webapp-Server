@@ -182,7 +182,11 @@ export async function handleInbound(db, contact, message) {
       const till = mpesaTill();
       await sendToContact(db, contact, {
         templateKey: 'payment_prompt',
-        templateParams: { amount_kes: String(order.quote_kes) },
+        templateParams: {
+          full_name: contact.full_name,
+          order_ref: order.tracking_code || 'your order',
+          total_kes: Number(order.quote_kes).toLocaleString('en-KE'),
+        },
         text:
           `Great! Your order is confirmed at KSh ${Number(order.quote_kes).toLocaleString('en-KE')}.\n\n` +
           `To pay: Lipa na M-Pesa → Buy Goods${till ? ` → Till *${till}*` : ''} → ` +

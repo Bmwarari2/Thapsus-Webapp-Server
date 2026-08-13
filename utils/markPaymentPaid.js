@@ -355,7 +355,11 @@ async function fireWaOrderPostPaidHook(db, payment) {
   // Main payment: tracking code announcement + PDF receipt.
   await sendToContact(db, contact, {
     templateKey: 'payment_received',
-    templateParams: { tracking_code: order.tracking_code || '' },
+    templateParams: {
+      full_name: contact.full_name,
+      total_kes: Number(payment.amount_due_kes || order.quote_kes || 0).toLocaleString('en-KE'),
+      order_ref: order.tracking_code || '',
+    },
     text:
       `Payment received — asante!\n` +
       `Your tracking code is *${order.tracking_code}*. Text it to us any time to check on your parcel.\n` +
