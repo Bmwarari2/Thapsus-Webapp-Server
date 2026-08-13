@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@zxing/browser": "^0.2.0",
-    "axios": "^1.7.9",
+    "axios": "^1.18.0",
     "lucide-react": "^1.14.0",
     "react": "^19.2.0",
     "react-barcode": "^1.6.1",
