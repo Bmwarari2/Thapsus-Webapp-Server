@@ -167,10 +167,15 @@ router.post('/conversations/:contactId/read', authMiddleware, STAFF, async (req,
  * Read a phone number the way an operator typed it.
  *
  * Kenyan numbers come in every shape and normalizeKenyanPhone knows them
- * all. Anything else has to carry its country code — a bare local number
- * is unroutable, and quietly storing the digits creates a contact that no
- * message will ever reach. That happened: a ten-digit number went in as
- * typed and the customer could not be messaged at all.
+ * all. Anything else has to carry its country code, because bare digits
+ * are ambiguous: '9607218089' is a perfectly good Maldives number and
+ * also what a mistyped Kenyan one looks like. Requiring the + means we
+ * never have to guess which.
+ *
+ * The stored form is bare digits either way — sentdm's toE164() puts the
+ * + back on the way out — and nothing downstream assumes Kenya, so any
+ * country code works. The 8-digit floor is there for typos, not
+ * geography: the shortest real international numbers run to about that.
  *
  * @returns {{phone: string|null, error: string|null}}
  */
@@ -179,7 +184,7 @@ function parseContactPhone(input) {
   const international = /^(\+|00)/.test(raw);
   const phone = normalizeKenyanPhone(raw)
     || (international ? raw.replace(/\D/g, '').replace(/^00/, '') : null);
-  if (!phone || phone.length < 9 || phone.length > 15) {
+  if (!phone || phone.length < 8 || phone.length > 15) {
     return {
       phone: null,
       error: international

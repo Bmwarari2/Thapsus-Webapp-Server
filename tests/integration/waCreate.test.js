@@ -114,9 +114,10 @@ describe.skipIf(SKIP)('POST /api/wa/contacts — operator adds a customer', () =
   });
 
   it('refuses a foreign number with no country code', async () => {
-    // The break this replaces: a bare 10-digit number was stored as typed,
-    // producing a contact no message could ever reach.
-    const r = await addContact({ phone: '9607218089', full_name: 'Unreachable' });
+    // Bare digits are ambiguous — the same string can be a real foreign
+    // number or a Kenyan one typed wrong, and the two want opposite
+    // treatment. Ask rather than guess.
+    const r = await addContact({ phone: '3125550142', full_name: 'No Country Code' });
     expect(r.status).toBe(400);
     expect(r.body.message).toMatch(/country code/i);
   });
@@ -126,6 +127,16 @@ describe.skipIf(SKIP)('POST /api/wa/contacts — operator adds a customer', () =
     expect(r.status).toBe(201);
     expect(r.body.contact.phone).toBe('447424531484');
     contactPhones.push('447424531484');
+  });
+
+  it('accepts a short international number', async () => {
+    // Maldives: +960 plus seven digits. Customers are not all on
+    // twelve-digit Kenyan numbers, and the stored form stays bare digits
+    // because toE164() puts the + back on the way out.
+    const r = await addContact({ phone: '+960 721 8089', full_name: 'Maldives Customer' });
+    expect(r.status).toBe(201);
+    expect(r.body.contact.phone).toBe('9607218089');
+    contactPhones.push('9607218089');
   });
 
   it('rejects an M-Pesa number that is not Kenyan', async () => {
@@ -154,9 +165,9 @@ describe.skipIf(SKIP)('PUT /api/wa/contacts/:id — operator corrects a contact'
     expect(r.body.contact.customer_code).toMatch(/^TC-\d+$/);
   });
 
-  it('refuses a correction to an unreachable number', async () => {
+  it('refuses a correction to an ambiguous number, leaving the old one', async () => {
     const created = await addContact({ phone: freshPhone(), full_name: 'Keeps Their Number' });
-    const r = await put(created.body.contact.id, { phone: '9607218089' });
+    const r = await put(created.body.contact.id, { phone: '3125550142' });
     expect(r.status).toBe(400);
     const { rows } = await getPool().query(
       `SELECT phone FROM wa_contacts WHERE id = $1`, [created.body.contact.id]);
