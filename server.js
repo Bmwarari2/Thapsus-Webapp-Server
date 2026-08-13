@@ -90,7 +90,6 @@ import exchangeRoutes      from './routes/exchange.js';
 import eventsRoutes        from './routes/events.js';
 import sitemapRoutes       from './routes/sitemap.js';
 import parcelsRoutes       from './routes/parcels.js';  // legacy drain
-import opsRoutes           from './routes/ops.js';      // legacy drain
 import appConfigRoutes     from './routes/appConfig.js';
 import receiptRedirectRoutes from './routes/receiptRedirect.js';
 import { waWebhookHandler } from './routes/waWebhook.js';
@@ -545,7 +544,6 @@ app.use('/api/admin/payments', adminPaymentsRoutes);
 app.use('/api/exchange',       exchangeRoutes);
 app.use('/api/events',         eventsRoutes);
 app.use('/api/parcels',        parcelsRoutes);  // legacy drain
-app.use('/api/ops',            opsRoutes);      // legacy drain
 app.use('/api/app-config',     appConfigRoutes);
 // WhatsApp flow — inbound webhook is mounted above (raw body); these are
 // the operator-facing APIs.

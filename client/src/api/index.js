@@ -520,14 +520,6 @@ export const buyForMeApi = {
 }
 
 /** Operator console */
-export const opsApi = {
-  today:     ()            => api.get('/ops/today'),
-  parcels:   (params = {}) => api.get('/ops/parcels', { params }),
-  receive:   (id, data)    => api.post(`/ops/parcels/${id}/receive`, data),
-  screen:    (id, desc)    => api.post(`/ops/parcels/${id}/screen`, { description: desc }),
-  hold:      (id, reason)  => api.post(`/ops/parcels/${id}/hold`, { reason }),
-  release:   (id)          => api.post(`/ops/parcels/${id}/release`),
-}
 
 /** Editable pricing tiers + fees + promotions */
 export const pricingTiersApi = {
@@ -712,8 +704,12 @@ export const waApi = {
   // Orders / pipeline
   orders: (params = {}) => api.get('/wa/orders', { params }),
   order: (id) => api.get(`/wa/orders/${id}`),
-  createOrder: (contact_id, product_links = [], product_note = null) =>
-    api.post('/wa/orders', { contact_id, product_links, product_note }),
+  /** Create an order. `status` drops it straight into a later stage for
+   *  work that arrived mid-flight; `notify` opts into telling the customer. */
+  createOrder: (contact_id, product_links = [], product_note = null, extra = {}) =>
+    api.post('/wa/orders', { contact_id, product_links, product_note, ...extra }),
+  /** Add someone who reached out somewhere other than WhatsApp. */
+  addContact: (data) => api.post('/wa/contacts', data),
   scan: (code) => api.get(`/wa/orders/scan/${encodeURIComponent(code)}`),
   quote: (id, usd_price) =>
     api.post(`/wa/orders/${id}/quote`, { usd_price },

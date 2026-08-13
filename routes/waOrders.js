@@ -15,9 +15,9 @@ import { idempotency } from '../middleware/idempotency.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { getUsdToKesRate, FxRateUnavailableError } from '../utils/fx.js';
 import { getWaSettings } from '../utils/waSettings.js';
-import { transition, isValidEdge } from '../utils/waOrderFlow.js';
+import { transition, isValidEdge, sendCustomerStatusMessage } from '../utils/waOrderFlow.js';
 import { sendToContact } from '../utils/waSend.js';
-import { extractTrackingCode, extractCustomerCode } from '../utils/waCodes.js';
+import { extractTrackingCode, extractCustomerCode, nextTrackingCode } from '../utils/waCodes.js';
 import { createSignedDownloadUrl } from '../utils/supabaseAdmin.js';
 import { receiptShortUrl } from '../utils/receiptLink.js';
 import { markPaymentPaid } from '../utils/markPaymentPaid.js';
@@ -35,6 +35,18 @@ const router = express.Router();
 const STAFF = requireRole('operator'); // admins pass via requireRole's bypass
 
 const MPESA_TILL = mpesaTill();
+
+/**
+ * What to call an order in a message. Tracking codes only exist from
+ * payment onward, so before that fall back to the imported/original
+ * reference in product_note, then to a short id — the customer needs
+ * *something* to quote back at us.
+ */
+function orderRef(order) {
+  if (order.tracking_code) return order.tracking_code;
+  const noted = String(order.product_note || '').match(/^[A-Z]{2,4}-[\d-]+/);
+  return noted ? noted[0] : `#${String(order.id).slice(0, 8)}`;
+}
 
 /**
  * STK Push is only offered when an M-Pesa API provider is actually wired
@@ -115,7 +127,37 @@ router.get('/scan/:code', authMiddleware, STAFF, async (req, res) => {
   }
 });
 
-/** POST /api/wa/orders — create a quote-stage order from a conversation. */
+// Which timestamp column each stage stamps, and everything a stage
+// implies has already happened. An order logged as 'in_kenya' was also
+// quoted, paid and purchased — backfilling those keeps the customer's
+// tracking reply and the receipt honest.
+const STAGE_ORDER = ['quoting', 'quoted', 'confirmed', 'paid', 'purchased', 'in_kenya', 'delivery_fee_pending', 'dispatched', 'delivered'];
+const STAGE_STAMP = {
+  quoted: 'quoted_at', confirmed: 'confirmed_at', paid: 'paid_at',
+  purchased: 'purchased_at', in_kenya: 'arrived_at',
+  delivery_fee_pending: 'arrived_at', dispatched: 'dispatched_at',
+  delivered: 'delivered_at',
+};
+
+/**
+ * POST /api/wa/orders
+ *   { contact_id, product_links[], product_note?,
+ *     status?, quote_kes?, delivery_fee_kes?, notify? }
+ *
+ * Normally an order starts at 'quoting' and walks the pipeline. But work
+ * arrives mid-flight — someone paid by hand last week, a parcel is
+ * already in the Nairobi office, a customer came from Instagram with an
+ * order half-done. `status` drops the order in at that stage instead.
+ *
+ * Starting past 'confirmed' needs a `quote_kes`, because every later
+ * stage tells the customer an amount, and 'paid' onwards mints a tracking
+ * code — the code is the customer's handle on a parcel and must exist the
+ * moment money has changed hands.
+ *
+ * Silent by default: back-filling history should not text somebody about
+ * a parcel they received a week ago. Pass `notify: true` to send the
+ * stage's message anyway.
+ */
 router.post('/', authMiddleware, STAFF, async (req, res) => {
   try {
     const { contact_id, product_links, product_note } = req.body || {};
@@ -126,17 +168,71 @@ router.post('/', authMiddleware, STAFF, async (req, res) => {
       ? product_links.filter((l) => typeof l === 'string' && l.length < 2048).slice(0, 20)
       : [];
     const { rows: contactRows } = await req.db.query(
-      `SELECT id FROM wa_contacts WHERE id = $1`, [contact_id]
+      `SELECT id, phone, full_name FROM wa_contacts WHERE id = $1`, [contact_id]
     );
-    if (!contactRows[0]) return res.status(404).json({ success: false, message: 'Contact not found' });
+    const contact = contactRows[0];
+    if (!contact) return res.status(404).json({ success: false, message: 'Contact not found' });
+
+    const status = String(req.body?.status || 'quoting');
+    const stage = STAGE_ORDER.indexOf(status);
+    if (stage < 0) {
+      return res.status(400).json({
+        success: false,
+        message: `status must be one of: ${STAGE_ORDER.join(', ')}`,
+      });
+    }
+
+    const quoteKes = req.body?.quote_kes != null ? Math.round(Number(req.body.quote_kes)) : null;
+    if (stage >= STAGE_ORDER.indexOf('confirmed') && !(quoteKes > 0)) {
+      return res.status(400).json({
+        success: false,
+        message: `An order starting at '${status}' needs quote_kes — the customer is told this amount.`,
+      });
+    }
+    const feeKes = req.body?.delivery_fee_kes != null ? Math.round(Number(req.body.delivery_fee_kes)) : null;
+
+    // Stamp this stage and everything it implies, so the timeline reads
+    // as a real history rather than one lonely date.
+    const stamps = {};
+    for (const s of STAGE_ORDER.slice(0, stage + 1)) {
+      if (STAGE_STAMP[s]) stamps[STAGE_STAMP[s]] = 'NOW()';
+    }
+    const stampCols = Object.keys(stamps);
 
     const id = uuidv4();
+    const trackingCode = stage >= STAGE_ORDER.indexOf('paid') ? await nextTrackingCode(req.db) : null;
+
     const { rows } = await req.db.query(
-      `INSERT INTO wa_orders (id, contact_id, product_links, product_note)
-       VALUES ($1, $2, $3::jsonb, $4) RETURNING *`,
-      [id, contact_id, JSON.stringify(links), product_note || null]
+      `INSERT INTO wa_orders (id, contact_id, product_links, product_note, status,
+              tracking_code, quote_kes, delivery_fee_kes
+              ${stampCols.length ? ', ' + stampCols.join(', ') : ''})
+       VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8
+              ${stampCols.length ? ', ' + stampCols.map(() => 'NOW()').join(', ') : ''})
+       RETURNING *`,
+      [id, contact_id, JSON.stringify(links), product_note || null, status,
+       trackingCode, quoteKes, feeKes]
     );
-    res.status(201).json({ success: true, order: rows[0] });
+    const order = rows[0];
+
+    await req.db.query(
+      `INSERT INTO wa_order_events (id, order_id, from_status, to_status, actor_user_id, note)
+       VALUES ($1, $2, NULL, $3, $4, $5)`,
+      [uuidv4(), id, status, req.user.id,
+       status === 'quoting' ? 'Order created' : `Order added directly at '${status}' by an operator`]
+    );
+    pushToStaff('wa_pipeline_update', { order_id: id, status, contact_id });
+
+    // Opt-in only — see the note above about texting people about parcels
+    // they already have.
+    if (req.body?.notify === true && status !== 'quoting') {
+      try {
+        await sendCustomerStatusMessage(req.db, contact, order);
+      } catch (e) {
+        console.warn('[waOrders] back-dated order notify failed (non-fatal):', e?.message);
+      }
+    }
+
+    res.status(201).json({ success: true, order });
   } catch (err) {
     logRouteError(req, res, err, 'POST /api/wa/orders');
     res.status(500).json({ success: false, message: 'Failed to create order' });
@@ -212,9 +308,8 @@ router.post('/:id/quote', authMiddleware, STAFF, idempotency, async (req, res) =
       // Must cover every variable of the tc_quote template
       // (sentdm-templates.json) — WhatsApp rejects partial fills.
       templateParams: {
-        usd_price: usd.toFixed(2),
-        fx_rate: Number(rate).toFixed(2),
-        markup_pct: String(markup),
+        full_name: order.full_name,
+        order_ref: order.tracking_code || orderRef(order),
         total_kes: quoteKes.toLocaleString('en-KE'),
       },
       text:

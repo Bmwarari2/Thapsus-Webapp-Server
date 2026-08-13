@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { KanbanSquare, Search, ScanLine, MessageSquareText, RefreshCw } from 'lucide-react'
+import { KanbanSquare, Search, ScanLine, MessageSquareText, RefreshCw, UserPlus, PackagePlus} from 'lucide-react'
 import toast from 'react-hot-toast'
 import { waApi } from '../../api'
 import { GlassStyles, GlassCard, PageHeading, StatusBadge } from '../../components/GlassUI'
 import { BarcodeScanner } from '../../components/BarcodeScanner'
+import { AddOrderModal, AddCustomerModal } from '../../components/AddOrderModal'
 import { useWaPipelineUpdates } from '../../hooks/useRealtimeUpdates'
 
 // The five visual columns of the spec, each grouping its DB statuses.
@@ -21,6 +22,8 @@ export function Pipeline() {
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
   const [scanOpen, setScanOpen] = useState(false)
+  const [addOrderOpen, setAddOrderOpen] = useState(false)
+  const [addCustomerOpen, setAddCustomerOpen] = useState(false)
   const navigate = useNavigate()
 
   const load = useCallback(async (query = '') => {
@@ -64,7 +67,15 @@ export function Pipeline() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <PageHeading icon={KanbanSquare} title="Order Pipeline"
           subtitle="Quoting → Paid → Purchased → In Kenya → Delivered" />
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => setAddCustomerOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-line text-white hover:bg-white/10 transition-colors">
+            <UserPlus size={18} /> Customer
+          </button>
+          <button onClick={() => setAddOrderOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-ember-600 hover:bg-ember-500 text-white font-semibold transition-colors">
+            <PackagePlus size={18} /> Add order
+          </button>
           <button onClick={() => setScanOpen(true)}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-line text-white hover:bg-white/10 transition-colors">
             <ScanLine size={18} /> Scan
@@ -127,6 +138,13 @@ export function Pipeline() {
       </div>
 
       <BarcodeScanner open={scanOpen} onScan={onScan} onClose={() => setScanOpen(false)} />
+      {addCustomerOpen && (
+        <AddCustomerModal onClose={() => setAddCustomerOpen(false)} onAdded={() => load(q)} />
+      )}
+      {addOrderOpen && (
+        <AddOrderModal onClose={() => setAddOrderOpen(false)}
+          onCreated={(o) => navigate(`/ops/orders/${o.id}`)} />
+      )}
     </div>
   )
 }

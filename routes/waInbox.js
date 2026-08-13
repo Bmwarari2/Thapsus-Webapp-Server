@@ -9,6 +9,9 @@ import express from 'express';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { sendToContact } from '../utils/waSend.js';
+import { normalizeKenyanPhone } from '../utils/lipanaClient.js';
+import { nextCustomerCode } from '../utils/waCodes.js';
+import { pushToStaff } from '../routes/events.js';
 import {
   createSignedUploadUrl,
   createSignedDownloadUrl,
@@ -164,6 +167,89 @@ router.post('/conversations/:contactId/read', authMiddleware, STAFF, async (req,
  * PUT /api/wa/contacts/:contactId — operator fixes profile details or
  * blocks/unblocks. Only whitelisted fields.
  */
+/**
+ * POST /api/wa/contacts
+ *   { phone, full_name?, delivery_address?, mpesa_number?, source?, note? }
+ *
+ * Add someone who reached us somewhere else — Instagram, TikTok, a phone
+ * call, a friend of a friend. The WhatsApp flow normally creates contacts
+ * itself from an inbound message, but plenty of customers arrive by other
+ * routes and still need a Customer Code and a place in the pipeline.
+ *
+ * The rules are the same as the conversational path, deliberately: the
+ * M-Pesa number goes through normalizeKenyanPhone, the code is only
+ * minted once the profile is complete, and the state reflects what is
+ * still missing so the assistant picks up exactly where this left off if
+ * they do message in later.
+ *
+ * Re-adding an existing number is not an error — it fills in the blanks
+ * on the row that is already there and hands it back.
+ */
+router.post('/contacts', authMiddleware, STAFF, async (req, res) => {
+  try {
+    const phone = normalizeKenyanPhone(req.body?.phone)
+      || String(req.body?.phone || '').replace(/\D/g, '');   // non-Kenyan numbers are fine too
+    if (!phone || phone.length < 9 || phone.length > 15) {
+      return res.status(400).json({ success: false, message: 'A valid phone number is required' });
+    }
+
+    const str = (v, max) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
+    const fullName = str(req.body?.full_name, 120);
+    const address = str(req.body?.delivery_address, 400);
+    const mpesa = req.body?.mpesa_number ? normalizeKenyanPhone(req.body.mpesa_number) : null;
+    if (req.body?.mpesa_number && !mpesa) {
+      return res.status(400).json({ success: false, message: 'That M-Pesa number is not a valid Kenyan number' });
+    }
+
+    // Where they came from is worth keeping — it is the only record that
+    // this person did not arrive through WhatsApp.
+    const source = str(req.body?.source, 40);
+    const note = [source ? `Reached out via ${source}.` : null, str(req.body?.note, 300)]
+      .filter(Boolean).join(' ') || null;
+
+    const state = (fullName && address && mpesa) ? 'active'
+      : !fullName ? 'awaiting_name'
+      : !address ? 'awaiting_address'
+      : 'awaiting_mpesa';
+
+    const { rows } = await req.db.query(
+      `INSERT INTO wa_contacts (id, phone, full_name, delivery_address, mpesa_number, state, ai_summary)
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6)
+       ON CONFLICT (phone) DO UPDATE SET
+         full_name        = COALESCE(wa_contacts.full_name, EXCLUDED.full_name),
+         delivery_address = COALESCE(wa_contacts.delivery_address, EXCLUDED.delivery_address),
+         mpesa_number     = COALESCE(wa_contacts.mpesa_number, EXCLUDED.mpesa_number),
+         ai_summary       = COALESCE(wa_contacts.ai_summary, EXCLUDED.ai_summary),
+         updated_at       = NOW()
+       RETURNING *`,
+      [phone, fullName, address, mpesa, state, note]
+    );
+    let contact = rows[0];
+
+    // Promote + code, using the merged row rather than what was posted —
+    // an existing contact may already hold the missing pieces.
+    if (!contact.customer_code
+        && contact.full_name && contact.delivery_address && contact.mpesa_number) {
+      const code = await nextCustomerCode(req.db);
+      const { rows: coded } = await req.db.query(
+        `UPDATE wa_contacts SET customer_code = $2, state = 'active', updated_at = NOW()
+          WHERE id = $1 RETURNING *`,
+        [contact.id, code]
+      );
+      contact = coded[0];
+      pushToStaff('wa_new_customer', {
+        contact_id: contact.id, customer_code: code,
+        full_name: contact.full_name, phone: contact.phone,
+      });
+    }
+
+    res.status(201).json({ success: true, contact });
+  } catch (err) {
+    logRouteError(req, res, err, 'POST /api/wa/contacts');
+    res.status(500).json({ success: false, message: 'Failed to add contact' });
+  }
+});
+
 router.put('/contacts/:contactId', authMiddleware, STAFF, async (req, res) => {
   try {
     const allowed = ['full_name', 'delivery_address', 'mpesa_number'];

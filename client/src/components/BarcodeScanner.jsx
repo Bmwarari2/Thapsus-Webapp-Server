@@ -5,7 +5,7 @@
 // closes the camera stream so the indicator light goes off the moment
 // the operator dismisses the sheet.
 //
-// Used by OpsConsole.jsx to replace the manual barcode text input.
+// Used by the pipeline board to scan a parcel back in.
 // Designed to also work inside the Receive modal (see usage there).
 
 import React, { useEffect, useRef, useState } from 'react'
@@ -13,7 +13,7 @@ import { Camera, X, AlertTriangle, Loader2 } from 'lucide-react'
 
 // Lazy-load @zxing/browser so the operator console only pays the
 // ~50kb cost when they actually open the scanner. Keeps the
-// initial OpsConsole bundle small.
+// initial pipeline bundle small.
 async function loadReader() {
   const mod = await import('@zxing/browser')
   return new mod.BrowserMultiFormatReader()

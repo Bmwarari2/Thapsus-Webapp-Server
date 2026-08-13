@@ -82,7 +82,7 @@ export async function transition(db, orderId, toStatus, opts = {}) {
       return { ok: false, reason: `invalid transition ${order.status} → ${toStatus}` };
     }
     const { rows: contactRows } = await client.query(
-      `SELECT id, phone FROM wa_contacts WHERE id = $1`,
+      `SELECT id, phone, full_name FROM wa_contacts WHERE id = $1`,
       [order.contact_id]
     );
     contact = contactRows[0] || { id: order.contact_id, phone: null };
@@ -140,13 +140,18 @@ export async function transition(db, orderId, toStatus, opts = {}) {
   return { ok: true, status: finalStatus };
 }
 
-async function sendCustomerStatusMessage(db, contact, order, settings) {
+/**
+ * The customer-facing message for a stage. Exported so an order added
+ * directly at a later stage can opt into the same copy the pipeline
+ * would have sent.
+ */
+export async function sendCustomerStatusMessage(db, contact, order, settings) {
   const code = order.tracking_code || '';
   switch (order.status) {
     case 'purchased':
       return sendToContact(db, contact, {
         templateKey: 'purchased',
-        templateParams: { tracking_code: code },
+        templateParams: { full_name: contact.full_name, order_ref: code },
         text:
           `Your item has been purchased and is on its way to our facility. ` +
           `Track it anytime by sending your code ${code}.`,
@@ -186,7 +191,7 @@ async function sendCustomerStatusMessage(db, contact, order, settings) {
     case 'delivered':
       return sendToContact(db, contact, {
         templateKey: 'delivered',
-        templateParams: { tracking_code: code },
+        templateParams: { order_ref: code, full_name: contact.full_name },
         text:
           `${code} has been delivered — asante for shopping with Thapsus Cargo. ` +
           `Send us another link any time.`,

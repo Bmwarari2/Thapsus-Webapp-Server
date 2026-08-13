@@ -341,7 +341,7 @@ best-effort and never blocks or fails a mutation.
 ## 11. Things that look weird but are intentional
 
 - **Retired tables were never dropped.** Renaming or dropping breaks the drift checker for no gain, and legacy orders still read them. A later `0006_legacy_readonly.sql` may revoke writes; actual DROPs stay owner-triggered.
-- **`routes/orders.js`, `parcels.js`, `ops.js` are still mounted.** They drain pre-WhatsApp orders. `POST /api/orders` is 410-stubbed so no *new* legacy orders can be created while the read/update surface stays alive.
+- **`routes/orders.js` and `parcels.js` are still mounted.** Two pre-WhatsApp orders are still open, and public tracking falls back to them. `POST /api/orders` is 410-stubbed so no *new* legacy orders can be created while the read surface stays alive. `routes/ops.js` went with the console it served.
 - **`utils/lipanaClient.js` and the STK code paths are dead but present.** `MPESA_PROVIDER` flips them back on if a provider becomes available. Deleting them would mean rewriting the integration from scratch.
 - **The migration auto-runner is opt-in.** `RUN_MIGRATIONS_ON_BOOT=true` only, so concurrent Railway deploys can't race on DDL.
 - **The drift checker can't parse `FOR UPDATE OF <alias>`.** Queries use plain single-table `FOR UPDATE` and a separate fetch instead. It isn't a style preference.

@@ -151,18 +151,18 @@ curl -N -H "Authorization: Bearer <sc_token>" https://thapsus.uk/api/events
 
 ## Admin
 
-`/api/admin/*` (36 endpoints) keeps user management, error logs, exchange
-rates and the legacy order/transaction surfaces. The live dashboard uses
-users and error logs; the rest exists to finish pre-WhatsApp work.
+`/api/admin/*` keeps user management, error logs, exchange rates and the
+legacy order/transaction surfaces. `/ops/team` uses the users and
+error-log endpoints; the rest exists to finish pre-WhatsApp work and has
+no screen behind it.
 
 ---
 
 ## Legacy drain — operator only
 
-`/api/orders` (GET/PUT only — **`POST` is 410 Gone**), `/api/parcels`,
-`/api/ops/*` (8 endpoints: today, parcels, receive, screen, hold,
-release, customer, by-barcode). These retire once the last pre-WhatsApp
-order is delivered.
+`/api/orders` (GET/PUT only — **`POST` is 410 Gone**) and `/api/parcels`.
+`/api/ops/*` was removed with the warehouse console it served. These
+retire once the last pre-WhatsApp order is delivered.
 
 ---
 

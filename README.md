@@ -141,7 +141,7 @@ POST /api/wa/webhook              — inbound WhatsApp (raw body, HMAC-verified,
 GET  /r/:token                    — short receipt link → signed PDF redirect
      /sitemap.xml, /robots.txt, /health
 
-     /api/orders, /api/parcels, /api/ops, /api/admin   — legacy drain, operator-only
+     /api/orders, /api/parcels, /api/admin             — legacy drain, operator-only
 POST /api/orders                  — 410 Gone: new orders come through WhatsApp
 POST /api/auth/register           — 410 Gone: no customer accounts
 ```
@@ -158,8 +158,7 @@ is authoritative.
 | `/ops/orders/:id` | operator | Quote, payment, status, fee, receipt, printable label |
 | `/ops/payments` | admin | Manual M-Pesa approval queue |
 | `/ops/settings` | admin | Markup, promo, AI knowledge base, templates, webhook doctor |
-| `/ops` | operator | Legacy warehouse console — drains pre-WhatsApp parcels |
-| `/admin` | admin | User management + error logs |
+| `/ops/team` | admin | Staff accounts + recent server errors |
 
 ## Testing & CI
 

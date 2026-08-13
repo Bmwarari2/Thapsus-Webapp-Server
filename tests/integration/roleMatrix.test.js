@@ -33,7 +33,7 @@ const ROUTE_MATRIX = [
   { method: 'get', path: '/api/admin/stats',         allow: ['admin'] },
   { method: 'get', path: '/api/admin/users',         allow: ['admin'] },
   { method: 'get', path: '/api/admin/error-logs',    allow: ['admin'] },
-  { method: 'get', path: '/api/ops/today',           allow: ['operator', 'admin'] },
+  { method: 'get', path: '/api/wa/conversations',    allow: ['operator', 'admin'] },
 ];
 
 // Per-role test users created in beforeAll.
