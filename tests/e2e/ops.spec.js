@@ -23,7 +23,8 @@ test('admin signs in and lands on the inbox', async ({ page }) => {
 test('the team screen lists staff accounts', async ({ page }) => {
   await login(page, ADMIN.email, ADMIN.password);
   await page.goto('/ops/team');
-  await expect(page.getByText('Team')).toBeVisible({ timeout: 15_000 });
+  // 'Team' on its own also matches the nav link, so anchor on the heading.
+  await expect(page.getByRole('heading', { name: 'Team', level: 1 })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(ADMIN.email).first()).toBeVisible({ timeout: 15_000 });
 });
 
