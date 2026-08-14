@@ -164,9 +164,37 @@ router.post('/conversations/:contactId/read', authMiddleware, STAFF, async (req,
 });
 
 /**
- * PUT /api/wa/contacts/:contactId — operator fixes profile details or
- * blocks/unblocks. Only whitelisted fields.
+ * Read a phone number the way an operator typed it.
+ *
+ * Kenyan numbers come in every shape and normalizeKenyanPhone knows them
+ * all. Anything else has to carry its country code, because bare digits
+ * are ambiguous: '9607218089' is a perfectly good Maldives number and
+ * also what a mistyped Kenyan one looks like. Requiring the + means we
+ * never have to guess which.
+ *
+ * The stored form is bare digits either way — sentdm's toE164() puts the
+ * + back on the way out — and nothing downstream assumes Kenya, so any
+ * country code works. The 8-digit floor is there for typos, not
+ * geography: the shortest real international numbers run to about that.
+ *
+ * @returns {{phone: string|null, error: string|null}}
  */
+function parseContactPhone(input) {
+  const raw = String(input || '').trim();
+  const international = /^(\+|00)/.test(raw);
+  const phone = normalizeKenyanPhone(raw)
+    || (international ? raw.replace(/\D/g, '').replace(/^00/, '') : null);
+  if (!phone || phone.length < 8 || phone.length > 15) {
+    return {
+      phone: null,
+      error: international
+        ? 'That international number does not look right — check the country code and digits.'
+        : 'Enter a Kenyan number (07…, 01… or +254…), or a number from anywhere else with its country code (+44…).',
+    };
+  }
+  return { phone, error: null };
+}
+
 /**
  * POST /api/wa/contacts
  *   { phone, full_name?, delivery_address?, mpesa_number?, source?, note? }
@@ -176,22 +204,21 @@ router.post('/conversations/:contactId/read', authMiddleware, STAFF, async (req,
  * itself from an inbound message, but plenty of customers arrive by other
  * routes and still need a Customer Code and a place in the pipeline.
  *
- * The rules are the same as the conversational path, deliberately: the
- * M-Pesa number goes through normalizeKenyanPhone, the code is only
- * minted once the profile is complete, and the state reflects what is
- * still missing so the assistant picks up exactly where this left off if
- * they do message in later.
+ * A name is enough to earn a Customer Code here, which is where this
+ * parts company with the conversational path. The assistant has to ask
+ * for the address and M-Pesa number before it can call anyone a customer;
+ * an operator typing the row in already knows who they are, and wants a
+ * code to quote them straight away. The state still records what is
+ * missing, so if they message in later the assistant asks for exactly
+ * that and nothing else.
  *
  * Re-adding an existing number is not an error — it fills in the blanks
  * on the row that is already there and hands it back.
  */
 router.post('/contacts', authMiddleware, STAFF, async (req, res) => {
   try {
-    const phone = normalizeKenyanPhone(req.body?.phone)
-      || String(req.body?.phone || '').replace(/\D/g, '');   // non-Kenyan numbers are fine too
-    if (!phone || phone.length < 9 || phone.length > 15) {
-      return res.status(400).json({ success: false, message: 'A valid phone number is required' });
-    }
+    const { phone, error } = parseContactPhone(req.body?.phone);
+    if (!phone) return res.status(400).json({ success: false, message: error });
 
     const str = (v, max) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
     const fullName = str(req.body?.full_name, 120);
@@ -226,15 +253,20 @@ router.post('/contacts', authMiddleware, STAFF, async (req, res) => {
     );
     let contact = rows[0];
 
-    // Promote + code, using the merged row rather than what was posted —
-    // an existing contact may already hold the missing pieces.
-    if (!contact.customer_code
-        && contact.full_name && contact.delivery_address && contact.mpesa_number) {
+    // Code them, using the merged row rather than what was posted — an
+    // existing contact may already hold the pieces this request left out.
+    // 'active' still means the profile is complete; a coded contact who is
+    // short an address or M-Pesa number keeps the state that says so.
+    if (!contact.customer_code && contact.full_name) {
+      const complete = contact.delivery_address && contact.mpesa_number;
       const code = await nextCustomerCode(req.db);
       const { rows: coded } = await req.db.query(
-        `UPDATE wa_contacts SET customer_code = $2, state = 'active', updated_at = NOW()
+        `UPDATE wa_contacts
+            SET customer_code = $2,
+                state = CASE WHEN $3::boolean THEN 'active' ELSE state END,
+                updated_at = NOW()
           WHERE id = $1 RETURNING *`,
-        [contact.id, code]
+        [contact.id, code, Boolean(complete)]
       );
       contact = coded[0];
       pushToStaff('wa_new_customer', {
@@ -250,6 +282,15 @@ router.post('/contacts', authMiddleware, STAFF, async (req, res) => {
   }
 });
 
+/**
+ * PUT /api/wa/contacts/:contactId — operator fixes profile details or
+ * blocks/unblocks. Only whitelisted fields.
+ *
+ * The phone number is editable here because a mistyped one is the single
+ * thing an operator most needs to correct and the least able to work
+ * around: every message to that contact goes nowhere until it is right.
+ * It is validated exactly as it is on the way in.
+ */
 router.put('/contacts/:contactId', authMiddleware, STAFF, async (req, res) => {
   try {
     const allowed = ['full_name', 'delivery_address', 'mpesa_number'];
@@ -261,16 +302,53 @@ router.put('/contacts/:contactId', authMiddleware, STAFF, async (req, res) => {
         sets.push(`${field} = $${params.length}`);
       }
     }
+    if (req.body?.phone !== undefined) {
+      const { phone, error } = parseContactPhone(req.body.phone);
+      if (!phone) return res.status(400).json({ success: false, message: error });
+      params.push(phone);
+      sets.push(`phone = $${params.length}`);
+    }
     if (req.body?.blocked === true) { params.push('blocked'); sets.push(`state = $${params.length}`); }
     if (req.body?.blocked === false) { params.push('active'); sets.push(`state = $${params.length}`); }
     if (sets.length === 0) return res.status(400).json({ success: false, message: 'Nothing to update' });
     sets.push('updated_at = NOW()');
-    const { rows } = await req.db.query(
-      `UPDATE wa_contacts SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
-      params
-    );
-    if (!rows[0]) return res.status(404).json({ success: false, message: 'Contact not found' });
-    res.json({ success: true, contact: rows[0] });
+
+    let rows;
+    try {
+      ({ rows } = await req.db.query(
+        `UPDATE wa_contacts SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
+        params
+      ));
+    } catch (e) {
+      // phone carries a UNIQUE constraint; two rows for one person is a
+      // merge decision, not something to make silently.
+      if (e?.code === '23505') {
+        return res.status(409).json({
+          success: false,
+          message: 'Another contact already has that number.',
+        });
+      }
+      throw e;
+    }
+    let contact = rows[0];
+    if (!contact) return res.status(404).json({ success: false, message: 'Contact not found' });
+
+    // Same rule as adding one: a name is enough to be worth a code. This
+    // is how a contact added before their name was known catches up.
+    if (!contact.customer_code && contact.full_name) {
+      const code = await nextCustomerCode(req.db);
+      const { rows: coded } = await req.db.query(
+        `UPDATE wa_contacts SET customer_code = $2, updated_at = NOW() WHERE id = $1 RETURNING *`,
+        [contact.id, code]
+      );
+      contact = coded[0];
+      pushToStaff('wa_new_customer', {
+        contact_id: contact.id, customer_code: code,
+        full_name: contact.full_name, phone: contact.phone,
+      });
+    }
+
+    res.json({ success: true, contact });
   } catch (err) {
     logRouteError(req, res, err, 'PUT /api/wa/contacts/:contactId');
     res.status(500).json({ success: false, message: 'Failed to update contact' });

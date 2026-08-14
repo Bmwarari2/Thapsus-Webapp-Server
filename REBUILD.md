@@ -193,8 +193,10 @@ Two behaviours here were learned the hard way and are worth knowing:
   `GET /v3/messages/{id}`, with `inbound_number` as a fallback.
 
 Signatures are Svix-style: `x-webhook-id`, `x-webhook-timestamp`,
-`x-webhook-signature`, HMAC-SHA256 over `${id}.${ts}.${rawBody}`, ±300s
-tolerance. The webhook mounts before `express.json()` with the raw body
+`x-webhook-signature`, HMAC-SHA256 over `${id}.${ts}.${rawBody}`, with a
+24h staleness bound (`SENTDM_WEBHOOK_TOLERANCE_SECONDS`) — sent.dm signs
+once at creation and replays the same timestamp on every retry, so a
+five-minute window rejects anything their queue delays. The webhook mounts before `express.json()` with the raw body
 preserved, and ACKs before running bot replies so a slow reply can't
 cause a provider retry.
 

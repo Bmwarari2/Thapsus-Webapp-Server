@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createHmac } from 'node:crypto';
 import {
   verifyWebhookSignature,
@@ -41,7 +41,8 @@ describe('verifyWebhookSignature', () => {
 
   it('accepts a correctly signed delivery', () => {
     const ts = Math.floor(Date.now() / 1000);
-    expect(verifyWebhookSignature(headersFor(ts), raw)).toEqual({ valid: true });
+    expect(verifyWebhookSignature(headersFor(ts), raw))
+      .toEqual({ valid: true, lateBySeconds: 0 });
   });
 
   it('rejects a tampered body', () => {
@@ -51,9 +52,39 @@ describe('verifyWebhookSignature', () => {
     expect(verifyWebhookSignature(headers, tampered).valid).toBe(false);
   });
 
-  it('rejects a stale timestamp (replay window)', () => {
-    const stale = Math.floor(Date.now() / 1000) - 3600;
-    expect(verifyWebhookSignature(headersFor(stale), raw).valid).toBe(false);
+  it('accepts a retry the provider queued for 19 minutes', () => {
+    // The 14 Aug break. sent.dm signs once at creation and replays the
+    // same signature and timestamp on every retry, so a backed-up queue
+    // used to mean a 401 the event could never recover from — it just
+    // retried once a minute until the provider gave up.
+    const late = Math.floor(Date.now() / 1000) - 19 * 60;
+    const r = verifyWebhookSignature(headersFor(late), raw);
+    expect(r.valid).toBe(true);
+    expect(r.lateBySeconds).toBeGreaterThan(300);
+  });
+
+  it('rejects a timestamp old enough not to be live traffic', () => {
+    const ancient = Math.floor(Date.now() / 1000) - 2 * 86_400;
+    const r = verifyWebhookSignature(headersFor(ancient), raw);
+    expect(r.valid).toBe(false);
+    expect(r.reason).toMatch(/outside tolerance/);
+  });
+
+  it('rejects a timestamp from the future beyond tolerance', () => {
+    const ahead = Math.floor(Date.now() / 1000) + 2 * 86_400;
+    expect(verifyWebhookSignature(headersFor(ahead), raw).valid).toBe(false);
+  });
+
+  it('honours SENTDM_WEBHOOK_TOLERANCE_SECONDS', async () => {
+    // Read at module load, so this asserts the override is wired rather
+    // than re-importing: a fresh module registry picks up the env var.
+    process.env.SENTDM_WEBHOOK_TOLERANCE_SECONDS = '60';
+    vi.resetModules();
+    const { verifyWebhookSignature: verifyTight } = await import('../../utils/sentdm.js');
+    const late = Math.floor(Date.now() / 1000) - 600;
+    expect(verifyTight(headersFor(late), raw).valid).toBe(false);
+    delete process.env.SENTDM_WEBHOOK_TOLERANCE_SECONDS;
+    vi.resetModules();
   });
 
   it('rejects when headers are missing', () => {
@@ -86,14 +117,37 @@ describe('parseInboundEvent', () => {
     expect(parseInboundEvent({
       field: 'message', sub_type: 'message.status',
       payload: { message_id: 'abc', message_status: 'DELIVERED' },
-    })).toEqual({ kind: 'message_status', messageId: 'abc', status: 'DELIVERED' });
+    })).toEqual({ kind: 'message_status', messageId: 'abc', status: 'DELIVERED', error: null });
   });
 
   it('detects a status event encoded in the event name', () => {
     expect(parseInboundEvent({
       field: 'message', event: 'message.failed',
       payload: { message_id: 'abc' },
-    })).toEqual({ kind: 'message_status', messageId: 'abc', status: 'FAILED' });
+    })).toEqual({ kind: 'message_status', messageId: 'abc', status: 'FAILED', error: null });
+  });
+
+  it('keeps the provider error off a failed status', () => {
+    // The shape the archived platform recorded: WhatsApp's own error
+    // array. The Meta code is the part worth keeping — 131026 means the
+    // number cannot receive from us, which is actionable; "failed" is not.
+    const event = parseInboundEvent({
+      field: 'message', event: 'message.failed',
+      payload: {
+        message_id: 'abc',
+        errors: [{ code: 131026, title: 'Message undeliverable' }],
+      },
+    });
+    expect(event.status).toBe('FAILED');
+    expect(event.error).toContain('131026');
+  });
+
+  it('keeps a string error verbatim', () => {
+    const event = parseInboundEvent({
+      field: 'message', sub_type: 'message.status',
+      payload: { message_id: 'abc', message_status: 'FAILED', error_message: 'Recipient blocked' },
+    });
+    expect(event.error).toBe('Recipient blocked');
   });
 
   it('ignores events without a message id', () => {

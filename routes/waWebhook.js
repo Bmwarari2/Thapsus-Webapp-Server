@@ -32,14 +32,21 @@ import {
 import { handleInbound } from '../utils/waStateMachine.js';
 import { pushToStaff } from './events.js';
 import { logError } from '../utils/errorLogger.js';
+import { notifyStaff } from '../utils/waStaffAlert.js';
 
 const PREVIEW_LEN = 120;
 
 export async function waWebhookHandler(req, res) {
-  const { valid, reason } = verifyWebhookSignature(req.headers, req.body);
+  const { valid, reason, lateBySeconds } = verifyWebhookSignature(req.headers, req.body);
   if (!valid) {
     console.warn(`[wa-webhook] rejected: ${reason}`);
     return res.status(401).json({ success: false, message: reason });
+  }
+  if (lateBySeconds) {
+    // Authentic, just slow to arrive. Process it — an inbound message is
+    // worth answering late — but say so, because a backed-up provider
+    // queue is the shape of trouble that looks like silence.
+    console.warn(`[wa-webhook] delivery was ${lateBySeconds}s late — provider queue is behind`);
   }
 
   let payload;
@@ -72,10 +79,32 @@ export async function waWebhookHandler(req, res) {
     if (event.kind === 'message_status') {
       const mapped = mapProviderStatus(event.status);
       if (mapped) {
+        // Record WHY a send failed, not just that it did.
+        //
+        // waSend only fills wa_messages.error when the send call itself
+        // throws. A message the provider accepts and WhatsApp rejects
+        // later fails asynchronously, right here — and this used to write
+        // the status and nothing else, so every such failure read as a
+        // bare "failed" with no reason anywhere. The archived platform
+        // kept these (that is where "131026 Message undeliverable" in the
+        // old rows comes from); this one had quietly stopped.
+        const reason = mapped === 'failed'
+          ? (event.error || await failureReasonFor(event.messageId))
+          : null;
         await req.db.query(
-          `UPDATE wa_messages SET status = $2 WHERE provider_message_id = $1`,
-          [event.messageId, mapped]
+          `UPDATE wa_messages
+              SET status = $2,
+                  error = COALESCE($3, error)
+            WHERE provider_message_id = $1`,
+          [event.messageId, mapped, reason]
         );
+        if (mapped === 'failed') {
+          console.warn(`[wa-webhook] delivery failed for ${event.messageId}: ${reason || 'no reason given'}`);
+          // A customer who was never reached looks exactly like a customer
+          // who was, unless somebody opens the inbox and reads the small
+          // grey word under the bubble. Tell staff instead.
+          alertStaffOfFailedSend(req.db, event.messageId, reason).catch(() => {});
+        }
       }
       return res.json({ received: true, status: mapped || 'ignored' });
     }
@@ -90,6 +119,59 @@ export async function waWebhookHandler(req, res) {
       stack: err?.stack,
     });
     return res.json({ received: true, error: 'processing_failed' });
+  }
+}
+
+/**
+ * Tell staff we could not reach a customer.
+ *
+ * The two live examples are worth naming. One number rejects everything we
+ * send it while its owner keeps messaging us; and every arrival and
+ * dispatch alert has no approved template, so once a customer's 24-hour
+ * window closes those notifications cannot be delivered at all. In both
+ * cases the parcel keeps moving and the customer hears nothing, and the
+ * only trace is a grey "failed" under a bubble nobody is looking at.
+ *
+ * Deduped per message, and best-effort: an alert we cannot send is not a
+ * reason to fail the webhook.
+ */
+async function alertStaffOfFailedSend(db, providerMessageId, reason) {
+  const { rows } = await db.query(
+    `SELECT m.body, c.full_name, c.phone, c.customer_code
+       FROM wa_messages m JOIN wa_contacts c ON c.id = m.contact_id
+      WHERE m.provider_message_id = $1`,
+    [providerMessageId]
+  );
+  const m = rows[0];
+  if (!m) return;
+  const who = [m.full_name, m.customer_code, m.phone].filter(Boolean).join(' · ');
+  await notifyStaff(db, {
+    title: 'Customer did not receive a message',
+    detail: `${who} — "${String(m.body || '').slice(0, 140)}" — ${reason || 'no reason given'}`,
+    dedupeKey: `send-failed:${providerMessageId}`,
+  });
+}
+
+/**
+ * Ask the provider why a message failed, when the status event didn't say.
+ *
+ * Best-effort by design: this runs inside the webhook ACK path, and a
+ * reason we couldn't fetch is not worth failing the delivery over. The
+ * status still lands either way.
+ */
+async function failureReasonFor(messageId) {
+  try {
+    const data = await fetchMessage(messageId);
+    const m = data?.data ?? data ?? {};
+    for (const key of ['error', 'errors', 'error_message', 'failure_reason']) {
+      const v = m[key];
+      if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 2000);
+      if (v && typeof v === 'object') return JSON.stringify(v).slice(0, 2000);
+    }
+    return null;
+  } catch (e) {
+    console.warn(`[wa-webhook] could not fetch failure reason for ${messageId}: ${e?.message}`);
+    return null;
   }
 }
 
