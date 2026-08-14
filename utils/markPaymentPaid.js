@@ -368,7 +368,7 @@ async function fireWaOrderPostPaidHook(db, payment) {
 
   try {
     const { generateAndStoreReceipt } = await import('./receiptPdf.js');
-    const { receiptShortUrl } = await import('./receiptLink.js');
+    const { receiptShortUrl, receiptToken } = await import('./receiptLink.js');
     const path = await generateAndStoreReceipt({ order, contact, payment });
     await db.query(
       `UPDATE wa_orders SET receipt_path = $2, updated_at = NOW() WHERE id = $1`,
@@ -380,7 +380,12 @@ async function fireWaOrderPostPaidHook(db, payment) {
     if (url) {
       await sendToContact(db, contact, {
         templateKey: 'receipt',
-        templateParams: { tracking_code: order.tracking_code || '', receipt_url: url },
+        // The template writes the domain itself and takes the bare
+        // token; the free-text fallback still needs the whole link.
+        templateParams: {
+          tracking_code: order.tracking_code || '',
+          receipt_token: receiptToken(order),
+        },
         text: `Here's your receipt for ${order.tracking_code}: ${url}`,
       });
     }

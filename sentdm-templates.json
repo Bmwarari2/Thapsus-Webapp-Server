@@ -1,5 +1,5 @@
 {
-  "_readme": "WhatsApp message templates for the Thapsus Cargo flow — upload/create these in the sent.dm console (channel: whatsapp, language: en). Variable names match exactly what the app sends as template parameters; samples are included for Meta review. After approval, map them in /ops/settings → 'sent.dm template map' using the key → name pairs shown in _template_map_after_approval.",
+  "_readme": "WhatsApp message templates for the Thapsus Cargo flow — create these in the sent.dm console (channel: whatsapp, language: en). Approved templates take POSITIONAL variables ({{1}}, {{2}}, … in body order), which sent.dm sends as var_1..var_N; the named placeholders still shown on the older entries below are the app's own field names, and utils/waTemplateVars.js is what maps one onto the other. Two rules Meta enforces: a body may not end in a variable, and a variable should not be an entire URL — which is why the receipt body writes the domain itself and takes only the token. After approval, map key → name in /ops/settings → 'sent.dm template map'.",
   "_template_map_after_approval": {
     "welcome": "tc_welcome",
     "welcome_media": "tc_welcome_media",
@@ -57,7 +57,13 @@
       "body": {
         "template": "You're all set. Your customer code is *{{customer_code}}* — keep it handy, it goes on all your parcels.\n\nSend us a product link any time and we'll get you a quote.",
         "variables": [
-          { "name": "customer_code", "type": "text", "props": { "sample": "TC-1042" } }
+          {
+            "name": "customer_code",
+            "type": "text",
+            "props": {
+              "sample": "TC-1042"
+            }
+          }
         ]
       }
     },
@@ -69,10 +75,34 @@
       "body": {
         "template": "*Your quote is ready*\n\nItem price: ${{usd_price}}\nExchange rate: 1 USD = {{fx_rate}} KES\nService margin: {{markup_pct}}%\n*Total: KSh {{total_kes}}*\n\nReply *YES* to confirm and we'll send the M-Pesa payment prompt.",
         "variables": [
-          { "name": "usd_price", "type": "text", "props": { "sample": "120.00" } },
-          { "name": "fx_rate", "type": "text", "props": { "sample": "129.50" } },
-          { "name": "markup_pct", "type": "text", "props": { "sample": "10" } },
-          { "name": "total_kes", "type": "text", "props": { "sample": "17,094" } }
+          {
+            "name": "usd_price",
+            "type": "text",
+            "props": {
+              "sample": "120.00"
+            }
+          },
+          {
+            "name": "fx_rate",
+            "type": "text",
+            "props": {
+              "sample": "129.50"
+            }
+          },
+          {
+            "name": "markup_pct",
+            "type": "text",
+            "props": {
+              "sample": "10"
+            }
+          },
+          {
+            "name": "total_kes",
+            "type": "text",
+            "props": {
+              "sample": "17,094"
+            }
+          }
         ]
       }
     },
@@ -84,7 +114,13 @@
       "body": {
         "template": "Great! Your order is confirmed at *KSh {{amount_kes}}*.\n\nTo pay: Lipa na M-Pesa → Buy Goods → Till *5530500* → KSh {{amount_kes}}.\n\nReply here once you've paid and we'll confirm it right away.",
         "variables": [
-          { "name": "amount_kes", "type": "text", "props": { "sample": "17,094" } }
+          {
+            "name": "amount_kes",
+            "type": "text",
+            "props": {
+              "sample": "17,094"
+            }
+          }
         ]
       }
     },
@@ -96,7 +132,13 @@
       "body": {
         "template": "Asante. We've got your payment notification ({{reference}}) and our team is verifying it with M-Pesa now.\n\nWe'll confirm here as soon as it clears and send your tracking code — usually within a few minutes.",
         "variables": [
-          { "name": "reference", "type": "text", "props": { "sample": "SHL9XK2QRT" } }
+          {
+            "name": "reference",
+            "type": "text",
+            "props": {
+              "sample": "SHL9XK2QRT"
+            }
+          }
         ]
       }
     },
@@ -108,7 +150,13 @@
       "body": {
         "template": "Payment received — asante.\n\nYour tracking code is *{{tracking_code}}*. Text it to us any time to check on your parcel.\n\nWe're purchasing your item now and will keep you posted.",
         "variables": [
-          { "name": "tracking_code", "type": "text", "props": { "sample": "TRK-8821" } }
+          {
+            "name": "tracking_code",
+            "type": "text",
+            "props": {
+              "sample": "TRK-8821"
+            }
+          }
         ]
       }
     },
@@ -118,10 +166,10 @@
       "language": "en",
       "category": "UTILITY",
       "body": {
-        "template": "Here's your receipt for {{tracking_code}}: {{receipt_url}}\n\nKeep it for your records — and remember you can text your tracking code any time for a status update.",
-        "variables": [
-          { "name": "tracking_code", "type": "text", "props": { "sample": "TRK-8821" } },
-          { "name": "receipt_url", "type": "text", "props": { "sample": "https://thapsus.uk/r/TRK-8821.k3n9x2qp4a" } }
+        "template": "Your receipt for order {{1}} is ready at thapsus.uk/r/{{2}} — keep it for your records.",
+        "samples": [
+          "TRK-8829",
+          "TRK-8829.vtDo2gQ"
         ]
       }
     },
@@ -133,7 +181,13 @@
       "body": {
         "template": "Your item has been purchased and is on its way to our facility.\n\nTrack it anytime by sending your code *{{tracking_code}}*.",
         "variables": [
-          { "name": "tracking_code", "type": "text", "props": { "sample": "TRK-8821" } }
+          {
+            "name": "tracking_code",
+            "type": "text",
+            "props": {
+              "sample": "TRK-8821"
+            }
+          }
         ]
       }
     },
@@ -143,10 +197,10 @@
       "language": "en",
       "category": "UTILITY",
       "body": {
-        "template": "*{{tracking_code}}* has arrived in Kenya.\n\nLast step: a delivery fee of *KSh {{fee_kes}}* gets it to your door. We'll send an M-Pesa prompt — or reply here if you have any questions.",
-        "variables": [
-          { "name": "tracking_code", "type": "text", "props": { "sample": "TRK-8821" } },
-          { "name": "fee_kes", "type": "text", "props": { "sample": "300" } }
+        "template": "Your parcel {{1}} has arrived in Kenya. Last step: a delivery fee of KES {{2}} gets it to your door. Pay on M-Pesa Buy Goods, Till 5530500, then reply here and we will confirm it.",
+        "samples": [
+          "TRK-8829",
+          "300"
         ]
       }
     },
@@ -156,9 +210,9 @@
       "language": "en",
       "category": "UTILITY",
       "body": {
-        "template": "*{{tracking_code}}* has arrived in Kenya.\n\nGood news — your delivery fee is on us. We'll dispatch it to your address shortly.",
-        "variables": [
-          { "name": "tracking_code", "type": "text", "props": { "sample": "TRK-8821" } }
+        "template": "Your parcel {{1}} has arrived in Kenya. Good news: your delivery fee is on us. We will dispatch it to your address shortly.",
+        "samples": [
+          "TRK-8829"
         ]
       }
     },
@@ -168,9 +222,9 @@
       "language": "en",
       "category": "UTILITY",
       "body": {
-        "template": "*{{tracking_code}}* is out for delivery to your address.\n\nExpect it within 24 hours. Our rider will call you on arrival.",
-        "variables": [
-          { "name": "tracking_code", "type": "text", "props": { "sample": "TRK-8821" } }
+        "template": "Your parcel {{1}} is out for delivery to your address. Expect it within 24 hours. Our rider will call you on arrival.",
+        "samples": [
+          "TRK-8829"
         ]
       }
     },
@@ -182,7 +236,13 @@
       "body": {
         "template": "*{{tracking_code}}* has been delivered — asante for shopping with Thapsus Cargo.\n\nSend us another link any time.",
         "variables": [
-          { "name": "tracking_code", "type": "text", "props": { "sample": "TRK-8821" } }
+          {
+            "name": "tracking_code",
+            "type": "text",
+            "props": {
+              "sample": "TRK-8821"
+            }
+          }
         ]
       }
     }

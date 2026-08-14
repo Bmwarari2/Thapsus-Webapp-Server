@@ -19,7 +19,7 @@ import { transition, isValidEdge, sendCustomerStatusMessage } from '../utils/waO
 import { sendToContact } from '../utils/waSend.js';
 import { extractTrackingCode, extractCustomerCode, nextTrackingCode } from '../utils/waCodes.js';
 import { createSignedDownloadUrl } from '../utils/supabaseAdmin.js';
-import { receiptShortUrl } from '../utils/receiptLink.js';
+import { receiptShortUrl, receiptToken } from '../utils/receiptLink.js';
 import { markPaymentPaid } from '../utils/markPaymentPaid.js';
 import {
   attachMpesaReference, ensureManualPayment, extractMpesaReference,
@@ -703,7 +703,10 @@ router.post('/:id/receipt/resend', authMiddleware, STAFF, async (req, res) => {
     const url = receiptShortUrl(order);
     await sendToContact(req.db, contact, {
       templateKey: 'receipt',
-      templateParams: { tracking_code: order.tracking_code || '', receipt_url: url },
+      templateParams: {
+        tracking_code: order.tracking_code || '',
+        receipt_token: receiptToken(order),
+      },
       text: `Here's your receipt for ${order.tracking_code}: ${url}`,
       sentBy: req.user.id,
     });

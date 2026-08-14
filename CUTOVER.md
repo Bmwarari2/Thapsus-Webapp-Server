@@ -77,6 +77,22 @@ pre-approved templates:
    e.g. `{ "purchased": "tc_purchased_v1", … }`. Unmapped keys keep
    falling back to free-form text.
 
+**Which ones actually matter.** `arrived_waived`, `arrived_fee` and
+`dispatched` fire two to three weeks after the customer last wrote to
+us, so their window is always shut and free text is always refused —
+without these three the customer is never told the parcel landed, never
+told a fee is owed, and never told it is out for delivery. `receipt` is
+next; the rest are replies inside a live conversation, where free text
+is fine.
+
+Two rules Meta enforces, both learned the hard way: a body may not end
+in a variable, and a variable may not be the whole of a URL. That is why
+the receipt body writes the domain itself — "…ready at
+thapsus.uk/r/{{2}}" — and takes the bare token. `utils/waTemplateVars.js`
+holds the approved copy beside each variable ordering, and the ordering
+is the entire contract: the names mean nothing to sent.dm, only the
+positions.
+
 ## 5. Post-deploy cleanup (after the deploy is verified)
 
 Remove now-dead Railway variables (nothing in the new code reads them):
