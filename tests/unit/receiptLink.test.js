@@ -24,6 +24,17 @@ describe('receipt short links', () => {
     expect(mod.receiptShortUrl({ id: order.id, tracking_code: null })).toBeNull();
   });
 
+  it('exposes the bare token the approved template needs', () => {
+    // The template body writes the domain — "…ready at thapsus.uk/r/{{2}}"
+    // — so the variable must be the token alone. Meta will not approve a
+    // body ending in a variable, which a full URL would have forced.
+    const token = mod.receiptToken(order);
+    expect(token).toMatch(/^TRK-8821\.[A-Za-z0-9_-]{12}$/);
+    expect(token).not.toMatch(/^https?:\/\//);
+    expect(mod.receiptShortUrl(order).endsWith(`/r/${token}`)).toBe(true);
+    expect(mod.receiptToken({ id: order.id, tracking_code: null })).toBeNull();
+  });
+
   it('round-trips through parse + verify', () => {
     const token = mod.receiptShortUrl(order).split('/r/')[1];
     const parsed = mod.parseReceiptToken(token);

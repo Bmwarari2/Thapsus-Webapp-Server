@@ -42,6 +42,35 @@ export const TEMPLATE_SLOTS = {
     body: 'Order {{1}} has been delivered. Thanks for shopping with us, {{2}} — how did we do?',
     vars: ['order_ref', 'full_name'],
   },
+
+  // The four below cover the stages that had no approved template at all,
+  // which meant they could only ever go out as free text — and free text
+  // is refused once the customer's 24-hour window shuts. Arrival and
+  // dispatch land two to three weeks after a customer last writes to us,
+  // so in practice those two could never be delivered to anyone.
+  //
+  // Declared here ahead of approval so that mapping them in Settings is
+  // the only remaining step. Until a key appears in wa_settings
+  // template_map nothing reads these, so they are inert.
+  arrived_waived: {
+    body: 'Your parcel {{1}} has arrived in Kenya. Good news: your delivery fee is on us. We will dispatch it to your address shortly.',
+    vars: ['tracking_code'],
+  },
+  arrived_fee: {
+    body: 'Your parcel {{1}} has arrived in Kenya. Last step: a delivery fee of KES {{2}} gets it to your door. Pay on M-Pesa Buy Goods, Till 5530500, then reply here and we will confirm it.',
+    vars: ['tracking_code', 'fee_kes'],
+  },
+  dispatched: {
+    body: 'Your parcel {{1}} is out for delivery to your address. Expect it within 24 hours. Our rider will call you on arrival.',
+    vars: ['tracking_code'],
+  },
+  receipt: {
+    // The domain is written into the approved body, so this takes the
+    // bare token — Meta rejects a body that ends in a variable, which is
+    // what a trailing full URL would have been.
+    body: 'Your receipt for order {{1}} is ready at thapsus.uk/r/{{2}} — keep it for your records.',
+    vars: ['tracking_code', 'receipt_token'],
+  },
 };
 
 /**
@@ -74,6 +103,12 @@ const FALLBACK = {
   order_ref: 'your order',
   total_kes: '0',
   expires_at: 'soon',
+  tracking_code: 'your parcel',
+  fee_kes: '0',
+  // No sensible stand-in for a link. An order without a tracking code has
+  // no receipt to point at, and these templates only fire after payment,
+  // so this should never be reached.
+  receipt_token: '—',
 };
 
 /** The fields a caller must supply for a key, for tests and call sites. */

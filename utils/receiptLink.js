@@ -45,8 +45,25 @@ export function publicBaseUrl() {
  *   tracking code yet (nothing to name the link after).
  */
 export function receiptShortUrl(order) {
+  const token = receiptToken(order);
+  return token ? `${publicBaseUrl()}/r/${token}` : null;
+}
+
+/**
+ * Just the `TRK-8821.k3n9x2qp4a` part, with no origin in front.
+ *
+ * The approved WhatsApp template writes the domain itself — "…ready at
+ * thapsus.uk/r/{{2}}" — because Meta will not approve a body that ends in
+ * a variable, and a hardcoded domain reads as more trustworthy than a
+ * variable that is nothing but a URL. So the template gets the token and
+ * the free-text fallback still gets the whole link.
+ *
+ * @param {{id: string, tracking_code: string|null}} order
+ * @returns {string|null} null when there is no tracking code to name it after.
+ */
+export function receiptToken(order) {
   if (!order?.id || !order?.tracking_code || !SECRET) return null;
-  return `${publicBaseUrl()}/r/${order.tracking_code}.${signature(order.id)}`;
+  return `${order.tracking_code}.${signature(order.id)}`;
 }
 
 /**
