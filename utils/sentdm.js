@@ -22,7 +22,8 @@
 //   • Webhook: headers x-webhook-id / x-webhook-timestamp /
 //       x-webhook-signature; signature = "v1," + base64(HMAC-SHA256(
 //       base64decode(secret minus "whsec_"), `${id}.${ts}.` + rawBody));
-//       ±300s timestamp tolerance. Event JSON: { field: "message",
+//       timestamp signed once at creation and replayed unchanged on every
+//       retry — see WEBHOOK_TOLERANCE_SECONDS. Event JSON: { field: "message",
 //       event|sub_type: "message.*", timestamp, payload: { message_id,
 //       message_status?, … } }.
 //
@@ -30,7 +31,35 @@
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-const WEBHOOK_TOLERANCE_SECONDS = 300;
+/**
+ * How stale a signed webhook may be before we refuse it.
+ *
+ * This started at the Svix-conventional 300s and that was wrong for this
+ * provider. Svix's five minutes assumes the sender re-signs each retry
+ * with a fresh timestamp; sent.dm signs once when the event is created
+ * and replays the identical signature and timestamp on every retry. So
+ * whenever their delivery queue backs up — one did on 14 Aug, holding an
+ * event 19 minutes — every retry arrives already stale, earns a 401, and
+ * is retried again. The event can never land, and it retried once a
+ * minute until the provider gave up. That time it was an intermediate
+ * 'SENT' status for a message that reached 'delivered' anyway, so nothing
+ * was lost. Had the same queue held a message.received, we would have
+ * silently dropped a customer's message: no inbox row, no reply, no trace
+ * beyond a 401 in the logs.
+ *
+ * Widening this costs little, because the timestamp was never what makes
+ * a replay harmless here — the unique provider_message_id is. Replaying a
+ * message.received hits that unique index and does nothing; replaying a
+ * status re-applies the status it already had. The window's remaining job
+ * is to reject payloads old enough to be obviously not live traffic.
+ */
+const WEBHOOK_TOLERANCE_SECONDS =
+  Number(process.env.SENTDM_WEBHOOK_TOLERANCE_SECONDS) > 0
+    ? Number(process.env.SENTDM_WEBHOOK_TOLERANCE_SECONDS)
+    : 86_400;
+
+/** Late enough to be worth noticing in the logs, but still processed. */
+const WEBHOOK_LATE_SECONDS = 300;
 
 /** Custom error so route layers can map sent.dm failures to clean 502s. */
 export class SentDmError extends Error {
@@ -263,8 +292,9 @@ export function verifyWebhookSignature(headers, rawBody) {
 
   const tsSeconds = Number(timestamp);
   if (!Number.isInteger(tsSeconds)) return { valid: false, reason: 'malformed timestamp' };
-  if (Math.abs(Math.floor(Date.now() / 1000) - tsSeconds) > WEBHOOK_TOLERANCE_SECONDS) {
-    return { valid: false, reason: 'timestamp outside tolerance' };
+  const ageSeconds = Math.floor(Date.now() / 1000) - tsSeconds;
+  if (Math.abs(ageSeconds) > WEBHOOK_TOLERANCE_SECONDS) {
+    return { valid: false, reason: `timestamp outside tolerance (${ageSeconds}s)` };
   }
 
   if (!secret.startsWith('whsec_')) return { valid: false, reason: 'malformed signing secret' };
@@ -286,7 +316,10 @@ export function verifyWebhookSignature(headers, rawBody) {
   const received = Buffer.from(signature, 'utf8');
   if (expected.length !== received.length) return { valid: false, reason: 'signature mismatch' };
   if (!timingSafeEqual(expected, received)) return { valid: false, reason: 'signature mismatch' };
-  return { valid: true };
+  // lateBySeconds is reported, not enforced: a delivery this old means the
+  // provider's queue is backed up, which is worth seeing in the logs
+  // before it turns into customers waiting on replies.
+  return { valid: true, lateBySeconds: ageSeconds > WEBHOOK_LATE_SECONDS ? ageSeconds : 0 };
 }
 
 /**

@@ -36,10 +36,16 @@ import { logError } from '../utils/errorLogger.js';
 const PREVIEW_LEN = 120;
 
 export async function waWebhookHandler(req, res) {
-  const { valid, reason } = verifyWebhookSignature(req.headers, req.body);
+  const { valid, reason, lateBySeconds } = verifyWebhookSignature(req.headers, req.body);
   if (!valid) {
     console.warn(`[wa-webhook] rejected: ${reason}`);
     return res.status(401).json({ success: false, message: reason });
+  }
+  if (lateBySeconds) {
+    // Authentic, just slow to arrive. Process it — an inbound message is
+    // worth answering late — but say so, because a backed-up provider
+    // queue is the shape of trouble that looks like silence.
+    console.warn(`[wa-webhook] delivery was ${lateBySeconds}s late — provider queue is behind`);
   }
 
   let payload;

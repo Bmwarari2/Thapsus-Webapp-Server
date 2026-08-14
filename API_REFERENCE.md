@@ -38,8 +38,8 @@ header and replay the stored response for a repeated key.
 
 sent.dm delivery. Mounted before the JSON body parser with the raw body
 preserved; verified as Svix-style HMAC over
-`${x-webhook-id}.${x-webhook-timestamp}.${rawBody}` with a ±300s
-tolerance. Deduped on `provider_message_id`. Returns 200 before running
+`${x-webhook-id}.${x-webhook-timestamp}.${rawBody}`, rejected beyond 24h
+(`SENTDM_WEBHOOK_TOLERANCE_SECONDS`). Deduped on `provider_message_id`. Returns 200 before running
 bot replies. Not called by anything you own.
 
 ---

@@ -296,8 +296,11 @@ Two webhooks mount before `express.json()` so signatures verify against
 the raw body:
 
 - `POST /api/wa/webhook` — sent.dm, Svix-style HMAC over
-  `${id}.${timestamp}.${rawBody}` with a ±300s tolerance. Idempotent via
-  the unique `wa_messages.provider_message_id`.
+  `${id}.${timestamp}.${rawBody}`. Idempotent via the unique
+  `wa_messages.provider_message_id`, which is also what makes a replay
+  harmless — so the staleness bound is 24h, not the Svix-conventional
+  300s. sent.dm reuses the original signature on every retry, so a tight
+  window rejects any event their queue holds.
 - `POST /api/payments/lipana/webhook` — HMAC over the raw body,
   idempotent via `lipana_events_seen (event_id PK)`.
 
