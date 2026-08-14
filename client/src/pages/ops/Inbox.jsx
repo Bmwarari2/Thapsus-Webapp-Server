@@ -11,6 +11,26 @@ import { useWaInboxUpdates, useWaNewCustomer } from '../../hooks/useRealtimeUpda
 
 const URL_RE = /https?:\/\/[^\s<>"')]+/g
 
+// WhatsApp's failure codes, said plainly, with what to do about it.
+// Anything unmapped falls through to the provider's own words rather than
+// a shrug — an operator can act on "Message undeliverable"; they cannot
+// act on "failed".
+const SEND_FAILURES = {
+  131026: 'Undeliverable — this number cannot receive WhatsApp from us. Check it is right and on WhatsApp.',
+  131047: 'Outside the 24-hour window. Send an approved template instead of free text.',
+  131049: 'Held back by WhatsApp to limit marketing messages to this person.',
+  132001: 'The template does not exist, or not in this language. Check the template map in Settings.',
+  470:    'Outside the 24-hour window. Send an approved template instead of free text.',
+}
+
+function describeSendFailure(raw) {
+  if (!raw) return 'Failed — no reason recorded. Newer failures capture one.'
+  const code = Number(String(raw).match(/"?(?:code|metaCode)"?\s*[:=]\s*"?(\d{3,6})/)?.[1])
+  if (SEND_FAILURES[code]) return `${SEND_FAILURES[code]} (${code})`
+  const message = String(raw).match(/"message"\s*:\s*"([^"]{3,180})"/)?.[1]
+  return message ? `Failed — ${message}` : `Failed — ${String(raw).slice(0, 180)}`
+}
+
 export function Inbox() {
   const [conversations, setConversations] = useState([])
   const [q, setQ] = useState('')
@@ -292,6 +312,13 @@ export function Inbox() {
                         {m.direction === 'out' && ` · ${m.status}`}
                         {m.direction === 'out' && !m.sent_by && ' · bot'}
                       </div>
+                      {m.status === 'failed' && (
+                        // "failed" on its own tells an operator nothing they
+                        // can act on. WhatsApp's reason usually does.
+                        <div className="text-[10px] mt-1 pt-1 border-t border-white/20 text-white/90">
+                          {describeSendFailure(m.error)}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

@@ -117,14 +117,37 @@ describe('parseInboundEvent', () => {
     expect(parseInboundEvent({
       field: 'message', sub_type: 'message.status',
       payload: { message_id: 'abc', message_status: 'DELIVERED' },
-    })).toEqual({ kind: 'message_status', messageId: 'abc', status: 'DELIVERED' });
+    })).toEqual({ kind: 'message_status', messageId: 'abc', status: 'DELIVERED', error: null });
   });
 
   it('detects a status event encoded in the event name', () => {
     expect(parseInboundEvent({
       field: 'message', event: 'message.failed',
       payload: { message_id: 'abc' },
-    })).toEqual({ kind: 'message_status', messageId: 'abc', status: 'FAILED' });
+    })).toEqual({ kind: 'message_status', messageId: 'abc', status: 'FAILED', error: null });
+  });
+
+  it('keeps the provider error off a failed status', () => {
+    // The shape the archived platform recorded: WhatsApp's own error
+    // array. The Meta code is the part worth keeping — 131026 means the
+    // number cannot receive from us, which is actionable; "failed" is not.
+    const event = parseInboundEvent({
+      field: 'message', event: 'message.failed',
+      payload: {
+        message_id: 'abc',
+        errors: [{ code: 131026, title: 'Message undeliverable' }],
+      },
+    });
+    expect(event.status).toBe('FAILED');
+    expect(event.error).toContain('131026');
+  });
+
+  it('keeps a string error verbatim', () => {
+    const event = parseInboundEvent({
+      field: 'message', sub_type: 'message.status',
+      payload: { message_id: 'abc', message_status: 'FAILED', error_message: 'Recipient blocked' },
+    });
+    expect(event.error).toBe('Recipient blocked');
   });
 
   it('ignores events without a message id', () => {

@@ -365,12 +365,33 @@ export function parseInboundEvent(payloadJson) {
     };
   }
   if (typeof p.message_status === 'string' && p.message_status) {
-    return { kind: 'message_status', messageId, status: p.message_status };
+    return { kind: 'message_status', messageId, status: p.message_status, error: extractError(p) };
   }
   // Status encoded in the event name (message.delivered, message.failed …)
   const m = name.match(/^message\.(\w+)$/i);
-  if (m) return { kind: 'message_status', messageId, status: m[1].toUpperCase() };
+  if (m) {
+    return { kind: 'message_status', messageId, status: m[1].toUpperCase(), error: extractError(p) };
+  }
   return { kind: 'ignored', reason: `unrecognized event ${name || '∅'}` };
+}
+
+/**
+ * Pull whatever the provider said about a failure out of a status payload.
+ *
+ * Which key carries it is not documented and has varied — the archived
+ * platform's rows show both a bare WhatsApp error array (code 131026,
+ * "Message undeliverable") and sent.dm's own envelope. So try the
+ * plausible names rather than betting on one, and keep the raw JSON: the
+ * Meta error code is the part worth reading, and summarising it here
+ * would throw away the only thing that identifies the failure.
+ */
+function extractError(payload) {
+  for (const key of ['error', 'errors', 'error_message', 'failure_reason', 'message_error']) {
+    const v = payload?.[key];
+    if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 2000);
+    if (v && typeof v === 'object') return JSON.stringify(v).slice(0, 2000);
+  }
+  return null;
 }
 
 /** Map sent.dm delivery statuses onto wa_messages.status values. */

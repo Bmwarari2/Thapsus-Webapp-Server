@@ -78,10 +78,28 @@ export async function waWebhookHandler(req, res) {
     if (event.kind === 'message_status') {
       const mapped = mapProviderStatus(event.status);
       if (mapped) {
+        // Record WHY a send failed, not just that it did.
+        //
+        // waSend only fills wa_messages.error when the send call itself
+        // throws. A message the provider accepts and WhatsApp rejects
+        // later fails asynchronously, right here — and this used to write
+        // the status and nothing else, so every such failure read as a
+        // bare "failed" with no reason anywhere. The archived platform
+        // kept these (that is where "131026 Message undeliverable" in the
+        // old rows comes from); this one had quietly stopped.
+        const reason = mapped === 'failed'
+          ? (event.error || await failureReasonFor(event.messageId))
+          : null;
         await req.db.query(
-          `UPDATE wa_messages SET status = $2 WHERE provider_message_id = $1`,
-          [event.messageId, mapped]
+          `UPDATE wa_messages
+              SET status = $2,
+                  error = COALESCE($3, error)
+            WHERE provider_message_id = $1`,
+          [event.messageId, mapped, reason]
         );
+        if (mapped === 'failed') {
+          console.warn(`[wa-webhook] delivery failed for ${event.messageId}: ${reason || 'no reason given'}`);
+        }
       }
       return res.json({ received: true, status: mapped || 'ignored' });
     }
@@ -96,6 +114,29 @@ export async function waWebhookHandler(req, res) {
       stack: err?.stack,
     });
     return res.json({ received: true, error: 'processing_failed' });
+  }
+}
+
+/**
+ * Ask the provider why a message failed, when the status event didn't say.
+ *
+ * Best-effort by design: this runs inside the webhook ACK path, and a
+ * reason we couldn't fetch is not worth failing the delivery over. The
+ * status still lands either way.
+ */
+async function failureReasonFor(messageId) {
+  try {
+    const data = await fetchMessage(messageId);
+    const m = data?.data ?? data ?? {};
+    for (const key of ['error', 'errors', 'error_message', 'failure_reason']) {
+      const v = m[key];
+      if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 2000);
+      if (v && typeof v === 'object') return JSON.stringify(v).slice(0, 2000);
+    }
+    return null;
+  } catch (e) {
+    console.warn(`[wa-webhook] could not fetch failure reason for ${messageId}: ${e?.message}`);
+    return null;
   }
 }
 
