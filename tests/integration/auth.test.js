@@ -35,8 +35,14 @@ async function seedUser({ role = 'operator', password = 'PassPhrase!23' } = {}) 
     `INSERT INTO users (id, email, password_hash, name, phone, role, warehouse_id,
                         language_pref, referral_code, is_active, email_verified_at)
      VALUES ($1, $2, $3, $4, '+254700000000', $5, $6, 'en', $7, true, NOW())`,
+    // warehouse_id and referral_code are both UNIQUE. Four hex characters
+    // is 65k values, and a run seeds a dozen users across this file,
+    // roleMatrix and waCreate — narrow enough that it eventually collided
+    // in CI and failed a test that has nothing to do with warehouse ids.
+    // The uuid is already unique; use enough of it to stay that way.
     [id, email, bcrypt.hashSync(password, 10), 'Vitest Staff', role,
-     `TC-${id.slice(0, 4).toUpperCase()}`, `REF${id.slice(0, 9).toUpperCase()}`]
+     `TC-VT-${id.replace(/-/g, '').slice(0, 12).toUpperCase()}`,
+     `REF${id.replace(/-/g, '').slice(0, 16).toUpperCase()}`]
   );
   return { id, email, password };
 }
