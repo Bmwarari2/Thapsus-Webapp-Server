@@ -32,6 +32,7 @@ import {
 import { handleInbound } from '../utils/waStateMachine.js';
 import { pushToStaff } from './events.js';
 import { logError } from '../utils/errorLogger.js';
+import { notifyStaff } from '../utils/waStaffAlert.js';
 
 const PREVIEW_LEN = 120;
 
@@ -99,6 +100,10 @@ export async function waWebhookHandler(req, res) {
         );
         if (mapped === 'failed') {
           console.warn(`[wa-webhook] delivery failed for ${event.messageId}: ${reason || 'no reason given'}`);
+          // A customer who was never reached looks exactly like a customer
+          // who was, unless somebody opens the inbox and reads the small
+          // grey word under the bubble. Tell staff instead.
+          alertStaffOfFailedSend(req.db, event.messageId, reason).catch(() => {});
         }
       }
       return res.json({ received: true, status: mapped || 'ignored' });
@@ -115,6 +120,36 @@ export async function waWebhookHandler(req, res) {
     });
     return res.json({ received: true, error: 'processing_failed' });
   }
+}
+
+/**
+ * Tell staff we could not reach a customer.
+ *
+ * The two live examples are worth naming. One number rejects everything we
+ * send it while its owner keeps messaging us; and every arrival and
+ * dispatch alert has no approved template, so once a customer's 24-hour
+ * window closes those notifications cannot be delivered at all. In both
+ * cases the parcel keeps moving and the customer hears nothing, and the
+ * only trace is a grey "failed" under a bubble nobody is looking at.
+ *
+ * Deduped per message, and best-effort: an alert we cannot send is not a
+ * reason to fail the webhook.
+ */
+async function alertStaffOfFailedSend(db, providerMessageId, reason) {
+  const { rows } = await db.query(
+    `SELECT m.body, c.full_name, c.phone, c.customer_code
+       FROM wa_messages m JOIN wa_contacts c ON c.id = m.contact_id
+      WHERE m.provider_message_id = $1`,
+    [providerMessageId]
+  );
+  const m = rows[0];
+  if (!m) return;
+  const who = [m.full_name, m.customer_code, m.phone].filter(Boolean).join(' · ');
+  await notifyStaff(db, {
+    title: 'Customer did not receive a message',
+    detail: `${who} — "${String(m.body || '').slice(0, 140)}" — ${reason || 'no reason given'}`,
+    dedupeKey: `send-failed:${providerMessageId}`,
+  });
 }
 
 /**

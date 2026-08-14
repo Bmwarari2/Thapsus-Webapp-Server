@@ -244,15 +244,31 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
     `from online stores abroad and delivers them to customers' doors in Kenya. Customers ` +
     `send product links, get a KES quote from the team, pay via M-Pesa, and track parcels ` +
     `by texting their tracking code.\n\n` +
-    `You are onboarding a NEW customer. Still needed from them: ${missing.join('; ') || 'nothing'}.\n` +
+    `You are completing this customer's profile. Still needed from them: ` +
+    `${missing.join('; ') || 'nothing'}.\n` +
     `- If this is the conversation's start, welcome them warmly and briefly explain how the ` +
     `service works before asking for the first missing detail.\n` +
     `- Ask for ONE missing detail at a time, but extract EVERY detail their message contains ` +
     `(people often give several at once).\n` +
     `- Answer any question they ask (using the knowledge base) before steering back to the ` +
     `next missing detail.\n` +
+    `- A greeting is not a name. "Hi", "Hello", "Hey", "Habari", "Niaje", "Sasa", "Karibu", ` +
+    `"Mambo", "Good morning" and the like are NEVER a full name — leave full_name null and ` +
+    `ask again.\n` +
     `- Put extracted details in the JSON fields (null when this message doesn't contain ` +
     `them); "reply" is your next message to the customer.\n\n` +
+    // The Eunice case: an operator had already placed and purchased her
+    // order, and the assistant — still finishing her profile — signed off
+    // with "you can now send us the product links". She had to ask
+    // whether anything was actually happening, and an operator stepped in
+    // to say the order was already placed. The order was right there in
+    // the context below; nothing told the model to look at it.
+    `IF THE ORDERS SECTION BELOW IS NOT "(none on file)", THIS IS NOT A NEW CUSTOMER.\n` +
+    `- Their order is already with us. NEVER ask them to send product links, and never imply ` +
+    `nothing has been ordered yet.\n` +
+    `- You are only filling gaps in their profile. Say so, and keep it brief.\n` +
+    `- Once nothing is missing, close by telling them where their existing order stands ` +
+    `(tracking code and what is happening next) — not by inviting a new one.\n\n` +
     `THIS CUSTOMER'S ORDERS (live from our system):\n${orderContext || '(none on file)'}\n\n` +
     `KNOWLEDGE BASE:\n${knowledgeBase || '(empty)'}\n${GUARDRAILS}`;
 

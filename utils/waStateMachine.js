@@ -283,6 +283,29 @@ export async function handleInbound(db, contact, message) {
   }
 }
 
+/**
+ * How to sign off once a profile is complete.
+ *
+ * "Send us a product link any time" is right for someone who has never
+ * ordered and wrong for everyone else. Eunice was told it three minutes
+ * after an operator placed and purchased TRK-8828 for her, and reasonably
+ * asked whether anything was happening at all. If there is work in
+ * flight, the sign-off should say where it is.
+ */
+async function signOffLine(db, contactId) {
+  const { rows } = await db.query(
+    `SELECT tracking_code, status FROM wa_orders
+      WHERE contact_id = $1 AND status NOT IN ('cancelled', 'delivered')
+      ORDER BY created_at DESC LIMIT 1`,
+    [contactId]
+  );
+  const open = rows[0];
+  if (!open) return `Send us a product link any time and we'll get you a quote.`;
+  const ref = open.tracking_code || 'Your order';
+  return `${ref} is already with us — ${(STATUS_LABEL[open.status] || open.status).toLowerCase()}. `
+    + `We'll message you as it moves. No need to send anything else for it.`;
+}
+
 /** One-line profile for the prompt: who the assistant is talking to. */
 function describeContact(contact) {
   const bits = [];
@@ -464,6 +487,28 @@ const MISSING_FIELD_PROMPT = {
 };
 
 /**
+ * Greetings and pleasantries people open with, which are not names.
+ *
+ * Eunice said "Hi" while we were waiting on her name and was answered
+ * with "Thanks Hi! What's your delivery address?" — the greeting went
+ * into full_name and the profile moved on. The prompt now tells the model
+ * the same thing, but the model is not the place to enforce it: this runs
+ * on the scripted path too, and a rule this cheap should not depend on
+ * whether the AI is having a good day.
+ */
+const NOT_A_NAME = /^(hi|hey|hello+|yo|habari|niaje|sasa|mambo|karibu|jambo|salamu|hola|good\s*(morning|afternoon|evening|day)|asante|thanks?|thank\s*you|ok(ay)?|sawa(sawa)?|yes|no|please|help|start|hi\s*there)\b[\s!.,]*$/i;
+
+/** Is this plausibly someone's name, rather than a greeting or a link? */
+export function looksLikeName(value) {
+  const name = String(value || '').trim();
+  if (name.length < 2 || name.length > 120) return false;
+  if (/^https?:\/\//i.test(name)) return false;
+  if (NOT_A_NAME.test(name)) return false;
+  // A name has letters in it; "0700092005" and "..." do not.
+  return /\p{L}{2,}/u.test(name);
+}
+
+/**
  * AI-first onboarding turn. Gemini produces the reply AND any profile
  * fields it spotted in the message; this function stays in charge of the
  * rules: field validation (normalizeKenyanPhone is the hard gate on the
@@ -496,9 +541,8 @@ async function aiOnboarding(db, contact, message, body, settings) {
 
   // Apply extracted fields under the same rules as the scripted flow.
   const fields = {};
-  if (!contact.full_name && turn.full_name
-      && turn.full_name.length >= 2 && !/^https?:\/\//i.test(turn.full_name)) {
-    fields.full_name = turn.full_name;
+  if (!contact.full_name && looksLikeName(turn.full_name)) {
+    fields.full_name = turn.full_name.trim();
   }
   if (!contact.delivery_address && turn.delivery_address && turn.delivery_address.length >= 5) {
     fields.delivery_address = turn.delivery_address;
@@ -563,7 +607,7 @@ async function aiOnboarding(db, contact, message, body, settings) {
       templateParams: { customer_code: customerCode },
       text:
         `You're all set. Your customer code is *${customerCode}* — keep it handy, it goes on all your parcels.\n\n` +
-        `Send us a product link any time and we'll get you a quote.`,
+        `${await signOffLine(db, contact.id)}`,
     });
   }
 }
@@ -597,7 +641,7 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
     }
 
     case 'awaiting_name': {
-      if (body.length < 2 || /^https?:\/\//i.test(body)) {
+      if (!looksLikeName(body)) {
         return sendToContact(db, contact, {
           text: `Please reply with your full name (as we should write it on your parcels).`,
         });
@@ -649,7 +693,7 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
         templateParams: { customer_code: customerCode },
         text:
           `You're all set. Your customer code is *${customerCode}* — keep it handy, it goes on all your parcels.\n\n` +
-          `Send us a product link any time and we'll get you a quote.`,
+          `${await signOffLine(db, contact.id)}`,
       });
     }
 

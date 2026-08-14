@@ -83,6 +83,23 @@ describe('onboarding', () => {
     expect(sendToContact.mock.calls[0][2].text).toMatch(/address/i);
   });
 
+  // Eunice said "Hi" while we were waiting on her name and got back
+  // "Thanks Hi! What's your delivery address?" — the greeting was stored
+  // as her name and the profile moved on without it.
+  it.each(['Hi', 'hello', 'Habari', 'Niaje', 'Good morning', 'asante', 'ok', '0700092005'])(
+    'does not accept %j as a full name', async (greeting) => {
+      const db = makeDb();
+      await handleInbound(db, contact({ state: 'awaiting_name' }), { id: 'm', body: greeting });
+      expect(db.query).not.toHaveBeenCalled();
+      expect(sendToContact.mock.calls[0][2].text).toMatch(/full name/i);
+    });
+
+  it('still accepts a one-word name', async () => {
+    const db = makeDb();
+    await handleInbound(db, contact({ state: 'awaiting_name' }), { id: 'm', body: 'Eunice' });
+    expect(db.query.mock.calls[0][1]).toContain('Eunice');
+  });
+
   it('stores the address and asks for the M-Pesa number', async () => {
     const db = makeDb();
     await handleInbound(db, contact({ state: 'awaiting_address' }), { id: 'm', body: 'Greenspan Estate, Donholm, Nairobi' });
@@ -344,6 +361,52 @@ describe('AI-first mode', () => {
     // completion announcement went out after the AI reply
     const texts = sendToContact.mock.calls.map(([, , o]) => o.text || '');
     expect(texts.some((t) => t.includes('TC-1042'))).toBe(true);
+    // No open order, so inviting a product link is the right sign-off.
+    expect(texts.some((t) => /product link/i.test(t))).toBe(true);
+  });
+
+  it('refuses a greeting the model offered as a name', async () => {
+    // The prompt tells the model a greeting is not a name, but the rule
+    // is enforced here so it holds on a bad day too.
+    const waAi = await ai();
+    waAi.onboardingTurn.mockResolvedValueOnce({
+      kind: 'reply', reply: 'Thanks!', full_name: 'Hi',
+      delivery_address: null, mpesa_number: null,
+    });
+    const db = makeDb();
+    await handleInbound(db, contact({
+      state: 'awaiting_name', full_name: null, customer_code: null,
+    }), { id: 'm1', body: 'Hi' });
+    const update = db.query.mock.calls.find(([sql]) => sql.includes('full_name'));
+    expect(update).toBeUndefined();
+  });
+
+  // Eunice's case. An operator had already placed and purchased TRK-8828
+  // for her; three minutes later, finishing her profile, we told her to
+  // "send us the product links". She had to ask whether anything was
+  // actually happening.
+  it('signs off with the order in flight, not a request for links', async () => {
+    const waAi = await ai();
+    waAi.onboardingTurn.mockResolvedValueOnce({
+      kind: 'reply',
+      reply: 'Asante!', full_name: null, delivery_address: null, mpesa_number: '0700092005',
+    });
+    const db = makeDb(async (sql) => {
+      if (sql.includes('nextval')) return { rows: [{ n: '1056' }] };
+      if (sql.includes('FROM wa_orders')) {
+        return { rows: [{ tracking_code: 'TRK-8828', status: 'purchased' }] };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    await handleInbound(db, contact({
+      state: 'awaiting_mpesa', full_name: 'Eunice Ngasura',
+      delivery_address: 'CBD', mpesa_number: null, customer_code: null,
+    }), { id: 'm1', body: '0700092005' });
+
+    const texts = sendToContact.mock.calls.map(([, , o]) => o.text || '');
+    const signOff = texts.find((t) => t.includes('TC-1056'));
+    expect(signOff).toMatch(/TRK-8828/);
+    expect(signOff).not.toMatch(/product link/i);
   });
 
   it('an invalid AI-extracted M-Pesa number is NOT stored (hard gate)', async () => {
