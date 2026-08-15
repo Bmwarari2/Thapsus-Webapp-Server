@@ -370,6 +370,19 @@ export function analyze(schema, sqlRaw, ctx, findings) {
 
 // ── CLI ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Key-sorted deep copy. Arrays keep their order — only object keys are
+ * normalised, so the committed snapshot is byte-stable across machines
+ * and re-runs.
+ */
+function sortDeep(value) {
+  if (Array.isArray(value)) return value.map(sortDeep);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().map((k) => [k, sortDeep(value[k])]));
+  }
+  return value;
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const snapArg = args.find((a) => a.startsWith('--snapshot'));
@@ -389,7 +402,11 @@ async function main() {
   }
 
   if (writeSnap) {
-    fs.writeFileSync(DEFAULT_SNAPSHOT, JSON.stringify(schema, null, 1) + '\n');
+    // Sorted, so the diff shows the schema change and nothing else. The
+    // database hands tables and columns back in whatever order it likes,
+    // which made a one-column migration land as a 1,300-line diff that
+    // no one could review.
+    fs.writeFileSync(DEFAULT_SNAPSHOT, JSON.stringify(sortDeep(schema), null, 1) + '\n');
     console.log(`✓ wrote ${path.relative(ROOT, DEFAULT_SNAPSHOT)} — ${Object.keys(schema.tables).length} tables, ${schema.types.length} custom types`);
     return;
   }

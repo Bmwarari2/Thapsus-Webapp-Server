@@ -1,3663 +1,3663 @@
 {
  "tables": {
   "_migrations": {
-   "filename": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
    "applied_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "filename": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "account_deletion_requests": {
-   "id": {
-    "t": "uuid",
-    "nn": true,
-    "hd": true
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "requested_at": {
-    "t": "timestamptz",
-    "nn": true,
-    "hd": true
-   },
-   "scheduled_deletion_at": {
-    "t": "timestamptz",
-    "nn": true,
-    "hd": false
+   "cancel_reason": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "cancelled_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "cancel_reason": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "timestamptz"
    },
    "completed_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "export_storage_path": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "export_signed_url": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "export_url_expires_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "export_generated_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
+    "t": "timestamptz"
    },
    "export_emailed_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "timestamptz"
+   },
+   "export_generated_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "export_signed_url": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "export_storage_path": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "export_url_expires_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "id": {
+    "hd": true,
+    "nn": true,
+    "t": "uuid"
+   },
+   "requested_at": {
+    "hd": true,
+    "nn": true,
+    "t": "timestamptz"
+   },
+   "scheduled_deletion_at": {
+    "hd": false,
+    "nn": true,
+    "t": "timestamptz"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "admin_logs": {
-   "id": {
-    "t": "text",
+   "action": {
+    "hd": false,
     "nn": true,
-    "hd": false
+    "t": "text"
    },
    "admin_id": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "action": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "details": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "details": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "agent_invoices": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
    "agent_id": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "consolidation_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "invoice_no": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "amount_kes": {
-    "t": "real",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "real"
    },
-   "doc_url": {
-    "t": "text",
+   "consolidation_id": {
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "notes": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "doc_url": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "invoice_no": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "notes": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "paid_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "timestamptz"
+   },
+   "status": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
    }
   },
   "aml_flags": {
+   "created_at": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
+   },
    "id": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "parcel_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "reason": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "resolved_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "resolved_by": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "notes": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
-   "created_at": {
-    "t": "timestamptz",
+   "parcel_id": {
+    "hd": false,
     "nn": false,
-    "hd": true
+    "t": "text"
+   },
+   "reason": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "resolved_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "resolved_by": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "status": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "auth_otps": {
-   "id": {
-    "t": "text",
+   "attempts": {
+    "hd": true,
     "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
+    "t": "integer"
    },
    "code_hash": {
-    "t": "bytea",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "purpose": {
-    "t": "text",
-    "nn": true,
-    "hd": true
-   },
-   "expires_at": {
-    "t": "timestamptz",
-    "nn": true,
-    "hd": false
+    "t": "bytea"
    },
    "consumed": {
-    "t": "boolean",
+    "hd": true,
     "nn": true,
-    "hd": true
-   },
-   "attempts": {
-    "t": "integer",
-    "nn": true,
-    "hd": true
+    "t": "boolean"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "expires_at": {
+    "hd": false,
+    "nn": true,
+    "t": "timestamptz"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "purpose": {
+    "hd": true,
+    "nn": true,
+    "t": "text"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "backups": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "filename": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "filepath": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "size_bytes": {
-    "t": "integer",
-    "nn": true,
-    "hd": false
-   },
    "checksum": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "created_by": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "created_by": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "filename": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "filepath": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "size_bytes": {
+    "hd": false,
+    "nn": true,
+    "t": "integer"
+   },
+   "status": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
    }
   },
   "buy_for_me_orders": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "retailer_url": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "item_name": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "size": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "qty": {
-    "t": "integer",
-    "nn": true,
-    "hd": true
-   },
-   "notes": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "estimate_gbp": {
-    "t": "real",
-    "nn": false,
-    "hd": false
-   },
-   "markup_pct": {
-    "t": "real",
-    "nn": false,
-    "hd": true
-   },
-   "status": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "parcel_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "created_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": true
-   },
-   "updated_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": true
-   },
-   "customer_decision_reason": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "quoted_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "decided_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
    "admin_decision_reason": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "alternative_url": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "alternative_note": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
+   },
+   "alternative_url": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "created_at": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "customer_decision_reason": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "decided_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "estimate_gbp": {
+    "hd": false,
+    "nn": false,
+    "t": "real"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "item_name": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "markup_pct": {
+    "hd": true,
+    "nn": false,
+    "t": "real"
+   },
+   "notes": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "parcel_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "qty": {
+    "hd": true,
+    "nn": true,
+    "t": "integer"
+   },
+   "quoted_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "retailer_url": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "size": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "status": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "updated_at": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "compliance_trainings": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "course": {
-    "t": "text",
-    "nn": true,
-    "hd": false
+   "cert_url": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "completed_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": true,
-    "hd": false
+    "t": "timestamptz"
    },
-   "expires_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "cert_url": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "notes": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+   "course": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "expires_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "notes": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "consolidations": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "week_start": {
-    "t": "date",
-    "nn": true,
-    "hd": false
-   },
-   "cutoff_at": {
-    "t": "timestamptz",
-    "nn": true,
-    "hd": false
-   },
-   "departure_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
    "arrival_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "total_kg": {
-    "t": "real",
-    "nn": false,
-    "hd": true
-   },
-   "total_parcels": {
-    "t": "integer",
-    "nn": false,
-    "hd": true
-   },
-   "master_awb_no": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "master_awb_pdf": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "tudor_invoice_no": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "tudor_invoice_pdf": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "manifest_pdf": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "timestamptz"
    },
    "assigned_agent_id": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "notes": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "cutoff_at": {
+    "hd": false,
+    "nn": true,
+    "t": "timestamptz"
+   },
+   "departure_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "manifest_pdf": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "master_awb_no": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "master_awb_pdf": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "notes": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "status": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "total_kg": {
+    "hd": true,
+    "nn": false,
+    "t": "real"
+   },
+   "total_parcels": {
+    "hd": true,
+    "nn": false,
+    "t": "integer"
+   },
+   "tudor_invoice_no": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "tudor_invoice_pdf": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "updated_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "week_start": {
+    "hd": false,
+    "nn": true,
+    "t": "date"
    }
   },
   "credit_ledger": {
-   "id": {
-    "t": "text",
+   "created_at": {
+    "hd": true,
     "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
+    "t": "timestamptz"
    },
    "delta_kes": {
-    "t": "bigint",
+    "hd": false,
     "nn": true,
-    "hd": false
+    "t": "bigint"
    },
-   "reason": {
-    "t": "text",
+   "id": {
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "source_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "note": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
-   "created_at": {
-    "t": "timestamptz",
+   "reason": {
+    "hd": false,
     "nn": true,
-    "hd": true
+    "t": "text"
+   },
+   "source_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "customer_consolidations": {
-   "id": {
-    "t": "uuid",
+   "created_at": {
+    "hd": true,
     "nn": true,
-    "hd": true
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "shipping_consolidation_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
-    "nn": true,
-    "hd": true
-   },
-   "invoice_amount": {
-    "t": "numeric",
-    "nn": false,
-    "hd": false
-   },
-   "invoice_currency": {
-    "t": "text",
-    "nn": true,
-    "hd": true
-   },
-   "invoice_status": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "invoice_paid_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "notes": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "timestamptz"
    },
    "created_by": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "created_at": {
-    "t": "timestamptz",
-    "nn": true,
-    "hd": true
-   },
-   "updated_at": {
-    "t": "timestamptz",
-    "nn": true,
-    "hd": true
+    "t": "text"
    },
    "description": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
+   },
+   "id": {
+    "hd": true,
+    "nn": true,
+    "t": "uuid"
+   },
+   "invoice_amount": {
+    "hd": false,
+    "nn": false,
+    "t": "numeric"
+   },
+   "invoice_currency": {
+    "hd": true,
+    "nn": true,
+    "t": "text"
+   },
+   "invoice_paid_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "invoice_status": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "is_standalone": {
-    "t": "boolean",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "boolean"
+   },
+   "notes": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "shipping_consolidation_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "status": {
+    "hd": true,
+    "nn": true,
+    "t": "text"
+   },
+   "updated_at": {
+    "hd": true,
+    "nn": true,
+    "t": "timestamptz"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "customs_entries": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "parcel_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
+   "admin_fee_kes": {
+    "hd": true,
+    "nn": false,
+    "t": "real"
    },
    "agent_id": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "idf_no": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "entry_no": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "cif_kes": {
-    "t": "real",
+    "hd": true,
     "nn": false,
-    "hd": true
-   },
-   "duty_kes": {
-    "t": "real",
-    "nn": false,
-    "hd": true
-   },
-   "vat_kes": {
-    "t": "real",
-    "nn": false,
-    "hd": true
-   },
-   "idf_kes": {
-    "t": "real",
-    "nn": false,
-    "hd": true
-   },
-   "rdl_kes": {
-    "t": "real",
-    "nn": false,
-    "hd": true
-   },
-   "admin_fee_kes": {
-    "t": "real",
-    "nn": false,
-    "hd": true
-   },
-   "status": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "notes": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "real"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
-   },
-   "updated_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": true
+    "t": "timestamptz"
    },
    "doc_url": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
+   },
+   "duty_kes": {
+    "hd": true,
+    "nn": false,
+    "t": "real"
+   },
+   "entry_no": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "idf_kes": {
+    "hd": true,
+    "nn": false,
+    "t": "real"
+   },
+   "idf_no": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "notes": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "parcel_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "rdl_kes": {
+    "hd": true,
+    "nn": false,
+    "t": "real"
+   },
+   "status": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "updated_at": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "vat_kes": {
+    "hd": true,
+    "nn": false,
+    "t": "real"
    }
   },
   "customs_tiers": {
-   "tier_key": {
-    "t": "varchar",
-    "nn": true,
-    "hd": false
-   },
-   "label": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
    "duty_pct": {
-    "t": "numeric",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "vat_pct": {
-    "t": "numeric",
-    "nn": true,
-    "hd": true
+    "t": "numeric"
    },
    "idf_pct": {
-    "t": "numeric",
+    "hd": true,
     "nn": true,
-    "hd": true
-   },
-   "rdl_pct": {
-    "t": "numeric",
-    "nn": true,
-    "hd": true
-   },
-   "notes": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "numeric"
    },
    "is_active": {
-    "t": "boolean",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "boolean"
    },
-   "updated_by": {
-    "t": "text",
+   "label": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "notes": {
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
+   },
+   "rdl_pct": {
+    "hd": true,
+    "nn": true,
+    "t": "numeric"
+   },
+   "tier_key": {
+    "hd": false,
+    "nn": true,
+    "t": "varchar"
    },
    "updated_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "updated_by": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "vat_pct": {
+    "hd": true,
+    "nn": true,
+    "t": "numeric"
    }
   },
   "dsar_requests": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "type": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
+   "created_at": {
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
    },
    "due_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "fulfilled_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
+    "t": "timestamptz"
    },
    "export_url": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
+   },
+   "fulfilled_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    },
    "notes": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
-   "created_at": {
-    "t": "timestamptz",
+   "status": {
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "text"
+   },
+   "type": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "electronics_fees": {
-   "id": {
-    "t": "uuid",
-    "nn": true,
-    "hd": true
-   },
-   "item_key": {
-    "t": "varchar",
-    "nn": true,
-    "hd": false
-   },
    "fee_gbp": {
-    "t": "numeric",
+    "hd": false,
     "nn": true,
-    "hd": false
+    "t": "numeric"
    },
-   "updated_by": {
-    "t": "uuid",
-    "nn": false,
-    "hd": false
-   },
-   "updated_at": {
-    "t": "timestamptz",
+   "id": {
+    "hd": true,
     "nn": true,
-    "hd": true
-   },
-   "label": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "min_weight_kg": {
-    "t": "numeric",
-    "nn": true,
-    "hd": true
+    "t": "uuid"
    },
    "is_active": {
-    "t": "boolean",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "boolean"
+   },
+   "item_key": {
+    "hd": false,
+    "nn": true,
+    "t": "varchar"
+   },
+   "label": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "min_weight_kg": {
+    "hd": true,
+    "nn": true,
+    "t": "numeric"
+   },
+   "updated_at": {
+    "hd": true,
+    "nn": true,
+    "t": "timestamptz"
+   },
+   "updated_by": {
+    "hd": false,
+    "nn": false,
+    "t": "uuid"
    }
   },
   "email_logs": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
+   "created_at": {
+    "hd": true,
     "nn": false,
-    "hd": false
+    "t": "timestamptz"
    },
    "email_to": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
+    "t": "text"
    },
    "email_type": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "subject": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
-    "nn": false,
-    "hd": true
+    "t": "text"
    },
    "error_message": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
-   "created_at": {
-    "t": "timestamptz",
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "status": {
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "text"
+   },
+   "subject": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    }
   },
   "email_verification_tokens": {
-   "id": {
-    "t": "text",
+   "created_at": {
+    "hd": true,
     "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "token_sha256": {
-    "t": "bytea",
-    "nn": true,
-    "hd": false
+    "t": "timestamptz"
    },
    "expires_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": true,
-    "hd": false
+    "t": "timestamptz"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "token_sha256": {
+    "hd": false,
+    "nn": true,
+    "t": "bytea"
    },
    "used": {
-    "t": "boolean",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "boolean"
    },
-   "created_at": {
-    "t": "timestamptz",
+   "user_id": {
+    "hd": false,
     "nn": true,
-    "hd": true
+    "t": "text"
    }
   },
   "error_logs": {
+   "created_at": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
+   },
    "id": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
+    "t": "text"
    },
    "level": {
-    "t": "text",
+    "hd": true,
     "nn": false,
-    "hd": true
-   },
-   "source": {
-    "t": "text",
-    "nn": true,
-    "hd": false
+    "t": "text"
    },
    "message": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "stack": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "method": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "path": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "status_code": {
-    "t": "integer",
-    "nn": false,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "meta": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
-   "created_at": {
-    "t": "timestamptz",
+   "method": {
+    "hd": false,
     "nn": false,
-    "hd": true
+    "t": "text"
+   },
+   "path": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "source": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "stack": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "status_code": {
+    "hd": false,
+    "nn": false,
+    "t": "integer"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    }
   },
   "exchange_rates": {
-   "id": {
-    "t": "integer",
-    "nn": true,
-    "hd": true
-   },
    "currency_pair": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
+    "t": "text"
+   },
+   "id": {
+    "hd": true,
+    "nn": true,
+    "t": "integer"
    },
    "rate": {
-    "t": "real",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "updated_by": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "real"
    },
    "updated_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "updated_by": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    }
   },
   "fees": {
-   "id": {
-    "t": "text",
+   "amount": {
+    "hd": false,
     "nn": true,
-    "hd": false
+    "t": "real"
    },
    "code": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "label": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "currency": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "amount": {
-    "t": "real",
-    "nn": true,
-    "hd": false
-   },
-   "is_percentage": {
-    "t": "boolean",
-    "nn": false,
-    "hd": true
-   },
-   "effective_from": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": true
-   },
-   "effective_to": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "is_active": {
-    "t": "boolean",
-    "nn": false,
-    "hd": true
-   },
-   "notes": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "currency": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "effective_from": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "effective_to": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "is_active": {
+    "hd": true,
+    "nn": false,
+    "t": "boolean"
+   },
+   "is_percentage": {
+    "hd": true,
+    "nn": false,
+    "t": "boolean"
+   },
+   "label": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "notes": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    }
   },
   "finance_accounts": {
-   "id": {
-    "t": "text",
+   "created_at": {
+    "hd": true,
     "nn": true,
-    "hd": false
-   },
-   "name": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "type": {
-    "t": "text",
-    "nn": true,
-    "hd": false
+    "t": "timestamptz"
    },
    "currency": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
+    "t": "text"
    },
-   "opening_balance_minor": {
-    "t": "bigint",
+   "id": {
+    "hd": false,
     "nn": true,
-    "hd": true
+    "t": "text"
    },
    "is_active": {
-    "t": "boolean",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "boolean"
    },
-   "created_at": {
-    "t": "timestamptz",
+   "name": {
+    "hd": false,
     "nn": true,
-    "hd": true
+    "t": "text"
+   },
+   "opening_balance_minor": {
+    "hd": true,
+    "nn": true,
+    "t": "bigint"
+   },
+   "type": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "finance_categories": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "name": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "kind": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "is_tax_deductible": {
-    "t": "boolean",
-    "nn": true,
-    "hd": true
-   },
    "default_tax_code": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
-   "sort_order": {
-    "t": "integer",
+   "id": {
+    "hd": false,
     "nn": true,
-    "hd": true
+    "t": "text"
    },
    "is_active": {
-    "t": "boolean",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "boolean"
+   },
+   "is_tax_deductible": {
+    "hd": true,
+    "nn": true,
+    "t": "boolean"
+   },
+   "kind": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "name": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "sort_order": {
+    "hd": true,
+    "nn": true,
+    "t": "integer"
    }
   },
   "finance_report_snapshots": {
-   "id": {
-    "t": "text",
+   "generated_at": {
+    "hd": true,
     "nn": true,
-    "hd": false
-   },
-   "kind": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "period_start": {
-    "t": "date",
-    "nn": true,
-    "hd": false
-   },
-   "period_end": {
-    "t": "date",
-    "nn": true,
-    "hd": false
-   },
-   "reporting_currency": {
-    "t": "text",
-    "nn": true,
-    "hd": true
-   },
-   "payload": {
-    "t": "jsonb",
-    "nn": true,
-    "hd": false
+    "t": "timestamptz"
    },
    "generated_by": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
-   "generated_at": {
-    "t": "timestamptz",
+   "id": {
+    "hd": false,
     "nn": true,
-    "hd": true
+    "t": "text"
+   },
+   "kind": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "payload": {
+    "hd": false,
+    "nn": true,
+    "t": "jsonb"
+   },
+   "period_end": {
+    "hd": false,
+    "nn": true,
+    "t": "date"
+   },
+   "period_start": {
+    "hd": false,
+    "nn": true,
+    "t": "date"
+   },
+   "reporting_currency": {
+    "hd": true,
+    "nn": true,
+    "t": "text"
    }
   },
   "finance_tax_codes": {
    "id": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "jurisdiction": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "name": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "kind": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "rate_pct": {
-    "t": "numeric",
-    "nn": true,
-    "hd": true
+    "t": "text"
    },
    "is_active": {
-    "t": "boolean",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "boolean"
+   },
+   "jurisdiction": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "kind": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "name": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "rate_pct": {
+    "hd": true,
+    "nn": true,
+    "t": "numeric"
    }
   },
   "finance_tax_periods": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "jurisdiction": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "tax_kind": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "period_start": {
-    "t": "date",
-    "nn": true,
-    "hd": false
-   },
-   "period_end": {
-    "t": "date",
-    "nn": true,
-    "hd": false
-   },
-   "due_date": {
-    "t": "date",
-    "nn": true,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
-    "nn": true,
-    "hd": true
-   },
-   "filed_on": {
-    "t": "date",
-    "nn": false,
-    "hd": false
-   },
-   "paid_on": {
-    "t": "date",
-    "nn": false,
-    "hd": false
-   },
-   "reference": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
    "amount_due_minor": {
-    "t": "bigint",
+    "hd": true,
     "nn": true,
-    "hd": true
-   },
-   "currency": {
-    "t": "text",
-    "nn": true,
-    "hd": true
-   },
-   "notes": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "bigint"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "currency": {
+    "hd": true,
+    "nn": true,
+    "t": "text"
+   },
+   "due_date": {
+    "hd": false,
+    "nn": true,
+    "t": "date"
+   },
+   "filed_on": {
+    "hd": false,
+    "nn": false,
+    "t": "date"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "jurisdiction": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "notes": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "paid_on": {
+    "hd": false,
+    "nn": false,
+    "t": "date"
+   },
+   "period_end": {
+    "hd": false,
+    "nn": true,
+    "t": "date"
+   },
+   "period_start": {
+    "hd": false,
+    "nn": true,
+    "t": "date"
+   },
+   "reference": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "status": {
+    "hd": true,
+    "nn": true,
+    "t": "text"
+   },
+   "tax_kind": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "finance_transactions": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "direction": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "amount_minor": {
-    "t": "bigint",
-    "nn": true,
-    "hd": false
-   },
-   "currency": {
-    "t": "text",
-    "nn": true,
-    "hd": false
+   "account_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "amount_gbp_minor": {
-    "t": "bigint",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "bigint"
    },
    "amount_kes_minor": {
-    "t": "bigint",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "bigint"
    },
-   "fx_rate_gbp_kes": {
-    "t": "numeric",
-    "nn": false,
-    "hd": false
-   },
-   "category_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "account_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "occurred_on": {
-    "t": "date",
+   "amount_minor": {
+    "hd": false,
     "nn": true,
-    "hd": true
-   },
-   "description": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "counterparty": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "reference": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "tax_code": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "tax_amount_minor": {
-    "t": "bigint",
-    "nn": true,
-    "hd": true
-   },
-   "source": {
-    "t": "text",
-    "nn": true,
-    "hd": true
-   },
-   "source_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "bigint"
    },
    "attachment_url": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
-   "status": {
-    "t": "text",
-    "nn": true,
-    "hd": true
-   },
-   "created_by": {
-    "t": "text",
+   "category_id": {
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
+   },
+   "counterparty": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "created_by": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "currency": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "description": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "direction": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "fx_rate_gbp_kes": {
+    "hd": false,
+    "nn": false,
+    "t": "numeric"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "occurred_on": {
+    "hd": true,
+    "nn": true,
+    "t": "date"
+   },
+   "reference": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "source": {
+    "hd": true,
+    "nn": true,
+    "t": "text"
+   },
+   "source_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "status": {
+    "hd": true,
+    "nn": true,
+    "t": "text"
+   },
+   "tax_amount_minor": {
+    "hd": true,
+    "nn": true,
+    "t": "bigint"
+   },
+   "tax_code": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "updated_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
    }
   },
   "hs_code_tiers": {
    "hs_prefix": {
-    "t": "varchar",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "tier_key": {
-    "t": "varchar",
-    "nn": true,
-    "hd": false
+    "t": "varchar"
    },
    "notes": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
-   "updated_by": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+   "tier_key": {
+    "hd": false,
+    "nn": true,
+    "t": "varchar"
    },
    "updated_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "updated_by": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    }
   },
   "influencer_codes": {
-   "code": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "influencer_name": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "influencer_contact": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "reward_per_order": {
-    "t": "numeric",
-    "nn": false,
-    "hd": false
-   },
-   "notes": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "is_active": {
-    "t": "boolean",
-    "nn": true,
-    "hd": true
-   },
    "click_count": {
-    "t": "integer",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "integer"
    },
-   "created_by": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+   "code": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
    },
-   "updated_at": {
-    "t": "timestamptz",
+   "created_by": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "influencer_contact": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "influencer_name": {
+    "hd": false,
     "nn": true,
-    "hd": true
+    "t": "text"
+   },
+   "is_active": {
+    "hd": true,
+    "nn": true,
+    "t": "boolean"
+   },
+   "notes": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "owner_user_id": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
+   },
+   "reward_per_order": {
+    "hd": false,
+    "nn": false,
+    "t": "numeric"
+   },
+   "updated_at": {
+    "hd": true,
+    "nn": true,
+    "t": "timestamptz"
    }
   },
   "influencer_conversions": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
    "code": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "order_ref": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "order_kind": {
-    "t": "text",
-    "nn": true,
-    "hd": true
+    "t": "text"
    },
    "converted_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
    },
-   "payout_status": {
-    "t": "text",
+   "id": {
+    "hd": false,
     "nn": true,
-    "hd": true
+    "t": "text"
+   },
+   "order_kind": {
+    "hd": true,
+    "nn": true,
+    "t": "text"
+   },
+   "order_ref": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "payout_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "timestamptz"
    },
    "payout_note": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
+   },
+   "payout_status": {
+    "hd": true,
+    "nn": true,
+    "t": "text"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "influencer_link_events": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
+   "city": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "code": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "occurred_at": {
-    "t": "timestamptz",
-    "nn": true,
-    "hd": true
-   },
-   "ip_hash": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "country": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "country_code": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "region": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "city": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "latitude": {
-    "t": "numeric",
-    "nn": false,
-    "hd": false
-   },
-   "longitude": {
-    "t": "numeric",
-    "nn": false,
-    "hd": false
-   },
-   "device_type": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "referrer": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "user_agent": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "converted": {
-    "t": "boolean",
+    "hd": true,
     "nn": true,
-    "hd": true
-   },
-   "user_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "boolean"
    },
    "converted_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "timestamptz"
+   },
+   "country": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "country_code": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "device_type": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "ip_hash": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "latitude": {
+    "hd": false,
+    "nn": false,
+    "t": "numeric"
+   },
+   "longitude": {
+    "hd": false,
+    "nn": false,
+    "t": "numeric"
+   },
+   "occurred_at": {
+    "hd": true,
+    "nn": true,
+    "t": "timestamptz"
+   },
+   "referrer": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "region": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "user_agent": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    }
   },
   "insurance_policies": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "parcel_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "tier": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "declared_value_gbp": {
-    "t": "real",
-    "nn": true,
-    "hd": true
-   },
-   "premium_gbp": {
-    "t": "real",
-    "nn": true,
-    "hd": true
-   },
    "cert_pdf_url": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
-    "nn": false,
-    "hd": true
+    "t": "text"
    },
    "claimed_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "payout_gbp": {
-    "t": "real",
-    "nn": false,
-    "hd": true
+    "t": "timestamptz"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "declared_value_gbp": {
+    "hd": true,
+    "nn": true,
+    "t": "real"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "parcel_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "payout_gbp": {
+    "hd": true,
+    "nn": false,
+    "t": "real"
+   },
+   "premium_gbp": {
+    "hd": true,
+    "nn": true,
+    "t": "real"
+   },
+   "status": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "tier": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "last_mile_run_parcels": {
-   "run_id": {
-    "t": "text",
+   "created_at": {
+    "hd": true,
     "nn": true,
-    "hd": false
-   },
-   "parcel_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "position": {
-    "t": "integer",
-    "nn": true,
-    "hd": false
+    "t": "timestamptz"
    },
    "delivery_address_override": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
-   "created_at": {
-    "t": "timestamptz",
+   "parcel_id": {
+    "hd": false,
     "nn": true,
-    "hd": true
+    "t": "text"
+   },
+   "position": {
+    "hd": false,
+    "nn": true,
+    "t": "integer"
+   },
+   "run_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "last_mile_runs": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": true
-   },
-   "rider_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "zone": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "run_date": {
-    "t": "date",
-    "nn": true,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "total_stops": {
-    "t": "integer",
-    "nn": false,
-    "hd": true
-   },
    "completed_stops": {
-    "t": "integer",
+    "hd": true,
     "nn": false,
-    "hd": true
-   },
-   "notes": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "integer"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "id": {
+    "hd": true,
+    "nn": true,
+    "t": "text"
+   },
+   "notes": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "rider_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "run_date": {
+    "hd": false,
+    "nn": true,
+    "t": "date"
+   },
+   "status": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "total_stops": {
+    "hd": true,
+    "nn": false,
+    "t": "integer"
    },
    "updated_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "zone": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "lipana_events_seen": {
    "event_id": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
+    "t": "text"
    },
    "event_type": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
+    "t": "text"
    },
    "received_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
    }
   },
   "marketing_attributions": {
+   "created_at": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
+   },
    "id": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "utm_source": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "utm_medium": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "utm_campaign": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "referrer": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "landing_path": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
-   "created_at": {
-    "t": "timestamptz",
+   "referrer": {
+    "hd": false,
     "nn": false,
-    "hd": true
+    "t": "text"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "utm_campaign": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "utm_medium": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "utm_source": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    }
   },
   "notifications": {
+   "created_at": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
+   },
    "id": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "type": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "message": {
-    "t": "text",
-    "nn": true,
-    "hd": false
+    "t": "text"
    },
    "is_read": {
-    "t": "boolean",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "boolean"
    },
-   "created_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": true
+   "message": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "type": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "nps_invitations": {
-   "id": {
-    "t": "text",
+   "created_at": {
+    "hd": true,
     "nn": true,
-    "hd": false
+    "t": "timestamptz"
    },
-   "user_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    },
    "order_id": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
    "responded_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "timestamptz"
    },
-   "created_at": {
-    "t": "timestamptz",
-    "nn": true,
-    "hd": true
+   "user_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    }
   },
   "nps_responses": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "parcel_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "score": {
-    "t": "integer",
-    "nn": true,
-    "hd": false
-   },
    "comment": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "parcel_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "score": {
+    "hd": false,
+    "nn": true,
+    "t": "integer"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    }
   },
   "orders": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "tracking_number": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "retailer": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "description": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "weight_kg": {
-    "t": "real",
-    "nn": false,
-    "hd": false
-   },
-   "dimensions_json": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "shipping_speed": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "insurance": {
-    "t": "boolean",
-    "nn": false,
-    "hd": true
-   },
-   "declared_value": {
-    "t": "real",
-    "nn": false,
-    "hd": true
-   },
-   "estimated_cost": {
-    "t": "real",
-    "nn": false,
-    "hd": false
-   },
    "actual_cost": {
-    "t": "real",
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "customs_duty": {
-    "t": "real",
-    "nn": false,
-    "hd": true
-   },
-   "electronics_item": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "created_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": true
-   },
-   "updated_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": true
-   },
-   "consolidation_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "volumetric_kg": {
-    "t": "real",
-    "nn": false,
-    "hd": false
+    "t": "real"
    },
    "chargeable_kg": {
-    "t": "real",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "real"
+   },
+   "consolidation_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "created_at": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "customs_duty": {
+    "hd": true,
+    "nn": false,
+    "t": "real"
+   },
+   "declared_value": {
+    "hd": true,
+    "nn": false,
+    "t": "real"
+   },
+   "description": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "dimensions_json": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "electronics_item": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "estimated_cost": {
+    "hd": false,
+    "nn": false,
+    "t": "real"
    },
    "hold_reason": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
    "hold_resolved_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "photographed_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "insurance_tier": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "insurance_premium_gbp": {
-    "t": "real",
-    "nn": false,
-    "hd": true
-   },
-   "order_notes": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "timestamptz"
    },
    "hs_tier": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "insurance": {
+    "hd": true,
+    "nn": false,
+    "t": "boolean"
+   },
+   "insurance_premium_gbp": {
+    "hd": true,
+    "nn": false,
+    "t": "real"
+   },
+   "insurance_tier": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "order_notes": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "photographed_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "retailer": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "shipping_speed": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "status": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "tracking_number": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "updated_at": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "volumetric_kg": {
+    "hd": false,
+    "nn": false,
+    "t": "real"
+   },
+   "weight_kg": {
+    "hd": false,
+    "nn": false,
+    "t": "real"
    }
   },
   "packages": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "order_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "description": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "weight_kg": {
-    "t": "real",
+   "barcode": {
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "warehouse_location": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "is_consolidated": {
-    "t": "boolean",
-    "nn": false,
-    "hd": true
+    "t": "text"
    },
    "consolidated_with": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "received_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "photo_url": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "created_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": true
-   },
-   "updated_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": true
-   },
-   "barcode": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "screening_result": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "insurance_policy_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "customer_consolidation_id": {
-    "t": "uuid",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "consolidation_id": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
+   },
+   "created_at": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "customer_consolidation_id": {
+    "hd": false,
+    "nn": false,
+    "t": "uuid"
+   },
+   "description": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "insurance_policy_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "is_consolidated": {
+    "hd": true,
+    "nn": false,
+    "t": "boolean"
+   },
+   "order_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "photo_url": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "received_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "screening_result": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "status": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "updated_at": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "warehouse_location": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "weight_kg": {
+    "hd": false,
+    "nn": false,
+    "t": "real"
    }
   },
   "pallets": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
    "consolidation_id": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "label": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "weight_kg": {
-    "t": "real",
-    "nn": false,
-    "hd": true
-   },
-   "photo_url": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "label": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "photo_url": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "weight_kg": {
+    "hd": true,
+    "nn": false,
+    "t": "real"
    }
   },
   "parcel_items": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "parcel_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
+   "created_at": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
    },
    "description": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "qty": {
-    "t": "integer",
-    "nn": true,
-    "hd": true
-   },
-   "unit_value_gbp": {
-    "t": "real",
-    "nn": true,
-    "hd": true
+    "t": "text"
    },
    "hs_code": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
-   "created_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": true
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "parcel_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "qty": {
+    "hd": true,
+    "nn": true,
+    "t": "integer"
+   },
+   "unit_value_gbp": {
+    "hd": true,
+    "nn": true,
+    "t": "real"
    }
   },
   "password_reset_tokens": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "token_sha256": {
-    "t": "bytea",
-    "nn": true,
-    "hd": false
+   "created_at": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
    },
    "expires_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": true,
-    "hd": false
+    "t": "timestamptz"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "token_sha256": {
+    "hd": false,
+    "nn": true,
+    "t": "bytea"
    },
    "used": {
-    "t": "boolean",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "boolean"
    },
-   "created_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": true
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "payments": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "target_kind": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "target_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "amount_gross_kes": {
-    "t": "bigint",
-    "nn": true,
-    "hd": false
-   },
    "amount_credit_kes": {
-    "t": "bigint",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "bigint"
    },
    "amount_due_kes": {
-    "t": "bigint",
+    "hd": false,
     "nn": true,
-    "hd": false
+    "t": "bigint"
    },
-   "currency": {
-    "t": "text",
+   "amount_gross_kes": {
+    "hd": false,
     "nn": true,
-    "hd": true
-   },
-   "method": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
-    "nn": true,
-    "hd": true
-   },
-   "stripe_payment_intent_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "stripe_charge_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "stripe_amount_pence_gbp": {
-    "t": "bigint",
-    "nn": false,
-    "hd": false
-   },
-   "stripe_fx_rate_kes_gbp": {
-    "t": "numeric",
-    "nn": false,
-    "hd": false
-   },
-   "mpesa_message_raw": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "mpesa_reference": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "mpesa_phone": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "mpesa_message_amount_kes": {
-    "t": "bigint",
-    "nn": false,
-    "hd": false
-   },
-   "reviewed_by": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "reviewed_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "rejection_reason": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "created_at": {
-    "t": "timestamptz",
-    "nn": true,
-    "hd": true
-   },
-   "updated_at": {
-    "t": "timestamptz",
-    "nn": true,
-    "hd": true
-   },
-   "paid_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
+    "t": "bigint"
    },
    "approval_override_reason": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
-   "mpesa_provider": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+   "created_at": {
+    "hd": true,
+    "nn": true,
+    "t": "timestamptz"
    },
-   "lipana_transaction_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+   "currency": {
+    "hd": true,
+    "nn": true,
+    "t": "text"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    },
    "lipana_checkout_request_id": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
+   },
+   "lipana_transaction_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "method": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "mpesa_message_amount_kes": {
+    "hd": false,
+    "nn": false,
+    "t": "bigint"
+   },
+   "mpesa_message_raw": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "mpesa_phone": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "mpesa_phone_used": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
+   },
+   "mpesa_provider": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "mpesa_reference": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "paid_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "rejection_reason": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "reviewed_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "reviewed_by": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "status": {
+    "hd": true,
+    "nn": true,
+    "t": "text"
+   },
+   "stripe_amount_pence_gbp": {
+    "hd": false,
+    "nn": false,
+    "t": "bigint"
+   },
+   "stripe_charge_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "stripe_fx_rate_kes_gbp": {
+    "hd": false,
+    "nn": false,
+    "t": "numeric"
+   },
+   "stripe_payment_intent_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "target_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "target_kind": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "updated_at": {
+    "hd": true,
+    "nn": true,
+    "t": "timestamptz"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "wa_contact_id": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    }
   },
   "pod_events": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": true
-   },
-   "parcel_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "run_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "rider_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "result": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
    "captured_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
-   },
-   "photo_url": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "signature_url": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "otp_used": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "recipient_name": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "recipient_phone": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "notes": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "timestamptz"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "id": {
+    "hd": true,
+    "nn": true,
+    "t": "text"
+   },
+   "notes": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "otp_used": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "parcel_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    },
    "photo_path": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
+   },
+   "photo_url": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "recipient_name": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "recipient_phone": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "result": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "rider_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "run_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "signature_path": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
+   },
+   "signature_url": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    }
   },
   "pod_otps": {
-   "parcel_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "otp_hash": {
-    "t": "bytea",
-    "nn": true,
-    "hd": false
-   },
-   "expires_at": {
-    "t": "timestamptz",
-    "nn": true,
-    "hd": false
-   },
    "consumed": {
-    "t": "boolean",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "boolean"
    },
    "consumed_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "timestamptz"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "expires_at": {
+    "hd": false,
+    "nn": true,
+    "t": "timestamptz"
+   },
+   "otp_hash": {
+    "hd": false,
+    "nn": true,
+    "t": "bytea"
+   },
+   "parcel_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    },
    "updated_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
    }
   },
   "pricing_settings": {
-   "key": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "value": {
-    "t": "numeric",
-    "nn": true,
-    "hd": false
-   },
    "currency": {
-    "t": "varchar",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "varchar"
    },
    "is_percent": {
-    "t": "boolean",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "boolean"
+   },
+   "key": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    },
    "label": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
    "notes": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "updated_by": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "updated_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "updated_by": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "value": {
+    "hd": false,
+    "nn": true,
+    "t": "numeric"
    }
   },
   "pricing_tiers": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
    "channel": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "min_kg": {
-    "t": "real",
-    "nn": true,
-    "hd": false
-   },
-   "max_kg": {
-    "t": "real",
-    "nn": true,
-    "hd": false
-   },
-   "gbp_per_kg": {
-    "t": "real",
-    "nn": true,
-    "hd": false
-   },
-   "effective_from": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": true
-   },
-   "effective_to": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "is_active": {
-    "t": "boolean",
-    "nn": false,
-    "hd": true
-   },
-   "notes": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "effective_from": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "effective_to": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "gbp_per_kg": {
+    "hd": false,
+    "nn": true,
+    "t": "real"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "is_active": {
+    "hd": true,
+    "nn": false,
+    "t": "boolean"
+   },
+   "max_kg": {
+    "hd": false,
+    "nn": true,
+    "t": "real"
+   },
+   "min_kg": {
+    "hd": false,
+    "nn": true,
+    "t": "real"
+   },
+   "notes": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    }
   },
   "prohibited_items": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "term": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "severity": {
-    "t": "text",
+   "created_at": {
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    },
    "jurisdiction": {
-    "t": "text",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "text"
    },
    "language": {
-    "t": "text",
+    "hd": true,
     "nn": false,
-    "hd": true
-   },
-   "reason": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "last_reviewed_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
    },
-   "created_at": {
-    "t": "timestamptz",
+   "reason": {
+    "hd": false,
     "nn": false,
-    "hd": true
+    "t": "text"
+   },
+   "severity": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "term": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "promotions": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
    "code": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "type": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "value": {
-    "t": "real",
-    "nn": true,
-    "hd": false
-   },
-   "valid_from": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": true
-   },
-   "valid_to": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "max_uses": {
-    "t": "integer",
-    "nn": false,
-    "hd": false
-   },
-   "uses": {
-    "t": "integer",
-    "nn": false,
-    "hd": true
-   },
-   "is_active": {
-    "t": "boolean",
-    "nn": false,
-    "hd": true
-   },
-   "description": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
    },
    "currency": {
-    "t": "text",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "text"
+   },
+   "description": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "is_active": {
+    "hd": true,
+    "nn": false,
+    "t": "boolean"
+   },
+   "max_uses": {
+    "hd": false,
+    "nn": false,
+    "t": "integer"
+   },
+   "type": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "uses": {
+    "hd": true,
+    "nn": false,
+    "t": "integer"
+   },
+   "valid_from": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "valid_to": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "value": {
+    "hd": false,
+    "nn": true,
+    "t": "real"
    }
   },
   "push_subscriptions": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "endpoint": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "p256dh": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
    "auth": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "user_agent": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "endpoint": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "p256dh": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "user_agent": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "pvoc_documents": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
    "consolidation_id": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "type": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "doc_url": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "issued_by": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "issued_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "expires_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "doc_url": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "expires_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "issued_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "issued_by": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "type": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "referrals": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "referrer_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "referee_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "referral_code": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "reward_amount": {
-    "t": "real",
-    "nn": false,
-    "hd": true
-   },
    "completed_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "timestamptz"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "referee_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "referral_code": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "referrer_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "reward_amount": {
+    "hd": true,
+    "nn": false,
+    "t": "real"
+   },
+   "status": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
    }
   },
   "request_idempotency": {
-   "idempotency_key": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
+   "completed_at": {
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "method": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "path": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "status_code": {
-    "t": "integer",
-    "nn": false,
-    "hd": false
-   },
-   "response_body": {
-    "t": "jsonb",
-    "nn": false,
-    "hd": false
+    "t": "timestamptz"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
    },
-   "completed_at": {
-    "t": "timestamptz",
+   "idempotency_key": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "method": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "path": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "response_body": {
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "jsonb"
+   },
+   "status_code": {
+    "hd": false,
+    "nn": false,
+    "t": "integer"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    }
   },
   "retailers": {
-   "id": {
-    "t": "text",
+   "base_url": {
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "name": {
-    "t": "text",
-    "nn": true,
-    "hd": false
+    "t": "text"
    },
    "country": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "base_url": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "logo_url": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "is_active": {
-    "t": "boolean",
-    "nn": true,
-    "hd": true
-   },
-   "sort_order": {
-    "t": "integer",
-    "nn": true,
-    "hd": true
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "is_active": {
+    "hd": true,
+    "nn": true,
+    "t": "boolean"
+   },
+   "logo_url": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "name": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "sort_order": {
+    "hd": true,
+    "nn": true,
+    "t": "integer"
    },
    "updated_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
    }
   },
   "revoked_tokens": {
-   "token_sha256": {
-    "t": "bytea",
+   "expires_at": {
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "uuid",
-    "nn": true,
-    "hd": false
+    "t": "timestamptz"
    },
    "revoked_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
    },
-   "expires_at": {
-    "t": "timestamptz",
+   "token_sha256": {
+    "hd": false,
     "nn": true,
-    "hd": false
+    "t": "bytea"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "uuid"
    }
   },
   "stripe_events_seen": {
    "event_id": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
+    "t": "text"
    },
    "event_type": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
+    "t": "text"
    },
    "received_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
    }
   },
   "ticket_messages": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "ticket_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "sender_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "message": {
-    "t": "text",
-    "nn": true,
-    "hd": false
+   "attachment_url": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
    },
-   "attachment_url": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "message": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "sender_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "ticket_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "tickets": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "subject": {
-    "t": "text",
-    "nn": true,
-    "hd": false
+   "created_at": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
    },
    "description": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
+    "t": "text"
    },
-   "status": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "priority": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "photo_url": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "created_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": true
-   },
-   "updated_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": true
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    },
    "idempotency_key": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
+   },
+   "photo_url": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "priority": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "status": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "subject": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "updated_at": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "transactions": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "type": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
    "amount": {
-    "t": "real",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "currency": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "payment_method": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "payment_reference": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
-    "nn": false,
-    "hd": true
+    "t": "real"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "currency": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    },
    "idempotency_key": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
-   "reconciled_at": {
-    "t": "timestamptz",
+   "payment_method": {
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
+   },
+   "payment_reference": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "processor_fee_gbp": {
-    "t": "real",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "real"
+   },
+   "reconciled_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "status": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "type": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "tudor_invoices": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "consolidation_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "invoice_no": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
    "amount_gbp": {
-    "t": "real",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "real"
    },
    "breakdown_json": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
-   "doc_url": {
-    "t": "text",
+   "consolidation_id": {
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
-    "nn": false,
-    "hd": true
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "doc_url": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "invoice_no": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "paid_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "timestamptz"
+   },
+   "status": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
    }
   },
   "user_credits": {
-   "user_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
    "balance_kes": {
-    "t": "bigint",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "bigint"
    },
    "updated_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "users": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "email": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "password_hash": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "name": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "full_name": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "phone": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "role": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "warehouse_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "language_pref": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "referral_code": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "referred_by": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "is_active": {
-    "t": "boolean",
-    "nn": false,
-    "hd": true
-   },
-   "created_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": true
-   },
-   "updated_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": true
-   },
-   "country_of_residence": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "kyc_status": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "kyc_doc_url": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "marketing_consent_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "utm_source": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "utm_medium": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "utm_campaign": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "two_fa_enabled": {
-    "t": "boolean",
-    "nn": false,
-    "hd": true
-   },
-   "password_changed_at": {
-    "t": "timestamptz",
-    "nn": true,
-    "hd": true
-   },
-   "delivery_address": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
    "admin_notes": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "email_verified_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "whatsapp_opt_in": {
-    "t": "boolean",
-    "nn": true,
-    "hd": true
-   },
-   "phone_2fa_enabled": {
-    "t": "boolean",
-    "nn": true,
-    "hd": true
+    "t": "text"
    },
    "can_manage_finances": {
-    "t": "boolean",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "boolean"
    },
-   "influencer_code": {
-    "t": "text",
+   "country_of_residence": {
+    "hd": false,
     "nn": false,
-    "hd": false
-   }
-  },
-  "whatsapp_messages": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "user_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "parcel_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "template": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "payload_json": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "language": {
-    "t": "text",
-    "nn": false,
-    "hd": true
-   },
-   "sent_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "error": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": false,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "delivery_address": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "email": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "email_verified_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "full_name": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "influencer_code": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "is_active": {
+    "hd": true,
+    "nn": false,
+    "t": "boolean"
+   },
+   "kyc_doc_url": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "kyc_status": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "language_pref": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "marketing_consent_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "name": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "password_changed_at": {
+    "hd": true,
+    "nn": true,
+    "t": "timestamptz"
+   },
+   "password_hash": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "phone": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "phone_2fa_enabled": {
+    "hd": true,
+    "nn": true,
+    "t": "boolean"
+   },
+   "referral_code": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "referred_by": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "role": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "two_fa_enabled": {
+    "hd": true,
+    "nn": false,
+    "t": "boolean"
+   },
+   "updated_at": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "utm_campaign": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "utm_medium": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "utm_source": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "warehouse_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "whatsapp_opt_in": {
+    "hd": true,
+    "nn": true,
+    "t": "boolean"
    }
   },
   "wa_contacts": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "phone": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "customer_code": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "full_name": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "delivery_address": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "mpesa_number": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "state": {
-    "t": "text",
-    "nn": true,
-    "hd": true
-   },
-   "unread_count": {
-    "t": "integer",
-    "nn": true,
-    "hd": true
-   },
-   "last_message_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "last_message_preview": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "created_at": {
-    "t": "timestamptz",
-    "nn": true,
-    "hd": true
-   },
-   "updated_at": {
-    "t": "timestamptz",
-    "nn": true,
-    "hd": true
-   },
-   "human_takeover_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
    "ai_summary": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "text"
    },
    "ai_summary_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "timestamptz"
+   },
+   "created_at": {
+    "hd": true,
+    "nn": true,
+    "t": "timestamptz"
+   },
+   "customer_code": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "delivery_address": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "full_name": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "human_takeover_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "last_message_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "last_message_preview": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "mpesa_number": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "phone": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "state": {
+    "hd": true,
+    "nn": true,
+    "t": "text"
+   },
+   "unread_count": {
+    "hd": true,
+    "nn": true,
+    "t": "integer"
+   },
+   "updated_at": {
+    "hd": true,
+    "nn": true,
+    "t": "timestamptz"
    }
   },
   "wa_messages": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
+   "body": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "contact_id": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "direction": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "body": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "media_url": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "media_type": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "template_key": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "provider_message_id": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
-    "nn": true,
-    "hd": true
-   },
-   "error": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "sent_by": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "direction": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "error": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "media_type": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "media_url": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "provider_message_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "sent_by": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "status": {
+    "hd": true,
+    "nn": true,
+    "t": "text"
+   },
+   "template_key": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    }
   },
   "wa_order_events": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "order_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "from_status": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "to_status": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
    "actor_user_id": {
-    "t": "text",
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "note": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "from_status": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "note": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "order_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "to_status": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    }
   },
   "wa_orders": {
-   "id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "contact_id": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "tracking_code": {
-    "t": "text",
+   "arrived_at": {
+    "hd": false,
     "nn": false,
-    "hd": false
-   },
-   "product_links": {
-    "t": "jsonb",
-    "nn": true,
-    "hd": true
-   },
-   "product_note": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "usd_price": {
-    "t": "numeric",
-    "nn": false,
-    "hd": false
-   },
-   "fx_rate": {
-    "t": "numeric",
-    "nn": false,
-    "hd": false
-   },
-   "markup_pct": {
-    "t": "numeric",
-    "nn": false,
-    "hd": false
-   },
-   "quote_kes": {
-    "t": "bigint",
-    "nn": false,
-    "hd": false
-   },
-   "status": {
-    "t": "text",
-    "nn": true,
-    "hd": true
-   },
-   "delivery_fee_kes": {
-    "t": "bigint",
-    "nn": false,
-    "hd": false
-   },
-   "delivery_fee_waived": {
-    "t": "boolean",
-    "nn": true,
-    "hd": true
-   },
-   "delivery_fee_paid_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "receipt_path": {
-    "t": "text",
-    "nn": false,
-    "hd": false
-   },
-   "quoted_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
+    "t": "timestamptz"
    },
    "confirmed_at": {
-    "t": "timestamptz",
+    "hd": false,
     "nn": false,
-    "hd": false
+    "t": "timestamptz"
    },
-   "paid_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "purchased_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "arrived_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "dispatched_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
-   },
-   "delivered_at": {
-    "t": "timestamptz",
-    "nn": false,
-    "hd": false
+   "contact_id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
    },
    "created_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "delivered_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "delivery_fee_kes": {
+    "hd": false,
+    "nn": false,
+    "t": "bigint"
+   },
+   "delivery_fee_paid_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "delivery_fee_waived": {
+    "hd": true,
+    "nn": true,
+    "t": "boolean"
+   },
+   "dispatched_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "fx_rate": {
+    "hd": false,
+    "nn": false,
+    "t": "numeric"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "markup_pct": {
+    "hd": false,
+    "nn": false,
+    "t": "numeric"
+   },
+   "paid_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "product_links": {
+    "hd": true,
+    "nn": true,
+    "t": "jsonb"
+   },
+   "product_note": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "purchased_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "quote_kes": {
+    "hd": false,
+    "nn": false,
+    "t": "bigint"
+   },
+   "quoted_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "receipt_path": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "status": {
+    "hd": true,
+    "nn": true,
+    "t": "text"
+   },
+   "tracking_code": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "updated_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "usd_price": {
+    "hd": false,
+    "nn": false,
+    "t": "numeric"
    }
   },
   "wa_settings": {
    "key": {
-    "t": "text",
+    "hd": false,
     "nn": true,
-    "hd": false
-   },
-   "value": {
-    "t": "text",
-    "nn": true,
-    "hd": false
-   },
-   "updated_by": {
-    "t": "text",
-    "nn": false,
-    "hd": false
+    "t": "text"
    },
    "updated_at": {
-    "t": "timestamptz",
+    "hd": true,
     "nn": true,
-    "hd": true
+    "t": "timestamptz"
+   },
+   "updated_by": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "value": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   }
+  },
+  "whatsapp_messages": {
+   "created_at": {
+    "hd": true,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "error": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "language": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "parcel_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "payload_json": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "sent_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
+   "status": {
+    "hd": true,
+    "nn": false,
+    "t": "text"
+   },
+   "template": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "user_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    }
   }
  },
