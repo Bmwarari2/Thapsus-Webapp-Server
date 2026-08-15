@@ -63,9 +63,10 @@ bot replies. Not called by anything you own.
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| GET | `/wa/orders?status=&q=&limit=&offset=` | Pipeline board and global search. `status` accepts a comma list. `q` matches `TRK-`/`TC-` codes in any formatting, names, phone digits. |
+| GET | `/wa/orders?status=&q=&limit=&offset=` | Pipeline board and global search. `status` accepts a comma list. `q` matches `TRK-`/`TC-` codes in any formatting, names, phone digits, and `supplier_ref` — an exact (case-insensitive) supplier reference returns the whole batch that went into that purchase. |
 | GET | `/wa/orders/scan/:code` | Scanner resolver — tracking code in any formatting → the order. 404 if unknown. |
-| POST | `/wa/orders` | `{ contact_id, product_links[], product_note? }` → a `quoting` order. |
+| POST | `/wa/orders/supplier-ref` | `{ order_ids[], supplier_ref }` — tag one or many orders with the retailer's own order number (SHEIN et al). Empty/null clears it. Writes an order event per order. |
+| POST | `/wa/orders` | `{ contact_id, product_links[], product_note?, status?, quote_kes?, delivery_fee_kes?, supplier_ref?, notify? }` → an order at `status` (default `quoting`), with earlier stages' timestamps backfilled. |
 | GET | `/wa/orders/:id` | Order + contact + audit trail + payments. |
 | POST | `/wa/orders/:id/quote` | **Idempotent.** `{ usd_price }`. Server computes `usd × live USD_KES × (1 + markup/100)`, snapshots the inputs, sends the quote. 409 unless status is `quoting`/`quoted`; 503 if the FX rate is stale. |
 | POST | `/wa/orders/:id/confirm` | Operator confirms on the customer's behalf. Silent — the payment prompt follows separately. |

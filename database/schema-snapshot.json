@@ -3570,6 +3570,11 @@
     "nn": true,
     "t": "text"
    },
+   "supplier_ref": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
    "tracking_code": {
     "hd": false,
     "nn": false,

@@ -29,6 +29,8 @@ export function WaOrderDetail() {
   const [payments, setPayments] = useState([])
   const [usd, setUsd] = useState('')
   const [mpesaRef, setMpesaRef] = useState('')
+  const [supplierRef, setSupplierRef] = useState('')
+  const [siblings, setSiblings] = useState([])   // others in the same supplier order
   const [busy, setBusy] = useState(false)
   const [printOpen, setPrintOpen] = useState(false)
   // M-Pesa STK is unavailable in production (provider withdrawn), so the
@@ -42,6 +44,18 @@ export function WaOrderDetail() {
       setEvents(res.data.events || [])
       setPayments(res.data.payments || [])
       if (res.data.order.usd_price) setUsd(String(res.data.order.usd_price))
+      setSupplierRef(res.data.order.supplier_ref || '')
+
+      // Who else went into the same supplier purchase. This is the whole
+      // reason for the field: when a box turns up with only SHEIN's
+      // paperwork, or they refund one line, you need the other parcels.
+      const ref = res.data.order.supplier_ref
+      if (ref) {
+        const found = await waApi.orders({ q: ref, limit: 100 }).catch(() => null)
+        setSiblings((found?.data.orders || []).filter((o) => o.id !== res.data.order.id))
+      } else {
+        setSiblings([])
+      }
     } catch (e) {
       toast.error(e.response?.data?.message || 'Failed to load order')
     }
@@ -91,6 +105,9 @@ export function WaOrderDetail() {
     return res
   }, 'Payment recorded — tracking code and receipt sent')
   const resendReceipt = run(() => waApi.resendReceipt(id), 'Receipt re-sent')
+  const saveSupplierRef = run(
+    () => waApi.setSupplierRef([id], supplierRef.trim() || null),
+    supplierRef.trim() ? 'Supplier order saved' : 'Supplier order cleared')
   const openReceipt = async () => {
     try {
       const res = await waApi.receiptUrl(id)
@@ -318,6 +335,45 @@ export function WaOrderDetail() {
             </div>
             {awaitingReview && !isAdmin && (
               <p className="text-xs text-amber-300/80 mt-3">An admin approves manual payments (Admin → payments queue).</p>
+            )}
+          </GlassCard>
+
+          <GlassCard className="p-5">
+            <h2 className="font-bold text-white mb-1">Supplier order</h2>
+            <p className="text-xs text-mute mb-3">
+              The retailer's own number — SHEIN, Amazon, whoever we bought from.
+              Give several of our orders the same number and they group together.
+            </p>
+            <div className="flex gap-2">
+              <input
+                value={supplierRef}
+                onChange={(e) => setSupplierRef(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') saveSupplierRef() }}
+                placeholder="e.g. GSHMU0A9K00A1YW"
+                className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-white/5 border border-line text-white placeholder:text-mute text-sm focus:outline-none focus:border-ember-500/50"
+              />
+              <button onClick={saveSupplierRef} disabled={busy}
+                className="px-3 py-2 rounded-lg bg-white/5 border border-line text-white hover:bg-white/10 text-sm disabled:opacity-50">
+                Save
+              </button>
+            </div>
+            {siblings.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-line">
+                <p className="text-xs text-mute mb-2">
+                  {siblings.length} other {siblings.length === 1 ? 'parcel' : 'parcels'} in this supplier order
+                </p>
+                <div className="space-y-1">
+                  {siblings.map((s) => (
+                    <Link key={s.id} to={`/ops/orders/${s.id}`}
+                      className="flex items-center justify-between gap-2 text-xs hover:bg-white/5 rounded px-1.5 py-1 -mx-1.5">
+                      <span className="text-ember-400 font-bold shrink-0">
+                        {s.tracking_code || s.customer_code || 'New quote'}
+                      </span>
+                      <span className="text-mute truncate">{s.full_name || s.phone}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
             )}
           </GlassCard>
 
