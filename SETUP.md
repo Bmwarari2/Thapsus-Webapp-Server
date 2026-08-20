@@ -49,7 +49,7 @@ For a working WhatsApp flow you also need the sent.dm, M-Pesa and Supabase Stora
 
 ## 3. Provision the database
 
-The schema is migration-driven. The boot-time runner is **opt-in** (since 2026-05-11) — set `RUN_MIGRATIONS_ON_BOOT=true` only when you want it to apply.
+The schema is migration-driven. The boot-time runner is **on in production** (since 2026-08-20) — deploys are automatic on merge, so migrations have to travel with the code that needs them. Locally it is off unless you set `RUN_MIGRATIONS_ON_BOOT=true`.
 
 First-time provision against an empty Supabase project:
 
@@ -214,7 +214,7 @@ Integration tests self-skip via `describe.skipIf(!process.env.TEST_DATABASE_URL)
 
 - `railway.toml` declares the nixpacks build (`buildCommand` installs both root + client deps and runs `vite build`), `startCommand = node server.js`, healthcheck `/health` (30s timeout), restart on failure, persistent volume mount at `/data`.
 - The whole `.env` must be mirrored into Railway Variables. **Redeploy the service after any change** — env is injected at container start.
-- Toggle `RUN_MIGRATIONS_ON_BOOT=true` on a one-shot deploy when you intend to push schema, then turn it off again.
+- `RUN_MIGRATIONS_ON_BOOT=true` is set permanently: each deploy applies anything missing from the `_migrations` ledger, in its own transaction, before serving. A migration that fails stops the boot rather than serving against a schema the code cannot use.
 - The Lighthouse a11y gate (≥0.9) in CI prevents regressions on the public marketing pages.
 
 ## 10. Project structure

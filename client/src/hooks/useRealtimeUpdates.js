@@ -10,6 +10,27 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 
+/**
+ * Every event name the server can send.
+ *
+ * EventSource has no wildcard: a named event with no addEventListener for
+ * it is received and thrown away in silence. The three wa_* names were
+ * missing from this list for the whole life of the WhatsApp rebuild, so
+ * the operator inbox never refreshed on its own, the pipeline board never
+ * moved, and the new-customer toast never fired — the hooks were all
+ * wired up correctly to a dispatcher nothing ever called.
+ *
+ * Keep in step with the `pushTo*` call sites in routes/ and utils/.
+ * tests/unit/sseEvents.test.js fails if the server learns a new event and
+ * this list does not.
+ */
+export const SSE_EVENTS = [
+  'order_update', 'ticket_update', 'notification', 'credit_update', 'admin_stats',
+  'package_update', 'buy_for_me_update', 'invoice_update',
+  'wa_inbox_update', 'wa_pipeline_update', 'wa_new_customer',
+];
+
+
 // ── Browser notification helpers ──────────────────────────────────────────────
 
 const STATUS_LABELS = {
@@ -102,9 +123,7 @@ function connectSSE(token) {
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   });
 
-  ['order_update', 'ticket_update', 'notification', 'credit_update', 'admin_stats',
-   'package_update', 'buy_for_me_update', 'invoice_update']
-    .forEach(type => {
+  SSE_EVENTS.forEach(type => {
       source.addEventListener(type, e => {
         try {
           const data = JSON.parse(e.data);
@@ -115,8 +134,8 @@ function connectSSE(token) {
             fireBrowserNotification(data.order);
           }
         } catch (_) { /* ignore */ }
-      });
     });
+  });
 
   source.onerror = () => {
     source.close();
