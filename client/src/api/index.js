@@ -711,6 +711,9 @@ export const waApi = {
   /** Add someone who reached out somewhere other than WhatsApp. */
   addContact: (data) => api.post('/wa/contacts', data),
   scan: (code) => api.get(`/wa/orders/scan/${encodeURIComponent(code)}`),
+  /** Tag one or many orders with the retailer's own order number. */
+  setSupplierRef: (orderIds, supplierRef) =>
+    api.post('/wa/orders/supplier-ref', { order_ids: orderIds, supplier_ref: supplierRef }),
   quote: (id, usd_price) =>
     api.post(`/wa/orders/${id}/quote`, { usd_price },
       { headers: { 'Idempotency-Key': newIdempotencyKey() } }),

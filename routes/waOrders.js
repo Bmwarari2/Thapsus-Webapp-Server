@@ -93,8 +93,17 @@ router.get('/', authMiddleware, STAFF, async (req, res) => {
         params.push(tc);
         where.push(`c.customer_code = $${params.length}`);
       } else {
+        // A supplier reference typed in full is almost never also
+        // somebody's name, so match it exactly first: that returns the
+        // whole batch that went into one purchase, in one search, rather
+        // than whatever else happens to contain the string.
+        params.push(q);
+        const exact = `lower(o.supplier_ref) = lower($${params.length})`;
         params.push(`%${q}%`);
-        where.push(`(c.full_name ILIKE $${params.length} OR c.phone LIKE $${params.length} OR c.customer_code ILIKE $${params.length} OR o.tracking_code ILIKE $${params.length})`);
+        const like = params.length;
+        where.push(`(${exact} OR c.full_name ILIKE $${like} OR c.phone LIKE $${like}`
+          + ` OR c.customer_code ILIKE $${like} OR o.tracking_code ILIKE $${like}`
+          + ` OR o.supplier_ref ILIKE $${like})`);
       }
     }
     params.push(limit, offset);
@@ -109,6 +118,82 @@ router.get('/', authMiddleware, STAFF, async (req, res) => {
   } catch (err) {
     logRouteError(req, res, err, 'GET /api/wa/orders');
     res.status(500).json({ success: false, message: 'Failed to load orders' });
+  }
+});
+
+/**
+ * POST /api/wa/orders/supplier-ref
+ *   { order_ids: string[], supplier_ref: string|null }
+ *
+ * Tag one or many of our orders with the retailer's own order number, so
+ * "what was in SHEIN order SO12345678?" is a search rather than a
+ * memory. One call covers both cases — tagging a single order and
+ * tagging the whole batch that went into one purchase are the same
+ * operation, and splitting them into two endpoints would only invite
+ * them to drift.
+ *
+ * Passing null or an empty string clears the reference.
+ */
+router.post('/supplier-ref', authMiddleware, STAFF, async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.order_ids)
+      ? [...new Set(req.body.order_ids.filter((v) => typeof v === 'string' && v))]
+      : [];
+    if (ids.length === 0 || ids.length > 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Pick between 1 and 100 orders to tag',
+      });
+    }
+
+    const raw = typeof req.body?.supplier_ref === 'string' ? req.body.supplier_ref.trim() : '';
+    // Stored as typed — a supplier reference is their identifier, not
+    // ours, and mangling the case makes it harder to match against their
+    // paperwork. Searching is case-insensitive instead.
+    const ref = raw ? raw.slice(0, 64) : null;
+    if (raw && !/^[\w./#-]{3,64}$/.test(raw)) {
+      return res.status(400).json({
+        success: false,
+        message: 'That does not look like an order number — letters, digits, . / # - only',
+      });
+    }
+
+    const client = await req.db.connect();
+    let orders;
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        `UPDATE wa_orders SET supplier_ref = $2, updated_at = NOW()
+          WHERE id = ANY($1::text[]) RETURNING id, tracking_code, supplier_ref`,
+        [ids, ref]
+      );
+      orders = rows;
+      // The history is where an operator reconstructs what happened, and
+      // "which supplier order was this in" is exactly the kind of thing
+      // that gets asked weeks later.
+      for (const o of rows) {
+        await client.query(
+          `INSERT INTO wa_order_events (id, order_id, from_status, to_status, actor_user_id, note)
+           SELECT $1, $2, status, status, $3, $4 FROM wa_orders WHERE id = $2`,
+          [uuidv4(), o.id, req.user.id,
+           ref ? `Tagged to supplier order ${ref}` : 'Supplier order reference cleared']
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    if (orders.length === 0) {
+      return res.status(404).json({ success: false, message: 'No matching orders' });
+    }
+    res.json({ success: true, supplier_ref: ref, updated: orders.length, orders });
+  } catch (err) {
+    logRouteError(req, res, err, 'POST /api/wa/orders/supplier-ref');
+    res.status(500).json({ success: false, message: 'Failed to tag the orders' });
   }
 });
 
@@ -192,6 +277,17 @@ router.post('/', authMiddleware, STAFF, async (req, res) => {
     }
     const feeKes = req.body?.delivery_fee_kes != null ? Math.round(Number(req.body.delivery_fee_kes)) : null;
 
+    // An order logged after the fact has usually already been bought, so
+    // the supplier's number is known at creation time.
+    const supplierRefRaw = typeof req.body?.supplier_ref === 'string' ? req.body.supplier_ref.trim() : '';
+    if (supplierRefRaw && !/^[\w./#-]{3,64}$/.test(supplierRefRaw)) {
+      return res.status(400).json({
+        success: false,
+        message: 'That does not look like an order number — letters, digits, . / # - only',
+      });
+    }
+    const supplierRef = supplierRefRaw || null;
+
     // Stamp this stage and everything it implies, so the timeline reads
     // as a real history rather than one lonely date.
     const stamps = {};
@@ -214,13 +310,13 @@ router.post('/', authMiddleware, STAFF, async (req, res) => {
 
       const { rows } = await client.query(
         `INSERT INTO wa_orders (id, contact_id, product_links, product_note, status,
-                tracking_code, quote_kes, delivery_fee_kes
+                tracking_code, quote_kes, delivery_fee_kes, supplier_ref
                 ${stampCols.length ? ', ' + stampCols.join(', ') : ''})
-         VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8
+         VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8, $9
                 ${stampCols.length ? ', ' + stampCols.map(() => 'NOW()').join(', ') : ''})
          RETURNING *`,
         [id, contact_id, JSON.stringify(links), product_note || null, status,
-         trackingCode, quoteKes, feeKes]
+         trackingCode, quoteKes, feeKes, supplierRef]
       );
       order = rows[0];
 

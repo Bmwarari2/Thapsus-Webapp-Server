@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { KanbanSquare, Search, ScanLine, MessageSquareText, RefreshCw, UserPlus, PackagePlus} from 'lucide-react'
+import { KanbanSquare, Search, ScanLine, MessageSquareText, RefreshCw, UserPlus, PackagePlus, Tags, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { waApi } from '../../api'
 import { GlassStyles, GlassCard, PageHeading, StatusBadge } from '../../components/GlassUI'
@@ -24,6 +24,10 @@ export function Pipeline() {
   const [scanOpen, setScanOpen] = useState(false)
   const [addOrderOpen, setAddOrderOpen] = useState(false)
   const [addCustomerOpen, setAddCustomerOpen] = useState(false)
+  // Tagging mode: tick the parcels that went into one supplier purchase.
+  const [tagging, setTagging] = useState(false)
+  const [picked, setPicked] = useState(() => new Set())
+  const [supplierRef, setSupplierRef] = useState('')
   const navigate = useNavigate()
 
   const load = useCallback(async (query = '') => {
@@ -56,6 +60,32 @@ export function Pipeline() {
     }
   }
 
+  const togglePicked = (orderId) => setPicked((prev) => {
+    const next = new Set(prev)
+    next.has(orderId) ? next.delete(orderId) : next.add(orderId)
+    return next
+  })
+
+  const cancelTagging = () => {
+    setTagging(false)
+    setPicked(new Set())
+    setSupplierRef('')
+  }
+
+  const applySupplierRef = async () => {
+    const ref = supplierRef.trim()
+    if (!ref) return toast.error('Enter the supplier order number')
+    if (picked.size === 0) return toast.error('Tick the parcels that went into it')
+    try {
+      const res = await waApi.setSupplierRef([...picked], ref)
+      toast.success(`${res.data.updated} ${res.data.updated === 1 ? 'parcel' : 'parcels'} tagged to ${ref}`)
+      cancelTagging()
+      load(q)
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Could not tag the orders')
+    }
+  }
+
   const byColumn = useMemo(() => COLUMNS.map((col) => ({
     ...col,
     orders: orders.filter((o) => col.statuses.includes(o.status)),
@@ -76,6 +106,14 @@ export function Pipeline() {
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-ember-600 hover:bg-ember-500 text-white font-semibold transition-colors">
             <PackagePlus size={18} /> Add order
           </button>
+          <button onClick={() => (tagging ? cancelTagging() : setTagging(true))}
+            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-colors ${
+              tagging
+                ? 'bg-ember-600 border-ember-500 text-white'
+                : 'bg-white/5 border-line text-white hover:bg-white/10'
+            }`}>
+            {tagging ? <X size={18} /> : <Tags size={18} />} {tagging ? 'Cancel' : 'Tag supplier order'}
+          </button>
           <button onClick={() => setScanOpen(true)}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-line text-white hover:bg-white/10 transition-colors">
             <ScanLine size={18} /> Scan
@@ -92,10 +130,37 @@ export function Pipeline() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search by TRK-code, TC-code, name or phone… (USB scanners type here too)"
+          placeholder="Search by TRK-code, TC-code, supplier order, name or phone… (USB scanners type here too)"
           className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/5 border border-line text-white placeholder:text-mute focus:outline-none focus:border-ember-500/50"
         />
       </form>
+
+      {tagging && (
+        <GlassCard className="p-4 mb-6 border-ember-500/40">
+          <div className="flex flex-wrap items-center gap-3">
+            <Tags size={18} className="text-ember-400 shrink-0" />
+            <input
+              value={supplierRef}
+              onChange={(e) => setSupplierRef(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') applySupplierRef() }}
+              placeholder="Supplier order number, e.g. GSHMU0A9K00A1YW"
+              autoFocus
+              className="flex-1 min-w-[220px] px-3 py-2 rounded-lg bg-white/5 border border-line text-white placeholder:text-mute text-sm focus:outline-none focus:border-ember-500/50"
+            />
+            <span className="text-sm text-mute">
+              {picked.size} {picked.size === 1 ? 'parcel' : 'parcels'} ticked
+            </span>
+            <button onClick={applySupplierRef}
+              className="px-4 py-2 rounded-lg bg-ember-600 hover:bg-ember-500 text-white font-semibold text-sm">
+              Tag them
+            </button>
+          </div>
+          <p className="text-xs text-mute mt-2">
+            Tick every parcel that went into this one purchase. They will all carry the
+            number, so searching it later brings back the whole batch.
+          </p>
+        </GlassCard>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {byColumn.map((col) => (
@@ -107,11 +172,16 @@ export function Pipeline() {
               </span>
             </div>
             <div className="space-y-3 min-h-[80px]">
-              {col.orders.map((o) => (
-                <Link key={o.id} to={`/ops/orders/${o.id}`} className="block">
-                  <GlassCard className="p-4 hover:border-ember-500/40 transition-colors">
+              {col.orders.map((o) => {
+                const card = (
+                  <GlassCard className={`p-4 transition-colors ${
+                    tagging && picked.has(o.id)
+                      ? 'border-ember-500 bg-ember-500/10'
+                      : 'hover:border-ember-500/40'
+                  }`}>
                     <div className="flex items-center justify-between gap-2 mb-1.5">
                       <span className="font-bold text-white text-sm truncate">
+                        {tagging && (picked.has(o.id) ? '☑ ' : '☐ ')}
                         {o.tracking_code || o.customer_code || 'New quote'}
                       </span>
                       <StatusBadge status={o.status} />
@@ -120,9 +190,24 @@ export function Pipeline() {
                       {o.full_name || o.phone}
                       {o.quote_kes ? ` · KSh ${Number(o.quote_kes).toLocaleString()}` : ''}
                     </p>
+                    {o.supplier_ref && (
+                      <p className="text-[11px] text-ember-400/90 truncate mt-1" title={o.supplier_ref}>
+                        <Tags size={10} className="inline mr-1 -mt-0.5" />{o.supplier_ref}
+                      </p>
+                    )}
                   </GlassCard>
-                </Link>
-              ))}
+                )
+                // While tagging, a card is a checkbox — following the link
+                // would lose the ticks you already made.
+                return tagging ? (
+                  <button key={o.id} type="button" onClick={() => togglePicked(o.id)}
+                    className="block w-full text-left">
+                    {card}
+                  </button>
+                ) : (
+                  <Link key={o.id} to={`/ops/orders/${o.id}`} className="block">{card}</Link>
+                )
+              })}
               {!loading && col.orders.length === 0 && (
                 <p className="text-xs text-mute/60 px-1">Nothing here</p>
               )}

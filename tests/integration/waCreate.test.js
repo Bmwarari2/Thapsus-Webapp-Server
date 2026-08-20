@@ -242,3 +242,93 @@ describe.skipIf(SKIP)('POST /api/wa/orders — operator logs a mid-flight order'
     expect(r.status).toBe(404);
   });
 });
+
+describe.skipIf(SKIP)('supplier order references', () => {
+  let contactId;
+  const ref = `GSHMU${Math.floor(Math.random() * 1e9)}`;
+
+  beforeAll(async () => {
+    const r = await addContact({ phone: freshPhone(), full_name: 'Batch Buyer' });
+    contactId = r.body.contact.id;
+  });
+
+  const newOrder = async (note) => {
+    const r = await request(app)
+      .post('/api/wa/orders')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ contact_id: contactId, product_note: note });
+    expect(r.status).toBe(201);
+    return r.body.order;
+  };
+
+  const tag = (ids, supplier_ref) => request(app)
+    .post('/api/wa/orders/supplier-ref')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ order_ids: ids, supplier_ref });
+
+  const search = (q) => request(app)
+    .get(`/api/wa/orders?q=${encodeURIComponent(q)}&limit=100`)
+    .set('Authorization', `Bearer ${token}`);
+
+  it('tags several orders with one reference and finds them all again', async () => {
+    // The point of the feature: one supplier purchase, several of our
+    // parcels, and later a question about the whole batch.
+    const a = await newOrder('shoes');
+    const b = await newOrder('jacket');
+    const c = await newOrder('bag');
+
+    const r = await tag([a.id, b.id, c.id], ref);
+    expect(r.status).toBe(200);
+    expect(r.body.updated).toBe(3);
+
+    const found = await search(ref);
+    expect(found.status).toBe(200);
+    expect(found.body.orders.map((o) => o.id).sort()).toEqual([a.id, b.id, c.id].sort());
+    expect(found.body.orders.every((o) => o.supplier_ref === ref)).toBe(true);
+  });
+
+  it('finds the batch however the reference is capitalised', async () => {
+    const found = await search(ref.toLowerCase());
+    expect(found.body.orders.length).toBe(3);
+  });
+
+  it('records the tagging in each order history', async () => {
+    const a = await newOrder('single');
+    await tag([a.id], ref);
+    const detail = await request(app)
+      .get(`/api/wa/orders/${a.id}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(detail.body.events.some((e) => (e.note || '').includes(ref))).toBe(true);
+  });
+
+  it('clears the reference when given an empty one', async () => {
+    const a = await newOrder('to be untagged');
+    await tag([a.id], ref);
+    const cleared = await tag([a.id], '');
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.supplier_ref).toBeNull();
+    const detail = await request(app)
+      .get(`/api/wa/orders/${a.id}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(detail.body.order.supplier_ref).toBeNull();
+  });
+
+  it('accepts a reference at creation time', async () => {
+    const r = await request(app)
+      .post('/api/wa/orders')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ contact_id: contactId, status: 'purchased', quote_kes: 4000, supplier_ref: ref });
+    expect(r.status).toBe(201);
+    expect(r.body.order.supplier_ref).toBe(ref);
+  });
+
+  it('refuses a reference with characters an order number never has', async () => {
+    const a = await newOrder('bad ref');
+    const r = await tag([a.id], 'drop table; --');
+    expect(r.status).toBe(400);
+  });
+
+  it('refuses an empty selection', async () => {
+    expect((await tag([], ref)).status).toBe(400);
+  });
+});

@@ -110,7 +110,7 @@ export function AddOrderModal({ onClose, onCreated }) {
   const [q, setQ] = useState('')
   const [f, setF] = useState({
     contact_id: '', links: '', product_note: '', status: 'quoting',
-    quote_kes: '', delivery_fee_kes: '', notify: false,
+    quote_kes: '', delivery_fee_kes: '', supplier_ref: '', notify: false,
   })
   const [busy, setBusy] = useState(false)
 
@@ -134,6 +134,7 @@ export function AddOrderModal({ onClose, onCreated }) {
         status: f.status,
         quote_kes: f.quote_kes ? Number(f.quote_kes) : undefined,
         delivery_fee_kes: f.delivery_fee_kes ? Number(f.delivery_fee_kes) : undefined,
+        supplier_ref: f.supplier_ref.trim() || undefined,
         notify: f.notify,
       })
       const o = res.data.order
@@ -169,6 +170,11 @@ export function AddOrderModal({ onClose, onCreated }) {
           <span className={label}>Note</span>
           <input value={f.product_note} onChange={(e) => setF({ ...f, product_note: e.target.value })}
             placeholder="What it is, or the reference it had elsewhere" className={field} />
+        </div>
+        <div>
+          <span className={label}>Supplier order number</span>
+          <input value={f.supplier_ref} onChange={(e) => setF({ ...f, supplier_ref: e.target.value })}
+            placeholder="SHEIN or other retailer's own number — optional" className={field} />
         </div>
         <div>
           <span className={label}>Stage</span>
