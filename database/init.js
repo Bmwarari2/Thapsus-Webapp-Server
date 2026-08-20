@@ -304,9 +304,43 @@ export async function initializeDatabase() {
     console.warn('  Apply database/migrations/*.sql manually in Supabase SQL Editor.');
   } else {
     console.log('✓ Migration auto-runner disabled (default). Set RUN_MIGRATIONS_ON_BOOT=true to enable.');
+    // ...but say whether anything is waiting. Deploys land automatically
+    // on merge and migrations do not, so code can reach production ahead
+    // of the column it writes to — which is how #296 took order creation
+    // down: every POST /api/wa/orders 500'd on a missing supplier_ref,
+    // and the only clue at boot was this line saying the runner was off.
+    // A count here turns that into something you can see straight away.
+    await warnIfMigrationsPending(pool);
   }
 
   return pool;
+}
+
+/**
+ * Say out loud when the database is behind the code.
+ *
+ * Best-effort and never fatal: a boot that cannot read the ledger is not
+ * a boot worth refusing, and the app may legitimately run against a
+ * database someone else migrates.
+ */
+async function warnIfMigrationsPending(db) {
+  try {
+    const dir = path.join(__dirname, 'migrations');
+    if (!fs.existsSync(dir)) return;
+    const onDisk = fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
+    const { rows } = await db.query('SELECT filename FROM _migrations');
+    const applied = new Set(rows.map((r) => r.filename));
+    const pending = onDisk.filter((f) => !applied.has(f));
+    if (pending.length === 0) {
+      console.log('✓ Database schema is up to date with database/migrations.');
+      return;
+    }
+    console.warn(`⚠ ${pending.length} migration(s) NOT applied: ${pending.join(', ')}`);
+    console.warn('  Code that reads or writes those columns will fail until they are applied.');
+    console.warn('  Apply with `npm run migrate`, or set RUN_MIGRATIONS_ON_BOOT=true for one deploy.');
+  } catch (err) {
+    console.warn(`⚠ Could not check for pending migrations: ${err.message}`);
+  }
 }
 
 export function getPool() {
