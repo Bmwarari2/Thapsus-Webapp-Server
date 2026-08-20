@@ -1,7 +1,12 @@
 -- 0007_wa_supplier_ref.sql — the retailer's own order number.
 --
--- ⚠ DEPLOY ORDER: additive only — safe to apply before or after the code
--- that reads it. Pre-0007 code ignores the column entirely.
+-- ⚠ DEPLOY ORDER: APPLY THIS BEFORE THE CODE. Additive, but not
+-- order-free: POST /api/wa/orders names supplier_ref in its INSERT
+-- column list, so the code cannot run against a database without it —
+-- every order creation 500s with "column supplier_ref does not exist".
+-- That is not hypothetical; it is what happened when #296 auto-deployed
+-- on 20 Aug ahead of this file. Applying it early is harmless: older
+-- code never mentions the column.
 --
 -- When we buy a customer's items, SHEIN (or whoever) gives us an order
 -- number of their own. Until now that lived nowhere: to answer "which of

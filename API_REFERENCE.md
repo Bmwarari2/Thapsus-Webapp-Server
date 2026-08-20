@@ -144,6 +144,13 @@ bot replies. Not called by anything you own.
 SSE stream for the dashboard. Events: `wa_inbox_update`,
 `wa_pipeline_update`, `wa_new_customer`.
 
+Every event is **named**, and EventSource has no wildcard — a name with
+no `addEventListener` is received and dropped in silence. The client's
+list lives in `SSE_EVENTS` (`client/src/hooks/useRealtimeUpdates.js`) and
+`tests/unit/sseEvents.test.js` fails if the server learns an event the
+client does not listen for. All three names above were missing from that
+list until 2026-08-20, which is why the inbox needed a manual refresh.
+
 ```bash
 curl -N -H "Authorization: Bearer <sc_token>" https://thapsus.uk/api/events
 ```

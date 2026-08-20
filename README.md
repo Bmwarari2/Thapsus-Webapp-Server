@@ -81,7 +81,7 @@ sent.dm webhook registration, Gmail OAuth for operator password reset.
 | `SITE_URL` (or `APP_URL` / `FRONTEND_URL`) | receipt links, sitemap | **Apex domain only** — a `www.` host is not served and is stripped automatically. |
 | `GMAIL_*` | `utils/email.js` | Operator password-reset mail. |
 | `CORS_ORIGIN` | Express | Comma-separated allowlist in production; `'*'` is rejected outside development. |
-| `RUN_MIGRATIONS_ON_BOOT` | `database/init.js` | Off by default. Set `true` only when intentionally provisioning. |
+| `RUN_MIGRATIONS_ON_BOOT` | `database/init.js` | **`true` in production.** Deploys land automatically on merge; migrations have to land with them. |
 | `TEST_DATABASE_URL` | CI | Integration suites self-skip without it. |
 
 FX (`utils/fxRefresh.js`) refreshes `USD_KES` daily from frankfurter.dev —
@@ -95,8 +95,15 @@ changing a variable**.
 ## Database
 
 Schema lives in `database/migrations/`, applied through the `_migrations`
-ledger. The boot-time runner is opt-in (`RUN_MIGRATIONS_ON_BOOT=true`) so
-concurrent Railway deploys can't race on DDL.
+ledger. **The boot-time runner is on in production**
+(`RUN_MIGRATIONS_ON_BOOT=true`): merging deploys the code automatically,
+so the schema it needs has to arrive with it. It was opt-in until
+2026-08-20, when a merge shipped an INSERT naming a column whose
+migration nobody had run and order creation 500'd for fourteen minutes.
+
+Each migration runs in its own transaction against the ledger, so a
+second boot applies nothing. When the runner is off, boot now names what
+is pending instead of only saying it is disabled.
 
 ```
 0000_baseline.sql                      # base tables + indexes
