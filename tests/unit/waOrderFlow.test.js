@@ -125,6 +125,66 @@ describe('transition()', () => {
     expect(update[1]).toContain(300);
   });
 
+  // TRK-8831, from the transcript. It was correctly told "ready to
+  // collect at Stanbank House", and seventeen seconds later that it was
+  // "out for delivery to your address" and a rider would call. Both were
+  // true of the status and false of the parcel.
+  describe('a collection order never gets dispatched', () => {
+    const collectionOrder = (status) => orderRow({
+      status, delivery_method: 'collection',
+      delivery_fee_kes: 0, delivery_fee_in_quote: true,
+    });
+
+    it('refuses dispatch outright, not just in the dashboard', async () => {
+      // The UI offers "Mark as collected" instead, but a stale tab or a
+      // direct API call must not be able to send "a rider is on the way"
+      // to somebody walking to the CBD office.
+      const { db } = makeDb(collectionOrder('in_kenya'));
+      const r = await transition(db, 'o1', 'dispatched');
+      expect(r.ok).toBe(false);
+      expect(r.reason).toMatch(/collection order/i);
+      expect(sendToContact).not.toHaveBeenCalled();
+    });
+
+    it('refuses to mark it delivered', async () => {
+      const { db } = makeDb(collectionOrder('dispatched'));
+      const r = await transition(db, 'o1', 'delivered');
+      expect(r.ok).toBe(false);
+      expect(sendToContact).not.toHaveBeenCalled();
+    });
+
+    it('goes straight from in_kenya to collected', async () => {
+      const { db, calls } = makeDb(collectionOrder('in_kenya'));
+      const r = await transition(db, 'o1', 'collected');
+      expect(r).toEqual({ ok: true, status: 'collected' });
+      const update = calls.find(([sql]) => sql.includes('UPDATE wa_orders'));
+      expect(update[1]).toContain('collected');
+      // delivered_at stands in for "the customer has it".
+      expect(update[0]).toMatch(/delivered_at/);
+    });
+
+    it('says nothing when it is collected', async () => {
+      // They were at the counter. A WhatsApp message telling them they
+      // collected it arrives after they have walked out with the parcel.
+      const { db } = makeDb(collectionOrder('in_kenya'));
+      await transition(db, 'o1', 'collected');
+      expect(sendToContact).not.toHaveBeenCalled();
+    });
+
+    it('lets a legacy collection order out of delivery_fee_pending', async () => {
+      const { db } = makeDb(collectionOrder('delivery_fee_pending'));
+      const r = await transition(db, 'o1', 'collected');
+      expect(r).toEqual({ ok: true, status: 'collected' });
+    });
+  });
+
+  it('refuses to mark a delivery order collected', async () => {
+    const { db } = makeDb(orderRow({ status: 'in_kenya', delivery_method: 'delivery' }));
+    const r = await transition(db, 'o1', 'collected');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/for delivery/i);
+  });
+
   it('purchased → in_kenya stays in_kenya with the fee waived during a promo', async () => {
     getWaSettings.mockResolvedValueOnce({
       promo_active: true, promo_type: 'waive_fee', promo_message: 'Free delivery till mid-August!',

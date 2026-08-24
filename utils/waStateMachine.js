@@ -99,6 +99,7 @@ const STATUS_LABEL = {
   delivery_fee_pending: 'Arrived in Kenya — delivery fee pending',
   dispatched: 'Out for delivery',
   delivered: 'Delivered',
+  collected: 'Collected',
   cancelled: 'Cancelled',
 };
 
@@ -813,6 +814,10 @@ function parcelStateSentence(order, trackingCode) {
           + `Last step is the delivery fee of KSh ${Number(order.delivery_fee_kes).toLocaleString('en-KE')}: `
           + `Lipa na M-Pesa, Buy Goods, Till ${mpesaTill()}. Reply here once you've paid and we'll dispatch it.`
         : `${trackingCode} — your parcel arrived in Kenya${on(order.arrived_at)} and will be dispatched to your address shortly.`;
+
+    case 'collected':
+      return `${trackingCode} — you collected this${on(order.delivered_at)}. `
+        + `Asante for shopping with Thapsus Cargo. Send us another link any time.`;
 
     case 'dispatched':
       return `${trackingCode} — your parcel went out for delivery${on(order.dispatched_at)}. `

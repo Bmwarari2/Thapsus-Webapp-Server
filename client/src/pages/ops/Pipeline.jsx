@@ -14,7 +14,7 @@ const COLUMNS = [
   { title: 'Paid', statuses: ['paid'] },
   { title: 'Purchased', statuses: ['purchased'] },
   { title: 'In Kenya', statuses: ['in_kenya', 'delivery_fee_pending'] },
-  { title: 'Delivered', statuses: ['dispatched', 'delivered'] },
+  { title: 'Delivered', statuses: ['dispatched', 'delivered', 'collected'] },
 ]
 
 export function Pipeline() {

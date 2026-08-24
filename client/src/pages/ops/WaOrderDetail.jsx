@@ -21,6 +21,22 @@ const NEXT_ACTIONS = {
   dispatched: [{ to: 'delivered', label: 'Mark delivered' }],
 }
 
+// A collection order never leaves the building on a rider. Offering
+// Dispatch on one is how TRK-8831 was told "ready to collect at
+// Stanbank House" and then, seventeen seconds later, that a rider was
+// on the way to its address.
+const COLLECTION_ACTIONS = {
+  in_kenya: [{ to: 'collected', label: 'Mark as collected' }],
+  delivery_fee_pending: [{ to: 'collected', label: 'Mark as collected' }],
+}
+
+function nextActions(order) {
+  if (order.delivery_method === 'collection') {
+    return COLLECTION_ACTIONS[order.status] || []
+  }
+  return NEXT_ACTIONS[order.status] || []
+}
+
 export function WaOrderDetail() {
   const { id } = useParams()
   const { user } = useAuth()
@@ -281,7 +297,7 @@ export function WaOrderDetail() {
                 </button>
               </>
             )}
-            {(NEXT_ACTIONS[order.status] || []).map((a) => (
+            {nextActions(order).map((a) => (
               <button key={a.to} onClick={() => advance(a.to)} disabled={busy}
                 className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-ember-600 hover:bg-ember-500 text-white text-sm font-semibold disabled:opacity-50">
                 {a.label}
