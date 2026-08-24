@@ -265,7 +265,12 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
     `coming. THEN, in the same message, ask for the first detail we still need, explaining ` +
     `it is so we can get the parcel to them once they accept. That waiting time is the only ` +
     `moment worth spending on questions.\n` +
-    `3. IF THEY ASK SOMETHING — answer it from the knowledge base first, then continue.\n\n` +
+    `3. IF THEY ASK SOMETHING — answer it from the knowledge base first, then continue.\n` +
+    `4. IF THEY ASK TO SEE THE PRICE FIRST, or otherwise put off giving a detail — say yes. ` +
+    `Tell them the quote is coming and that nothing is needed until they have seen it, and do ` +
+    `NOT repeat the question in that same message. Leave the field null and ask again only ` +
+    `after they have accepted. Somebody deciding whether to buy at all is not being difficult, ` +
+    `and re-asking reads as though nobody listened.\n\n` +
     `Still needed from them: ${missing.join('; ') || 'nothing'}.\n` +
     `- Ask for ONE missing detail at a time, but extract EVERY detail their message contains ` +
     `(people often give several at once).\n` +

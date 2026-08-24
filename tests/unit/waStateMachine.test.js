@@ -333,6 +333,89 @@ describe('collection is a first-class answer', () => {
   });
 });
 
+// ── Names, questions and empty messages ──────────────────────────────────────
+// From the conversation with 254794282582: asked for a full name, the
+// customer replied "Can I first get the pricing and quotation ndio tujue
+// details" — a fair push-back. The whole sentence went into full_name and
+// they were answered "Thanks Can!".
+describe('what counts as a name', () => {
+  it('refuses the sentence that got stored as a name', async () => {
+    const { looksLikeName } = await import('../../utils/waStateMachine.js');
+    expect(looksLikeName('Can I first get the pricing and quotation ndio tujue details')).toBe(false);
+  });
+
+  it('refuses questions and requests generally', async () => {
+    const { looksLikeName } = await import('../../utils/waStateMachine.js');
+    for (const bad of [
+      'What is the price?', 'How much?', 'Can you send pricing',
+      'My name is later', 'I want to order first', 'please give me a quote',
+      'naomba bei kwanza', 'Do you deliver to Kisumu',
+      'Brian 254712345678', 'the quote first',
+    ]) {
+      expect(looksLikeName(bad), `${bad} should not be a name`).toBe(false);
+    }
+  });
+
+  it('still accepts real names, including long Kenyan ones', async () => {
+    const { looksLikeName } = await import('../../utils/waStateMachine.js');
+    for (const good of [
+      'Brian Mwarari', 'Eunice Ngasura', 'John Kamau Mwangi',
+      'Faith Wanjiru Njeri Kariuki', "N'Golo Kante", 'Mary-Anne O\'Brien',
+    ]) {
+      expect(looksLikeName(good), `${good} should be a name`).toBe(true);
+    }
+  });
+});
+
+describe('a customer who asks to see the price first', () => {
+  it('is told the quote is coming, not asked again', async () => {
+    const db = makeDb();
+    await handleInbound(db, contact({ state: 'awaiting_name', full_name: null, customer_code: null }),
+      { id: 'm', body: 'Can I first get the pricing and quotation ndio tujue details' });
+    const said = sendToContact.mock.calls[0][2].text;
+    expect(said).toMatch(/quote/i);
+    expect(said).not.toMatch(/reply with your full name/i);
+    // and nothing was stored from it
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('full_name'))).toBe(false);
+  });
+
+  it('does the same when we are waiting on the address', async () => {
+    const db = makeDb();
+    await handleInbound(db, contact({ state: 'awaiting_address', full_name: 'Brian Mwarari', customer_code: null }),
+      { id: 'm', body: 'How much is delivery?' });
+    const said = sendToContact.mock.calls[0][2].text;
+    expect(said).toMatch(/quote/i);
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('delivery_address'))).toBe(false);
+  });
+
+  it('still re-asks on a genuine non-answer that is not a question', async () => {
+    const db = makeDb();
+    await handleInbound(db, contact({ state: 'awaiting_name', full_name: null, customer_code: null }),
+      { id: 'm', body: '...' });
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/reply with your full name/i);
+  });
+});
+
+describe('an empty inbound message', () => {
+  it('is left in the inbox rather than answered', async () => {
+    // A sticker or an unsupported attachment arrives with no body. One
+    // was read as a delivery address, failed validation, and earned the
+    // customer the same question twice.
+    const db = makeDb();
+    await handleInbound(db, contact({ state: 'awaiting_address', full_name: 'Brian', customer_code: null }),
+      { id: 'm', body: '', mediaUrl: null });
+    expect(sendToContact).not.toHaveBeenCalled();
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('still handles a media message that carries no caption', async () => {
+    const db = makeDb();
+    await handleInbound(db, contact({ state: 'awaiting_name', full_name: null, customer_code: null }),
+      { id: 'm', body: '', mediaUrl: 'https://cdn.example.com/photo.jpg' });
+    expect(sendToContact).toHaveBeenCalled();
+  });
+});
+
 // ── Quote requests ───────────────────────────────────────────────────────────
 // The new flow is "send us a link and we will quote you". Nothing after
 // that link is automatic — a person prices it — so the link itself has to

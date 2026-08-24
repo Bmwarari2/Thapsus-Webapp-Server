@@ -113,6 +113,15 @@ export async function handleInbound(db, contact, message) {
 
   const body = (message.body || '').trim();
 
+  // Nothing to answer. A sticker, a contact card, an unsupported
+  // attachment — anything the provider hands us with no text arrives
+  // here as an empty body, and answering it treats silence as a reply.
+  // One customer's empty message was read as their delivery address,
+  // failed validation, and got them asked the same question again. The
+  // message is already in the inbox with the badge raised; a person can
+  // see it and decide whether it meant anything.
+  if (!body && !message.mediaUrl) return;
+
   let settings = null;
   try { settings = await getWaSettings(db); } catch { /* run without AI */ }
   const ai = Boolean(settings?.ai_enabled) && aiConfigured();
@@ -543,14 +552,51 @@ export function looksLikeDestination(value) {
  */
 const NOT_A_NAME = /^(hi|hey|hello+|yo|habari|niaje|sasa|mambo|karibu|jambo|salamu|hola|good\s*(morning|afternoon|evening|day)|asante|thanks?|thank\s*you|ok(ay)?|sawa(sawa)?|yes|no|please|help|start|hi\s*there)\b[\s!.,]*$/i;
 
-/** Is this plausibly someone's name, rather than a greeting or a link? */
+// Somebody asked to see the price before handing over their details:
+// "Can I first get the pricing and quotation ndio tujue details". The
+// whole sentence went into full_name and they were answered "Thanks
+// Can!". A greeting list was never going to catch that — the shape of a
+// question is what gives it away, not its vocabulary.
+//
+// Structural rules only, because vocabulary lists do not travel: a name
+// is short, it is not a question, and it does not open with the words
+// people start requests with.
+const SENTENCE_OPENER =
+  /^(can|could|may|might|shall|will|would|should|do|does|did|is|are|was|were|am|have|has|had|what|when|where|which|who|whom|whose|why|how|i|i'?m|im|my|me|we|you|your|the|a|an|please|let|give|send|tell|show|need|want|first|before|after|also|but|and|so|if|ok(ay)?|sorry|hebu|naomba|nataka|nini|vipi|kwani|sasa)\b/i;
+const MAX_NAME_WORDS = 5;
+
+/** Is this plausibly someone's name, rather than a greeting, link or question? */
 export function looksLikeName(value) {
   const name = String(value || '').trim();
   if (name.length < 2 || name.length > 120) return false;
   if (/^https?:\/\//i.test(name)) return false;
   if (NOT_A_NAME.test(name)) return false;
+  // Nobody's name is a question, and none contain digits.
+  if (/[?¿]/.test(name)) return false;
+  if (/\d/.test(name)) return false;
+  // "Brian Mwarari" is two words; "Can I first get the pricing and
+  // quotation ndio tujue details" is eleven. Five leaves room for a long
+  // Kenyan name and still turns away a sentence.
+  const words = name.split(/\s+/).filter(Boolean);
+  if (words.length > MAX_NAME_WORDS) return false;
+  // A short phrase can still be a request — "give me pricing", "my name".
+  if (words.length > 1 && SENTENCE_OPENER.test(name)) return false;
   // A name has letters in it; "0700092005" and "..." do not.
   return /\p{L}{2,}/u.test(name);
+}
+
+/**
+ * Is this message a question or a push-back, rather than the answer we
+ * asked for? Used to tell "not yet, tell me the price first" apart from
+ * an answer that simply failed validation — the two deserve different
+ * replies, and re-asking somebody who just asked us something is how a
+ * conversation stops feeling like one.
+ */
+export function looksLikeQuestion(value) {
+  const v = String(value || '').trim();
+  if (!v) return false;
+  if (/[?¿]/.test(v)) return true;
+  return v.split(/\s+/).length > 1 && SENTENCE_OPENER.test(v);
 }
 
 /**
@@ -700,6 +746,18 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
             `While you wait: what's your full name? (As we should write it on your parcels.)`,
         });
       }
+      // They asked us something instead of answering. Re-asking for a
+      // name at that point ignores a customer who is still deciding
+      // whether to buy at all — and the detail is only needed once they
+      // accept, so there is nothing to lose by waiting.
+      if (looksLikeQuestion(body)) {
+        return sendToContact(db, contact, {
+          text:
+            `Of course — your quote is being worked out now and will come through here shortly. ` +
+            `There's nothing to pay or decide until you've seen it.\n\n` +
+            `We'll only need your name and where to send the parcel once you're happy to go ahead.`,
+        });
+      }
       if (!looksLikeName(body)) {
         return sendToContact(db, contact, {
           text: `Please reply with your full name (as we should write it on your parcels).`,
@@ -717,6 +775,13 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
           text:
             `Got it — our team is pricing that now and your quote will come through here shortly.\n\n` +
             `While you wait: where should the parcel go? A delivery address (estate/building, street, town), or the pickup point you'd rather collect from.`,
+        });
+      }
+      if (looksLikeQuestion(body)) {
+        return sendToContact(db, contact, {
+          text:
+            `Of course — your quote is on its way and there's nothing to decide until you've seen it.\n\n` +
+            `We'll only need to know where to send the parcel once you're happy to go ahead.`,
         });
       }
       if (!looksLikeDestination(body)) {
