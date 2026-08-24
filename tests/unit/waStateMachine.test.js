@@ -277,6 +277,40 @@ describe('quote confirmation', () => {
   });
 });
 
+// ── Collection, not just delivery ────────────────────────────────────────────
+// Half our customers collect: the CBD office, or a Pickup Mtaani point.
+// The prompts used to demand an estate and a street, and the length floor
+// rejected the short answers a collector actually gives.
+describe('collection is a first-class answer', () => {
+  it('accepts a short pickup point as the destination', async () => {
+    const db = makeDb(async (sql) => {
+      if (sql.includes('nextval')) return { rows: [{ n: '1050' }] };
+      return { rows: [], rowCount: 1 };
+    });
+    await handleInbound(db, contact({ state: 'awaiting_address', full_name: 'Jane Doe', customer_code: null }),
+      { id: 'm', body: 'CBD' });
+    const update = db.query.mock.calls.find(([sql]) => sql.includes('UPDATE wa_contacts'));
+    expect(update[1]).toContain('CBD');
+    expect(update[1]).toContain('active');
+  });
+
+  it('still re-asks on a non-answer', async () => {
+    const db = makeDb();
+    await handleInbound(db, contact({ state: 'awaiting_address', full_name: 'Jane Doe', customer_code: null }),
+      { id: 'm', body: 'ok' });
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('delivery_address'))).toBe(false);
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/pickup point/i);
+  });
+
+  it('offers collection alongside delivery when it asks', async () => {
+    const db = makeDb();
+    await handleInbound(db, contact({ state: 'awaiting_name', full_name: null, customer_code: null }),
+      { id: 'm', body: 'Jane Doe' });
+    const asked = sendToContact.mock.calls.map(([, , o]) => o.text || '').join(' ');
+    expect(asked).toMatch(/collect/i);
+  });
+});
+
 // ── Quote requests ───────────────────────────────────────────────────────────
 // The new flow is "send us a link and we will quote you". Nothing after
 // that link is automatic — a person prices it — so the link itself has to

@@ -238,7 +238,14 @@ export async function chatReply({ knowledgeBase, history, message, orderContext,
 export async function onboardingTurn({ knowledgeBase, history, message, profile, orderContext }) {
   const missing = [];
   if (!profile.full_name) missing.push('full name (as written on parcels)');
-  if (!profile.delivery_address) missing.push('delivery address in Kenya (estate/building, street, town)');
+  // Not everyone wants a delivery. Collection is a first-class answer —
+  // our CBD office or a Pickup Mtaani point — and asking a collector
+  // three times for their estate and street is how we lose them.
+  if (!profile.delivery_address) {
+    missing.push('where the parcel should go — either a delivery address in Kenya '
+      + '(estate/building, street, town) or the pickup point they would rather collect from. '
+      + 'Offer both; take whichever they give');
+  }
 
   const system =
     `You are the WhatsApp assistant for Thapsus Cargo, a Kenyan service that buys items ` +

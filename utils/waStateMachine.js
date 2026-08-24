@@ -515,8 +515,20 @@ async function loadOrderContext(db, contactId) {
 // question so the flow keeps moving.
 const MISSING_FIELD_PROMPT = {
   awaiting_name: `To set you up, what's your full name?`,
-  awaiting_address: `To set you up, what's your delivery address? (Estate/building, street, town)`,
+  awaiting_address: `To set you up: where should the parcel go? Send a delivery address (estate/building, street, town), or tell us the pickup point you'd rather collect from.`,
 };
+
+// Somewhere we can actually send a parcel — a street address, or a
+// collection point. Collection answers are short by nature ("CBD",
+// "Mtaani", "Stanbank"), so a length floor on its own would re-ask a
+// customer who has already answered perfectly well.
+const PICKUP_WORDS = /\b(cbd|town|stanbank|pick\s?up|pickup|mtaani|collect(ion)?|office)\b/i;
+
+/** Is this plausibly a destination — an address, or a pickup point? */
+export function looksLikeDestination(value) {
+  const v = String(value || '').trim();
+  return v.length >= 5 || PICKUP_WORDS.test(v);
+}
 
 /**
  * Greetings and pleasantries people open with, which are not names.
@@ -575,7 +587,7 @@ async function aiOnboarding(db, contact, message, body, settings) {
   if (!contact.full_name && looksLikeName(turn.full_name)) {
     fields.full_name = turn.full_name.trim();
   }
-  if (!contact.delivery_address && turn.delivery_address && turn.delivery_address.length >= 5) {
+  if (!contact.delivery_address && looksLikeDestination(turn.delivery_address)) {
     fields.delivery_address = turn.delivery_address;
   }
 
@@ -688,7 +700,7 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
       }
       await setState(db, contact.id, 'awaiting_address', { full_name: body.slice(0, 120) });
       return sendToContact(db, contact, {
-        text: `Thanks ${body.split(/\s+/)[0]}! What's your delivery address? (Estate/building, street, town)`,
+        text: `Thanks ${body.split(/\s+/)[0]}! Where should we send it? A delivery address (estate/building, street, town), or the pickup point you'd rather collect from.`,
       });
     }
 
@@ -697,12 +709,12 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
         return sendToContact(db, contact, {
           text:
             `Got it — our team is pricing that now and your quote will come through here shortly.\n\n` +
-            `While you wait: what's your delivery address? (Estate/building, street, town.)`,
+            `While you wait: where should the parcel go? A delivery address (estate/building, street, town), or the pickup point you'd rather collect from.`,
         });
       }
-      if (body.length < 5) {
+      if (!looksLikeDestination(body)) {
         return sendToContact(db, contact, {
-          text: `Please send your delivery address — estate/building, street and town — so our rider can find you.`,
+          text: `Please tell us where the parcel should go — a delivery address (estate/building, street and town), or the pickup point you'd rather collect from.`,
         });
       }
       // Last question. There used to be one more, for an M-Pesa number we
