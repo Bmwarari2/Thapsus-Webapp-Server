@@ -733,19 +733,29 @@ router.post('/:id/advance', authMiddleware, STAFF, async (req, res) => {
 /** POST /api/wa/orders/:id/waive-fee — manual per-order fee waiver. */
 router.post('/:id/waive-fee', authMiddleware, STAFF, async (req, res) => {
   try {
+    // Waiving clears the debt, so the order leaves 'delivery_fee_pending'
+    // for 'in_kenya' — same reasoning as a paid fee in markPaymentPaid:
+    // that status means money is owed, and nothing is. RETURNING gives
+    // back the status the row held *before* this update, which is what
+    // the audit event should record as the from_status.
     const { rows } = await req.db.query(
-      `UPDATE wa_orders
-          SET delivery_fee_waived = true, updated_at = NOW()
-        WHERE id = $1 AND status IN ('in_kenya', 'delivery_fee_pending')
-        RETURNING id, status, tracking_code, contact_id`,
+      `WITH prev AS (
+         SELECT id, status FROM wa_orders WHERE id = $1 FOR UPDATE
+       )
+       UPDATE wa_orders o
+          SET delivery_fee_waived = true, status = 'in_kenya', updated_at = NOW()
+         FROM prev
+        WHERE o.id = prev.id
+          AND prev.status IN ('in_kenya', 'delivery_fee_pending')
+        RETURNING o.id, prev.status AS from_status, o.tracking_code, o.contact_id`,
       [req.params.id]
     );
     const order = rows[0];
     if (!order) return res.status(409).json({ success: false, message: 'Order is not awaiting a delivery fee' });
     await req.db.query(
       `INSERT INTO wa_order_events (id, order_id, from_status, to_status, actor_user_id, note)
-       VALUES ($1, $2, $3, $3, $4, 'Delivery fee waived')`,
-      [uuidv4(), order.id, order.status, req.user.id]
+       VALUES ($1, $2, $3, 'in_kenya', $4, 'Delivery fee waived')`,
+      [uuidv4(), order.id, order.from_status, req.user.id]
     );
     const { rows: c } = await req.db.query(`SELECT id, phone FROM wa_contacts WHERE id = $1`, [order.contact_id]);
     if (c[0]) {

@@ -145,7 +145,8 @@ async function flipTarget(client, kind, id) {
       //     flip to 'paid' and mint the Tracking Code in the same
       //     transaction so the code exists the instant money lands.
       //   in_kenya / delivery_fee_pending       → the last-mile fee:
-      //     stamp delivery_fee_paid_at; the operator dispatches next.
+      //     stamp delivery_fee_paid_at AND clear the pending status, so
+      //     the badge stops saying the fee is owed once it is paid.
       const { rows } = await client.query(
         `SELECT id, status, tracking_code FROM wa_orders WHERE id = $1 FOR UPDATE`,
         [id]
@@ -167,13 +168,23 @@ async function flipTarget(client, kind, id) {
           [uuidv4(), id, order.status]
         );
       } else if (['in_kenya', 'delivery_fee_pending'].includes(order.status)) {
+        // 'delivery_fee_pending' is a statement about money owed, so a
+        // settled order must not stay in it. It goes back to 'in_kenya':
+        // arrived, nothing outstanding, waiting on dispatch. Written
+        // here rather than through transition() on purpose — that helper
+        // re-runs the arrival branch, which would re-send the "your
+        // parcel has landed" message and, with the promo off, drop the
+        // order straight back into delivery_fee_pending.
         await client.query(
-          `UPDATE wa_orders SET delivery_fee_paid_at = NOW(), updated_at = NOW() WHERE id = $1`,
+          `UPDATE wa_orders
+              SET delivery_fee_paid_at = COALESCE(delivery_fee_paid_at, NOW()),
+                  status = 'in_kenya', updated_at = NOW()
+            WHERE id = $1`,
           [id]
         );
         await client.query(
           `INSERT INTO wa_order_events (id, order_id, from_status, to_status, note)
-           VALUES ($1, $2, $3, $3, 'Delivery fee received')`,
+           VALUES ($1, $2, $3, 'in_kenya', 'Delivery fee received')`,
           [uuidv4(), id, order.status]
         );
       }
