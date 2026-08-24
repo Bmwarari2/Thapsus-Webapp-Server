@@ -9,7 +9,7 @@ import { getOrCompute, cacheInvalidate } from './cache.js';
 const CACHE_KEY = 'wa_settings_v1';
 const TTL_MS = 30_000;
 
-const DEFAULTS = {
+export const DEFAULTS = {
   markup_pct: 10,
   promo_active: false,
   promo_type: 'waive_fee',       // 'waive_fee' | 'discount'
@@ -17,9 +17,33 @@ const DEFAULTS = {
   default_delivery_fee_kes: 300,
   welcome_media_urls: [],
   // Optional map of logical message keys → approved sent.dm template names.
-  // Empty until WhatsApp templates are registered/approved; senders fall
-  // back to free-form text (fine inside the 24h service window).
-  template_map: {},
+  // The templates approved in the sent.dm console, keyed by our logical
+  // slot. These are defaults, not lore: each name was confirmed against
+  // the approved body character-for-character (see the check in
+  // tests/unit/waTemplateVars.test.js), so a fresh install sends real
+  // templates instead of free text that dies outside the 24h window.
+  //
+  // An operator can still override any of them in /ops/settings — a
+  // stored map replaces this wholesale, so a partial override must list
+  // every key it wants.
+  //
+  // Two slots are deliberately absent because no approved template
+  // exists yet: arrived_paid and arrived_collect. They fall back to free
+  // text, which reaches nobody at arrival — add them here once approved.
+  template_map: {
+    quote: 'Quote_Ready',
+    payment_prompt: 'Payment_Reminder',
+    payment_received: 'Payment_Received',
+    receipt: 'Receipt',
+    purchased: 'Order_Purchased',
+    arrived_fee: 'Arrived_Fee',
+    arrived_waived: 'Arrived_Waived',
+    // The console holds two identical dispatch templates. This is the
+    // UTILITY one; the MARKETING twin ('Dispatched') can be refused for
+    // anyone who has opted out of marketing messages.
+    dispatched: 'Dispatched__Out_For_Delivery',
+    delivered: 'Delivered',
+  },
   // Gemini assistant (utils/waAi.js): answers general questions from the
   // knowledge base and interprets onboarding replies. Requires
   // GEMINI_API_KEY on the server; this flag is the operator kill-switch.
@@ -56,7 +80,7 @@ export async function getWaSettings(db) {
         ? parseJsonOr([], kv.welcome_media_urls) : [],
       template_map: (typeof parseJsonOr(null, kv.template_map) === 'object'
         && parseJsonOr(null, kv.template_map) !== null)
-        ? parseJsonOr({}, kv.template_map) : {},
+        ? parseJsonOr(DEFAULTS.template_map, kv.template_map) : DEFAULTS.template_map,
       ai_enabled: kv.ai_enabled === 'true',
       ai_knowledge_base: kv.ai_knowledge_base ?? '',
       ai_resume_after_minutes: Number.isFinite(Number(kv.ai_resume_after_minutes))

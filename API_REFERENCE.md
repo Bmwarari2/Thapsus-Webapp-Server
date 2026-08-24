@@ -88,7 +88,7 @@ bot replies. Not called by anything you own.
 | Method | Path | Notes |
 | --- | --- | --- |
 | GET | `/wa/settings` | Current settings + `capabilities` (e.g. `stk_available`). |
-| PUT | `/wa/settings` | `markup_pct`, `promo_active`, `promo_type`, `promo_message`, `default_delivery_fee_kes`, `welcome_media_urls[]`, `template_map{}`, `ai_enabled`, `ai_knowledge_base`, `ai_resume_after_minutes`, `staff_alert_numbers[]`, `staff_alert_template`. |
+| PUT | `/wa/settings` | `markup_pct`, `promo_active`, `promo_type`, `promo_message`, `default_delivery_fee_kes`, `welcome_media_urls[]`, `template_map{}`, `ai_enabled`, `ai_knowledge_base`, `ai_resume_after_minutes`, `staff_alert_numbers[]`, `staff_alert_template`. `template_map` ships with the approved sent.dm names already filled in (see `utils/waSettings.js`); a stored map replaces it wholesale, so a partial override must list every key it wants. |
 | GET | `/wa/settings/webhook-status` | Webhook doctor — the live sent.dm registration, recent delivery events, AI self-test. |
 | POST | `/wa/settings/webhook-repair` | Re-point and re-activate the registration at this deployment. |
 
