@@ -261,8 +261,9 @@ for removal with the rest of the legacy schema.
 ### 10.2 WhatsApp conversation data
 
 Full message transcripts are stored in `wa_messages`, including anything
-a customer volunteers. Contact rows hold name, delivery address and
-M-Pesa number. Recent transcript excerpts and a rolling AI summary are
+a customer volunteers. Contact rows hold name and delivery address, plus
+an M-Pesa number for the contacts collected before signup stopped asking
+for one. Recent transcript excerpts and a rolling AI summary are
 sent to Google's Gemini API when the assistant is enabled; the operator
 kill-switch in `/ops/settings` stops that immediately, and the
 per-conversation toggle stops it for one customer. Nothing else leaves

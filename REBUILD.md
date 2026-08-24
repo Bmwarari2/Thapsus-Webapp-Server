@@ -38,27 +38,58 @@ any more.
 ### Phase 1 — Onboarding
 
 A first message from an unknown number creates a `wa_contacts` row in
-state `new`. The assistant welcomes them, explains the service, and
-collects three things in whatever order the conversation produces them:
-full name, Kenyan delivery address, and the M-Pesa number they will pay
-with. When all three are present the contact is issued a permanent
-**Customer Code** (`TC-1042`, `TC-1043`, …) and moves to state `active`.
-Operators are notified in the dashboard over SSE and on WhatsApp via the
+state `new`. **The first reply sells before it asks.** The assistant
+opens with what we do and what we charge — the service fee, the minimum
+order, the delivery time and any promotion running, all read from the
+operator-maintained knowledge base — and closes by asking what they'd
+like to do: send a product link, or ask a question. It does not ask for
+a name or an address in that message.
+
+Details are collected in the one window where the customer is already
+waiting: after they send a product link. The assistant tells them the
+team is pricing it, then asks for the first thing still missing —
+full name, then Kenyan delivery address — explaining that it's so the
+parcel can reach them once they accept the quote. Either can arrive
+early, in any order; whatever a message contains is extracted from it.
+
+When both are present the contact is issued a permanent **Customer
+Code** (`TC-1042`, `TC-1043`, …) and moves to state `active`. Operators
+are notified in the dashboard over SSE and on WhatsApp via the
 staff-alert template.
 
-The M-Pesa number is the one hard gate: it is validated by
-`normalizeKenyanPhone` regardless of what the assistant extracted, and a
-value that doesn't normalise is never stored.
+**No M-Pesa number is asked for.** Signup used to hold people at a third
+question — the number they would pay from — and it earned nothing:
+payments are identified from the M-Pesa statement after the fact. The
+column survives for the contacts that already have one (an STK push is
+sent to it, falling back to their WhatsApp number) and an operator can
+still type one in, but nothing asks and nothing waits on it.
+
+A greeting is never accepted as a name, whatever the model extracted:
+`looksLikeName` is enforced in `waStateMachine`, not in the prompt.
 
 ### Phase 2 — Quoting
 
-The customer sends one or more product links. An operator opens the
-conversation, creates an order, and enters the item price in USD. The
+The customer sends one or more product links. Any link in an inbound
+message pages staff immediately — on WhatsApp via the staff-alert
+template, and in the dashboard as a `wa_quote_request` SSE event that
+raises a sticky toast in the inbox. That alert is load-bearing now that
+the assistant's opening line invites a link: it promises a quote, and
+only a person can send one.
+
+An operator opens the conversation, creates an order, and enters the
+item price in USD. The
 server does the arithmetic — it never trusts a client-supplied total:
 
 ```
 quote_kes = round(usd_price × live_USD_KES_rate × (1 + markup_pct / 100))
 ```
+
+`markup_pct` is chosen per order, defaulting to the settings value. It has
+to be: the 10% service fee is a SHEIN charge, waived outright while the
+SHEIN promotion runs, and the weight-based lanes (UK at £9/kg + £3
+handling, Dubai at $9/kg) carry no percentage at all. A single global
+markup added 10% to every one of those quotes, and printed "Service
+margin: 10%" in the message as though it were intended.
 
 The live rate comes from the `USD_KES` row that `utils/fxRefresh.js`
 upserts daily from frankfurter.dev; `markup_pct` comes from

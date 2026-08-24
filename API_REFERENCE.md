@@ -54,7 +54,7 @@ bot replies. Not called by anything you own.
 | POST | `/wa/conversations/:contactId/messages` | Send. `{ text?, media_url?, media_type? }`. Recorded as sent by the operator. |
 | POST | `/wa/conversations/:contactId/read` | Clear the unread badge. |
 | POST | `/wa/conversations/:contactId/ai` | `{ enabled }` — resume or pause the assistant on this chat (clears/sets `human_takeover_at`). |
-| PUT | `/wa/contacts/:contactId` | Edit name, delivery address, M-Pesa number. |
+| PUT | `/wa/contacts/:contactId` | Edit name, delivery address, M-Pesa number (never asked for — kept for STK on contacts that already have one). |
 | POST | `/wa/upload-url` | `{ filename, content_type }` → signed Supabase Storage PUT for outbound media. |
 
 ---
@@ -68,7 +68,7 @@ bot replies. Not called by anything you own.
 | POST | `/wa/orders/supplier-ref` | `{ order_ids[], supplier_ref }` — tag one or many orders with the retailer's own order number (SHEIN et al). Empty/null clears it. Writes an order event per order. |
 | POST | `/wa/orders` | `{ contact_id, product_links[], product_note?, status?, quote_kes?, delivery_fee_kes?, supplier_ref?, notify? }` → an order at `status` (default `quoting`), with earlier stages' timestamps backfilled. |
 | GET | `/wa/orders/:id` | Order + contact + audit trail + payments. |
-| POST | `/wa/orders/:id/quote` | **Idempotent.** `{ usd_price }`. Server computes `usd × live USD_KES × (1 + markup/100)`, snapshots the inputs, sends the quote. 409 unless status is `quoting`/`quoted`; 503 if the FX rate is stale. |
+| POST | `/wa/orders/:id/quote` | **Idempotent.** `{ usd_price, markup_pct? }`. Server computes `usd × live USD_KES × (1 + markup/100)`, snapshots the inputs, sends the quote. `markup_pct` is per-order (0–100), defaulting to the settings value — the 10% is a SHEIN charge, so UK (£9/kg + £3) and Dubai ($9/kg) orders pass `0`. 409 unless status is `quoting`/`quoted`; 503 if the FX rate is stale. |
 | POST | `/wa/orders/:id/confirm` | Operator confirms on the customer's behalf. Silent — the payment prompt follows separately. |
 | POST | `/wa/orders/:id/request-payment` | **Idempotent.** `{ method: 'stk'\|'manual', purpose: 'order'\|'delivery_fee', phone? }`. `manual` opens/reuses an `awaiting_review` payment and sends till instructions. `stk` returns 409 `stk_unavailable` unless `MPESA_PROVIDER=lipana`. |
 | POST | `/wa/orders/:id/mark-paid` | **Admin. Idempotent.** `{ mpesa_reference?, note? }`. Get-or-creates the payment for whatever the order owes, stamps the reference, settles through `markPaymentPaid` — minting the tracking code and sending the receipt. |

@@ -47,7 +47,7 @@ function Modal({ title, icon: Icon, onClose, children }) {
 
 /** Add a customer who came from Instagram, TikTok, a call, a referral. */
 export function AddCustomerModal({ onClose, onAdded }) {
-  const [f, setF] = useState({ phone: '', full_name: '', delivery_address: '', mpesa_number: '', source: 'Instagram', note: '' })
+  const [f, setF] = useState({ phone: '', full_name: '', delivery_address: '', source: 'Instagram', note: '' })
   const [busy, setBusy] = useState(false)
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
 
@@ -81,15 +81,9 @@ export function AddCustomerModal({ onClose, onAdded }) {
           <span className={label}>Delivery address</span>
           <input value={f.delivery_address} onChange={set('delivery_address')} placeholder="Building, street, town, county" className={field} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <span className={label}>M-Pesa number</span>
-            <input value={f.mpesa_number} onChange={set('mpesa_number')} placeholder="0712 345 678" className={field} />
-          </div>
-          <div>
-            <span className={label}>Came from</span>
-            <input value={f.source} onChange={set('source')} placeholder="Instagram, TikTok, referral…" className={field} />
-          </div>
+        <div>
+          <span className={label}>Came from</span>
+          <input value={f.source} onChange={set('source')} placeholder="Instagram, TikTok, referral…" className={field} />
         </div>
         <p className="text-xs text-mute">
           A name is enough to get them a customer code. Whatever you leave blank, the

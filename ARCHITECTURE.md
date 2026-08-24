@@ -83,6 +83,10 @@ model output can move an order or quote a price:
 1. **Human takeover** — if `human_takeover_at` is set and the chat hasn't
    been quiet for `ai_resume_after_minutes`, the assistant stays silent.
    Runs first so it covers onboarding too.
+1b. **Quote request** — the message contains a link. Pages staff on
+   WhatsApp and over SSE, then falls through to whatever branch would
+   have handled it. Nothing downstream is automatic: the assistant says a
+   quote is coming, and a person has to send it.
 2. **Onboarding** — contact isn't `active` yet.
 3. **Tracking auto-reply** — a `TRK-####` anywhere in the text.
 4. **Quote confirmation** — a yes-like reply *and exactly one* order in
@@ -91,9 +95,12 @@ model output can move an order or quote a price:
 6. **AI fall-through** — everything else.
 
 Conversation state lives entirely on `wa_contacts.state`
-(`new → awaiting_name → awaiting_address → awaiting_mpesa → active`,
-plus `blocked`). No in-memory sessions, so a restart never loses a
-customer mid-signup.
+(`new → awaiting_name → awaiting_address → active`, plus `blocked`). No
+in-memory sessions, so a restart never loses a customer mid-signup.
+`awaiting_mpesa` was a fourth step until `0008`; the value stays in the
+CHECK constraint but nothing writes it any more — payments are matched
+from the M-Pesa statement, so asking for the number up front only cost
+us people at the door.
 
 ### The AI boundary
 

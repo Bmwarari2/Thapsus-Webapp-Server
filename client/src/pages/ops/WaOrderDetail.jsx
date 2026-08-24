@@ -28,6 +28,10 @@ export function WaOrderDetail() {
   const [events, setEvents] = useState([])
   const [payments, setPayments] = useState([])
   const [usd, setUsd] = useState('')
+  // Per-order, because the 10% is a SHEIN charge and nothing else pays
+  // it: UK is £9/kg + £3, Dubai is $9/kg, and SHEIN itself is 0 while the
+  // promotion runs. Blank falls back to the settings default.
+  const [margin, setMargin] = useState('')
   const [mpesaRef, setMpesaRef] = useState('')
   const [supplierRef, setSupplierRef] = useState('')
   const [siblings, setSiblings] = useState([])   // others in the same supplier order
@@ -85,7 +89,11 @@ export function WaOrderDetail() {
   const sendQuote = run(() => {
     const price = Number(usd)
     if (!Number.isFinite(price) || price <= 0) throw Object.assign(new Error(), { response: { data: { message: 'Enter a valid USD price' } } })
-    return waApi.quote(id, price)
+    const pct = margin.trim() === '' ? undefined : Number(margin)
+    if (pct !== undefined && (!Number.isFinite(pct) || pct < 0 || pct > 100)) {
+      throw Object.assign(new Error(), { response: { data: { message: 'Margin must be between 0 and 100' } } })
+    }
+    return waApi.quote(id, price, pct)
   }, 'Quote sent to the customer')
 
   const confirm = run(() => waApi.confirm(id), 'Order confirmed')
@@ -176,18 +184,31 @@ export function WaOrderDetail() {
             </div>
           )}
           {['quoting', 'quoted'].includes(order.status) ? (
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-mute text-sm">$</span>
-                <input value={usd} onChange={(e) => setUsd(e.target.value)} inputMode="decimal"
-                  placeholder="Item price in USD"
-                  className="w-full pl-7 pr-3 py-2.5 rounded-xl bg-white/5 border border-line text-white placeholder:text-mute focus:outline-none focus:border-ember-500/50" />
+            <>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-mute text-sm">$</span>
+                  <input value={usd} onChange={(e) => setUsd(e.target.value)} inputMode="decimal"
+                    placeholder="Item price in USD"
+                    className="w-full pl-7 pr-3 py-2.5 rounded-xl bg-white/5 border border-line text-white placeholder:text-mute focus:outline-none focus:border-ember-500/50" />
+                </div>
+                <div className="relative w-32">
+                  <input value={margin} onChange={(e) => setMargin(e.target.value)} inputMode="decimal"
+                    placeholder="Margin"
+                    className="w-full pl-3 pr-7 py-2.5 rounded-xl bg-white/5 border border-line text-white placeholder:text-mute focus:outline-none focus:border-ember-500/50" />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-mute text-sm">%</span>
+                </div>
+                <button onClick={sendQuote} disabled={busy}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-ember-600 hover:bg-ember-500 text-white font-semibold disabled:opacity-50">
+                  <Send size={16} /> {order.status === 'quoted' ? 'Re-quote' : 'Send quote'}
+                </button>
               </div>
-              <button onClick={sendQuote} disabled={busy}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-ember-600 hover:bg-ember-500 text-white font-semibold disabled:opacity-50">
-                <Send size={16} /> {order.status === 'quoted' ? 'Re-quote' : 'Send quote'}
-              </button>
-            </div>
+              <p className="text-xs text-mute mt-1.5">
+                The 10% service fee is SHEIN only, and is waived while the promotion runs.
+                Enter <span className="text-white">0</span> for UK (£9/kg + £3) and Dubai ($9/kg)
+                orders. Leave blank to use the default from Settings.
+              </p>
+            </>
           ) : null}
           {order.quote_kes && (
             <div className="mt-4 grid grid-cols-2 gap-y-1.5 text-sm">

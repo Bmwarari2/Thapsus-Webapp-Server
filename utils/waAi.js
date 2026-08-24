@@ -175,7 +175,8 @@ export async function aiSelfTest() {
 
 const GUARDRAILS = `
 STRICT RULES you must never break:
-- NEVER state, estimate, or negotiate prices, quotes, exchange rates, or fees. If asked about cost, explain that they should send the product link and the team will reply with an exact KES quote.
+- DO tell customers our standing rates — the service fee, minimum order, delivery time, delivery charge and any promotion — exactly as the KNOWLEDGE BASE states them. That is what we advertise and people ask before they will send anything.
+- But NEVER price a specific item: no totals, no estimates, no "roughly", no exchange-rate arithmetic, no negotiating. Working out what one order costs needs the live rate and the team. Say the quote is coming and what it will cover.
 - NEVER confirm orders, confirm payments, promise delivery dates, or claim an action was taken.
 - NEVER ask for card numbers, PINs, or passwords.
 - Only state facts found in the KNOWLEDGE BASE or in THIS CUSTOMER'S ORDERS.
@@ -221,37 +222,55 @@ export async function chatReply({ knowledgeBase, history, message, orderContext,
 
 /**
  * Drive a whole onboarding turn conversationally (AI-first mode): the
- * model greets, explains the service, answers questions from the
- * knowledge base, and gathers the three profile fields in whatever order
- * the conversation flows — extracting any it finds in this message.
+ * model opens with what we do and what we charge, answers questions from
+ * the knowledge base, and gathers the two profile fields — name and
+ * delivery address — while the customer waits on a quote, extracting any
+ * it finds in this message.
  * The caller stays in charge of validation, state, and code minting.
  *
  * @param {object} p
  * @param {string} p.knowledgeBase
  * @param {Array<{direction: 'in'|'out', body: string}>} p.history  oldest first
  * @param {string} p.message      the new inbound text
- * @param {{full_name: string|null, delivery_address: string|null, mpesa_number: string|null}} p.profile
- * @returns {Promise<{kind: 'reply'|'handoff'|'off_topic', reply: string|null, full_name: string|null, delivery_address: string|null, mpesa_number: string|null}>}
+ * @param {{full_name: string|null, delivery_address: string|null}} p.profile
+ * @returns {Promise<{kind: 'reply'|'handoff'|'off_topic', reply: string|null, full_name: string|null, delivery_address: string|null}>}
  */
 export async function onboardingTurn({ knowledgeBase, history, message, profile, orderContext }) {
   const missing = [];
   if (!profile.full_name) missing.push('full name (as written on parcels)');
-  if (!profile.delivery_address) missing.push('delivery address in Kenya (estate/building, street, town)');
-  if (!profile.mpesa_number) missing.push('M-Pesa phone number they will pay with');
+  // Not everyone wants a delivery. Collection is a first-class answer —
+  // our CBD office or a Pickup Mtaani point — and asking a collector
+  // three times for their estate and street is how we lose them.
+  if (!profile.delivery_address) {
+    missing.push('where the parcel should go — either a delivery address in Kenya '
+      + '(estate/building, street, town) or the pickup point they would rather collect from. '
+      + 'Offer both; take whichever they give');
+  }
 
   const system =
     `You are the WhatsApp assistant for Thapsus Cargo, a Kenyan service that buys items ` +
     `from online stores abroad and delivers them to customers' doors in Kenya. Customers ` +
     `send product links, get a KES quote from the team, pay via M-Pesa, and track parcels ` +
     `by texting their tracking code.\n\n` +
-    `You are completing this customer's profile. Still needed from them: ` +
-    `${missing.join('; ') || 'nothing'}.\n` +
-    `- If this is the conversation's start, welcome them warmly and briefly explain how the ` +
-    `service works before asking for the first missing detail.\n` +
+    // Order of business, deliberately. Asking a stranger for their name
+    // and address before they know what we charge is a questionnaire, not
+    // a welcome — and it was losing people at the first message. Sell
+    // first, ask second, and ask only while they are already waiting.
+    `HOW THIS CONVERSATION SHOULD GO:\n` +
+    `1. FIRST MESSAGE — lead with information, not questions. Say briefly what we do, what ` +
+    `we charge (the fees, minimum order, delivery time and any promotion running, all from ` +
+    `the knowledge base), and then ask what they would like to do — send a product link, or ` +
+    `ask a question. Do NOT ask for their name or address in this first message.\n` +
+    `2. WHEN THEY SEND A PRODUCT LINK — tell them the team is pricing it and a quote is ` +
+    `coming. THEN, in the same message, ask for the first detail we still need, explaining ` +
+    `it is so we can get the parcel to them once they accept. That waiting time is the only ` +
+    `moment worth spending on questions.\n` +
+    `3. IF THEY ASK SOMETHING — answer it from the knowledge base first, then continue.\n\n` +
+    `Still needed from them: ${missing.join('; ') || 'nothing'}.\n` +
     `- Ask for ONE missing detail at a time, but extract EVERY detail their message contains ` +
     `(people often give several at once).\n` +
-    `- Answer any question they ask (using the knowledge base) before steering back to the ` +
-    `next missing detail.\n` +
+    `- NEVER ask for an M-Pesa number. We read payments off the M-Pesa statement; asking for ` +
+    `it wastes the customer's time.\n` +
     `- A greeting is not a name. "Hi", "Hello", "Hey", "Habari", "Niaje", "Sasa", "Karibu", ` +
     `"Mambo", "Good morning" and the like are NEVER a full name — leave full_name null and ` +
     `ask again.\n` +
@@ -290,7 +309,6 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
         reply: { type: 'string' },
         full_name: { type: 'string', nullable: true },
         delivery_address: { type: 'string', nullable: true },
-        mpesa_number: { type: 'string', nullable: true },
       },
       required: ['reply'],
     },
@@ -308,7 +326,6 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
     reply,
     full_name: str(parsed?.full_name, 120),
     delivery_address: str(parsed?.delivery_address, 400),
-    mpesa_number: str(parsed?.mpesa_number, 40),
   };
 }
 

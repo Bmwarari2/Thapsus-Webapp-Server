@@ -15,6 +15,7 @@ import { idempotency } from '../middleware/idempotency.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { getUsdToKesRate, FxRateUnavailableError } from '../utils/fx.js';
 import { getWaSettings } from '../utils/waSettings.js';
+import { resolveMarkupPct } from '../utils/waQuote.js';
 import { transition, isValidEdge, sendCustomerStatusMessage } from '../utils/waOrderFlow.js';
 import { sendToContact } from '../utils/waSend.js';
 import { extractTrackingCode, extractCustomerCode, nextTrackingCode } from '../utils/waCodes.js';
@@ -386,9 +387,16 @@ router.get('/:id', authMiddleware, STAFF, async (req, res) => {
 });
 
 /**
- * POST /api/wa/orders/:id/quote  { usd_price }
+ * POST /api/wa/orders/:id/quote  { usd_price, markup_pct? }
  * Computes quote_kes = usd × live USD_KES rate × (1 + markup%/100),
  * snapshots the inputs onto the row, and sends the quote to the customer.
+ *
+ * The margin is per-order, defaulting to the settings value. It has to
+ * be: the 10% service fee is a SHEIN charge, and it is waived outright
+ * while the SHEIN promotion runs. UK stores are £9/kg + £3 handling and
+ * Dubai is $9/kg — neither carries the 10%, so a single global margin
+ * silently added it to every one of those quotes. Passing 0 here is the
+ * normal case for a non-SHEIN order, not an exception.
  */
 router.post('/:id/quote', authMiddleware, STAFF, idempotency, async (req, res) => {
   try {
@@ -407,7 +415,8 @@ router.post('/:id/quote', authMiddleware, STAFF, idempotency, async (req, res) =
       getUsdToKesRate(req.db),
       getWaSettings(req.db),
     ]);
-    const markup = settings.markup_pct;
+    const { markup, error: markupError } = resolveMarkupPct(req.body?.markup_pct, settings.markup_pct);
+    if (markupError) return res.status(400).json({ success: false, message: markupError });
     const quoteKes = Math.round(usd * rate * (1 + markup / 100));
 
     const { rows: updated } = await req.db.query(
@@ -436,7 +445,10 @@ router.post('/:id/quote', authMiddleware, STAFF, idempotency, async (req, res) =
         `*Your quote is ready*\n` +
         `Item price: $${usd.toFixed(2)}\n` +
         `Exchange rate: 1 USD = ${Number(rate).toFixed(2)} KES\n` +
-        `Service margin: ${markup}%\n` +
+        // No margin line when there is no margin — printing "Service
+        // margin: 0%" on a promotional quote invites the question of
+        // what it would otherwise have been.
+        (markup > 0 ? `Service margin: ${markup}%\n` : '') +
         `*Total: KSh ${quoteKes.toLocaleString('en-KE')}*\n\n` +
         `Reply *YES* to confirm and we'll send the M-Pesa payment details.`,
       sentBy: req.user.id,
@@ -721,19 +733,29 @@ router.post('/:id/advance', authMiddleware, STAFF, async (req, res) => {
 /** POST /api/wa/orders/:id/waive-fee — manual per-order fee waiver. */
 router.post('/:id/waive-fee', authMiddleware, STAFF, async (req, res) => {
   try {
+    // Waiving clears the debt, so the order leaves 'delivery_fee_pending'
+    // for 'in_kenya' — same reasoning as a paid fee in markPaymentPaid:
+    // that status means money is owed, and nothing is. RETURNING gives
+    // back the status the row held *before* this update, which is what
+    // the audit event should record as the from_status.
     const { rows } = await req.db.query(
-      `UPDATE wa_orders
-          SET delivery_fee_waived = true, updated_at = NOW()
-        WHERE id = $1 AND status IN ('in_kenya', 'delivery_fee_pending')
-        RETURNING id, status, tracking_code, contact_id`,
+      `WITH prev AS (
+         SELECT id, status FROM wa_orders WHERE id = $1 FOR UPDATE
+       )
+       UPDATE wa_orders o
+          SET delivery_fee_waived = true, status = 'in_kenya', updated_at = NOW()
+         FROM prev
+        WHERE o.id = prev.id
+          AND prev.status IN ('in_kenya', 'delivery_fee_pending')
+        RETURNING o.id, prev.status AS from_status, o.tracking_code, o.contact_id`,
       [req.params.id]
     );
     const order = rows[0];
     if (!order) return res.status(409).json({ success: false, message: 'Order is not awaiting a delivery fee' });
     await req.db.query(
       `INSERT INTO wa_order_events (id, order_id, from_status, to_status, actor_user_id, note)
-       VALUES ($1, $2, $3, $3, $4, 'Delivery fee waived')`,
-      [uuidv4(), order.id, order.status, req.user.id]
+       VALUES ($1, $2, $3, 'in_kenya', $4, 'Delivery fee waived')`,
+      [uuidv4(), order.id, order.from_status, req.user.id]
     );
     const { rows: c } = await req.db.query(`SELECT id, phone FROM wa_contacts WHERE id = $1`, [order.contact_id]);
     if (c[0]) {

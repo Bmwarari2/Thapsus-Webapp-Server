@@ -17,7 +17,7 @@ work the pipeline behind it.
 - **API:** Node **22.x**, Express **5**, ES modules, deployed to Railway.
 - **DB:** Postgres on Supabase, accessed through a raw `pg` pool. Schema is migration-driven.
 - **Messaging:** [sent.dm](https://sent.dm) v3 for WhatsApp — inbound webhook + outbound text/template.
-- **Assistant:** Gemini via Google AI Studio, scoped to onboarding and knowledge-base answers. Never touches money.
+- **Assistant:** Gemini via Google AI Studio, scoped to onboarding and knowledge-base answers. Opens with what we do and what we charge, then collects name and address while the customer waits on a quote. Never touches money.
 - **Payments:** M-Pesa. STK Push (Lipana) is coded but disabled — production runs manual Buy Goods till payments with admin approval.
 - **Frontend:** React **19** + Vite under `client/`, Tailwind 3, react-router 7. Served by the same Express process.
 - **Realtime:** Server-Sent Events to the operator dashboard.
@@ -30,7 +30,8 @@ WhatsApp ──▶ POST /api/wa/webhook ──▶ persist + SSE ──▶ waStat
                                                               │
       ┌───────────────────────────────────────────────────────┤
       │  1. human takeover?   → stay quiet, operator has it
-      │  2. onboarding        → name, address, M-Pesa → TC-####
+      │  1b. a product link?  → page staff: only a person can quote it
+      │  2. onboarding        → rates first, then name + address → TC-####
       │  3. TRK-#### in text  → live status reply
       │  4. "yes" to a quote  → confirm + open payment + till details
       │  5. "I have paid"     → verifying reply + staff alert
