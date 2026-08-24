@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { TEMPLATE_SLOTS, toPositionalParams, requiredFields } from '../../utils/waTemplateVars.js';
+
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 // These mappings decide which of our values lands in which approved
 // template slot. Getting one wrong puts a customer's name where the money
@@ -73,5 +78,49 @@ describe('approved template slots', () => {
   it('passes unmapped keys straight through', () => {
     expect(toPositionalParams('welcome', { anything: 'x' })).toEqual({ anything: 'x' });
     expect(requiredFields('welcome')).toEqual([]);
+  });
+});
+
+// The JSON manifest is what gets pasted into the sent.dm console, and it
+// is not read by any code — so nothing caught it drifting away from the
+// slots above. It carried named {{placeholders}} where the approved
+// templates take positional ones, and a welcome body still asking for the
+// customer's name after the info-first rewrite had removed that question.
+// Registering from a stale sheet gets the wrong copy approved, and a
+// WhatsApp template cannot be edited after approval — only replaced.
+describe('sentdm-templates.json stays in step with the slots', () => {
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(ROOT, 'sentdm-templates.json'), 'utf8'));
+  const byKey = Object.fromEntries(manifest.templates.map((t) => [t.key, t]));
+
+  it('lists exactly the slots, no more and no fewer', () => {
+    expect(Object.keys(byKey).sort()).toEqual(Object.keys(TEMPLATE_SLOTS).sort());
+  });
+
+  it('carries each approved body verbatim', () => {
+    for (const [key, slot] of Object.entries(TEMPLATE_SLOTS)) {
+      expect(byKey[key].body.template, `${key} body drifted`).toBe(slot.body);
+    }
+  });
+
+  it('gives one sample per variable', () => {
+    for (const [key, slot] of Object.entries(TEMPLATE_SLOTS)) {
+      expect(byKey[key].body.samples, `${key} samples`).toHaveLength(slot.vars.length);
+    }
+  });
+
+  it('never ends a body on a variable — Meta rejects that', () => {
+    // Learned the hard way on the receipt template, which originally
+    // finished with the URL variable and could not be approved.
+    for (const [key, slot] of Object.entries(TEMPLATE_SLOTS)) {
+      expect(slot.body.trimEnd().endsWith('}}'), `${key} ends on a variable`).toBe(false);
+    }
+  });
+
+  it('numbers the placeholders 1..N in body order', () => {
+    for (const [key, slot] of Object.entries(TEMPLATE_SLOTS)) {
+      const found = [...slot.body.matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1]));
+      expect(found, `${key} placeholders`).toEqual(slot.vars.map((_, i) => i + 1));
+    }
   });
 });
