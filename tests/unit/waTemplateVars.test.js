@@ -124,3 +124,25 @@ describe('sentdm-templates.json stays in step with the slots', () => {
     }
   });
 });
+
+// The default template_map is what a fresh install sends with. A name
+// that does not exist in sent.dm, or a key that is not a real slot, means
+// the send falls back to free text — which is refused outside the 24-hour
+// window, exactly when these templates are the only thing that works.
+describe('the default template map', () => {
+  it('only maps keys that are real slots', async () => {
+    const { DEFAULTS } = await import('../../utils/waSettings.js');
+    for (const key of Object.keys(DEFAULTS.template_map)) {
+      expect(TEMPLATE_SLOTS[key], `${key} is mapped but has no slot`).toBeTruthy();
+    }
+  });
+
+  it('names a template for every slot that has one approved', async () => {
+    const { DEFAULTS } = await import('../../utils/waSettings.js');
+    // arrived_paid and arrived_collect are deliberately unmapped — they
+    // were written for the fee-with-order flow and are not approved yet.
+    const pending = ['arrived_paid', 'arrived_collect'];
+    const expected = Object.keys(TEMPLATE_SLOTS).filter((k) => !pending.includes(k));
+    expect(Object.keys(DEFAULTS.template_map).sort()).toEqual(expected.sort());
+  });
+});
