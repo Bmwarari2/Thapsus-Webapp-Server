@@ -84,6 +84,11 @@ server does the arithmetic — it never trusts a client-supplied total:
 quote_kes = round(usd_price × live_USD_KES_rate × (1 + markup_pct / 100))
 ```
 
+Customers who collect never enter dispatch. Their parcel goes
+`in_kenya → collected` and stops, and the operator's only button is
+"Mark as collected". The arrival message already told them where to
+come, so marking it collected sends nothing.
+
 The last-mile delivery fee is quoted with the order, not requested when
 the parcel lands. Asking for a second payment two to three weeks after
 the first is a second chance to lose the money, long after the customer

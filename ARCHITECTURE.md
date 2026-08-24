@@ -94,6 +94,13 @@ model output can move an order or quote a price:
 5. **Payment claim** — "I've paid" or a pasted M-Pesa SMS.
 6. **AI fall-through** — everything else.
 
+A collection order takes a different path out of arrival: `in_kenya →
+collected`, terminal, with no dispatch step and no customer message —
+they were at the counter when it happened. `transition()` refuses
+`dispatched`/`delivered` on a collection order and `collected` on a
+delivery one, because the edge table cannot express a rule that depends
+on the row rather than the status.
+
 The last-mile fee rides on the quote rather than being collected on
 arrival, so `delivery_fee_pending` is now reached only by orders quoted
 before that change, or ones an operator priced without a method. Watch

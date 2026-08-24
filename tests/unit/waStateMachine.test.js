@@ -207,6 +207,15 @@ describe('tracking auto-reply', () => {
     }
   });
 
+  it('reports a collected parcel as collected, not delivered', async () => {
+    await handleInbound(
+      trackDb({ status: 'collected', delivery_method: 'collection', delivered_at: '2026-08-24' }),
+      contact(), { id: 'm', body: 'TRK-8821' });
+    const reply = sendToContact.mock.calls[0][2].text;
+    expect(reply).toMatch(/you collected this/i);
+    expect(reply).not.toMatch(/delivered/i);
+  });
+
   it('sends a collector to the CBD office, not after a rider', async () => {
     // Collection customers pay no last-mile fee and nobody is bringing
     // their parcel anywhere — telling them it is on its way sends them

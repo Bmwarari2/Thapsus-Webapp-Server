@@ -27,10 +27,16 @@ const EDGES = {
   confirmed: ['paid', 'cancelled'],
   paid: ['purchased', 'cancelled'],
   purchased: ['in_kenya'],
-  in_kenya: ['delivery_fee_pending', 'dispatched'],
-  delivery_fee_pending: ['dispatched'],
+  // 'collected' is the terminal state for a customer who comes to the
+  // CBD office. Nothing is dispatched and no rider calls, so it is
+  // reached straight from arrival rather than through dispatch.
+  in_kenya: ['delivery_fee_pending', 'dispatched', 'collected'],
+  // A collection order quoted before the fee moved into the quote can
+  // still be sitting here, so it needs the same way out.
+  delivery_fee_pending: ['dispatched', 'collected'],
   dispatched: ['delivered'],
   delivered: [],
+  collected: [],
   cancelled: [],
 };
 
@@ -43,6 +49,11 @@ const TIMESTAMP_COL = {
   delivery_fee_pending: 'arrived_at',
   dispatched: 'dispatched_at',
   delivered: 'delivered_at',
+  // Reuses delivered_at deliberately: it means "the customer has it",
+  // as true of a parcel picked up over the counter as one handed over
+  // at a door. Every reader of that column stays correct without
+  // knowing this status exists.
+  collected: 'delivered_at',
 };
 
 export function isValidEdge(from, to) {
@@ -80,6 +91,19 @@ export async function transition(db, orderId, toStatus, opts = {}) {
     if (!isValidEdge(order.status, toStatus)) {
       await client.query('ROLLBACK');
       return { ok: false, reason: `invalid transition ${order.status} → ${toStatus}` };
+    }
+    // The edge table cannot express this: dispatch is a legal move out of
+    // 'in_kenya' in general and never legal for a collection order. The
+    // dashboard offers 'Mark as collected' instead, but a stale tab or a
+    // direct API call would otherwise still send "a rider is on the way"
+    // to somebody who agreed to walk to the CBD office.
+    if (order.delivery_method === 'collection' && ['dispatched', 'delivered'].includes(toStatus)) {
+      await client.query('ROLLBACK');
+      return { ok: false, reason: 'this is a collection order — mark it collected instead of dispatching' };
+    }
+    if (order.delivery_method !== 'collection' && toStatus === 'collected') {
+      await client.query('ROLLBACK');
+      return { ok: false, reason: 'this order is for delivery, not collection' };
     }
     const { rows: contactRows } = await client.query(
       `SELECT id, phone, full_name FROM wa_contacts WHERE id = $1`,
@@ -237,6 +261,12 @@ export async function sendCustomerStatusMessage(db, contact, order, settings) {
           `${code} has been delivered — asante for shopping with Thapsus Cargo. ` +
           `Send us another link any time.`,
       });
+    // Marking a collection complete sends nothing. The customer was
+    // standing at the counter when it happened; a WhatsApp message
+    // telling them so arrives after they have already walked out with
+    // the parcel. The arrival message already told them where to come.
+    case 'collected':
+      return;
     case 'cancelled':
       return sendToContact(db, contact, {
         text: `Your order${code ? ` ${code}` : ''} has been cancelled. Reply here if that's unexpected and we'll sort it out.`,

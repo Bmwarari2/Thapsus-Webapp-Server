@@ -77,7 +77,7 @@ bot replies. Not called by anything you own.
 | GET | `/wa/orders/:id/receipt` | 7-day signed download URL for the operator. |
 | POST | `/wa/orders/:id/receipt/resend` | Regenerate and re-push the short receipt link to the customer. 409 with no settled payment. |
 
-**Statuses:** `quoting`, `quoted`, `confirmed`, `paid`, `purchased`,
+**Statuses:** `quoting`, `quoted`, `confirmed`, `paid`, `purchased`, `collected` (collection orders only),
 `in_kenya`, `delivery_fee_pending`, `dispatched`, `delivered`,
 `cancelled`. Legal edges are declared in `utils/waOrderFlow.js`.
 

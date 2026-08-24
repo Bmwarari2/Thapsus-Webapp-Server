@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -144,5 +144,47 @@ describe('the default template map', () => {
     const pending = ['arrived_paid', 'arrived_collect'];
     const expected = Object.keys(TEMPLATE_SLOTS).filter((k) => !pending.includes(k));
     expect(Object.keys(DEFAULTS.template_map).sort()).toEqual(expected.sort());
+  });
+});
+
+// Production held {"quote":"quote_ready", …} — four keys written before
+// most templates were approved. A wholesale replace meant the other
+// seven resolved to nothing, so those sends went out as free text and
+// were refused outside the 24-hour window. Eunice Ngasura's arrival
+// notice failed that way ten days after she last wrote in, with no
+// reason recorded, because sent.dm simply will not accept free text
+// into a closed window.
+describe('a stored template map layers over the defaults', () => {
+  let mergeSettings;
+  beforeAll(async () => {
+    const mod = await import('../../utils/waSettings.js');
+    // Exercised through getWaSettings' merge helper via a fake db row.
+    mergeSettings = async (stored) => {
+      const db = { query: async () => ({
+        rows: stored === undefined ? [] : [{ key: 'template_map', value: JSON.stringify(stored) }],
+      }) };
+      mod.invalidateWaSettings();
+      return (await mod.getWaSettings(db)).template_map;
+    };
+  });
+
+  it('keeps approved defaults for keys the stored map never mentions', async () => {
+    const map = await mergeSettings({ quote: 'quote_ready' });
+    expect(map.quote).toBe('quote_ready');          // the override wins
+    expect(map.arrived_fee).toBe('Arrived_Fee');    // and the rest survive
+    expect(map.receipt).toBe('Receipt');
+    expect(map.dispatched).toBe('Dispatched__Out_For_Delivery');
+  });
+
+  it('lets an empty string switch one off deliberately', async () => {
+    const map = await mergeSettings({ receipt: '' });
+    expect(map.receipt).toBeUndefined();
+    expect(map.quote).toBe('Quote_Ready');
+  });
+
+  it('ignores junk rather than dropping the whole map', async () => {
+    expect((await mergeSettings([])).quote).toBe('Quote_Ready');
+    expect((await mergeSettings(null)).quote).toBe('Quote_Ready');
+    expect((await mergeSettings({ quote: 42 })).quote).toBe('Quote_Ready');
   });
 });

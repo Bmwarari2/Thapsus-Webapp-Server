@@ -733,7 +733,7 @@ router.post('/:id/mark-paid', authMiddleware, requireRole('admin'), idempotency,
 router.post('/:id/advance', authMiddleware, STAFF, async (req, res) => {
   try {
     const to = String(req.body?.to_status || '').trim();
-    if (!['quoted', 'confirmed', 'purchased', 'in_kenya', 'dispatched', 'delivered', 'cancelled'].includes(to)) {
+    if (!['quoted', 'confirmed', 'purchased', 'in_kenya', 'dispatched', 'delivered', 'collected', 'cancelled'].includes(to)) {
       return res.status(400).json({ success: false, message: `to_status '${to}' is not operator-advanceable` });
     }
     if (to === 'dispatched') {

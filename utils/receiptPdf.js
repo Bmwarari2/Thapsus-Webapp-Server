@@ -288,6 +288,9 @@ export function receiptLineItems({ order, payment }) {
 const STAGE_INDEX = {
   paid: 0, purchased: 1, in_kenya: 2, delivery_fee_pending: 2,
   dispatched: 3, delivered: 4,
+  // A collected parcel skipped dispatch, but the journey is over — it
+  // lights the last dot, not the third.
+  collected: 4,
 };
 
 /** Best available human name for what was bought. */
