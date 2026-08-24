@@ -15,6 +15,7 @@ import { idempotency } from '../middleware/idempotency.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { getUsdToKesRate, FxRateUnavailableError } from '../utils/fx.js';
 import { getWaSettings } from '../utils/waSettings.js';
+import { resolveMarkupPct } from '../utils/waQuote.js';
 import { transition, isValidEdge, sendCustomerStatusMessage } from '../utils/waOrderFlow.js';
 import { sendToContact } from '../utils/waSend.js';
 import { extractTrackingCode, extractCustomerCode, nextTrackingCode } from '../utils/waCodes.js';
@@ -386,9 +387,16 @@ router.get('/:id', authMiddleware, STAFF, async (req, res) => {
 });
 
 /**
- * POST /api/wa/orders/:id/quote  { usd_price }
+ * POST /api/wa/orders/:id/quote  { usd_price, markup_pct? }
  * Computes quote_kes = usd × live USD_KES rate × (1 + markup%/100),
  * snapshots the inputs onto the row, and sends the quote to the customer.
+ *
+ * The margin is per-order, defaulting to the settings value. It has to
+ * be: the 10% service fee is a SHEIN charge, and it is waived outright
+ * while the SHEIN promotion runs. UK stores are £9/kg + £3 handling and
+ * Dubai is $9/kg — neither carries the 10%, so a single global margin
+ * silently added it to every one of those quotes. Passing 0 here is the
+ * normal case for a non-SHEIN order, not an exception.
  */
 router.post('/:id/quote', authMiddleware, STAFF, idempotency, async (req, res) => {
   try {
@@ -407,7 +415,8 @@ router.post('/:id/quote', authMiddleware, STAFF, idempotency, async (req, res) =
       getUsdToKesRate(req.db),
       getWaSettings(req.db),
     ]);
-    const markup = settings.markup_pct;
+    const { markup, error: markupError } = resolveMarkupPct(req.body?.markup_pct, settings.markup_pct);
+    if (markupError) return res.status(400).json({ success: false, message: markupError });
     const quoteKes = Math.round(usd * rate * (1 + markup / 100));
 
     const { rows: updated } = await req.db.query(
@@ -436,7 +445,10 @@ router.post('/:id/quote', authMiddleware, STAFF, idempotency, async (req, res) =
         `*Your quote is ready*\n` +
         `Item price: $${usd.toFixed(2)}\n` +
         `Exchange rate: 1 USD = ${Number(rate).toFixed(2)} KES\n` +
-        `Service margin: ${markup}%\n` +
+        // No margin line when there is no margin — printing "Service
+        // margin: 0%" on a promotional quote invites the question of
+        // what it would otherwise have been.
+        (markup > 0 ? `Service margin: ${markup}%\n` : '') +
         `*Total: KSh ${quoteKes.toLocaleString('en-KE')}*\n\n` +
         `Reply *YES* to confirm and we'll send the M-Pesa payment details.`,
       sentBy: req.user.id,

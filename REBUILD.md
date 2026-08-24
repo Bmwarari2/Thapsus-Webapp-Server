@@ -84,6 +84,13 @@ server does the arithmetic — it never trusts a client-supplied total:
 quote_kes = round(usd_price × live_USD_KES_rate × (1 + markup_pct / 100))
 ```
 
+`markup_pct` is chosen per order, defaulting to the settings value. It has
+to be: the 10% service fee is a SHEIN charge, waived outright while the
+SHEIN promotion runs, and the weight-based lanes (UK at £9/kg + £3
+handling, Dubai at $9/kg) carry no percentage at all. A single global
+markup added 10% to every one of those quotes, and printed "Service
+margin: 10%" in the message as though it were intended.
+
 The live rate comes from the `USD_KES` row that `utils/fxRefresh.js`
 upserts daily from frankfurter.dev; `markup_pct` comes from
 `wa_settings` and defaults to 10. All three inputs plus the result are
