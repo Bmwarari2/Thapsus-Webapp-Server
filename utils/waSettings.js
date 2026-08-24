@@ -23,9 +23,16 @@ export const DEFAULTS = {
   // tests/unit/waTemplateVars.test.js), so a fresh install sends real
   // templates instead of free text that dies outside the 24h window.
   //
-  // An operator can still override any of them in /ops/settings — a
-  // stored map replaces this wholesale, so a partial override must list
-  // every key it wants.
+  // A stored map is merged OVER these per key, not swapped in for them.
+  // Production held a four-key map written before most templates were
+  // approved, and a wholesale replace meant the other seven silently
+  // resolved to nothing — every one of those sends went out as free
+  // text and was refused outside the 24-hour window. Eunice Ngasura's
+  // arrival notice failed that way ten days after she last wrote in.
+  //
+  // The asymmetry decides it: an unwanted template still delivers a
+  // message, while a missing key delivers nothing and says nothing. To
+  // deliberately turn one off, map it to an empty string.
   //
   // Two slots are deliberately absent because no approved template
   // exists yet: arrived_paid and arrived_collect. They fall back to free
@@ -64,6 +71,24 @@ function parseJsonOr(fallback, raw) {
   try { return JSON.parse(raw); } catch { return fallback; }
 }
 
+/**
+ * Stored overrides layered over the approved defaults, key by key.
+ * An empty-string value means "no template for this one, send free
+ * text" — the only way to switch one off deliberately.
+ */
+function mergeTemplateMap(stored) {
+  if (typeof stored !== 'object' || stored === null || Array.isArray(stored)) {
+    return DEFAULTS.template_map;
+  }
+  const merged = { ...DEFAULTS.template_map };
+  for (const [key, name] of Object.entries(stored)) {
+    if (typeof name !== 'string') continue;
+    if (name.trim() === '') delete merged[key];
+    else merged[key] = name.trim();
+  }
+  return merged;
+}
+
 /** @returns {Promise<typeof DEFAULTS>} merged settings (DB over defaults) */
 export async function getWaSettings(db) {
   return getOrCompute(CACHE_KEY, TTL_MS, async () => {
@@ -78,9 +103,7 @@ export async function getWaSettings(db) {
         ? Number(kv.default_delivery_fee_kes) : DEFAULTS.default_delivery_fee_kes,
       welcome_media_urls: Array.isArray(parseJsonOr(null, kv.welcome_media_urls))
         ? parseJsonOr([], kv.welcome_media_urls) : [],
-      template_map: (typeof parseJsonOr(null, kv.template_map) === 'object'
-        && parseJsonOr(null, kv.template_map) !== null)
-        ? parseJsonOr(DEFAULTS.template_map, kv.template_map) : DEFAULTS.template_map,
+      template_map: mergeTemplateMap(parseJsonOr(null, kv.template_map)),
       ai_enabled: kv.ai_enabled === 'true',
       ai_knowledge_base: kv.ai_knowledge_base ?? '',
       ai_resume_after_minutes: Number.isFinite(Number(kv.ai_resume_after_minutes))
