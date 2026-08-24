@@ -207,6 +207,19 @@ describe('tracking auto-reply', () => {
     }
   });
 
+  it('sends a collector to the CBD office, not after a rider', async () => {
+    // Collection customers pay no last-mile fee and nobody is bringing
+    // their parcel anywhere — telling them it is on its way sends them
+    // to the wrong place entirely.
+    await handleInbound(
+      trackDb({ status: 'in_kenya', delivery_method: 'collection' }),
+      contact(), { id: 'm', body: 'TRK-8821' });
+    const reply = sendToContact.mock.calls[0][2].text;
+    expect(reply).toMatch(/ready to collect/i);
+    expect(reply).toMatch(/Stanbank House/);
+    expect(reply).not.toMatch(/dispatch|on its way/i);
+  });
+
   it('spells out an outstanding delivery fee with the till', async () => {
     await handleInbound(
       trackDb({ status: 'delivery_fee_pending', dispatched_at: null, delivery_fee_kes: '300' }),

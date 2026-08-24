@@ -224,7 +224,7 @@
       "language": "en",
       "category": "UTILITY",
       "body": {
-        "template": "Your parcel {{1}} has arrived in Kenya. Your delivery was paid with your order, so nothing more is due. We will dispatch it to your address shortly.",
+        "template": "Your parcel {{1}} has arrived in Kenya. Your delivery was paid with your order, so nothing more is due. We will send it on to you shortly.",
         "samples": [
           "TRK-8829"
         ]

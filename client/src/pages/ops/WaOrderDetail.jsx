@@ -209,8 +209,12 @@ export function WaOrderDetail() {
               </div>
               <div className="mt-3 flex gap-2">
                 {[
-                  { v: 'delivery', label: 'Deliver to address' },
-                  { v: 'collection', label: 'Collect from CBD' },
+                  // Pickup Mtaani is a delivery: the customer collects it,
+                  // but it costs us to send the parcel there, so it is
+                  // charged like a door delivery. Only coming to the CBD
+                  // office is free.
+                  { v: 'delivery', label: 'Address or Mtaani' },
+                  { v: 'collection', label: 'Collect at CBD — free' },
                 ].map((o) => (
                   <button key={o.v} type="button" onClick={() => setMethod(o.v)}
                     className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition ${

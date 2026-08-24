@@ -65,7 +65,7 @@ export const TEMPLATE_SLOTS = {
   // "your delivery fee is on us", which is untrue of a customer who
   // already paid it and meaningless to one who is collecting.
   arrived_paid: {
-    body: 'Your parcel {{1}} has arrived in Kenya. Your delivery was paid with your order, so nothing more is due. We will dispatch it to your address shortly.',
+    body: 'Your parcel {{1}} has arrived in Kenya. Your delivery was paid with your order, so nothing more is due. We will send it on to you shortly.',
     vars: ['tracking_code'],
   },
   arrived_collect: {

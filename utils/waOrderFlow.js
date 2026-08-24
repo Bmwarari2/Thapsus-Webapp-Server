@@ -195,7 +195,7 @@ export async function sendCustomerStatusMessage(db, contact, order, settings) {
           text:
             `${code} has arrived in Kenya. Your delivery was paid with your ` +
             `order, so nothing more is due.\n` +
-            `We'll dispatch it to your address shortly.`,
+            `We'll send it on to you shortly.`,
         });
       }
       // Fee waived (promo, or by hand) — arrival + promo message.

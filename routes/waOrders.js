@@ -480,7 +480,7 @@ router.post('/:id/quote', authMiddleware, STAFF, idempotency, async (req, res) =
         // Name the fee. It is inside the total now, and a customer who
         // cannot see why the number moved assumes the worst.
         (feeKes > 0
-          ? `Delivery to your address: KSh ${feeKes.toLocaleString('en-KE')}\n`
+          ? `Delivery to your address or Pickup Mtaani point: KSh ${feeKes.toLocaleString('en-KE')}\n`
           : `Collection from our CBD office: free\n`) +
         `*Total: KSh ${quoteKes.toLocaleString('en-KE')}*\n\n` +
         `Reply *YES* to confirm and we'll send the M-Pesa payment details.`,

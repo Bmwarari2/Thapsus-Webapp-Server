@@ -480,7 +480,7 @@ async function setState(db, contactId, state, fields = {}) {
 async function loadOrderContext(db, contactId) {
   const { rows } = await db.query(
     `SELECT tracking_code, status, quote_kes, delivery_fee_kes, delivery_fee_waived,
-            delivery_fee_paid_at, paid_at, purchased_at, arrived_at,
+            delivery_fee_paid_at, delivery_method, paid_at, purchased_at, arrived_at,
             dispatched_at, delivered_at, created_at
        FROM wa_orders
       WHERE contact_id = $1 AND status <> 'cancelled'
@@ -799,8 +799,13 @@ function parcelStateSentence(order, trackingCode) {
         + `We'll message you as soon as it lands in Kenya.`;
 
     case 'in_kenya':
-      return `${trackingCode} — your parcel arrived in Kenya${on(order.arrived_at)}. `
-        + `We're getting it ready and will dispatch it to your address shortly.`;
+      // A customer who chose to collect is not waiting on a rider, and
+      // telling them one is coming sends them to the wrong place.
+      return order.delivery_method === 'collection'
+        ? `${trackingCode} — your parcel arrived${on(order.arrived_at)} and is ready to collect at `
+          + `Stanbank House, 4th floor, room 28, Nairobi CBD. We're open Monday to Saturday, closed Sunday.`
+        : `${trackingCode} — your parcel arrived in Kenya${on(order.arrived_at)}. `
+          + `We're getting it ready and will send it on to you shortly.`;
 
     case 'delivery_fee_pending':
       return feeDue
