@@ -205,12 +205,16 @@ function parseContactPhone(input) {
  * routes and still need a Customer Code and a place in the pipeline.
  *
  * A name is enough to earn a Customer Code here, which is where this
- * parts company with the conversational path. The assistant has to ask
- * for the address and M-Pesa number before it can call anyone a customer;
- * an operator typing the row in already knows who they are, and wants a
- * code to quote them straight away. The state still records what is
- * missing, so if they message in later the assistant asks for exactly
- * that and nothing else.
+ * parts company with the conversational path. The assistant asks for the
+ * address before it calls anyone a customer; an operator typing the row
+ * in already knows who they are, and wants a code to quote them straight
+ * away. The state still records what is missing, so if they message in
+ * later the assistant asks for exactly that and nothing else.
+ *
+ * mpesa_number is still accepted, and still validated as Kenyan, because
+ * an operator may know the number an existing customer pays from and it
+ * is what an STK push is sent to. Nothing asks for it any more — payments
+ * are matched off the M-Pesa statement — so it never holds up a profile.
  *
  * Re-adding an existing number is not an error — it fills in the blanks
  * on the row that is already there and hands it back.
@@ -234,10 +238,9 @@ router.post('/contacts', authMiddleware, STAFF, async (req, res) => {
     const note = [source ? `Reached out via ${source}.` : null, str(req.body?.note, 300)]
       .filter(Boolean).join(' ') || null;
 
-    const state = (fullName && address && mpesa) ? 'active'
-      : !fullName ? 'awaiting_name'
+    const state = !fullName ? 'awaiting_name'
       : !address ? 'awaiting_address'
-      : 'awaiting_mpesa';
+      : 'active';
 
     const { rows } = await req.db.query(
       `INSERT INTO wa_contacts (id, phone, full_name, delivery_address, mpesa_number, state, ai_summary)
@@ -256,9 +259,9 @@ router.post('/contacts', authMiddleware, STAFF, async (req, res) => {
     // Code them, using the merged row rather than what was posted — an
     // existing contact may already hold the pieces this request left out.
     // 'active' still means the profile is complete; a coded contact who is
-    // short an address or M-Pesa number keeps the state that says so.
+    // short an address keeps the state that says so.
     if (!contact.customer_code && contact.full_name) {
-      const complete = contact.delivery_address && contact.mpesa_number;
+      const complete = Boolean(contact.delivery_address);
       const code = await nextCustomerCode(req.db);
       const { rows: coded } = await req.db.query(
         `UPDATE wa_contacts

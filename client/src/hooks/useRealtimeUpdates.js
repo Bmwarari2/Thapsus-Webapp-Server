@@ -27,7 +27,7 @@ import { useAuth } from '../context/AuthContext';
 export const SSE_EVENTS = [
   'order_update', 'ticket_update', 'notification', 'credit_update', 'admin_stats',
   'package_update', 'buy_for_me_update', 'invoice_update',
-  'wa_inbox_update', 'wa_pipeline_update', 'wa_new_customer',
+  'wa_inbox_update', 'wa_pipeline_update', 'wa_new_customer', 'wa_quote_request',
 ];
 
 
@@ -234,4 +234,12 @@ export function useWaNewCustomer(cb) {
   const { on } = useRealtimeUpdates();
   const ref = useRef(cb); ref.current = cb;
   useEffect(() => on('wa_new_customer', data => ref.current(data)), [on]);
+}
+// A customer sent a product link. Nothing downstream is automatic — a
+// person has to price it — so this is the one inbound event worth
+// interrupting whoever is looking at the dashboard.
+export function useWaQuoteRequest(cb) {
+  const { on } = useRealtimeUpdates();
+  const ref = useRef(cb); ref.current = cb;
+  useEffect(() => on('wa_quote_request', data => ref.current(data)), [on]);
 }

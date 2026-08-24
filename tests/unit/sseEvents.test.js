@@ -53,7 +53,7 @@ describe('SSE event coverage', () => {
     // Named explicitly so a refactor that stops the grep from matching
     // cannot quietly turn the check above into a no-op.
     const client = clientEvents();
-    for (const e of ['wa_inbox_update', 'wa_pipeline_update', 'wa_new_customer']) {
+    for (const e of ['wa_inbox_update', 'wa_pipeline_update', 'wa_new_customer', 'wa_quote_request']) {
       expect(client.has(e), `${e} is not registered on the client`).toBe(true);
     }
   });

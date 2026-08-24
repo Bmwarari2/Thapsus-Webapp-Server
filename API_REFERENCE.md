@@ -54,7 +54,7 @@ bot replies. Not called by anything you own.
 | POST | `/wa/conversations/:contactId/messages` | Send. `{ text?, media_url?, media_type? }`. Recorded as sent by the operator. |
 | POST | `/wa/conversations/:contactId/read` | Clear the unread badge. |
 | POST | `/wa/conversations/:contactId/ai` | `{ enabled }` — resume or pause the assistant on this chat (clears/sets `human_takeover_at`). |
-| PUT | `/wa/contacts/:contactId` | Edit name, delivery address, M-Pesa number. |
+| PUT | `/wa/contacts/:contactId` | Edit name, delivery address, M-Pesa number (never asked for — kept for STK on contacts that already have one). |
 | POST | `/wa/upload-url` | `{ filename, content_type }` → signed Supabase Storage PUT for outbound media. |
 
 ---

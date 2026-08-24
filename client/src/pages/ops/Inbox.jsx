@@ -7,7 +7,7 @@ import {
 import toast from 'react-hot-toast'
 import { waApi } from '../../api'
 import { GlassStyles, GlassCard, PageHeading, StatusBadge } from '../../components/GlassUI'
-import { useWaInboxUpdates, useWaNewCustomer } from '../../hooks/useRealtimeUpdates'
+import { useWaInboxUpdates, useWaNewCustomer, useWaQuoteRequest } from '../../hooks/useRealtimeUpdates'
 
 const URL_RE = /https?:\/\/[^\s<>"')]+/g
 
@@ -84,6 +84,20 @@ export function Inbox() {
   })
   useWaNewCustomer((data) => {
     toast.success(`New customer onboarded: ${data.full_name || data.phone} (${data.customer_code})`)
+    loadConversations(q)
+  })
+  // Someone wants a quote. The assistant tells them one is coming; only a
+  // person can actually send it, so this toast stays up until it is
+  // dismissed or the conversation is opened.
+  useWaQuoteRequest((data) => {
+    toast((t) => (
+      <button onClick={() => { toast.dismiss(t.id); openConversation(data.contact_id) }}
+        className="text-left">
+        <span className="font-semibold">Quote needed</span>
+        <br />
+        {data.full_name || data.phone} sent a product link — tap to open
+      </button>
+    ), { duration: Infinity, icon: '🔗' })
     loadConversations(q)
   })
 
@@ -171,13 +185,15 @@ export function Inbox() {
     if (full_name === null) return
     const delivery_address = window.prompt('Delivery address', selected.delivery_address || '')
     if (delivery_address === null) return
-    const mpesa_number = window.prompt('M-Pesa number', selected.mpesa_number || '')
-    if (mpesa_number === null) return
-    // Editable because a mistyped number leaves the customer unreachable.
+    // No M-Pesa prompt: we stopped collecting it. Payments are identified
+    // from the M-Pesa statement, and anything already on file still shows
+    // in the header above.
+    // The WhatsApp number is editable because a mistyped one leaves the
+    // customer unreachable with no other way to fix it.
     const phone = window.prompt('WhatsApp number (include the country code if not Kenyan)', selected.phone || '')
     if (phone === null) return
     try {
-      const res = await waApi.updateContact(selected.id, { full_name, delivery_address, mpesa_number, phone })
+      const res = await waApi.updateContact(selected.id, { full_name, delivery_address, phone })
       setSelected(res.data.contact)
       toast.success(res.data.contact.customer_code
         ? `Contact updated — ${res.data.contact.customer_code}`

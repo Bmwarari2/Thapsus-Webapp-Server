@@ -135,9 +135,11 @@ export function WaSettings() {
             <div>
               <span className="text-sm font-semibold text-white">AI assistant (Gemini)</span>
               <p className="text-xs text-mute">
-                Answers general questions from the knowledge base and understands onboarding replies.
-                It never quotes prices, confirms orders, or touches payments — those stay with you.
-                Requires GEMINI_API_KEY on Railway.
+                Opens by explaining what we do and what we charge — straight from the knowledge
+                base below — then invites a product link and collects the customer's name and
+                address while they wait for your quote. It states the standing rates but never
+                prices a specific item, confirms an order, or touches payments — those stay with
+                you. Requires GEMINI_API_KEY on Railway.
               </p>
             </div>
             <input type="checkbox" checked={form.ai_enabled} onChange={set('ai_enabled')}
@@ -156,11 +158,14 @@ export function WaSettings() {
           <div>
             <label className="block text-sm font-semibold text-white mb-1.5">Knowledge base</label>
             <textarea rows={10} value={form.ai_knowledge_base} onChange={set('ai_knowledge_base')}
-              placeholder={"Facts the assistant may use, e.g.:\n- We buy from any online store abroad (Amazon, ASOS, Shein…)\n- Quotes: item price × live USD rate + 10% service margin\n- Typical delivery: 10–14 days from purchase to Nairobi\n- Delivery fee: KSh 300 within Nairobi (currently waived!)\n- Payment: M-Pesa only\n- Support hours: Mon–Sat 8am–6pm"}
+              placeholder={"Facts the assistant may use, e.g.:\n- We buy from any online store abroad (Amazon, ASOS, Shein…) and deliver to your door in Kenya\n- Service fee: 10% of the item price\n- Minimum order: KSh 2,000\n- Typical delivery: 10–14 days from purchase to Nairobi\n- Delivery fee: KSh 300 within Nairobi\n- Promotion: free delivery on all orders through mid-August\n- Payment: M-Pesa only\n- Support hours: Mon–Sat 8am–6pm"}
               className={`${inputCls} text-sm`} />
             <p className="text-xs text-mute mt-1">
-              The assistant only states facts written here; anything else gets handed to you in the inbox.
-              If you're unsure, keep prices/timelines out and it will defer to the team.
+              This is what the assistant opens every new chat with, so put the fees, the minimum
+              order, the delivery time and any promotion in here — it can only state facts written
+              here, and anything else gets handed to you in the inbox. Leave a number out and it
+              will say the team will confirm. Don't ask it to collect an M-Pesa number; payments
+              are matched from the M-Pesa statement.
             </p>
           </div>
         </GlassCard>

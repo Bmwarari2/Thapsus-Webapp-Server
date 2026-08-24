@@ -48,9 +48,13 @@ describe('onboarding', () => {
     // state update
     const stateUpdate = db.query.mock.calls.find(([sql]) => sql.includes('UPDATE wa_contacts'));
     expect(stateUpdate[1]).toContain('awaiting_name');
-    // welcome copy sent
+    // The welcome leads with what we do and what it costs, and closes on
+    // an invitation — not on a request for their name. The state says a
+    // name is still outstanding; the message does not open with it.
     expect(sendToContact).toHaveBeenCalled();
-    expect(sendToContact.mock.calls[0][2].text).toMatch(/full name/i);
+    const welcome = sendToContact.mock.calls[0][2].text;
+    expect(welcome).toMatch(/product link/i);
+    expect(welcome).not.toMatch(/full name/i);
   });
 
   it('sends configured welcome media after the welcome text', async () => {
@@ -100,41 +104,40 @@ describe('onboarding', () => {
     expect(db.query.mock.calls[0][1]).toContain('Eunice');
   });
 
-  it('stores the address and asks for the M-Pesa number', async () => {
-    const db = makeDb();
-    await handleInbound(db, contact({ state: 'awaiting_address' }), { id: 'm', body: 'Greenspan Estate, Donholm, Nairobi' });
-    expect(db.query.mock.calls[0][0]).toContain('delivery_address');
-    expect(sendToContact.mock.calls[0][2].text).toMatch(/m-?pesa/i);
-  });
-
-  it('rejects an invalid M-Pesa number and re-prompts', async () => {
-    const db = makeDb();
-    await handleInbound(db, contact({ state: 'awaiting_mpesa' }), { id: 'm', body: '12345' });
-    expect(db.query).not.toHaveBeenCalled();
-    expect(sendToContact.mock.calls[0][2].text).toMatch(/valid/i);
-  });
-
-  it('accepts "this one" (the WhatsApp number), mints the customer code, alerts staff', async () => {
+  it('stores the address, which now completes the signup', async () => {
     const db = makeDb(async (sql) => {
       if (sql.includes('nextval')) return { rows: [{ n: '1042' }] };
       return { rows: [], rowCount: 1 };
     });
-    await handleInbound(db, contact({ state: 'awaiting_mpesa' }), { id: 'm', body: 'this one' });
+    await handleInbound(db, contact({ state: 'awaiting_address' }), { id: 'm', body: 'Greenspan Estate, Donholm, Nairobi' });
     const update = db.query.mock.calls.find(([sql]) => sql.includes('UPDATE wa_contacts'));
-    expect(update[1]).toContain('254712345678'); // mpesa = the WA number
+    expect(update[0]).toContain('delivery_address');
+    // The address is the last question now — it completes the signup.
     expect(update[1]).toContain('TC-1042');
-    expect(pushToStaff).toHaveBeenCalledWith('wa_new_customer', expect.objectContaining({ customer_code: 'TC-1042' }));
     expect(sendToContact.mock.calls[0][2].text).toContain('TC-1042');
   });
 
-  it('normalizes an 07xx-format M-Pesa number', async () => {
+  it('never asks for an M-Pesa number', async () => {
+    // Payments are identified from the M-Pesa statement, so asking for the
+    // number up front only cost us customers at the door.
     const db = makeDb(async (sql) => {
-      if (sql.includes('nextval')) return { rows: [{ n: '1043' }] };
+      if (sql.includes('nextval')) return { rows: [{ n: '1044' }] };
       return { rows: [], rowCount: 1 };
     });
-    await handleInbound(db, contact({ state: 'awaiting_mpesa' }), { id: 'm', body: '0712 345 678' });
-    const update = db.query.mock.calls.find(([sql]) => sql.includes('UPDATE wa_contacts'));
-    expect(update[1]).toContain('254712345678');
+    await handleInbound(db, contact({ state: 'new' }), { id: 'm', body: 'Hi' });
+    await handleInbound(db, contact({ state: 'awaiting_name' }), { id: 'm', body: 'John Kamau' });
+    await handleInbound(db, contact({ state: 'awaiting_address' }), { id: 'm', body: 'Donholm, Nairobi' });
+    const said = sendToContact.mock.calls.map(([, , o]) => o.text || '').join(' ');
+    expect(said).not.toMatch(/m-?pesa number/i);
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('mpesa_number'))).toBe(false);
+  });
+
+  it('leads with what we do and invites a link, rather than opening with questions', async () => {
+    const db = makeDb();
+    await handleInbound(db, contact({ state: 'new' }), { id: 'm', body: 'Hi' });
+    const welcome = sendToContact.mock.calls[0][2].text;
+    expect(welcome).toMatch(/product link/i);
+    expect(welcome).not.toMatch(/what.s your full name/i);
   });
 });
 
@@ -274,6 +277,67 @@ describe('quote confirmation', () => {
   });
 });
 
+// ── Quote requests ───────────────────────────────────────────────────────────
+// The new flow is "send us a link and we will quote you". Nothing after
+// that link is automatic — a person prices it — so the link itself has to
+// reach a person. Until this existed, the only signal was the unread
+// badge in the inbox.
+describe('product links page a human', () => {
+  it('alerts staff when a customer sends a link', async () => {
+    const db = makeDb();
+    await handleInbound(db, contact(), { id: 'm', body: 'hi can you get me this https://shein.com/item-p-123.html' });
+    expect(notifyStaff).toHaveBeenCalledWith(db, expect.objectContaining({
+      title: expect.stringMatching(/quote needed/i),
+    }));
+    expect(pushToStaff).toHaveBeenCalledWith('wa_quote_request', expect.objectContaining({
+      contact_id: 'c1',
+    }));
+  });
+
+  it('alerts on a bare domain too, not just a full URL', async () => {
+    const db = makeDb();
+    await handleInbound(db, contact(), { id: 'm', body: 'amazon.co.uk/dp/B08N5WRWNW please' });
+    expect(pushToStaff).toHaveBeenCalledWith('wa_quote_request', expect.anything());
+  });
+
+  it('alerts during signup, before they are a customer', async () => {
+    // The likeliest moment for a link is the first real message, when
+    // the contact has no name, no code and no order.
+    const db = makeDb();
+    await handleInbound(db, contact({ state: 'awaiting_name', full_name: null, customer_code: null }),
+      { id: 'm', body: 'https://www.asos.com/prd/12345' });
+    expect(pushToStaff).toHaveBeenCalledWith('wa_quote_request', expect.objectContaining({
+      customer_code: null,
+    }));
+  });
+
+  it('the scripted flow answers the link before asking anything', async () => {
+    // AI off. The welcome invites a link, so a link is the likeliest
+    // second message — and "please reply with your full name" to
+    // somebody who just sent one reads like nobody looked at it.
+    const db = makeDb();
+    await handleInbound(db, contact({ state: 'awaiting_name', full_name: null, customer_code: null }),
+      { id: 'm', body: 'https://www.asos.com/prd/12345' });
+    const said = sendToContact.mock.calls.map(([, , o]) => o.text || '').join(' ');
+    expect(said).toMatch(/pricing that now/i);
+    expect(said).toMatch(/full name/i);
+    // and the name was not stored from a URL
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('full_name'))).toBe(false);
+  });
+
+  it('stays quiet on ordinary text', async () => {
+    const db = makeDb();
+    await handleInbound(db, contact(), { id: 'm', body: 'good morning, how long does delivery take?' });
+    expect(pushToStaff).not.toHaveBeenCalledWith('wa_quote_request', expect.anything());
+  });
+
+  it('stays quiet on a blocked contact', async () => {
+    const db = makeDb();
+    await handleInbound(db, contact({ state: 'blocked' }), { id: 'm', body: 'https://shein.com/x' });
+    expect(pushToStaff).not.toHaveBeenCalled();
+  });
+});
+
 // ── Gemini layer ─────────────────────────────────────────────────────────────
 // waAi is module-mocked (hoisted); aiConfigured defaults to false so every
 // pre-AI test above runs the deterministic paths unchanged.
@@ -307,13 +371,13 @@ describe('AI-first mode', () => {
     return waAi;
   }
 
-  const emptyTurn = { kind: 'reply', reply: 'Karibu! What is your full name?', full_name: null, delivery_address: null, mpesa_number: null };
+  const emptyTurn = { kind: 'reply', reply: 'Karibu! What is your full name?', full_name: null, delivery_address: null };
 
   it('the FIRST message goes to the AI, not the scripted welcome', async () => {
     const waAi = await ai();
     waAi.onboardingTurn.mockResolvedValueOnce(emptyTurn);
     const db = makeDb();
-    await handleInbound(db, contact({ state: 'new', full_name: null, delivery_address: null, mpesa_number: null, customer_code: null }),
+    await handleInbound(db, contact({ state: 'new', full_name: null, delivery_address: null, customer_code: null }),
       { id: 'm1', body: 'Hi' });
     expect(waAi.onboardingTurn).toHaveBeenCalledTimes(1);
     expect(sendToContact.mock.calls[0][2].text).toMatch(/full name/i);
@@ -322,40 +386,45 @@ describe('AI-first mode', () => {
     expect(update[1]).toContain('awaiting_name');
   });
 
-  it('stores several fields from one message and asks for the rest', async () => {
+  it('stores both fields from one message and finishes the signup there', async () => {
+    // Two questions, not three — so a customer who volunteers their name
+    // and address in one breath is done in one turn.
     const waAi = await ai();
     waAi.onboardingTurn.mockResolvedValueOnce({
       kind: 'reply',
-      reply: 'Asante John! Which M-Pesa number will you pay with?',
+      reply: 'Asante John! Your quote is on the way.',
       full_name: 'John Kamau',
       delivery_address: 'Greenspan Estate, Donholm, Nairobi',
-      mpesa_number: null,
     });
-    const db = makeDb();
-    await handleInbound(db, contact({ state: 'new', full_name: null, delivery_address: null, mpesa_number: null, customer_code: null }),
+    const db = makeDb(async (sql) => {
+      if (sql.includes('nextval')) return { rows: [{ n: '1042' }] };
+      return { rows: [], rowCount: 1 };
+    });
+    await handleInbound(db, contact({ state: 'new', full_name: null, delivery_address: null, customer_code: null }),
       { id: 'm1', body: 'Hi, I am John Kamau, Greenspan Estate Donholm Nairobi' });
     const update = db.query.mock.calls.find(([sql]) => sql.includes('UPDATE wa_contacts'));
-    expect(update[1]).toContain('awaiting_mpesa');
+    expect(update[1]).toContain('active');
     expect(update[1]).toContain('John Kamau');
     expect(update[1]).toContain('Greenspan Estate, Donholm, Nairobi');
+    expect(update[1]).toContain('TC-1042');
   });
 
-  it('completes onboarding: validates the number, mints the code, alerts staff', async () => {
+  it('completes onboarding on the address: mints the code, alerts staff', async () => {
     const waAi = await ai();
     waAi.onboardingTurn.mockResolvedValueOnce({
       kind: 'reply',
-      reply: 'Perfect!', full_name: null, delivery_address: null, mpesa_number: '0712 345 678',
+      reply: 'Perfect!', full_name: null, delivery_address: 'Greenspan Estate, Donholm',
     });
     const db = makeDb(async (sql) => {
       if (sql.includes('nextval')) return { rows: [{ n: '1042' }] };
       return { rows: [], rowCount: 1 };
     });
     await handleInbound(db, contact({
-      state: 'awaiting_mpesa', full_name: 'John Kamau',
-      delivery_address: 'Donholm', mpesa_number: null, customer_code: null,
-    }), { id: 'm1', body: 'use 0712 345 678' });
+      state: 'awaiting_address', full_name: 'John Kamau',
+      delivery_address: null, customer_code: null,
+    }), { id: 'm1', body: 'Greenspan Estate, Donholm' });
     const update = db.query.mock.calls.find(([sql]) => sql.includes('UPDATE wa_contacts'));
-    expect(update[1]).toContain('254712345678'); // normalized by the hard gate
+    expect(update[1]).toContain('active');
     expect(update[1]).toContain('TC-1042');
     expect(pushToStaff).toHaveBeenCalledWith('wa_new_customer', expect.objectContaining({ customer_code: 'TC-1042' }));
     // completion announcement went out after the AI reply
@@ -363,6 +432,8 @@ describe('AI-first mode', () => {
     expect(texts.some((t) => t.includes('TC-1042'))).toBe(true);
     // No open order, so inviting a product link is the right sign-off.
     expect(texts.some((t) => /product link/i.test(t))).toBe(true);
+    // And nothing anywhere asked for a way to pay.
+    expect(texts.some((t) => /m-?pesa number/i.test(t))).toBe(false);
   });
 
   it('refuses a greeting the model offered as a name', async () => {
@@ -371,7 +442,7 @@ describe('AI-first mode', () => {
     const waAi = await ai();
     waAi.onboardingTurn.mockResolvedValueOnce({
       kind: 'reply', reply: 'Thanks!', full_name: 'Hi',
-      delivery_address: null, mpesa_number: null,
+      delivery_address: null,
     });
     const db = makeDb();
     await handleInbound(db, contact({
@@ -389,7 +460,7 @@ describe('AI-first mode', () => {
     const waAi = await ai();
     waAi.onboardingTurn.mockResolvedValueOnce({
       kind: 'reply',
-      reply: 'Asante!', full_name: null, delivery_address: null, mpesa_number: '0700092005',
+      reply: 'Asante!', full_name: null, delivery_address: 'Kimathi Street, CBD',
     });
     const db = makeDb(async (sql) => {
       if (sql.includes('nextval')) return { rows: [{ n: '1056' }] };
@@ -399,9 +470,9 @@ describe('AI-first mode', () => {
       return { rows: [], rowCount: 1 };
     });
     await handleInbound(db, contact({
-      state: 'awaiting_mpesa', full_name: 'Eunice Ngasura',
-      delivery_address: 'CBD', mpesa_number: null, customer_code: null,
-    }), { id: 'm1', body: '0700092005' });
+      state: 'awaiting_address', full_name: 'Eunice Ngasura',
+      delivery_address: null, customer_code: null,
+    }), { id: 'm1', body: 'Kimathi Street, CBD' });
 
     const texts = sendToContact.mock.calls.map(([, , o]) => o.text || '');
     const signOff = texts.find((t) => t.includes('TC-1056'));
@@ -409,18 +480,22 @@ describe('AI-first mode', () => {
     expect(signOff).not.toMatch(/product link/i);
   });
 
-  it('an invalid AI-extracted M-Pesa number is NOT stored (hard gate)', async () => {
+  it('ignores an M-Pesa number the model volunteers anyway', async () => {
+    // The field is gone from the prompt and the schema, but a model that
+    // has read a payment message can still hand one back. Nothing writes
+    // it: we read payments off the M-Pesa statement instead.
     const waAi = await ai();
     waAi.onboardingTurn.mockResolvedValueOnce({
       kind: 'reply',
-      reply: 'Got it!', full_name: null, delivery_address: null, mpesa_number: '12345',
+      reply: 'Got it!', full_name: null, delivery_address: null, mpesa_number: '0712 345 678',
     });
     const db = makeDb();
     await handleInbound(db, contact({
-      state: 'awaiting_mpesa', full_name: 'John', delivery_address: 'Donholm',
-      mpesa_number: null, customer_code: null,
-    }), { id: 'm1', body: 'one two three' });
+      state: 'awaiting_address', full_name: 'John', delivery_address: null,
+      customer_code: null,
+    }), { id: 'm1', body: 'pay from 0712 345 678' });
     expect(db.query.mock.calls.some(([sql]) => sql.includes('mpesa_number'))).toBe(false);
+    // Still short an address, so nobody is a customer yet.
     expect(pushToStaff).not.toHaveBeenCalledWith('wa_new_customer', expect.anything());
   });
 
@@ -429,12 +504,12 @@ describe('AI-first mode', () => {
     // customer got total silence mid-signup.
     const waAi = await ai();
     waAi.onboardingTurn.mockResolvedValueOnce({
-      kind: 'off_topic', reply: null, full_name: null, delivery_address: null, mpesa_number: null,
+      kind: 'off_topic', reply: null, full_name: null, delivery_address: null,
     });
     const db = makeDb();
     await handleInbound(db, contact({
       state: 'awaiting_name', full_name: null, delivery_address: null,
-      mpesa_number: null, customer_code: null,
+      customer_code: null,
     }), { id: 'm1', body: 'what is the capital of France?' });
 
     const reply = sendToContact.mock.calls[0][2].text;
@@ -447,12 +522,12 @@ describe('AI-first mode', () => {
   it('hands a mid-signup complaint to a human instead of going quiet', async () => {
     const waAi = await ai();
     waAi.onboardingTurn.mockResolvedValueOnce({
-      kind: 'handoff', reply: null, full_name: null, delivery_address: null, mpesa_number: null,
+      kind: 'handoff', reply: null, full_name: null, delivery_address: null,
     });
     const db = makeDb();
     await handleInbound(db, contact({
       state: 'awaiting_address', full_name: 'John', delivery_address: null,
-      mpesa_number: null, customer_code: null,
+      customer_code: null,
     }), { id: 'm1', body: 'your driver was rude to my sister last week' });
 
     expect(sendToContact.mock.calls[0][2].text).toMatch(/team will reply/i);

@@ -6,8 +6,12 @@
 // (bot replies, state transitions, operator alerts).
 //
 // Dispatch order:
-//   1. Onboarding — contact not yet 'active': welcome → collect full name
-//      → delivery address → M-Pesa number → mint Customer Code → done.
+//   1. Onboarding — contact not yet 'active'. Leads with what we do and
+//      what we charge, then invites a product link; the name and delivery
+//      address are asked for while the customer is already waiting on a
+//      quote, which is the only moment those questions cost nothing.
+//      Name + address mints the Customer Code. No M-Pesa number is
+//      collected — payments are identified from the M-Pesa statement.
 //   2. Tracking auto-reply — an 'active' contact texting a TRK-#### code
 //      gets the order's live status back, no operator needed (Phase 4
 //      self-service).
@@ -46,7 +50,6 @@
 
 import { sendToContact } from './waSend.js';
 import { extractTrackingCode, nextCustomerCode } from './waCodes.js';
-import { normalizeKenyanPhone } from './lipanaClient.js';
 import { pushToStaff } from '../routes/events.js';
 import { getWaSettings } from './waSettings.js';
 import { aiConfigured, chatReply, onboardingTurn, summarizeConversation } from './waAi.js';
@@ -65,6 +68,15 @@ const CONFIRM_WORDS = /^(yes+|yeah|yep|ok(ay)?|confirm(ed)?|proceed|sawa( sawa)?
 // back at us, and a false positive here silences the assistant.
 const PAID_CLAIM =
   /\bpaid\b|\bnimelipa\b|\bnimeshalipa\b|\bnimetuma\b|\bpayment (sent|made|done|complete)\b|\bsent (the |you )?(money|payment|cash|funds)\b|\bconfirmed\b[\s\S]{0,80}\bksh/i;
+
+// A product link is now the whole point of the first conversation — the
+// assistant opens by inviting one, and everything after it (the quote,
+// the order, the money) is a person's job. Nothing was watching for it:
+// a link landed in the inbox and waited for somebody to look. This is
+// the pattern that says "there is a URL in here", kept deliberately
+// dumb — any link a customer sends us is worth a person's attention,
+// and a false positive costs one alert.
+const PRODUCT_LINK = /\bhttps?:\/\/\S+|\b(?:www\.|[a-z0-9-]+\.)(?:com|co\.uk|co\.ke|net|org|shop|store|me|ae|cn|us)\b\/?\S*/i;
 
 // Stable phrases inside two of our own replies — also how we recognise
 // that we already sent one recently (template_key isn't recorded for
@@ -110,6 +122,27 @@ export async function handleInbound(db, contact, message) {
   // else. Deterministic replies (tracking codes, quote confirmations)
   // keep working throughout; only the AI chat pauses.
   const aiPaused = await aiOnHold(db, contact, message, settings);
+
+  // 1b. A link means somebody wants a quote, and only a person can give
+  // one. Page staff before any of the branching below, so it reaches
+  // them whether the sender is a stranger mid-signup or a regular, and
+  // whether the AI or an operator is holding the thread. The unread
+  // badge in the inbox was the only signal until now, and an unnoticed
+  // quote request is the most expensive thing this system can drop.
+  if (body && PRODUCT_LINK.test(body)) {
+    notifyStaff(db, {
+      title: 'Product link received — quote needed',
+      detail: `${contact.full_name || contact.phone} (${contact.customer_code || 'no code yet'}): "${body.slice(0, 200)}"`,
+      dedupeKey: `link:${contact.id}:${body.slice(0, 80)}`,
+    });
+    pushToStaff('wa_quote_request', {
+      contact_id: contact.id,
+      customer_code: contact.customer_code || null,
+      full_name: contact.full_name || null,
+      phone: contact.phone,
+      preview: body.slice(0, 200),
+    });
+  }
 
   if (contact.state !== 'active') {
     // AI-first: when enabled, Gemini drives onboarding from the very
@@ -483,7 +516,6 @@ async function loadOrderContext(db, contactId) {
 const MISSING_FIELD_PROMPT = {
   awaiting_name: `To set you up, what's your full name?`,
   awaiting_address: `To set you up, what's your delivery address? (Estate/building, street, town)`,
-  awaiting_mpesa: `To finish setting you up, which M-Pesa number will you pay with?`,
 };
 
 /**
@@ -511,11 +543,11 @@ export function looksLikeName(value) {
 /**
  * AI-first onboarding turn. Gemini produces the reply AND any profile
  * fields it spotted in the message; this function stays in charge of the
- * rules: field validation (normalizeKenyanPhone is the hard gate on the
- * M-Pesa number), state bookkeeping (the awaiting_* states track what's
- * still missing, so the scripted flow can take over seamlessly if AI is
- * ever disabled mid-conversation), Customer Code minting, and operator
- * alerts. Throws on AI failure so the caller falls back to the script.
+ * rules: field validation (looksLikeName is the hard gate on the name),
+ * state bookkeeping (the awaiting_* states track what's still missing, so
+ * the scripted flow can take over seamlessly if AI is ever disabled
+ * mid-conversation), Customer Code minting, and operator alerts. Throws
+ * on AI failure so the caller falls back to the script.
  */
 async function aiOnboarding(db, contact, message, body, settings) {
   const { rows: history } = await db.query(
@@ -535,7 +567,6 @@ async function aiOnboarding(db, contact, message, body, settings) {
     profile: {
       full_name: contact.full_name || null,
       delivery_address: contact.delivery_address || null,
-      mpesa_number: contact.mpesa_number || null,
     },
   });
 
@@ -547,19 +578,16 @@ async function aiOnboarding(db, contact, message, body, settings) {
   if (!contact.delivery_address && turn.delivery_address && turn.delivery_address.length >= 5) {
     fields.delivery_address = turn.delivery_address;
   }
-  if (!contact.mpesa_number && turn.mpesa_number) {
-    const normalized = normalizeKenyanPhone(
-      /^(this( one| number)?|same|hii)$/i.test(turn.mpesa_number) ? contact.phone : turn.mpesa_number
-    );
-    if (normalized) fields.mpesa_number = normalized;
-  }
 
+  // A name and somewhere to send the parcel. The M-Pesa number used to be
+  // the third thing we held people up for, and it earned nothing: payments
+  // are read off the M-Pesa statement, so knowing the number in advance
+  // never once told us anything we could not see afterwards.
   const merged = { ...contact, ...fields };
-  const complete = merged.full_name && merged.delivery_address && merged.mpesa_number;
+  const complete = merged.full_name && merged.delivery_address;
   const nextState = complete ? 'active'
     : !merged.full_name ? 'awaiting_name'
-    : !merged.delivery_address ? 'awaiting_address'
-    : 'awaiting_mpesa';
+    : 'awaiting_address';
 
   let customerCode = contact.customer_code;
   if (complete && !customerCode) {
@@ -628,7 +656,7 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
           `2. We reply with a KES quote\n` +
           `3. Pay via M-Pesa\n` +
           `4. We buy and ship it — you track it with your code until it's delivered\n\n` +
-          `First, let's set you up. What's your full name?`,
+          `What would you like to do? Send a product link for a quote, or ask us anything.`,
       });
       // Welcome infographics (operator-configurable). Best-effort.
       try {
@@ -641,6 +669,18 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
     }
 
     case 'awaiting_name': {
+      // A link is the likeliest second message now that the welcome asks
+      // for one. Answer what they actually sent before asking anything:
+      // "please reply with your full name" to somebody who just sent a
+      // product link reads like nobody looked at it. Staff were paged the
+      // moment it arrived, so the quote really is in motion.
+      if (PRODUCT_LINK.test(body)) {
+        return sendToContact(db, contact, {
+          text:
+            `Got it — our team is pricing that now and your quote will come through here shortly.\n\n` +
+            `While you wait: what's your full name? (As we should write it on your parcels.)`,
+        });
+      }
       if (!looksLikeName(body)) {
         return sendToContact(db, contact, {
           text: `Please reply with your full name (as we should write it on your parcels).`,
@@ -653,28 +693,23 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
     }
 
     case 'awaiting_address': {
+      if (PRODUCT_LINK.test(body)) {
+        return sendToContact(db, contact, {
+          text:
+            `Got it — our team is pricing that now and your quote will come through here shortly.\n\n` +
+            `While you wait: what's your delivery address? (Estate/building, street, town.)`,
+        });
+      }
       if (body.length < 5) {
         return sendToContact(db, contact, {
           text: `Please send your delivery address — estate/building, street and town — so our rider can find you.`,
         });
       }
-      await setState(db, contact.id, 'awaiting_mpesa', { delivery_address: body.slice(0, 400) });
-      return sendToContact(db, contact, {
-        text: `Almost done! Which M-Pesa number will you pay with? (You can reply "this one" to use this WhatsApp number.)`,
-      });
-    }
-
-    case 'awaiting_mpesa': {
-      const useThis = /^(this( one| number)?|same|hii)$/i.test(body);
-      const normalized = normalizeKenyanPhone(useThis ? contact.phone : body);
-      if (!normalized) {
-        return sendToContact(db, contact, {
-          text: `That doesn't look like a valid Kenyan M-Pesa number — please send it like 0712 345 678.`,
-        });
-      }
+      // Last question. There used to be one more, for an M-Pesa number we
+      // never needed: payments are read off the M-Pesa statement.
       const customerCode = await nextCustomerCode(db);
       await setState(db, contact.id, 'active', {
-        mpesa_number: normalized,
+        delivery_address: body.slice(0, 400),
         customer_code: customerCode,
       });
       pushToStaff('wa_new_customer', {

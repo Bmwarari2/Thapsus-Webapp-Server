@@ -87,8 +87,8 @@ describe.skipIf(SKIP)('POST /api/wa/contacts — operator adds a customer', () =
     const r = await addContact({ phone: freshPhone(), full_name: 'Faith Wanjiru', source: 'Instagram' });
     expect(r.status).toBe(201);
     expect(r.body.contact.customer_code).toMatch(/^TC-\d+$/);
-    // Still short an address and M-Pesa number, so the assistant knows
-    // what to ask for if they message in.
+    // Still short an address, so the assistant knows what to ask for if
+    // they message in.
     expect(r.body.contact.state).toBe('awaiting_address');
   });
 
@@ -98,7 +98,6 @@ describe.skipIf(SKIP)('POST /api/wa/contacts — operator adds a customer', () =
       phone,
       full_name: 'Grace Achieng',
       delivery_address: 'Crest Apartments, Thindigua, Kiambu',
-      mpesa_number: phone,
     });
     expect(r.status).toBe(201);
     expect(r.body.contact.customer_code).toMatch(/^TC-\d+$/);
@@ -139,6 +138,8 @@ describe.skipIf(SKIP)('POST /api/wa/contacts — operator adds a customer', () =
     contactPhones.push('9607218089');
   });
 
+  // Nothing asks for an M-Pesa number any more, but an operator can still
+  // type one in for an STK push, and it still has to be a Kenyan number.
   it('rejects an M-Pesa number that is not Kenyan', async () => {
     const r = await addContact({ phone: freshPhone(), full_name: 'Bad Till', mpesa_number: '+44 7424 531484' });
     expect(r.status).toBe(400);
