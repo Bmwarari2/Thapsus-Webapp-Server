@@ -3319,6 +3319,11 @@
     "nn": false,
     "t": "text"
    },
+   "delivery_preference": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
    "full_name": {
     "hd": false,
     "nn": false,
@@ -3495,6 +3500,11 @@
     "nn": false,
     "t": "timestamptz"
    },
+   "delivery_fee_in_quote": {
+    "hd": true,
+    "nn": true,
+    "t": "boolean"
+   },
    "delivery_fee_kes": {
     "hd": false,
     "nn": false,
@@ -3509,6 +3519,11 @@
     "hd": true,
     "nn": true,
     "t": "boolean"
+   },
+   "delivery_method": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
    },
    "dispatched_at": {
     "hd": false,

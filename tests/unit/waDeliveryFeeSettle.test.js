@@ -40,14 +40,21 @@ const FEE_PAYMENT = {
 };
 
 /** Fake pool; the wa_orders row reports whatever status the test sets. */
-function makeDb(orderStatus) {
+function makeDb(orderStatus, orderOverrides = {}) {
   const queries = [];
   const client = {
     query: vi.fn(async (sql, params) => {
       queries.push([sql, params]);
       if (/SELECT \* FROM payments WHERE id/i.test(sql)) return { rows: [FEE_PAYMENT] };
-      if (/SELECT id, status, tracking_code FROM wa_orders/i.test(sql)) {
-        return { rows: [{ id: 'o1', status: orderStatus, tracking_code: 'TRK-8821' }] };
+      // Matched on the FOR UPDATE lock rather than the column list, so
+      // adding a column to the select does not silently turn this mock
+      // into "order not found".
+      if (/FROM wa_orders WHERE id = \$1 FOR UPDATE/i.test(sql)) {
+        return { rows: [{
+          id: 'o1', status: orderStatus, tracking_code: 'TRK-8821',
+          delivery_fee_in_quote: false, delivery_fee_kes: 300,
+          ...orderOverrides,
+        }] };
       }
       return { rows: [], rowCount: 1 };
     }),
@@ -93,13 +100,33 @@ describe('settling the last-mile fee', () => {
     expect(update[0]).toMatch(/status = 'in_kenya'/); // unchanged, still valid
   });
 
-  it('does not touch the fee columns when the order payment is the main one', async () => {
+  it('takes the main-payment branch from confirmed, minting the code', async () => {
     // 'confirmed' is the order total, not the fee — that branch mints the
     // tracking code and flips to 'paid'.
     const { db, queries } = makeDb('confirmed');
     await markPaymentPaid(db, FEE_PAYMENT.id);
-    expect(find(queries, /delivery_fee_paid_at/i)).toBeFalsy();
     expect(find(queries, /UPDATE wa_orders[\s\S]*status = 'paid'/i)).toBeTruthy();
+  });
+
+  it('settles the fee with the order when the fee was quoted into it', async () => {
+    // The whole point of charging last-mile up front: one payment covers
+    // both, so arrival must not ask again.
+    const { db, queries } = makeDb('confirmed', { delivery_fee_in_quote: true });
+    await markPaymentPaid(db, FEE_PAYMENT.id);
+    const update = find(queries, /UPDATE wa_orders[\s\S]*status = 'paid'/i);
+    expect(update[0]).toMatch(/delivery_fee_paid_at = CASE/);
+    expect(update[0]).toMatch(/WHEN delivery_fee_in_quote AND COALESCE\(delivery_fee_kes, 0\) > 0/);
+  });
+
+  it('leaves the fee unstamped on an order quoted before the change', async () => {
+    // delivery_fee_in_quote is false on every pre-existing order, and the
+    // SQL guard is what keeps them on the arrival-fee flow they agreed to.
+    const { db, queries } = makeDb('confirmed', { delivery_fee_in_quote: false });
+    await markPaymentPaid(db, FEE_PAYMENT.id);
+    const update = find(queries, /UPDATE wa_orders[\s\S]*status = 'paid'/i);
+    // The CASE is in the statement, but its guard is the row's own
+    // column, so an old order falls through to ELSE and keeps its NULL.
+    expect(update[0]).toMatch(/ELSE delivery_fee_paid_at/);
   });
 
   it('leaves a dispatched order alone (idempotent replay)', async () => {

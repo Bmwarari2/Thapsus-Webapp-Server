@@ -94,6 +94,12 @@ model output can move an order or quote a price:
 5. **Payment claim** — "I've paid" or a pasted M-Pesa SMS.
 6. **AI fall-through** — everything else.
 
+The last-mile fee rides on the quote rather than being collected on
+arrival, so `delivery_fee_pending` is now reached only by orders quoted
+before that change, or ones an operator priced without a method. Watch
+`Number(null) === 0` around the fee columns: a NULL fee means "not yet
+decided, still owed", and reading it as zero grants a free delivery.
+
 Conversation state lives entirely on `wa_contacts.state`
 (`new → awaiting_name → awaiting_address → active`, plus `blocked`). No
 in-memory sessions, so a restart never loses a customer mid-signup.

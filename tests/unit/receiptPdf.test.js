@@ -36,6 +36,39 @@ describe('renderReceiptPdf', () => {
     expect(split.items[1]).toMatchObject({ desc: 'Service and handling', amount: 'KSh 1,554' });
   });
 
+  it('bills the last-mile fee as its own line, not as service margin', () => {
+    // 120 × 129.5 = 15,540 goods, 10% = 1,554 service, +300 delivery.
+    // Without splitting the fee out it lands in "Service and handling"
+    // labelled "10% of item value", which it plainly is not.
+    const split = receiptLineItems({
+      order: { ...order, delivery_fee_kes: 300, delivery_fee_in_quote: true },
+      payment: { ...payment, amount_due_kes: '17394' },
+    });
+    expect(split).toMatchObject({ goodsKes: 15540, serviceKes: 1554, deliveryKes: 300, total: 17394 });
+    expect(split.items).toHaveLength(3);
+    expect(split.items[2]).toMatchObject({ desc: 'Last-mile delivery', amount: 'KSh 300' });
+  });
+
+  it('adds no delivery line for a collection order', () => {
+    const split = receiptLineItems({
+      order: { ...order, delivery_fee_kes: 0, delivery_method: 'collection', delivery_fee_in_quote: true },
+      payment,
+    });
+    expect(split.deliveryKes).toBe(0);
+    expect(split.items.some((i) => /delivery/i.test(i.desc))).toBe(false);
+  });
+
+  it('leaves a pre-change order alone, fee or no fee', () => {
+    // delivery_fee_in_quote is false, so whatever sits in
+    // delivery_fee_kes was never part of this payment.
+    const split = receiptLineItems({
+      order: { ...order, delivery_fee_kes: 300, delivery_fee_in_quote: false },
+      payment,
+    });
+    expect(split).toMatchObject({ goodsKes: 15540, serviceKes: 1554, deliveryKes: 0 });
+    expect(split.items).toHaveLength(2);
+  });
+
   it('shows a single line when there is no FX snapshot (delivery fees)', () => {
     const split = receiptLineItems({
       order: { id: 'o2', tracking_code: 'TRK-9001' },

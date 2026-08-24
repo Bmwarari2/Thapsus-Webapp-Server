@@ -32,6 +32,9 @@ export function WaOrderDetail() {
   // it: UK is £9/kg + £3, Dubai is $9/kg, and SHEIN itself is 0 while the
   // promotion runs. Blank falls back to the settings default.
   const [margin, setMargin] = useState('')
+  // Decides whether the last-mile fee is added to the quote. Seeded from
+  // whatever the customer told the assistant at signup.
+  const [method, setMethod] = useState('delivery')
   const [mpesaRef, setMpesaRef] = useState('')
   const [supplierRef, setSupplierRef] = useState('')
   const [siblings, setSiblings] = useState([])   // others in the same supplier order
@@ -48,6 +51,7 @@ export function WaOrderDetail() {
       setEvents(res.data.events || [])
       setPayments(res.data.payments || [])
       if (res.data.order.usd_price) setUsd(String(res.data.order.usd_price))
+      setMethod(res.data.order.delivery_method || res.data.order.delivery_preference || 'delivery')
       setSupplierRef(res.data.order.supplier_ref || '')
 
       // Who else went into the same supplier purchase. This is the whole
@@ -93,7 +97,7 @@ export function WaOrderDetail() {
     if (pct !== undefined && (!Number.isFinite(pct) || pct < 0 || pct > 100)) {
       throw Object.assign(new Error(), { response: { data: { message: 'Margin must be between 0 and 100' } } })
     }
-    return waApi.quote(id, price, pct)
+    return waApi.quote(id, price, pct, method)
   }, 'Quote sent to the customer')
 
   const confirm = run(() => waApi.confirm(id), 'Order confirmed')
@@ -203,10 +207,30 @@ export function WaOrderDetail() {
                   <Send size={16} /> {order.status === 'quoted' ? 'Re-quote' : 'Send quote'}
                 </button>
               </div>
+              <div className="mt-3 flex gap-2">
+                {[
+                  // Pickup Mtaani is a delivery: the customer collects it,
+                  // but it costs us to send the parcel there, so it is
+                  // charged like a door delivery. Only coming to the CBD
+                  // office is free.
+                  { v: 'delivery', label: 'Address or Mtaani' },
+                  { v: 'collection', label: 'Collect at CBD — free' },
+                ].map((o) => (
+                  <button key={o.v} type="button" onClick={() => setMethod(o.v)}
+                    className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition ${
+                      method === o.v
+                        ? 'bg-ember-600/20 border-ember-500/60 text-white'
+                        : 'bg-white/5 border-line text-mute hover:text-white'}`}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
               <p className="text-xs text-mute mt-1.5">
                 The 10% service fee is SHEIN only, and is waived while the promotion runs.
                 Enter <span className="text-white">0</span> for UK (£9/kg + £3) and Dubai ($9/kg)
                 orders. Leave blank to use the default from Settings.
+                {' '}Delivery adds the last-mile fee to this quote, so nothing is asked for on
+                arrival; collection adds nothing.
               </p>
             </>
           ) : null}
@@ -218,6 +242,18 @@ export function WaOrderDetail() {
               <span className="text-white text-right">1 USD = {Number(order.fx_rate).toFixed(2)} KES</span>
               <span className="text-mute">Margin</span>
               <span className="text-white text-right">{Number(order.markup_pct)}%</span>
+              {order.delivery_fee_in_quote && (
+                <>
+                  <span className="text-mute">
+                    {order.delivery_method === 'collection' ? 'Collection' : 'Last-mile delivery'}
+                  </span>
+                  <span className="text-white text-right">
+                    {Number(order.delivery_fee_kes) > 0
+                      ? `KSh ${Number(order.delivery_fee_kes).toLocaleString()}`
+                      : 'free'}
+                  </span>
+                </>
+              )}
               <span className="text-mute font-semibold">Total</span>
               <span className="text-ember-400 font-bold text-right">KSh {Number(order.quote_kes).toLocaleString()}</span>
             </div>

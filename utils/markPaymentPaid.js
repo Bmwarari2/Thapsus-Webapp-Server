@@ -148,17 +148,27 @@ async function flipTarget(client, kind, id) {
       //     stamp delivery_fee_paid_at AND clear the pending status, so
       //     the badge stops saying the fee is owed once it is paid.
       const { rows } = await client.query(
-        `SELECT id, status, tracking_code FROM wa_orders WHERE id = $1 FOR UPDATE`,
+        `SELECT id, status, tracking_code, delivery_fee_in_quote, delivery_fee_kes
+           FROM wa_orders WHERE id = $1 FOR UPDATE`,
         [id]
       );
       const order = rows[0];
       if (!order) throw new Error(`wa_order ${id} not found`);
       if (['quoting', 'quoted', 'confirmed'].includes(order.status)) {
         const trackingCode = order.tracking_code || await nextTrackingCode(client);
+        // When the last-mile fee was quoted with the order, this single
+        // payment covers it too — so stamp it settled here. Otherwise
+        // arrival would ask for money the customer has already sent.
         await client.query(
           `UPDATE wa_orders
               SET status = 'paid', paid_at = COALESCE(paid_at, NOW()),
-                  tracking_code = COALESCE(tracking_code, $2), updated_at = NOW()
+                  tracking_code = COALESCE(tracking_code, $2),
+                  delivery_fee_paid_at = CASE
+                    WHEN delivery_fee_in_quote AND COALESCE(delivery_fee_kes, 0) > 0
+                      THEN COALESCE(delivery_fee_paid_at, NOW())
+                    ELSE delivery_fee_paid_at
+                  END,
+                  updated_at = NOW()
             WHERE id = $1`,
           [id, trackingCode]
         );

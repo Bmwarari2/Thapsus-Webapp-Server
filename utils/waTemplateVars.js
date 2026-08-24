@@ -60,6 +60,18 @@ export const TEMPLATE_SLOTS = {
     body: 'Your parcel {{1}} has arrived in Kenya. Last step: a delivery fee of KES {{2}} gets it to your door. Pay on M-Pesa Buy Goods, Till 5530500, then reply here and we will confirm it.',
     vars: ['tracking_code', 'fee_kes'],
   },
+  // The two normal arrivals now that the last-mile fee is collected with
+  // the order. 'arrived_waived' stays for the promo case, but it says
+  // "your delivery fee is on us", which is untrue of a customer who
+  // already paid it and meaningless to one who is collecting.
+  arrived_paid: {
+    body: 'Your parcel {{1}} has arrived in Kenya. Your delivery was paid with your order, so nothing more is due. We will send it on to you shortly.',
+    vars: ['tracking_code'],
+  },
+  arrived_collect: {
+    body: 'Your parcel {{1}} has arrived and is ready to collect at Stanbank House, 4th floor, room 28, Nairobi CBD. We are open Monday to Saturday, and closed on Sunday.',
+    vars: ['tracking_code'],
+  },
   dispatched: {
     body: 'Your parcel {{1}} is out for delivery to your address. Expect it within 24 hours. Our rider will call you on arrival.',
     vars: ['tracking_code'],

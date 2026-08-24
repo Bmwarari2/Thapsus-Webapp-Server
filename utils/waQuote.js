@@ -42,3 +42,35 @@ export function resolveMarkupPct(requested, fallback) {
   }
   return { markup, error: null };
 }
+
+/**
+ * The last-mile fee for an order, charged with the quote rather than on
+ * arrival.
+ *
+ * Collection costs the customer nothing — they come to the CBD office —
+ * so the fee is purely a function of which they chose. The amount is the
+ * operator-set default from wa_settings rather than a constant here, so
+ * it can be changed without a deploy.
+ *
+ * @param {'delivery'|'collection'|null|undefined} method
+ * @param {unknown} defaultFeeKes  wa_settings.default_delivery_fee_kes
+ * @returns {{ feeKes: number, error: string|null }}
+ */
+export function deliveryFeeFor(method, defaultFeeKes) {
+  if (method !== 'delivery' && method !== 'collection') {
+    return { feeKes: NaN, error: "delivery_method must be 'delivery' or 'collection'" };
+  }
+  if (method === 'collection') return { feeKes: 0, error: null };
+
+  // Number(null) and Number('') are both 0, so an unset setting would
+  // quote a free delivery and nobody would notice until the month's
+  // takings came up short. Nothing may become a number by accident.
+  if (defaultFeeKes === undefined || defaultFeeKes === null || defaultFeeKes === '') {
+    return { feeKes: NaN, error: 'default_delivery_fee_kes is not a usable amount' };
+  }
+  const fee = Number(defaultFeeKes);
+  if (!Number.isFinite(fee) || fee < 0) {
+    return { feeKes: NaN, error: 'default_delivery_fee_kes is not a usable amount' };
+  }
+  return { feeKes: Math.round(fee), error: null };
+}

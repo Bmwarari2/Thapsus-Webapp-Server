@@ -87,12 +87,29 @@ export async function transition(db, orderId, toStatus, opts = {}) {
     );
     contact = contactRows[0] || { id: order.contact_id, phone: null };
 
-    // Arrival branches on the promo toggle.
+    // Arrival branches on whether anything is still owed.
     finalStatus = toStatus;
     settings = await getWaSettings(db);
     const waived = toStatus === 'in_kenya'
       && settings.promo_active && settings.promo_type === 'waive_fee';
-    if (toStatus === 'in_kenya' && !waived) finalStatus = 'delivery_fee_pending';
+    // Nothing to collect when the fee rode in on the quote (the normal
+    // case now), when the customer is collecting so there is no fee at
+    // all, or when it was already settled or waived by hand. Only an
+    // order that genuinely owes money goes to 'delivery_fee_pending' —
+    // that status is a claim about a debt.
+    // Note the null check on the fee: Number(null) is 0, and an order
+    // quoted before the fee moved into the quote carries a NULL fee
+    // while genuinely still owing it — the arrival branch is where it
+    // gets its amount. Treating that as "zero, so settled" would hand
+    // every in-flight order a free delivery.
+    const feeIsExplicitlyZero = order.delivery_fee_kes != null
+      && Number(order.delivery_fee_kes) === 0;
+    const feeSettled = order.delivery_fee_in_quote
+      || order.delivery_method === 'collection'
+      || order.delivery_fee_waived
+      || order.delivery_fee_paid_at != null
+      || feeIsExplicitlyZero;
+    if (toStatus === 'in_kenya' && !waived && !feeSettled) finalStatus = 'delivery_fee_pending';
 
     const sets = ['status = $2', 'updated_at = NOW()'];
     const params = [orderId, finalStatus];
@@ -157,7 +174,31 @@ export async function sendCustomerStatusMessage(db, contact, order, settings) {
           `Track it anytime by sending your code ${code}.`,
       });
     case 'in_kenya': {
-      // Fee waived (promo) — arrival + promo message, ready to dispatch.
+      // Three ways to owe nothing on arrival, and they are not
+      // interchangeable. "Your delivery fee is on us" is a lie to
+      // somebody who paid it with their order, and gibberish to somebody
+      // who is coming to collect.
+      if (order.delivery_method === 'collection') {
+        return sendToContact(db, contact, {
+          templateKey: 'arrived_collect',
+          templateParams: { tracking_code: code },
+          text:
+            `${code} has arrived and is ready to collect at Stanbank House, ` +
+            `4th floor, room 28, Nairobi CBD.\n` +
+            `We're open Monday to Saturday, closed Sunday.`,
+        });
+      }
+      if (order.delivery_fee_in_quote && Number(order.delivery_fee_kes) > 0) {
+        return sendToContact(db, contact, {
+          templateKey: 'arrived_paid',
+          templateParams: { tracking_code: code },
+          text:
+            `${code} has arrived in Kenya. Your delivery was paid with your ` +
+            `order, so nothing more is due.\n` +
+            `We'll send it on to you shortly.`,
+        });
+      }
+      // Fee waived (promo, or by hand) — arrival + promo message.
       const promoLine = settings?.promo_message
         ? `\n${settings.promo_message}`
         : `\nGood news — your delivery fee is on us.`;

@@ -245,8 +245,15 @@ export function receiptLineItems({ order, payment }) {
   const markup = order.markup_pct != null ? Number(order.markup_pct) : null;
   const total = Number(payment.amount_due_kes ?? order.quote_kes ?? 0);
 
-  const goodsKes = (usd != null && rate != null) ? Math.round(usd * rate) : total;
-  const serviceKes = Math.max(0, total - goodsKes);
+  // The last-mile fee is inside quote_kes when it was charged with the
+  // order, so it has to come out before the remainder can be called
+  // "service and handling" — otherwise a KSh 300 delivery charge is
+  // billed to the customer as part of a 10% margin.
+  const deliveryKes = order.delivery_fee_in_quote
+    ? Math.max(0, Number(order.delivery_fee_kes || 0))
+    : 0;
+  const goodsKes = (usd != null && rate != null) ? Math.round(usd * rate) : Math.max(0, total - deliveryKes);
+  const serviceKes = Math.max(0, total - goodsKes - deliveryKes);
 
   const items = [
     {
@@ -265,8 +272,15 @@ export function receiptLineItems({ order, payment }) {
       qty: '1',
       amount: kes(serviceKes),
     }] : []),
+    ...(deliveryKes > 0 ? [{
+      desc: 'Last-mile delivery',
+      sub: 'To your address in Kenya',
+      unit: kes(deliveryKes),
+      qty: '1',
+      amount: kes(deliveryKes),
+    }] : []),
   ];
-  return { goodsKes, serviceKes, total, items };
+  return { goodsKes, serviceKes, deliveryKes, total, items };
 }
 
 // Which journey dot is lit, by order status. A receipt is only ever

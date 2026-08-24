@@ -15,7 +15,7 @@ import { idempotency } from '../middleware/idempotency.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { getUsdToKesRate, FxRateUnavailableError } from '../utils/fx.js';
 import { getWaSettings } from '../utils/waSettings.js';
-import { resolveMarkupPct } from '../utils/waQuote.js';
+import { deliveryFeeFor, resolveMarkupPct } from '../utils/waQuote.js';
 import { transition, isValidEdge, sendCustomerStatusMessage } from '../utils/waOrderFlow.js';
 import { sendToContact } from '../utils/waSend.js';
 import { extractTrackingCode, extractCustomerCode, nextTrackingCode } from '../utils/waCodes.js';
@@ -62,7 +62,7 @@ function stkAvailable() {
 
 const ORDER_SELECT = `
   SELECT o.*, c.phone, c.full_name, c.customer_code, c.delivery_address,
-         c.mpesa_number
+         c.mpesa_number, c.delivery_preference
     FROM wa_orders o
     JOIN wa_contacts c ON c.id = o.contact_id`;
 
@@ -387,9 +387,22 @@ router.get('/:id', authMiddleware, STAFF, async (req, res) => {
 });
 
 /**
- * POST /api/wa/orders/:id/quote  { usd_price, markup_pct? }
- * Computes quote_kes = usd × live USD_KES rate × (1 + markup%/100),
- * snapshots the inputs onto the row, and sends the quote to the customer.
+ * POST /api/wa/orders/:id/quote  { usd_price, markup_pct?, delivery_method? }
+ * Computes goods = usd × live USD_KES rate × (1 + markup%/100), adds the
+ * last-mile fee when the customer wants delivery, snapshots the inputs
+ * onto the row, and sends the quote to the customer.
+ *
+ * The last-mile fee is quoted with the order rather than requested when
+ * the parcel lands. Asking for a second payment two to three weeks after
+ * the first is a second chance to lose the money, long after the
+ * customer has stopped thinking about the order. Collection is free, so
+ * delivery_method decides whether the fee applies at all; the amount is
+ * wa_settings.default_delivery_fee_kes.
+ *
+ * quote_kes is the total the customer pays, fee included, because every
+ * consumer downstream — the payment row, the confirm message, the
+ * receipt — already treats it as the agreed total. delivery_fee_kes
+ * keeps the component so the receipt can name it.
  *
  * The margin is per-order, defaulting to the settings value. It has to
  * be: the 10% service fee is a SHEIN charge, and it is waived outright
@@ -417,19 +430,34 @@ router.post('/:id/quote', authMiddleware, STAFF, idempotency, async (req, res) =
     ]);
     const { markup, error: markupError } = resolveMarkupPct(req.body?.markup_pct, settings.markup_pct);
     if (markupError) return res.status(400).json({ success: false, message: markupError });
-    const quoteKes = Math.round(usd * rate * (1 + markup / 100));
+
+    // Falls back to what the customer told the assistant at signup, and
+    // to 'delivery' only when nobody has ever said. Under-charging is
+    // the worse default: an unwanted fee is visible in the quote and the
+    // customer will say so, while a missing one is discovered on arrival
+    // when it is awkward to ask for.
+    const method = req.body?.delivery_method || order.delivery_preference || 'delivery';
+    const { feeKes, error: feeError } = deliveryFeeFor(method, settings.default_delivery_fee_kes);
+    if (feeError) return res.status(400).json({ success: false, message: feeError });
+
+    const goodsKes = Math.round(usd * rate * (1 + markup / 100));
+    const quoteKes = goodsKes + feeKes;
 
     const { rows: updated } = await req.db.query(
       `UPDATE wa_orders
           SET usd_price = $2, fx_rate = $3, markup_pct = $4, quote_kes = $5,
+              delivery_method = $6, delivery_fee_kes = $7,
+              delivery_fee_in_quote = true,
               status = 'quoted', quoted_at = NOW(), updated_at = NOW()
         WHERE id = $1 RETURNING *`,
-      [order.id, usd, rate, markup, quoteKes]
+      [order.id, usd, rate, markup, quoteKes, method, feeKes]
     );
     await req.db.query(
       `INSERT INTO wa_order_events (id, order_id, from_status, to_status, actor_user_id, note)
        VALUES ($1, $2, $3, 'quoted', $4, $5)`,
-      [uuidv4(), order.id, order.status, req.user.id, `Quoted $${usd} → KSh ${quoteKes}`]
+      [uuidv4(), order.id, order.status, req.user.id,
+        `Quoted $${usd} → KSh ${quoteKes}`
+        + (feeKes > 0 ? ` (incl. KSh ${feeKes} delivery)` : ' (collection — no delivery fee)')]
     );
 
     await sendToContact(req.db, { id: order.contact_id, phone: order.phone }, {
@@ -449,6 +477,11 @@ router.post('/:id/quote', authMiddleware, STAFF, idempotency, async (req, res) =
         // margin: 0%" on a promotional quote invites the question of
         // what it would otherwise have been.
         (markup > 0 ? `Service margin: ${markup}%\n` : '') +
+        // Name the fee. It is inside the total now, and a customer who
+        // cannot see why the number moved assumes the worst.
+        (feeKes > 0
+          ? `Delivery to your address or Pickup Mtaani point: KSh ${feeKes.toLocaleString('en-KE')}\n`
+          : `Collection from our CBD office: free\n`) +
         `*Total: KSh ${quoteKes.toLocaleString('en-KE')}*\n\n` +
         `Reply *YES* to confirm and we'll send the M-Pesa payment details.`,
       sentBy: req.user.id,

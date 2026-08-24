@@ -84,6 +84,21 @@ server does the arithmetic — it never trusts a client-supplied total:
 quote_kes = round(usd_price × live_USD_KES_rate × (1 + markup_pct / 100))
 ```
 
+The last-mile delivery fee is quoted with the order, not requested when
+the parcel lands. Asking for a second payment two to three weeks after
+the first is a second chance to lose the money, long after the customer
+has stopped thinking about the order. `delivery_method` on the order
+decides whether it applies — delivery pays
+`wa_settings.default_delivery_fee_kes`, collection pays nothing — and
+`delivery_fee_in_quote` records that `quote_kes` already contains it, so
+arrival knows there is nothing to collect and the receipt can bill it as
+its own line rather than folding it into the service margin.
+
+Orders quoted before this change carry `delivery_fee_in_quote = false`
+and a NULL fee. They keep the arrival-fee flow they were quoted under,
+which is the only honest option: the customer agreed to a total that did
+not include it.
+
 `markup_pct` is chosen per order, defaulting to the settings value. It has
 to be: the 10% service fee is a SHEIN charge, waived outright while the
 SHEIN promotion runs, and the weight-based lanes (UK at £9/kg + £3

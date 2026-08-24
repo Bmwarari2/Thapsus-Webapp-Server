@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveMarkupPct } from '../../utils/waQuote.js';
+import { deliveryFeeFor, resolveMarkupPct } from '../../utils/waQuote.js';
 
 // The 10% service fee is a SHEIN charge and nothing else pays it: UK is
 // £9/kg + £3, Dubai is $9/kg, and SHEIN itself is 0 while the promotion
@@ -31,5 +31,37 @@ describe('resolveMarkupPct', () => {
 
   it('rejects a broken settings default rather than guessing', () => {
     expect(resolveMarkupPct(undefined, null).error).toMatch(/between 0 and 100/);
+  });
+});
+
+// The last-mile fee is charged with the order now, not on arrival, and
+// only when the customer wants it delivered.
+describe('deliveryFeeFor', () => {
+  it('charges the settings amount for a delivery', () => {
+    expect(deliveryFeeFor('delivery', 300)).toEqual({ feeKes: 300, error: null });
+    expect(deliveryFeeFor('delivery', '300').feeKes).toBe(300);
+  });
+
+  it('charges nothing for a collection', () => {
+    // Even when the settings amount is nonsense — collection is free by
+    // definition, so there is nothing to read.
+    expect(deliveryFeeFor('collection', 300)).toEqual({ feeKes: 0, error: null });
+    expect(deliveryFeeFor('collection', null)).toEqual({ feeKes: 0, error: null });
+  });
+
+  it('refuses a method it does not recognise', () => {
+    for (const bad of [undefined, null, '', 'pickup', 'mtaani', 'DELIVERY']) {
+      expect(deliveryFeeFor(bad, 300).error).toMatch(/delivery.*collection/);
+    }
+  });
+
+  it('refuses an unusable settings amount rather than quoting a free delivery', () => {
+    for (const bad of [null, '', undefined, 'abc', -1]) {
+      expect(deliveryFeeFor('delivery', bad).error).toMatch(/not a usable amount/);
+    }
+  });
+
+  it('rounds to whole shillings', () => {
+    expect(deliveryFeeFor('delivery', 299.6).feeKes).toBe(300);
   });
 });

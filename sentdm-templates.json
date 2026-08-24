@@ -12,6 +12,8 @@
     "purchased": "tc_purchased",
     "arrived_fee": "tc_arrived_fee",
     "arrived_waived": "tc_arrived_waived",
+    "arrived_paid": "tc_arrived_paid",
+    "arrived_collect": "tc_arrived_collect",
     "dispatched": "tc_dispatched",
     "delivered": "tc_delivered"
   },
@@ -211,6 +213,30 @@
       "category": "UTILITY",
       "body": {
         "template": "Your parcel {{1}} has arrived in Kenya. Good news: your delivery fee is on us. We will dispatch it to your address shortly.",
+        "samples": [
+          "TRK-8829"
+        ]
+      }
+    },
+    {
+      "name": "tc_arrived_paid",
+      "channel": "whatsapp",
+      "language": "en",
+      "category": "UTILITY",
+      "body": {
+        "template": "Your parcel {{1}} has arrived in Kenya. Your delivery was paid with your order, so nothing more is due. We will send it on to you shortly.",
+        "samples": [
+          "TRK-8829"
+        ]
+      }
+    },
+    {
+      "name": "tc_arrived_collect",
+      "channel": "whatsapp",
+      "language": "en",
+      "category": "UTILITY",
+      "body": {
+        "template": "Your parcel {{1}} has arrived and is ready to collect at Stanbank House, 4th floor, room 28, Nairobi CBD. We are open Monday to Saturday, and closed on Sunday.",
         "samples": [
           "TRK-8829"
         ]
