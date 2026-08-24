@@ -269,6 +269,10 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
     `Still needed from them: ${missing.join('; ') || 'nothing'}.\n` +
     `- Ask for ONE missing detail at a time, but extract EVERY detail their message contains ` +
     `(people often give several at once).\n` +
+    `- Set delivery_preference to "delivery" when they give a street address or ask to be ` +
+    `delivered to, and "collection" when they say they will collect or pick up themselves. ` +
+    `Leave it null if they have not said. Do NOT ask about it separately — the question ` +
+    `about where the parcel should go already offers both.\n` +
     `- NEVER ask for an M-Pesa number. We read payments off the M-Pesa statement; asking for ` +
     `it wastes the customer's time.\n` +
     `- A greeting is not a name. "Hi", "Hello", "Hey", "Habari", "Niaje", "Sasa", "Karibu", ` +
@@ -309,6 +313,7 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
         reply: { type: 'string' },
         full_name: { type: 'string', nullable: true },
         delivery_address: { type: 'string', nullable: true },
+        delivery_preference: { type: 'string', nullable: true, enum: ['delivery', 'collection'] },
       },
       required: ['reply'],
     },
@@ -326,6 +331,12 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
     reply,
     full_name: str(parsed?.full_name, 120),
     delivery_address: str(parsed?.delivery_address, 400),
+    // Only the two known values reach the caller — the column has a
+    // CHECK constraint, and a model that answers "pickup mtaani" should
+    // leave the field unset rather than fail an insert.
+    delivery_preference: ['delivery', 'collection'].includes(parsed?.delivery_preference)
+      ? parsed.delivery_preference
+      : null,
   };
 }
 

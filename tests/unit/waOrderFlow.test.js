@@ -84,6 +84,47 @@ describe('transition()', () => {
     expect(sendToContact.mock.calls[0][2].text).toMatch(/delivery fee/i);
   });
 
+  it('an order whose fee was paid with the quote skips the fee request', async () => {
+    // The point of charging last-mile up front: arrival has nothing to
+    // collect, so it must not park the order in 'delivery_fee_pending'.
+    const { db, calls } = makeDb(orderRow({
+      status: 'purchased', delivery_method: 'delivery',
+      delivery_fee_kes: 300, delivery_fee_in_quote: true,
+    }));
+    const r = await transition(db, 'o1', 'in_kenya');
+    expect(r).toEqual({ ok: true, status: 'in_kenya' });
+    const said = sendToContact.mock.calls[0][2].text;
+    expect(said).toMatch(/paid with your order/i);
+    expect(said).not.toMatch(/on us/i);      // not a waiver
+    expect(said).not.toMatch(/Till/i);       // and not a request for money
+  });
+
+  it('a collection order is told where to collect, not that delivery is free', async () => {
+    const { db } = makeDb(orderRow({
+      status: 'purchased', delivery_method: 'collection',
+      delivery_fee_kes: 0, delivery_fee_in_quote: true,
+    }));
+    const r = await transition(db, 'o1', 'in_kenya');
+    expect(r).toEqual({ ok: true, status: 'in_kenya' });
+    const said = sendToContact.mock.calls[0][2].text;
+    expect(said).toMatch(/ready to collect/i);
+    expect(said).toMatch(/Stanbank/i);
+    expect(said).not.toMatch(/delivery fee/i);
+  });
+
+  it('still asks an order quoted before the change for its fee on arrival', async () => {
+    // delivery_fee_kes is NULL on those rows, and Number(null) is 0 —
+    // reading that as "nothing owed" would hand every in-flight order a
+    // free delivery.
+    const { db, calls } = makeDb(orderRow({
+      status: 'purchased', delivery_fee_kes: null, delivery_fee_in_quote: false,
+    }));
+    const r = await transition(db, 'o1', 'in_kenya');
+    expect(r).toEqual({ ok: true, status: 'delivery_fee_pending' });
+    const update = calls.find(([sql]) => sql.includes('UPDATE wa_orders'));
+    expect(update[1]).toContain(300);
+  });
+
   it('purchased → in_kenya stays in_kenya with the fee waived during a promo', async () => {
     getWaSettings.mockResolvedValueOnce({
       promo_active: true, promo_type: 'waive_fee', promo_message: 'Free delivery till mid-August!',

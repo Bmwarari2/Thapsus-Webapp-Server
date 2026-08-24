@@ -590,6 +590,12 @@ async function aiOnboarding(db, contact, message, body, settings) {
   if (!contact.delivery_address && looksLikeDestination(turn.delivery_address)) {
     fields.delivery_address = turn.delivery_address;
   }
+  // Seeds the operator's default at quote time — delivery is charged the
+  // last-mile fee and collection is not, so it is worth keeping whatever
+  // the customer already said rather than making somebody guess later.
+  if (!contact.delivery_preference && turn.delivery_preference) {
+    fields.delivery_preference = turn.delivery_preference;
+  }
 
   // A name and somewhere to send the parcel. The M-Pesa number used to be
   // the third thing we held people up for, and it earned nothing: payments

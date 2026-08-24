@@ -717,8 +717,8 @@ export const waApi = {
   // markup_pct is per-order: 10% is a SHEIN charge (waived during the
   // promotion), and UK/Dubai weight-based orders carry none. Omit it to
   // fall back to the settings default.
-  quote: (id, usd_price, markup_pct) =>
-    api.post(`/wa/orders/${id}/quote`, { usd_price, markup_pct },
+  quote: (id, usd_price, markup_pct, delivery_method) =>
+    api.post(`/wa/orders/${id}/quote`, { usd_price, markup_pct, delivery_method },
       { headers: { 'Idempotency-Key': newIdempotencyKey() } }),
   confirm: (id) => api.post(`/wa/orders/${id}/confirm`),
   requestPayment: (id, { method = 'stk', purpose = 'order', phone = undefined } = {}) =>
