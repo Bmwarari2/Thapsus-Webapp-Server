@@ -27,8 +27,7 @@ import {
   parseInboundEvent,
   fetchMessage,
   fromE164,
-  mapProviderStatus,
-} from '../utils/sentdm.js';
+  mapProviderStatus, extractInboundMedia } from '../utils/sentdm.js';
 import { handleInbound } from '../utils/waStateMachine.js';
 import { pushToStaff } from './events.js';
 import { logError } from '../utils/errorLogger.js';
@@ -191,6 +190,7 @@ async function ingestInboundMessage(db, event) {
   // production event) is the emergency fallback if the fetch fails.
   let phone = null;
   let body = typeof event.text === 'string' ? event.text : null;
+  let media = null;
   try {
     const msg = await fetchMessage(providerMessageId);
     // Only ingest genuine inbound traffic — our own sends also generate
@@ -200,6 +200,16 @@ async function ingestInboundMessage(db, event) {
     }
     phone = fromE164(msg?.phone_international || msg?.phone);
     body = body ?? (msg?.message_body?.content ?? null);
+    media = extractInboundMedia(msg);
+    // A message with neither words nor an attachment we recognise is
+    // either a sticker we cannot render or a shape this extractor does
+    // not know yet. Log the envelope so the next one names its own key
+    // instead of being guessed at — customers' payment screenshots
+    // arrive this way and an operator cannot act on a blank bubble.
+    if (!body && !media) {
+      console.warn('[wa-webhook] inbound with no text and no recognised media; message_body was: '
+        + JSON.stringify(msg?.message_body ?? null).slice(0, 800));
+    }
   } catch (e) {
     console.warn(`[wa-webhook] message hydration failed (${e?.message}) — falling back to payload fields`);
     phone = fromE164(event.inboundNumber);
@@ -220,14 +230,15 @@ async function ingestInboundMessage(db, event) {
   // Insert the message; the UNIQUE index is the race-safe idempotency guard.
   const messageId = uuidv4();
   const { rowCount } = await db.query(
-    `INSERT INTO wa_messages (id, contact_id, direction, body, provider_message_id, status)
-     VALUES ($1, $2, 'in', $3, $4, 'received')
+    `INSERT INTO wa_messages (id, contact_id, direction, body, media_url, media_type,
+                              provider_message_id, status)
+     VALUES ($1, $2, 'in', $3, $4, $5, $6, 'received')
      ON CONFLICT (provider_message_id) DO NOTHING`,
-    [messageId, contact.id, body, providerMessageId]
+    [messageId, contact.id, body, media?.url ?? null, media?.type ?? null, providerMessageId]
   );
   if (rowCount === 0) return { duplicate: true };
 
-  const preview = (body || '[media message]').slice(0, PREVIEW_LEN);
+  const preview = (body || (media ? `[${media.type}]` : '[media message]')).slice(0, PREVIEW_LEN);
   await db.query(
     `UPDATE wa_contacts
         SET unread_count = unread_count + 1,
@@ -248,5 +259,8 @@ async function ingestInboundMessage(db, event) {
   });
 
   // Caller ACKs, then runs the state machine on this.
-  return { ingested: true, contact, message: { id: messageId, body, mediaUrl: null } };
+  return {
+    ingested: true, contact,
+    message: { id: messageId, body, mediaUrl: media?.url ?? null, mediaType: media?.type ?? null },
+  };
 }
