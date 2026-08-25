@@ -1520,9 +1520,19 @@ router.post('/users/create', authMiddleware, isAdmin, async (req, res) => {
   try {
     const db = req.db;
     const adminId = req.user.id;
-    const { name, email, phone, role } = req.body;
-    if (!name || !email || !phone)
-      return res.status(400).json({ success: false, message: 'Name, email, and phone are required' });
+    const { name, email, phone, role, password } = req.body;
+    if (!name || !email)
+      return res.status(400).json({ success: false, message: 'Name and email are required' });
+    // Phone was required here while the form that calls it collects none —
+    // staff sign in by email and are never delivered to. Optional now.
+    const staffPhone = typeof phone === 'string' && phone.trim() ? phone.trim() : null;
+    // The admin sets the temporary password and hands it over themselves;
+    // no email leaves the system. Blank means "generate one for me", and
+    // it comes back in the response so it can still be passed on.
+    const chosenPassword = typeof password === 'string' ? password.trim() : '';
+    if (chosenPassword && chosenPassword.length < 8) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
+    }
     const accountRole = role || 'customer';
     if (!['customer', 'admin', 'operator', 'clearing_agent', 'rider'].includes(accountRole))
       return res.status(400).json({
@@ -1538,18 +1548,20 @@ router.post('/users/create', authMiddleware, isAdmin, async (req, res) => {
     while ((await db.query('SELECT id FROM users WHERE referral_code = $1', [referralCode])).rows.length > 0) {
       referralCode = generateReferralCode();
     }
-    const tempPassword  = crypto.randomBytes(24).toString('hex');
+    const tempPassword  = chosenPassword || crypto.randomBytes(9).toString('base64url');
     const passwordHash  = await bcrypt.hash(tempPassword, 10);
-    const setupToken    = crypto.randomBytes(32).toString('hex');
-    const setupTokenId  = uuidv4();
-    const expiresAt     = new Date(Date.now() + 24 * 3600000).toISOString();
     const client = await db.connect();
     try {
       await client.query('BEGIN');
+      // email_verified_at is stamped here. Login refuses an unverified
+      // account with "activate your account from the link we emailed
+      // you" — a link that does not exist when no email is sent, which
+      // would leave every account created on this screen unable to sign
+      // in. An admin entering the details in person IS the verification.
       await client.query(
-        `INSERT INTO users (id, email, password_hash, name, phone, role, warehouse_id, language_pref, referral_code, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'en', $8, true)`,
-        [userId, email.toLowerCase().trim(), passwordHash, name, phone, accountRole, warehouseId, referralCode]
+        `INSERT INTO users (id, email, password_hash, name, phone, role, warehouse_id, language_pref, referral_code, is_active, email_verified_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'en', $8, true, NOW())`,
+        [userId, email.toLowerCase().trim(), passwordHash, name, staffPhone, accountRole, warehouseId, referralCode]
       );
       // Wallet replaced by user_credits (PR A / migration 028).
       await client.query(
@@ -1558,40 +1570,26 @@ router.post('/users/create', authMiddleware, isAdmin, async (req, res) => {
          ON CONFLICT (user_id) DO NOTHING`,
         [userId]
       );
-      await client.query('INSERT INTO password_reset_tokens (id, user_id, token_sha256, expires_at) VALUES ($1, $2, $3, $4)', [setupTokenId, userId, tokenSha256(setupToken), expiresAt]);
+      // No setup token is minted. Nothing emails one, and an unused
+      // 24-hour credential sitting in the table is a liability rather
+      // than a convenience. 'Resend welcome' mints its own if it is ever
+      // wanted.
       await client.query('INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1, $2, $3, $4)', [uuidv4(), adminId, 'create_user_account', JSON.stringify({ user_id: userId, email: email.toLowerCase().trim(), role: accountRole, warehouse_id: warehouseId })]);
       await client.query('COMMIT');
     } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
 
-    const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://www.thapsus.uk';
-    let emailStatus = 'sent';
-    let emailError = null;
-    try {
-      await sendWelcomeAccountEmail(
-        email.toLowerCase().trim(),
-        name,
-        warehouseId,
-        accountRole,
-        `${frontendUrl}/reset-password?token=${setupToken}`
-      );
-    } catch (err) {
-      emailStatus = 'failed';
-      emailError = err.message || 'unknown error';
-      console.warn('Welcome email failed (non-fatal):', emailError);
-    }
-
     const friendlyRole = accountRole === 'admin' ? 'Admin' :
       accountRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-    const message = emailStatus === 'sent'
-      ? `${friendlyRole} account created. Welcome email sent to ${email}.`
-      : `${friendlyRole} account created. Welcome email failed (${emailError}). You can resend from the user detail page.`;
 
+    // Deliberately no welcome email. The password is handed over in
+    // person, and it is returned here — the only time it is readable,
+    // since only the hash is stored — so it is never written to a log.
     res.status(201).json({
       success: true,
-      message,
-      email_status: emailStatus,
-      email_error: emailError,
-      user: { id: userId, email: email.toLowerCase().trim(), name, phone, role: accountRole, warehouse_id: warehouseId, referral_code: referralCode, is_active: true }
+      message: `${friendlyRole} account created. Give them the password — it is not shown again.`,
+      temp_password: tempPassword,
+      generated_password: !chosenPassword,
+      user: { id: userId, email: email.toLowerCase().trim(), name, phone: staffPhone, role: accountRole, warehouse_id: warehouseId, referral_code: referralCode, is_active: true }
     });
   } catch (error) {
     console.error('Create user account error:', error);

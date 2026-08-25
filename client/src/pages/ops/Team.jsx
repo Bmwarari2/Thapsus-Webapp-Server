@@ -21,6 +21,10 @@ export function Team() {
   const [busy, setBusy] = useState(false)
   const [adding, setAdding] = useState(false)
   const [f, setF] = useState({ name: '', email: '', password: '', role: 'operator' })
+  // Shown once, after creation. Only the hash is stored, so if this is
+  // dismissed without being copied the password is gone for good and the
+  // account needs a reset.
+  const [issued, setIssued] = useState(null)
 
   const load = useCallback(async () => {
     try {
@@ -49,11 +53,21 @@ export function Team() {
 
   const create = async (e) => {
     e.preventDefault()
-    if (!f.email.trim() || !f.password.trim()) return toast.error('Email and password are required')
-    await run(() => adminApi.createUser({ ...f, email: f.email.trim().toLowerCase() }),
-      `${f.role} account created`)()
-    setF({ name: '', email: '', password: '', role: 'operator' })
-    setAdding(false)
+    if (!f.name.trim() || !f.email.trim()) return toast.error('Name and email are required')
+    if (f.password.trim() && f.password.trim().length < 8) {
+      return toast.error('Password must be at least 8 characters')
+    }
+    setBusy(true)
+    try {
+      const res = await adminApi.createUser({ ...f, email: f.email.trim().toLowerCase() })
+      setIssued({ email: f.email.trim().toLowerCase(), password: res.data.temp_password })
+      toast.success(res.data.message || 'Account created')
+      setF({ name: '', email: '', password: '', role: 'operator' })
+      setAdding(false)
+      await load()
+    } catch (e2) {
+      toast.error(e2.response?.data?.message || 'Could not create the account')
+    } finally { setBusy(false) }
   }
 
   return (
@@ -73,6 +87,30 @@ export function Team() {
         </div>
       </div>
 
+      {issued && (
+        <GlassCard className="p-5 mb-4 border-emerald-500/40">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h3 className="font-bold text-white">Account created — pass these on</h3>
+              <p className="text-xs text-mute mt-0.5">
+                No email was sent. Only the hash is stored, so this password cannot be shown
+                again — if you close this without copying it, reset the account instead.
+              </p>
+              <dl className="mt-3 text-sm">
+                <dt className="text-mute text-xs">Email</dt>
+                <dd className="text-white font-mono break-all">{issued.email}</dd>
+                <dt className="text-mute text-xs mt-2">Temporary password</dt>
+                <dd className="text-white font-mono break-all select-all">{issued.password}</dd>
+              </dl>
+            </div>
+            <button onClick={() => setIssued(null)}
+              className="shrink-0 px-3 py-2 rounded-xl bg-white/5 border border-line text-white text-sm hover:bg-white/10">
+              Done
+            </button>
+          </div>
+        </GlassCard>
+      )}
+
       {adding && (
         <GlassCard className="p-5 mb-4">
           <form onSubmit={create} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -81,7 +119,7 @@ export function Team() {
             <input value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })}
               placeholder="name@thapsus.uk" type="email" className={field} />
             <input value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })}
-              placeholder="Temporary password" className={field} />
+              placeholder="Temporary password — leave blank to generate one" className={field} />
             <select value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} className={field}>
               <option value="operator">Operator — inbox and pipeline</option>
               <option value="admin">Admin — also payments and settings</option>
