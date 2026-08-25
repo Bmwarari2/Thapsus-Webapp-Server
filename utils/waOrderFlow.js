@@ -246,6 +246,18 @@ export async function sendCustomerStatusMessage(db, contact, order, settings) {
       });
     }
     case 'dispatched':
+      // A parcel going to a Pickup Mtaani agent is not being brought to
+      // anybody's door, and "our rider will call you on arrival" sends
+      // that customer home to wait. Name the point the team assigned.
+      if (order.pickup_point) {
+        return sendToContact(db, contact, {
+          templateKey: 'dispatched',
+          templateParams: { tracking_code: code },
+          text:
+            `${code} is on its way to ${order.pickup_point} via Pickup Mtaani. ` +
+            `You'll get a notification from Pickup Mtaani when it's ready to collect.`,
+        });
+      }
       return sendToContact(db, contact, {
         templateKey: 'dispatched',
         templateParams: { tracking_code: code },

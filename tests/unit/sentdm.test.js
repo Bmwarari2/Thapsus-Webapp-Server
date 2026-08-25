@@ -107,10 +107,15 @@ describe('verifyWebhookSignature', () => {
 
 describe('parseInboundEvent', () => {
   it('detects an inbound message event', () => {
-    expect(parseInboundEvent({
+    // The whole payload rides along now: inbound media is not in the
+    // hydrated message (a real photo came back as an empty content
+    // field), so the webhook envelope is the only place left to look.
+    const parsed = parseInboundEvent({
       field: 'message', sub_type: 'message.received',
       payload: { message_id: 'abc' },
-    })).toEqual({ kind: 'message_received', messageId: 'abc' });
+    });
+    expect(parsed).toMatchObject({ kind: 'message_received', messageId: 'abc' });
+    expect(parsed.payload).toEqual({ message_id: 'abc' });
   });
 
   it('detects a delivery-status event via payload.message_status', () => {

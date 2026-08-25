@@ -321,7 +321,9 @@ describe('collection is a first-class answer', () => {
     await handleInbound(db, contact({ state: 'awaiting_address', full_name: 'Jane Doe', customer_code: null }),
       { id: 'm', body: 'ok' });
     expect(db.query.mock.calls.some(([sql]) => sql.includes('delivery_address'))).toBe(false);
-    expect(sendToContact.mock.calls[0][2].text).toMatch(/pickup point/i);
+    // Asks for an AREA, not a named point: which Pickup Mtaani agent
+    // serves it is the team's call, not the customer's.
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/area you'd like to collect in/i);
   });
 
   it('offers collection alongside delivery when it asks', async () => {

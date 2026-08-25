@@ -200,15 +200,16 @@ async function ingestInboundMessage(db, event) {
     }
     phone = fromE164(msg?.phone_international || msg?.phone);
     body = body ?? (msg?.message_body?.content ?? null);
-    media = extractInboundMedia(msg);
-    // A message with neither words nor an attachment we recognise is
-    // either a sticker we cannot render or a shape this extractor does
-    // not know yet. Log the envelope so the next one names its own key
-    // instead of being guessed at — customers' payment screenshots
-    // arrive this way and an operator cannot act on a blank bubble.
+    media = extractInboundMedia(msg, event.payload);
+    // Still nothing. The first version of this logged only the hydrated
+    // message, which answered the question it was asked — that record
+    // carries no media whatsoever — and left the webhook envelope
+    // unexamined. Log both, so the next blank message either names its
+    // key or proves the provider never sends one.
     if (!body && !media) {
-      console.warn('[wa-webhook] inbound with no text and no recognised media; message_body was: '
-        + JSON.stringify(msg?.message_body ?? null).slice(0, 800));
+      console.warn('[wa-webhook] inbound with no text and no recognised media.'
+        + ' message_body=' + JSON.stringify(msg?.message_body ?? null).slice(0, 600)
+        + ' webhook_payload=' + JSON.stringify(event.payload ?? null).slice(0, 900));
     }
   } catch (e) {
     console.warn(`[wa-webhook] message hydration failed (${e?.message}) — falling back to payload fields`);

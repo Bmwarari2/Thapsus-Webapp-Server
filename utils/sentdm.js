@@ -357,6 +357,11 @@ export function parseInboundEvent(payloadJson) {
     return {
       kind: 'message_received',
       messageId,
+      // The whole payload rides along because inbound media is not in the
+      // hydrated message: GET /v3/messages/{id} came back with
+      // {"header":null,"content":"","footer":null,"buttons":null} for a
+      // photo. If a URL reaches us at all, this is where it is.
+      payload: p,
       text: typeof p.text === 'string' ? p.text : undefined,
       inboundNumber: typeof p.inbound_number === 'string' && p.inbound_number
         ? p.inbound_number : undefined,
@@ -411,7 +416,7 @@ function extractError(payload) {
  * @param {object} msg  the v3 message from fetchMessage()
  * @returns {{url: string, type: string}|null}
  */
-export function extractInboundMedia(msg) {
+export function extractInboundMedia(msg, webhookPayload = null) {
   const body = msg?.message_body ?? {};
   const candidates = [
     body.media_url, body.mediaUrl, body.media, body.url, body.link,
@@ -421,13 +426,46 @@ export function extractInboundMedia(msg) {
     Array.isArray(body.media) ? body.media[0]?.url : null,
     msg?.media_url, msg?.media?.url,
   ];
-  const url = candidates.find((v) => typeof v === 'string' && /^https?:\/\//i.test(v));
+  let url = candidates.find((v) => typeof v === 'string' && /^https?:\/\//i.test(v));
+
+  // Nothing under a name we know. The provider's inbound shape is not
+  // documented and the hydrated message turned out to carry no media at
+  // all, so rather than add a sixth guess every time this fails, sweep
+  // both objects for a URL that looks like a file. Bounded, and only
+  // consulted once the named keys have missed.
+  if (!url) url = findMediaUrlDeep(msg) || findMediaUrlDeep(webhookPayload);
   if (!url) return null;
 
   const declared = String(
     body.media_type || body.mediaType || body.type || msg?.media_type || ''
   ).toLowerCase();
   return { url, type: classifyMedia(declared, url) };
+}
+
+// A file extension, or a path segment that reads like one, is what tells
+// an attachment apart from the other URLs floating in a webhook envelope
+// (callback URLs, profile links). Anything vaguer is left alone: showing
+// the wrong link as an attachment is worse than showing none.
+const MEDIA_URL_HINT =
+  /\.(jpe?g|png|webp|gif|heic|mp4|mov|3gp|ogg|opus|mp3|m4a|pdf|docx?|xlsx?|csv)(\?|$)|\/(media|attachments?|files?|downloads?)\//i;
+
+// Deep enough for a Meta-style envelope (entry[].changes[].value.image),
+// which is six levels before the URL. Capped so a malformed or
+// self-referential payload cannot spin.
+const MAX_MEDIA_SCAN_DEPTH = 8;
+
+/** Walk an object for the first URL that looks like a file. Depth-capped. */
+function findMediaUrlDeep(root, depth = 0) {
+  if (!root || typeof root !== 'object' || depth > MAX_MEDIA_SCAN_DEPTH) return null;
+  for (const value of Object.values(root)) {
+    if (typeof value === 'string') {
+      if (/^https?:\/\//i.test(value) && MEDIA_URL_HINT.test(value)) return value;
+    } else if (value && typeof value === 'object') {
+      const found = findMediaUrlDeep(value, depth + 1);
+      if (found) return found;
+    }
+  }
+  return null;
 }
 
 /**

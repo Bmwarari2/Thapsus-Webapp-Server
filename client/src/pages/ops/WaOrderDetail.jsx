@@ -10,6 +10,7 @@ import { useAuth } from '../../context/AuthContext'
 import { GlassStyles, GlassCard, PageHeading, StatusBadge } from '../../components/GlassUI'
 import { PrintableParcelLabel } from '../../components/PrintableParcelLabel'
 import { useWaPipelineUpdates } from '../../hooks/useRealtimeUpdates'
+import MTAANI_AGENTS from '../../lib/pickupMtaaniAgents.json'
 
 // Which single-step advance buttons to offer per current status. Payment
 // statuses move via the payments machinery, not these buttons.
@@ -51,6 +52,10 @@ export function WaOrderDetail() {
   // Decides whether the last-mile fee is added to the quote. Seeded from
   // whatever the customer told the assistant at signup.
   const [method, setMethod] = useState('delivery')
+  // Which Pickup Mtaani agent a parcel goes to is the team's call. The
+  // customer names an area; the assistant is told never to confirm a
+  // point, having once invented coverage of one.
+  const [pickup, setPickup] = useState('')
   const [mpesaRef, setMpesaRef] = useState('')
   const [supplierRef, setSupplierRef] = useState('')
   const [siblings, setSiblings] = useState([])   // others in the same supplier order
@@ -68,6 +73,7 @@ export function WaOrderDetail() {
       setPayments(res.data.payments || [])
       if (res.data.order.usd_price) setUsd(String(res.data.order.usd_price))
       setMethod(res.data.order.delivery_method || res.data.order.delivery_preference || 'delivery')
+      setPickup(res.data.order.pickup_point || '')
       setSupplierRef(res.data.order.supplier_ref || '')
 
       // Who else went into the same supplier purchase. This is the whole
@@ -115,6 +121,8 @@ export function WaOrderDetail() {
     }
     return waApi.quote(id, price, pct, method)
   }, 'Quote sent to the customer')
+
+  const savePickup = run(() => waApi.setPickupPoint(id, pickup), 'Pickup point saved')
 
   const confirm = run(() => waApi.confirm(id), 'Order confirmed')
   const advance = (to) => run(() => waApi.advance(id, to), 'Status updated')()
@@ -272,6 +280,30 @@ export function WaOrderDetail() {
               )}
               <span className="text-mute font-semibold">Total</span>
               <span className="text-ember-400 font-bold text-right">KSh {Number(order.quote_kes).toLocaleString()}</span>
+            </div>
+          )}
+
+          {order.delivery_method !== 'collection' && (
+            <div className="mt-4 pt-4 border-t border-line">
+              <span className="block text-xs font-semibold text-mute mb-1.5">
+                Pickup Mtaani point <span className="font-normal">(leave blank for door delivery)</span>
+              </span>
+              <div className="flex gap-2">
+                <input list="mtaani-agents" value={pickup} onChange={(e) => setPickup(e.target.value)}
+                  placeholder="Search an area, e.g. Hurlingham"
+                  className="flex-1 px-3 py-2.5 rounded-xl bg-white/5 border border-line text-white placeholder:text-mute text-sm focus:outline-none focus:border-ember-500/50" />
+                <datalist id="mtaani-agents">
+                  {MTAANI_AGENTS.map((a) => <option key={a} value={a} />)}
+                </datalist>
+                <button onClick={savePickup} disabled={busy}
+                  className="px-3 py-2.5 rounded-xl bg-white/5 border border-line text-white text-sm font-semibold hover:bg-white/10 disabled:opacity-50">
+                  Save
+                </button>
+              </div>
+              <p className="text-xs text-mute mt-1.5">
+                Set this and the dispatch message names the point instead of promising a rider.
+                Suggestions come from the agent list — type anything if the agent you want isn't there.
+              </p>
             </div>
           )}
 

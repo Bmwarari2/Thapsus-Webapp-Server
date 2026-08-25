@@ -3550,6 +3550,11 @@
     "nn": false,
     "t": "timestamptz"
    },
+   "pickup_point": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
    "product_links": {
     "hd": true,
     "nn": true,

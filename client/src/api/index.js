@@ -721,6 +721,9 @@ export const waApi = {
     api.post(`/wa/orders/${id}/quote`, { usd_price, markup_pct, delivery_method },
       { headers: { 'Idempotency-Key': newIdempotencyKey() } }),
   confirm: (id) => api.post(`/wa/orders/${id}/confirm`),
+  /** Staff assign the Pickup Mtaani agent; the customer only names an area. */
+  setPickupPoint: (id, pickup_point) =>
+    api.patch(`/wa/orders/${id}/pickup-point`, { pickup_point }),
   requestPayment: (id, { method = 'stk', purpose = 'order', phone = undefined } = {}) =>
     api.post(`/wa/orders/${id}/request-payment`, { method, purpose, phone },
       { headers: { 'Idempotency-Key': newIdempotencyKey() } }),
