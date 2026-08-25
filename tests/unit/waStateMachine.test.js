@@ -418,6 +418,97 @@ describe('an empty inbound message', () => {
   });
 });
 
+// ── SHEIN carts ──────────────────────────────────────────────────────────────
+// Byrone sent product links. An operator spent eleven minutes and two
+// rounds getting to a cart before anything could be quoted. Every link
+// below is a real one from a real conversation.
+const CART_BYRONE  = 'https://onelink.shein.com/49/5zw9b7anck7k?shc=2_RwLdztAJWDF';
+const CART_OTHER   = 'https://onelink.shein.com/49/5zvze4oaj31c?shc=2_RpDnMzIZd9N';
+const PRODUCT_LINK_SHEIN =
+  'https://m.shein.com/Lenovo-EA400-5-4-Bluetooth-Earphones-Bone-Conduction-p-12345.html';
+
+describe('needsSheinCart', () => {
+  it('spots a product link with no cart among them', async () => {
+    const { needsSheinCart } = await import('../../utils/waStateMachine.js');
+    expect(needsSheinCart(PRODUCT_LINK_SHEIN)).toBe(true);
+    expect(needsSheinCart(`I found some great items! ${PRODUCT_LINK_SHEIN}`)).toBe(true);
+  });
+
+  it('is satisfied by a shared cart', async () => {
+    const { needsSheinCart } = await import('../../utils/waStateMachine.js');
+    expect(needsSheinCart(CART_BYRONE)).toBe(false);
+    expect(needsSheinCart(CART_OTHER)).toBe(false);
+  });
+
+  it('is satisfied when a cart arrives alongside product links', async () => {
+    const { needsSheinCart } = await import('../../utils/waStateMachine.js');
+    expect(needsSheinCart(`${PRODUCT_LINK_SHEIN}\n${CART_BYRONE}`)).toBe(false);
+  });
+
+  it('leaves every other retailer alone', async () => {
+    const { needsSheinCart } = await import('../../utils/waStateMachine.js');
+    for (const other of [
+      'https://www.asos.com/prd/12345',
+      'https://amazon.co.uk/dp/B08N5WRWNW',
+      'no link at all',
+      '',
+    ]) {
+      expect(needsSheinCart(other), other).toBe(false);
+    }
+  });
+});
+
+describe('asking for the SHEIN cart', () => {
+  it('answers a product link with the three-dot instructions', async () => {
+    const db = makeDb();
+    await handleInbound(db, contact(), { id: 'm', body: PRODUCT_LINK_SHEIN });
+    const said = sendToContact.mock.calls[0][2].text;
+    expect(said).toMatch(/cart/i);
+    expect(said).toMatch(/three dots/i);
+    // and says why, so it reads as a reason rather than a rule
+    expect(said).toMatch(/size or colour/i);
+  });
+
+  it('still pages staff, but says it is already in hand', async () => {
+    const db = makeDb();
+    await handleInbound(db, contact(), { id: 'm', body: PRODUCT_LINK_SHEIN });
+    expect(notifyStaff).toHaveBeenCalledWith(db, expect.objectContaining({
+      title: expect.stringMatching(/cart requested/i),
+    }));
+  });
+
+  it('does not intercept a cart — that one goes to the normal flow', async () => {
+    const db = makeDb();
+    await handleInbound(db, contact(), { id: 'm', body: CART_BYRONE });
+    const said = sendToContact.mock.calls.map(([, , o]) => o.text || '').join(' ');
+    expect(said).not.toMatch(/three dots/i);
+    expect(notifyStaff).toHaveBeenCalledWith(db, expect.objectContaining({
+      title: expect.stringMatching(/quote needed/i),
+    }));
+  });
+
+  it('says it once per burst, not once per link', async () => {
+    // Customers paste three product links in a row; three identical
+    // corrections is worse than the problem.
+    const db = makeDb(async (sql) => {
+      if (sql.includes('SELECT 1') && sql.includes('body LIKE')) return { rows: [{ '?column?': 1 }] };
+      return { rows: [], rowCount: 0 };
+    });
+    await handleInbound(db, contact(), { id: 'm', body: PRODUCT_LINK_SHEIN });
+    expect(sendToContact).not.toHaveBeenCalled();
+  });
+
+  it('stays quiet while an operator has the chat', async () => {
+    const db = makeDb();
+    await handleInbound(db, contact({ human_takeover_at: new Date().toISOString() }),
+      { id: 'm', body: PRODUCT_LINK_SHEIN });
+    const said = sendToContact.mock.calls.map(([, , o]) => o.text || '').join(' ');
+    expect(said).not.toMatch(/three dots/i);
+    // the alert still goes out — a person should know a link arrived
+    expect(notifyStaff).toHaveBeenCalled();
+  });
+});
+
 // ── Quote requests ───────────────────────────────────────────────────────────
 // The new flow is "send us a link and we will quote you". Nothing after
 // that link is automatic — a person prices it — so the link itself has to
@@ -426,7 +517,9 @@ describe('an empty inbound message', () => {
 describe('product links page a human', () => {
   it('alerts staff when a customer sends a link', async () => {
     const db = makeDb();
-    await handleInbound(db, contact(), { id: 'm', body: 'hi can you get me this https://shein.com/item-p-123.html' });
+    // A non-SHEIN retailer on purpose: a SHEIN product link now takes the
+    // cart-request path, which has its own tests below.
+    await handleInbound(db, contact(), { id: 'm', body: 'hi can you get me this https://www.asos.com/prd/12345' });
     expect(notifyStaff).toHaveBeenCalledWith(db, expect.objectContaining({
       title: expect.stringMatching(/quote needed/i),
     }));

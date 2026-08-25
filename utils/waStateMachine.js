@@ -78,6 +78,33 @@ const PAID_CLAIM =
 // and a false positive costs one alert.
 const PRODUCT_LINK = /\bhttps?:\/\/\S+|\b(?:www\.|[a-z0-9-]+\.)(?:com|co\.uk|co\.ke|net|org|shop|store|me|ae|cn|us)\b\/?\S*/i;
 
+// SHEIN links come in two shapes and only one of them is usable.
+//
+//   cart    onelink.shein.com/49/5zw9b7anck7k?shc=2_RwLdztAJWDF
+//   product m.shein.com/Lenovo-EA400-Bluetooth-Earphones-...-p-12345.html
+//
+// A shared cart carries `shc=` and opens for us with every item, size and
+// colour on it. A product page frequently will not open on our side at
+// all, and never says which size or colour the customer picked. Byrone
+// sent product links; an operator spent eleven minutes and two rounds
+// getting to a cart before anything could be quoted.
+const SHEIN_LINK = /\bhttps?:\/\/[^\s]*shein\.com\/[^\s]*/gi;
+const SHEIN_CART = /[?&]shc=/i;
+
+// Said once per burst — customers often paste three product links in a
+// row, and three identical corrections is worse than the problem.
+const CART_REQUEST_MARKER = 'share the cart from there';
+
+/**
+ * Is this a SHEIN order that cannot be quoted as sent — one or more
+ * product links and no cart among them?
+ */
+export function needsSheinCart(body) {
+  const links = String(body || '').match(SHEIN_LINK);
+  if (!links || links.length === 0) return false;
+  return !links.some((l) => SHEIN_CART.test(l));
+}
+
 // Stable phrases inside two of our own replies — also how we recognise
 // that we already sent one recently (template_key isn't recorded for
 // free text, so the transcript body is what we have to match on).
@@ -139,9 +166,12 @@ export async function handleInbound(db, contact, message) {
   // whether the AI or an operator is holding the thread. The unread
   // badge in the inbox was the only signal until now, and an unnoticed
   // quote request is the most expensive thing this system can drop.
+  const wantsCart = body ? needsSheinCart(body) : false;
   if (body && PRODUCT_LINK.test(body)) {
     notifyStaff(db, {
-      title: 'Product link received — quote needed',
+      title: wantsCart
+        ? 'SHEIN product link — cart requested, no action yet'
+        : 'Product link received — quote needed',
       detail: `${contact.full_name || contact.phone} (${contact.customer_code || 'no code yet'}): "${body.slice(0, 200)}"`,
       dedupeKey: `link:${contact.id}:${body.slice(0, 80)}`,
     });
@@ -152,6 +182,27 @@ export async function handleInbound(db, contact, message) {
       phone: contact.phone,
       preview: body.slice(0, 200),
     });
+  }
+
+  // 1c. A SHEIN product link cannot be quoted, so ask for the cart now
+  // rather than letting an operator discover it later. Deterministic and
+  // ahead of the AI, for the same reason money and state are: it is a
+  // fact about what we can open, not a judgement call.
+  //
+  // Skipped while a human has the thread — they can see the link and may
+  // already be typing — and said once per burst, because three product
+  // links in a row should not earn three identical corrections.
+  if (wantsCart && !aiPaused && !await sentRecently(db, contact.id, CART_REQUEST_MARKER, 30)) {
+    await sendToContact(db, contact, {
+      text:
+        `Thanks! To quote SHEIN we need your *cart* link rather than links to `
+        + `individual items — a product link often won't open on our side, and it `
+        + `doesn't show us the size or colour you picked.\n\n`
+        + `Add everything you want to your SHEIN cart, then tap the three dots at `
+        + `the top right of the cart and ${CART_REQUEST_MARKER}. One link and we'll `
+        + `send your quote.`,
+    });
+    return;
   }
 
   if (contact.state !== 'active') {

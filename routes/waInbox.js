@@ -17,11 +17,13 @@ import {
   createSignedDownloadUrl,
   sanitizeUploadFilename,
 } from '../utils/supabaseAdmin.js';
+import { MEDIA_BUCKET, mediaShortUrl } from '../utils/mediaLink.js';
 
 const router = express.Router();
 const STAFF = requireRole('operator');
 
-const MEDIA_BUCKET = 'wa-media';
+// The bucket name lives with the link helper, so the token and the
+// redirect can never disagree about which bucket a path is in.
 
 /** GET /api/wa/conversations?q=&limit= — inbox list, newest activity first. */
 router.get('/conversations', authMiddleware, STAFF, async (req, res) => {
@@ -117,9 +119,13 @@ router.post('/conversations/:contactId/messages', authMiddleware, STAFF, async (
         return res.status(400).json({ success: false, message: 'Invalid media_path' });
       }
       mediaKind = media_type === 'document' ? 'document' : 'image';
-      const signed = await createSignedDownloadUrl(MEDIA_BUCKET, media_path, 7 * 24 * 3600);
-      mediaUrl = signed?.signedUrl || null;
-      if (!mediaUrl) return res.status(502).json({ success: false, message: 'Failed to sign media URL' });
+      // A short link, not the signed URL. The signed one is ~600
+      // characters of JWT: on WhatsApp it arrives as a wall of
+      // underlined text taller than the photo, and it expires, so a
+      // message opened next week leads nowhere. /m/:token mints a fresh
+      // signature at click time — the same trick receipts use.
+      mediaUrl = mediaShortUrl(media_path);
+      if (!mediaUrl) return res.status(502).json({ success: false, message: 'Failed to build the media link' });
     }
     const body = typeof text === 'string' ? text.trim() : (typeof caption === 'string' ? caption.trim() : '');
     if (!body && !mediaUrl) {
