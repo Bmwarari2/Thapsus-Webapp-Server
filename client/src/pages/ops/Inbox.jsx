@@ -8,6 +8,7 @@ import toast from 'react-hot-toast'
 import { waApi } from '../../api'
 import { GlassStyles, GlassCard, PageHeading, StatusBadge } from '../../components/GlassUI'
 import { useWaInboxUpdates, useWaNewCustomer, useWaQuoteRequest } from '../../hooks/useRealtimeUpdates'
+import { parseWhatsAppText } from '../../lib/waText'
 
 const URL_RE = /https?:\/\/[^\s<>"')]+/g
 
@@ -21,6 +22,49 @@ const SEND_FAILURES = {
   131049: 'Held back by WhatsApp to limit marketing messages to this person.',
   132001: 'The template does not exist, or not in this language. Check the template map in Settings.',
   470:    'Outside the 24-hour window. Send an approved template instead of free text.',
+}
+
+/**
+ * WhatsApp markup as the customer sees it. The bubble printed bodies
+ * raw, so an operator read "*TC-1058*" where the customer read bold.
+ */
+function MessageBody({ text }) {
+  return parseWhatsAppText(text).map((t, i) => {
+    if (t.type === 'bold') return <strong key={i}>{t.value}</strong>
+    if (t.type === 'italic') return <em key={i}>{t.value}</em>
+    if (t.type === 'strike') return <s key={i}>{t.value}</s>
+    if (t.type === 'mono') return <code key={i} className="font-mono text-[0.9em]">{t.value}</code>
+    if (t.type === 'link') {
+      return (
+        <a key={i} href={t.value} target="_blank" rel="noreferrer"
+          className="underline break-all hover:opacity-80">{t.value}</a>
+      )
+    }
+    return <span key={i}>{t.value}</span>
+  })
+}
+
+/**
+ * An attachment the customer sent. Images show themselves — the common
+ * case is an M-Pesa screenshot, and making somebody click through to
+ * read a payment reference is a click they should not have to make.
+ */
+function Attachment({ url, type }) {
+  if (type === 'image') {
+    return (
+      <a href={url} target="_blank" rel="noreferrer" className="block mb-1.5">
+        <img src={url} alt="Attachment" loading="lazy"
+          className="rounded-lg max-h-64 w-auto border border-white/15" />
+      </a>
+    )
+  }
+  const label = type === 'video' ? 'Video' : type === 'audio' ? 'Voice note' : 'Document'
+  return (
+    <a href={url} target="_blank" rel="noreferrer"
+      className="block underline text-xs mb-1">
+      📎 Open {label.toLowerCase()}
+    </a>
+  )
 }
 
 function describeSendFailure(raw) {
@@ -331,13 +375,17 @@ export function Inbox() {
                         ? 'bg-ember-600/90 text-white rounded-br-sm'
                         : 'bg-white/10 text-white rounded-bl-sm'
                     }`}>
-                      {m.media_url && (
-                        <a href={m.media_url} target="_blank" rel="noreferrer"
-                          className="block underline text-xs mb-1">
-                          📎 {m.media_type || 'attachment'}
-                        </a>
-                      )}
-                      {m.body}
+                      {m.media_url && <Attachment url={m.media_url} type={m.media_type} />}
+                      {m.body
+                        ? <MessageBody text={m.body} />
+                        : !m.media_url && (
+                          // Neither words nor a readable attachment. Say so,
+                          // rather than leaving an empty bubble that looks
+                          // like the inbox failed to load.
+                          <span className="italic text-mute">
+                            Attachment we couldn't read — check WhatsApp directly
+                          </span>
+                        )}
                       <div className={`text-[10px] mt-1 ${m.direction === 'out' ? 'text-white/70' : 'text-mute'}`}>
                         {new Date(m.created_at).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}
                         {m.direction === 'out' && ` · ${m.status}`}

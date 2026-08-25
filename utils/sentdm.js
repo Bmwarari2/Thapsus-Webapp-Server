@@ -394,6 +394,57 @@ function extractError(payload) {
   return null;
 }
 
+/**
+ * Pull an attachment out of a hydrated inbound message.
+ *
+ * Inbound media was dropped on the floor: the ingest INSERT never named
+ * media_url or media_type, so a customer's M-Pesa screenshot arrived as
+ * a row with an empty body and nothing else. The operator saw a blank
+ * bubble and had to ask them to send it again.
+ *
+ * Which key carries the URL is not documented, and the same guesswork
+ * already bit us on failure reasons (see extractError). So try the
+ * plausible shapes rather than betting on one, and return null quietly
+ * when none match — the caller logs the raw envelope in that case, so
+ * the next attachment tells us the shape instead of us guessing again.
+ *
+ * @param {object} msg  the v3 message from fetchMessage()
+ * @returns {{url: string, type: string}|null}
+ */
+export function extractInboundMedia(msg) {
+  const body = msg?.message_body ?? {};
+  const candidates = [
+    body.media_url, body.mediaUrl, body.media, body.url, body.link,
+    body.image?.url, body.image?.link, body.document?.url, body.document?.link,
+    body.video?.url, body.audio?.url, body.sticker?.url,
+    Array.isArray(body.attachments) ? body.attachments[0]?.url : null,
+    Array.isArray(body.media) ? body.media[0]?.url : null,
+    msg?.media_url, msg?.media?.url,
+  ];
+  const url = candidates.find((v) => typeof v === 'string' && /^https?:\/\//i.test(v));
+  if (!url) return null;
+
+  const declared = String(
+    body.media_type || body.mediaType || body.type || msg?.media_type || ''
+  ).toLowerCase();
+  return { url, type: classifyMedia(declared, url) };
+}
+
+/**
+ * 'image' | 'document' | 'video' | 'audio' — what the inbox needs to know
+ * to decide between showing a thumbnail and showing a paperclip.
+ */
+function classifyMedia(declared, url) {
+  const from = (v) => {
+    if (/image|photo|jpe?g|png|webp|gif|heic/.test(v)) return 'image';
+    if (/video|mp4|mov|3gp/.test(v)) return 'video';
+    if (/audio|voice|ogg|mp3|m4a|opus/.test(v)) return 'audio';
+    if (/pdf|document|doc|xls|csv|sheet/.test(v)) return 'document';
+    return null;
+  };
+  return from(declared) || from(url.split('?')[0].toLowerCase()) || 'document';
+}
+
 /** Map sent.dm delivery statuses onto wa_messages.status values. */
 export function mapProviderStatus(providerStatus) {
   switch (String(providerStatus || '').toUpperCase()) {
