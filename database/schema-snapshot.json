@@ -3234,7 +3234,7 @@
    },
    "phone": {
     "hd": false,
-    "nn": true,
+    "nn": false,
     "t": "text"
    },
    "phone_2fa_enabled": {
