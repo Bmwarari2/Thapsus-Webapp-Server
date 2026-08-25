@@ -525,7 +525,7 @@ async function loadOrderContext(db, contactId) {
 // question so the flow keeps moving.
 const MISSING_FIELD_PROMPT = {
   awaiting_name: `To set you up, what's your full name?`,
-  awaiting_address: `To set you up: where should the parcel go? Send a delivery address (estate/building, street, town), or tell us the pickup point you'd rather collect from.`,
+  awaiting_address: `To set you up: where should the parcel go? Send a delivery address (estate/building, street, town), or the area you'd like to collect in — we'll confirm the nearest Pickup Mtaani point.`,
 };
 
 // Somewhere we can actually send a parcel — a street address, or a
@@ -765,7 +765,7 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
       }
       await setState(db, contact.id, 'awaiting_address', { full_name: body.slice(0, 120) });
       return sendToContact(db, contact, {
-        text: `Thanks ${body.split(/\s+/)[0]}! Where should we send it? A delivery address (estate/building, street, town), or the pickup point you'd rather collect from.`,
+        text: `Thanks ${body.split(/\s+/)[0]}! Where should we send it? A delivery address (estate/building, street, town), or the area you'd like to collect in — we'll confirm the nearest Pickup Mtaani point.`,
       });
     }
 
@@ -774,7 +774,7 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
         return sendToContact(db, contact, {
           text:
             `Got it — our team is pricing that now and your quote will come through here shortly.\n\n` +
-            `While you wait: where should the parcel go? A delivery address (estate/building, street, town), or the pickup point you'd rather collect from.`,
+            `While you wait: where should the parcel go? A delivery address (estate/building, street, town), or the area you'd like to collect in — we'll confirm the nearest Pickup Mtaani point.`,
         });
       }
       if (looksLikeQuestion(body)) {
@@ -786,7 +786,7 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
       }
       if (!looksLikeDestination(body)) {
         return sendToContact(db, contact, {
-          text: `Please tell us where the parcel should go — a delivery address (estate/building, street and town), or the pickup point you'd rather collect from.`,
+          text: `Please tell us where the parcel should go — a delivery address (estate/building, street and town), or the area you'd like to collect in.`,
         });
       }
       // Last question. There used to be one more, for an M-Pesa number we

@@ -42,3 +42,41 @@ describe('extractInboundMedia', () => {
     expect(extractInboundMedia({ message_body: { url: '/local/a.jpg' } })).toBeNull();
   });
 });
+
+// The hydrated message turned out to carry no media at all — a real photo
+// came back as {"header":null,"content":"","footer":null,"buttons":null}.
+// So the webhook envelope is searched too, and a depth-capped sweep backs
+// up the named keys rather than adding a sixth guess each time one misses.
+describe('extractInboundMedia — webhook payload and deep sweep', () => {
+  it('finds a URL in the webhook payload when the message has none', () => {
+    const msg = { message_body: { header: null, content: '', footer: null, buttons: null } };
+    const payload = { message_id: 'x', media: { link: 'https://cdn.sent.dm/x/photo.jpg' } };
+    expect(extractInboundMedia(msg, payload)).toEqual({
+      url: 'https://cdn.sent.dm/x/photo.jpg', type: 'image',
+    });
+  });
+
+  it('digs through nesting the named keys do not cover', () => {
+    const payload = { entry: [{ changes: [{ value: { image: { href: 'https://x/media/a.pdf' } } }] }] };
+    expect(extractInboundMedia({}, payload)?.type).toBe('document');
+  });
+
+  it('ignores URLs that are not files — callbacks, profiles, product links', () => {
+    const payload = {
+      callback_url: 'https://thapsus.uk/api/wa/webhook',
+      text: 'https://onelink.shein.com/49/5zw9b7anck7k?shc=2_RwLdztAJWDF',
+    };
+    expect(extractInboundMedia({}, payload)).toBeNull();
+  });
+
+  it('takes a /media/ path even without an extension', () => {
+    expect(extractInboundMedia({}, { u: 'https://cdn.sent.dm/media/abc123' })?.url)
+      .toBe('https://cdn.sent.dm/media/abc123');
+  });
+
+  it('does not run away on deeply nested or circular-ish input', () => {
+    let deep = { url: 'https://x/a.jpg' };
+    for (let i = 0; i < 20; i++) deep = { nested: deep };
+    expect(extractInboundMedia({}, deep)).toBeNull(); // past the depth cap
+  });
+});

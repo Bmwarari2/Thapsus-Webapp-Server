@@ -763,6 +763,46 @@ router.post('/:id/advance', authMiddleware, STAFF, async (req, res) => {
   }
 });
 
+/**
+ * PATCH /api/wa/orders/:id/pickup-point  { pickup_point }
+ *
+ * Staff assign the Pickup Mtaani agent. The customer tells us the area
+ * they want; which agent serves it is a decision only the team can make,
+ * against a list that changes as agents open and close. The assistant is
+ * told never to confirm one — it invented Hurlingham coverage once and
+ * was right by accident.
+ *
+ * Sending an empty value clears it, for an order that switched to home
+ * delivery after a point had been set.
+ */
+router.patch('/:id/pickup-point', authMiddleware, STAFF, async (req, res) => {
+  try {
+    const raw = req.body?.pickup_point;
+    if (raw !== null && raw !== undefined && typeof raw !== 'string') {
+      return res.status(400).json({ success: false, message: 'pickup_point must be a string' });
+    }
+    const point = typeof raw === 'string' && raw.trim() ? raw.trim().slice(0, 200) : null;
+
+    const { rows } = await req.db.query(
+      `UPDATE wa_orders SET pickup_point = $2, updated_at = NOW()
+        WHERE id = $1 RETURNING *`,
+      [req.params.id, point]
+    );
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'Order not found' });
+
+    await req.db.query(
+      `INSERT INTO wa_order_events (id, order_id, from_status, to_status, actor_user_id, note)
+       VALUES ($1, $2, $3, $3, $4, $5)`,
+      [uuidv4(), rows[0].id, rows[0].status, req.user.id,
+        point ? `Pickup point set to ${point}` : 'Pickup point cleared']
+    );
+    res.json({ success: true, order: rows[0] });
+  } catch (err) {
+    logRouteError(req, res, err, 'PATCH /api/wa/orders/:id/pickup-point');
+    res.status(500).json({ success: false, message: 'Failed to set the pickup point' });
+  }
+});
+
 /** POST /api/wa/orders/:id/waive-fee — manual per-order fee waiver. */
 router.post('/:id/waive-fee', authMiddleware, STAFF, async (req, res) => {
   try {

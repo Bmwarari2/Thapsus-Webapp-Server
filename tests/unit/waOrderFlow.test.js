@@ -99,6 +99,33 @@ describe('transition()', () => {
     expect(said).not.toMatch(/Till/i);       // and not a request for money
   });
 
+  it('names the Pickup Mtaani point on dispatch instead of promising a rider', async () => {
+    // Mtaani is a delivery, but nobody knocks on the door — telling that
+    // customer a rider will call sends them home to wait for one.
+    const { db } = makeDb(orderRow({
+      status: 'dispatched', delivery_method: 'delivery',
+      pickup_point: 'Hurlingham BU.KE BRANDS',
+    }));
+    await transition(db, 'o1', 'delivered');
+    // the dispatched copy is exercised via sendCustomerStatusMessage
+    sendToContact.mockClear();
+    const { sendCustomerStatusMessage } = await import('../../utils/waOrderFlow.js');
+    await sendCustomerStatusMessage(db, { id: 'c1', phone: '254712345678' },
+      orderRow({ status: 'dispatched', pickup_point: 'Hurlingham BU.KE BRANDS' }), {});
+    const said = sendToContact.mock.calls[0][2].text;
+    expect(said).toMatch(/Hurlingham BU\.KE BRANDS/);
+    expect(said).toMatch(/Pickup Mtaani/i);
+    expect(said).not.toMatch(/rider will call/i);
+  });
+
+  it('still promises a rider when no point was assigned', async () => {
+    const { sendCustomerStatusMessage } = await import('../../utils/waOrderFlow.js');
+    const { db } = makeDb(orderRow({ status: 'dispatched' }));
+    await sendCustomerStatusMessage(db, { id: 'c1', phone: '254712345678' },
+      orderRow({ status: 'dispatched', pickup_point: null }), {});
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/rider will call/i);
+  });
+
   it('a collection order is told where to collect, not that delivery is free', async () => {
     const { db } = makeDb(orderRow({
       status: 'purchased', delivery_method: 'collection',
