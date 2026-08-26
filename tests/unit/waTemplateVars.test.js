@@ -137,13 +137,13 @@ describe('the default template map', () => {
     }
   });
 
-  it('names a template for every slot that has one approved', async () => {
+  it('names a template for every slot, with none left unmapped', async () => {
+    // An unmapped slot sends free text, which is refused outside the
+    // 24-hour window — silently, and precisely for the messages that
+    // arrive weeks after a customer last wrote in.
     const { DEFAULTS } = await import('../../utils/waSettings.js');
-    // arrived_paid and arrived_collect are deliberately unmapped — they
-    // were written for the fee-with-order flow and are not approved yet.
-    const pending = ['arrived_paid', 'arrived_collect'];
-    const expected = Object.keys(TEMPLATE_SLOTS).filter((k) => !pending.includes(k));
-    expect(Object.keys(DEFAULTS.template_map).sort()).toEqual(expected.sort());
+    expect(Object.keys(DEFAULTS.template_map).sort())
+      .toEqual(Object.keys(TEMPLATE_SLOTS).sort());
   });
 });
 
@@ -171,9 +171,9 @@ describe('a stored template map layers over the defaults', () => {
   it('keeps approved defaults for keys the stored map never mentions', async () => {
     const map = await mergeSettings({ quote: 'quote_ready' });
     expect(map.quote).toBe('quote_ready');          // the override wins
-    expect(map.arrived_fee).toBe('Arrived_Fee');    // and the rest survive
-    expect(map.receipt).toBe('Receipt');
-    expect(map.dispatched).toBe('Dispatched__Out_For_Delivery');
+    expect(map.arrived_fee).toBe('tc_arrived_fee');  // and the rest survive
+    expect(map.receipt).toBe('tc_receipt');
+    expect(map.dispatched).toBe('tc_dispatched');
   });
 
   it('lets an empty string switch one off deliberately', async () => {

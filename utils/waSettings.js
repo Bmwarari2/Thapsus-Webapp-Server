@@ -34,22 +34,32 @@ export const DEFAULTS = {
   // message, while a missing key delivers nothing and says nothing. To
   // deliberately turn one off, map it to an empty string.
   //
-  // Two slots are deliberately absent because no approved template
-  // exists yet: arrived_paid and arrived_collect. They fall back to free
-  // text, which reaches nobody at arrival — add them here once approved.
+  // Every slot is mapped. The tc_-prefixed six were approved from
+  // sentdm-templates.json, so their bodies match TEMPLATE_SLOTS exactly;
+  // the other five predate that manifest and keep the names they were
+  // approved under.
+  //
+  // arrived_paid and arrived_collect matter most: before they existed,
+  // an arrival for a customer who had paid delivery with their order, or
+  // who was collecting, fell back to free text — and free text is
+  // refused outside the 24-hour window, which is always shut two to
+  // three weeks after a customer last wrote in.
   template_map: {
     quote: 'Quote_Ready',
     payment_prompt: 'Payment_Reminder',
     payment_received: 'Payment_Received',
-    receipt: 'Receipt',
     purchased: 'Order_Purchased',
-    arrived_fee: 'Arrived_Fee',
-    arrived_waived: 'Arrived_Waived',
-    // The console holds two identical dispatch templates. This is the
-    // UTILITY one; the MARKETING twin ('Dispatched') can be refused for
-    // anyone who has opted out of marketing messages.
-    dispatched: 'Dispatched__Out_For_Delivery',
     delivered: 'Delivered',
+    receipt: 'tc_receipt',
+    dispatched: 'tc_dispatched',
+    arrived_fee: 'tc_arrived_fee',
+    // Meta classified this one as MARKETING, so it can be refused for
+    // anyone who has opted out of marketing messages. It only fires when
+    // the promo toggle waives the delivery fee, which is off — but if
+    // that is ever turned on, expect some arrivals not to land.
+    arrived_waived: 'tc_arrived_waived',
+    arrived_paid: 'tc_arrived_paid',
+    arrived_collect: 'tc_arrived_collect',
   },
   // Gemini assistant (utils/waAi.js): answers general questions from the
   // knowledge base and interprets onboarding replies. Requires
