@@ -73,7 +73,7 @@ export const articles = [
       { type: 'h3', text: '1. Create a free account and get your UK address' },
       { type: 'p', text: 'Registration is free. As soon as you sign up you receive a unique **TC Code** and a full UK warehouse address in Stockport. You use this exactly like your own address when checking out at any UK retailer.' },
       { type: 'h3', text: '2. Shop or send your items in' },
-      { type: 'p', text: 'Either shop yourself and enter your warehouse address at checkout, or paste a product link into a [Buy-for-me request](/buy-for-me) and we purchase it for you. Always include your TC Code so we match the parcel to your account the moment it arrives.' },
+      { type: 'p', text: 'Either shop yourself and enter your warehouse address at checkout, or paste a product link into a [buy-for-me request on WhatsApp](/) and we purchase it for you. Always include your TC Code so we match the parcel to your account the moment it arrives.' },
       { type: 'h3', text: '3. We receive, check and store your goods' },
       { type: 'p', text: 'When a parcel lands at the warehouse we log it against your account and notify you. Items are stored free for a generous window so you can wait for several orders to arrive.' },
       { type: 'h3', text: '4. Request consolidation' },
@@ -151,7 +151,7 @@ export const articles = [
         ['Pair of trainers (boxed)', '1.2 kg', '2.6 kg', '2.6 kg', 'from ~£23'],
         ['Laptop', '2.2 kg', '1.8 kg', '2.2 kg', 'from ~£20'],
       ] },
-      { type: 'p', text: 'Figures are illustrative; always use the live [Shipping Calculator](/pricing) for an exact quote.' },
+      { type: 'p', text: 'Figures are illustrative; always use the live [quote from us on WhatsApp](/) for an exact quote.' },
 
       { type: 'h2', text: '2. Service fees' },
       { type: 'ul', items: [
@@ -384,7 +384,7 @@ export const articles = [
         ['Ship each separately', '3 × small parcels', 'Higher (3 minimums + 3 handlings)'],
         ['Consolidate', '1 combined parcel', 'Lower (1 leg, reduced volume)'],
       ] },
-      { type: 'p', text: 'For shoppers buying from multiple stores, consolidation commonly reduces total shipping cost by **30–60%**. Use the [Shipping Calculator](/pricing) to compare for your specific items.' },
+      { type: 'p', text: 'For shoppers buying from multiple stores, consolidation commonly reduces total shipping cost by **30–60%**. Use the [quote from us on WhatsApp](/) to compare for your specific items.' },
     ],
     faqs: [
       { q: 'What is package consolidation?', a: 'It is the process of combining several parcels received at a UK warehouse into one shipment to Kenya, so you pay the international shipping leg once instead of per parcel.' },
@@ -533,7 +533,7 @@ export const articles = [
       { type: 'h2', text: 'What happens if I ship a prohibited item?' },
       { type: 'p', text: 'At best it is returned or held; at worst it is **seized and you face penalties**. Counterfeit goods in particular are routinely confiscated. It is never worth the risk — check first.' },
 
-      { type: 'callout', tone: 'tip', title: 'Not sure about an item?', text: 'See our full [Prohibited Items list](/prohibited) or message support with the product link before you buy. A 30-second check beats a seized parcel.' },
+      { type: 'callout', tone: 'tip', title: 'Not sure about an item?', text: 'See our full [FAQ](/faq) or message support with the product link before you buy. A 30-second check beats a seized parcel.' },
     ],
     faqs: [
       { q: 'Can I ship a power bank to Kenya?', a: 'Loose lithium batteries and large power banks face strict air-cargo limits and are often refused. Devices with built-in batteries are generally accepted within limits. Check the specific capacity with us before shipping.' },
@@ -613,7 +613,7 @@ export const articles = [
         '**No UK card? Use Buy-for-me.** We purchase on your behalf and ship it on.',
       ] },
 
-      { type: 'p', text: 'Browse our curated [UK stores directory](/uk-stores) to jump straight to popular retailers, then forward your haul or place a [Buy-for-me request](/buy-for-me).' },
+      { type: 'p', text: 'Browse our curated [shipping guides](/articles) to jump straight to popular retailers, then forward your haul or place a [buy-for-me request on WhatsApp](/).' },
     ],
     faqs: [
       { q: 'Which UK stores are most popular with Kenyan shoppers?', a: 'Amazon UK, ASOS, Next, John Lewis, Marks & Spencer, Boots, Currys, JD Sports, Argos and Selfridges are among the most popular, spanning fashion, electronics, beauty and home.' },

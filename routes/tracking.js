@@ -1,6 +1,6 @@
 import express from 'express';
 import { authMiddleware, isAdmin, optionalAuth } from '../middleware/auth.js';
-import { sendInAppNotification } from '../utils/notifications.js';
+import { notifyParcelStatus } from '../utils/parcelStatusNotify.js';
 import { isValidPackageStatus } from '../utils/orderStatuses.js';
 
 const router = express.Router();
@@ -52,6 +52,7 @@ router.get('/:trackingNumber', optionalAuth, async (req, res) => {
       const { rows } = await db.query(
         `SELECT tracking_code, status, delivery_fee_waived,
                 delivery_fee_kes, delivery_fee_paid_at,
+                delivery_method, pickup_point,
                 paid_at, purchased_at, arrived_at, dispatched_at, delivered_at,
                 created_at, updated_at
            FROM wa_orders WHERE tracking_code = $1`,
@@ -64,6 +65,11 @@ router.get('/:trackingNumber', optionalAuth, async (req, res) => {
         tracking: {
           tracking_number: o.tracking_code,
           status: o.status,
+          // Which journey this parcel is on. Without it the page showed
+          // every collection customer an "Out for delivery / Delivered"
+          // timeline for a parcel nobody was ever going to drive to them.
+          delivery_method: o.delivery_method || 'delivery',
+          pickup_point: o.pickup_point || null,
           timeline: {
             paid_at: o.paid_at,
             purchased_at: o.purchased_at,
@@ -137,8 +143,11 @@ router.put('/:id/status', authMiddleware, isAdmin, async (req, res) => {
     params.push(id);
     await db.query(`UPDATE packages SET ${setClauses.join(', ')} WHERE id = $${params.length}`, params);
 
-    const orderRes = await db.query('SELECT * FROM orders WHERE id = $1', [pkgRes.rows[0].order_id]);
-    sendInAppNotification(pkgRes.rows[0].user_id, `Package status updated to ${status}. Tracking: ${orderRes.rows[0].tracking_number}`);
+    // Full customer fan-out (in-app row + email + SSE) — the module was
+    // written for exactly this call site but was never wired in, so every
+    // legacy package status flip was silent to the customer.
+    notifyParcelStatus(db, pkgRes.rows[0].order_id, status)
+      .catch((e) => console.warn('[tracking] parcel notify failed (non-fatal):', e?.message));
 
     const updated = await db.query('SELECT * FROM packages WHERE id = $1', [id]);
     res.json({ success: true, message: 'Package status updated successfully', package: updated.rows[0] });

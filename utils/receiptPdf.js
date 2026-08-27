@@ -168,12 +168,28 @@ export function renderReceiptPdf({ order, contact, payment }) {
     if (serviceKes > 0) totalRow('Service', kes(serviceKes));
     totalRow('VAT', 'Not applicable');
 
+    // A receipt is a financial document: the PAID amount must be what was
+    // actually verified. When the reviewer recorded a short payment
+    // (approved under override), stamp what was received and name the
+    // balance instead of asserting the invoice amount was paid.
+    const receivedKes = payment.amount_received_kes != null
+      ? Number(payment.amount_received_kes) : null;
+    const balanceKes = receivedKes != null && receivedKes < total ? total - receivedKes : 0;
+    if (balanceKes > 0) totalRow('Invoice total', kes(total));
+
     doc.rect(labelX, ty + 2, RIGHT - labelX, 24).fill(BRAND);
     doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#ffffff')
-      .text('TOTAL PAID', labelX + 8, ty + 11, { width: 80, characterSpacing: 0.6 });
+      .text(balanceKes > 0 ? 'RECEIVED' : 'TOTAL PAID', labelX + 8, ty + 11, { width: 80, characterSpacing: 0.6 });
     doc.fontSize(11)
-      .text(kes(total), valueX - 8, ty + 9, { width: COL_W.total, align: 'right' });
+      .text(kes(balanceKes > 0 ? receivedKes : total), valueX - 8, ty + 9, { width: COL_W.total, align: 'right' });
     ty += 34;
+    if (balanceKes > 0) {
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(INK)
+        .text('Balance due', labelX, ty, { width: 98, align: 'right' });
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(INK)
+        .text(kes(balanceKes), valueX, ty, { width: COL_W.total, align: 'right' });
+      ty += 14;
+    }
 
     // ── Terms block, facing the totals ──────────────────────────────
     doc.font('Helvetica-Bold').fontSize(8).fillColor(MUTED)

@@ -168,10 +168,11 @@ export const FAQ = () => {
             <h3 className="text-2xl font-bold text-white mb-2">Still need help?</h3>
             <p className="text-mute mb-6">Our support team is here to assist with anything not covered above.</p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              {/* The ticketing system was retired with the WhatsApp-first
+                  rebuild — support IS the WhatsApp conversation. */}
               <a href={`https://wa.me/${support_whatsapp}`} target="_blank" rel="noopener noreferrer"
                 className="btn bg-[#25D366] hover:bg-[#1ebe5b] text-white">WhatsApp us</a>
               <a href="mailto:admin@thapsus.uk" className="btn-secondary">Email support</a>
-              <Link to="/support" className="btn-primary glass-sheen">Open a ticket</Link>
             </div>
           </div>
         </Reveal>

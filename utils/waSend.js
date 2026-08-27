@@ -6,21 +6,45 @@
 // conversation head on wa_contacts, and reaches open dashboards over SSE.
 //
 // Template strategy: `templateKey` is a logical name ('welcome', 'quote',
-// 'receipt', …). If wa_settings.template_map maps it to an approved
-// sent.dm template name, we send that template with `templateParams`;
-// otherwise we fall back to free-form `text` (valid inside WhatsApp's 24h
-// customer-service window — true for every reply to a customer message).
-// Media (welcome infographics, PDF receipts) can only ride on templates
-// in sent.dm's v3 API, so the no-template fallback appends the media URL
-// to the text body instead.
+// 'receipt', …). Free text is richer than any approved template — the
+// quote carries its full breakdown, the payment prompt carries the till
+// number — so it wins whenever WhatsApp will deliver it: inside the 24-hour
+// customer-service window that every inbound message opens. Outside that
+// window free text is refused outright, so the mapped template (approved
+// for business-initiated delivery) is the only thing that can land, and
+// its poorer copy beats silence. Before this check existed a mapped
+// template always won, and a customer who said YES seconds earlier was
+// sent the template with no till number in it instead of the composed
+// instructions.
+//
+// Media (welcome infographics) can only ride on templates in sent.dm's
+// v3 API, so a send carrying media keeps its template even in-window; the
+// no-template fallback appends the media URL to the text body instead.
 
 import { v4 as uuidv4 } from 'uuid';
 import { sendText, sendTemplate, sentDmConfigured, SentDmError } from './sentdm.js';
 import { getWaSettings } from './waSettings.js';
-import { toPositionalParams } from './waTemplateVars.js';
+import { toPositionalParams, renderTemplateBody } from './waTemplateVars.js';
 import { pushToStaff } from '../routes/events.js';
 
 const PREVIEW_LEN = 120;
+
+/**
+ * Is WhatsApp's 24-hour customer-service window open for this contact?
+ * True when they've sent us anything in the last 24 hours — the window a
+ * free-form message can be delivered in. Fails closed (window shut) so an
+ * errored check falls back to the template, which can always deliver.
+ */
+export async function sessionWindowOpen(db, contactId) {
+  const { rows } = await db.query(
+    `SELECT 1 FROM wa_messages
+      WHERE contact_id = $1 AND direction = 'in'
+        AND created_at > NOW() - interval '24 hours'
+      LIMIT 1`,
+    [contactId]
+  );
+  return rows.length > 0;
+}
 
 /**
  * @param {pg.Pool|pg.PoolClient} db
@@ -48,9 +72,25 @@ export async function sendToContact(db, contact, opts = {}) {
     }
   }
 
-  // Transcript body: what the customer effectively receives.
+  // Free text wins while the customer's 24-hour window is open — it is
+  // always the richer copy (see the header). The template is kept when
+  // the send carries media (media only rides on templates) or when there
+  // is no text to fall back to.
+  if (templateName && text && !mediaUrl) {
+    try {
+      if (await sessionWindowOpen(db, contact.id)) templateName = null;
+    } catch (e) {
+      console.warn('[waSend] window check failed — keeping template:', e?.message);
+    }
+  }
+
+  // Transcript body: what the customer actually receives. For a template
+  // send that is the rendered template body, not the free-text fallback.
   let effectiveText = text || '';
-  if (mediaUrl && !templateName) {
+  if (templateName) {
+    const rendered = renderTemplateBody(templateKey, templateParams || {});
+    if (rendered) effectiveText = rendered;
+  } else if (mediaUrl) {
     effectiveText = effectiveText ? `${effectiveText}\n${mediaUrl}` : mediaUrl;
   }
 
@@ -112,6 +152,24 @@ export async function sendToContact(db, contact, opts = {}) {
       preview: (effectiveText || '').slice(0, PREVIEW_LEN),
     });
   } catch { /* SSE best-effort */ }
+
+  // A send the provider REJECTS at request time (unapproved template,
+  // window refusal, bad key) produces no provider message id — so no
+  // status webhook ever arrives and the async failed-send alert in
+  // routes/waWebhook.js can never fire. Page staff from here instead:
+  // almost no caller checks the return value, and a customer who was
+  // never reached looks exactly like one who was. Dynamic import and
+  // fire-and-forget — an alert failure must not fail the send path,
+  // and unconfigured environments (dev/CI) stay quiet.
+  if (error && error !== 'sentdm_not_configured') {
+    import('./waStaffAlert.js')
+      .then(({ notifyStaff }) => notifyStaff(db, {
+        title: 'Customer did not receive a message',
+        detail: `${contact.phone}: "${(effectiveText || '').slice(0, 120)}" — ${error.slice(0, 160)}`,
+        dedupeKey: `send-failed-sync:${id}`,
+      }))
+      .catch(() => {});
+  }
 
   return error ? { ok: false, id, error } : { ok: true, id };
 }

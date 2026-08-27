@@ -146,7 +146,7 @@ describe('tracking auto-reply', () => {
     const db = makeDb(async (sql) => {
       if (sql.includes('tracking_code')) {
         return { rows: [{
-          id: 'o1', status: 'in_kenya', tracking_code: 'TRK-8821',
+          id: 'o1', contact_id: 'c1', status: 'in_kenya', tracking_code: 'TRK-8821',
           paid_at: '2026-08-01', purchased_at: '2026-08-02', arrived_at: '2026-08-10',
           dispatched_at: null, delivered_at: null,
           delivery_fee_waived: false, delivery_fee_kes: null, customer_code: 'TC-1042',
@@ -171,7 +171,7 @@ describe('tracking auto-reply', () => {
   // legible after sent.dm flattens newlines into " · " separators.
   function trackedOrder(over = {}) {
     return {
-      id: 'o1', status: 'dispatched', tracking_code: 'TRK-8821', quote_kes: '17094',
+      id: 'o1', contact_id: 'c1', status: 'dispatched', tracking_code: 'TRK-8821', quote_kes: '17094',
       paid_at: '2026-08-01', purchased_at: '2026-08-02', arrived_at: '2026-08-10',
       dispatched_at: '2026-08-12', delivered_at: null,
       delivery_fee_waived: false, delivery_fee_kes: null, delivery_fee_paid_at: null,
@@ -813,7 +813,7 @@ describe('AI-first mode', () => {
     const waAi = await ai();
     const db = makeDb(async (sql) => {
       if (sql.includes('tracking_code')) {
-        return { rows: [{ id: 'o1', status: 'paid', tracking_code: 'TRK-8821',
+        return { rows: [{ id: 'o1', contact_id: 'c1', status: 'paid', tracking_code: 'TRK-8821',
           paid_at: '2026-08-01', purchased_at: null, arrived_at: null,
           dispatched_at: null, delivered_at: null,
           delivery_fee_waived: false, delivery_fee_kes: null, customer_code: 'TC-1042' }] };
@@ -888,7 +888,7 @@ describe('AI order awareness', () => {
     const waAi = await ai();
     const db = makeDb(async (sql) => {
       if (sql.includes('tracking_code = $1')) return { rows: [{
-        id: 'o1', status: 'dispatched', tracking_code: 'TRK-8821',
+        id: 'o1', contact_id: 'c1', status: 'dispatched', tracking_code: 'TRK-8821',
         paid_at: '2026-08-01', purchased_at: null, arrived_at: null,
         dispatched_at: '2026-08-11', delivered_at: null,
         delivery_fee_waived: false, delivery_fee_kes: null, customer_code: 'TC-1042',
@@ -1127,7 +1127,7 @@ describe('human takeover and AI memory', () => {
     const db = makeDb(async (sql) => {
       if (sql.includes('MAX(created_at)')) return { rows: [{ at: new Date().toISOString() }] };
       if (sql.includes('tracking_code = $1')) return { rows: [{
-        id: 'o1', status: 'dispatched', tracking_code: 'TRK-8821',
+        id: 'o1', contact_id: 'c1', status: 'dispatched', tracking_code: 'TRK-8821',
         paid_at: '2026-08-01', purchased_at: null, arrived_at: null,
         dispatched_at: '2026-08-11', delivered_at: null,
         delivery_fee_waived: false, delivery_fee_kes: null, customer_code: 'TC-1042',
@@ -1171,5 +1171,112 @@ describe('human takeover and AI memory', () => {
     await new Promise((r) => setTimeout(r, 10)); // background refresh
     expect(waAi.summarizeConversation).toHaveBeenCalled();
     expect(db.query.mock.calls.some(([sql]) => sql.includes('SET ai_summary'))).toBe(true);
+  });
+});
+
+// ── Paid-claim ordering + state awareness ────────────────────────────────────
+// "ok, I have paid" opens with a confirm word, and used to hit the
+// quote-confirm branch first — the customer got the till instructions
+// again for money they had just sent. And a claim about money already
+// settled got "we're verifying it now", which reads as nobody having
+// their money.
+describe('paid claims vs quote confirmation', () => {
+  it('routes "ok I have paid" to the payment branch, not the confirm branch', async () => {
+    const db = makeDb(async (sql) => {
+      // A quoted order exists — the confirm branch WOULD have fired.
+      if (sql.includes("status = 'quoted'") && sql.startsWith('SELECT')) {
+        return { rows: [{ id: 'o1', quote_kes: '14500' }] };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    await handleInbound(db, contact(), { id: 'm', body: 'ok I have paid' });
+    expect(db.query.mock.calls.some(([sql]) => sql.includes("SET status = 'confirmed'"))).toBe(false);
+    expect(notifyStaff).toHaveBeenCalledWith(db, expect.objectContaining({
+      title: expect.stringMatching(/payment claimed/i),
+    }));
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/verifying it with M-Pesa/i);
+  });
+
+  it('answers a claim about settled money with the parcel status, and pages no one', async () => {
+    const db = makeDb(async (sql) => {
+      // No open payment…
+      if (sql.includes('payments') && sql.includes('wa_contact_id')) return { rows: [] };
+      // …and the latest order is already purchased.
+      if (sql.includes('FROM wa_orders') && sql.includes('contact_id = $1')) {
+        return { rows: [{ id: 'o1', status: 'purchased', tracking_code: 'TRK-8821', purchased_at: '2026-08-12' }] };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    await handleInbound(db, contact(), { id: 'm', body: 'I have paid, any update?' });
+    expect(notifyStaff).not.toHaveBeenCalled();
+    const said = sendToContact.mock.calls[0][2].text;
+    expect(said).toContain('TRK-8821');
+    expect(said).toMatch(/confirmed — nothing is pending/i);
+    expect(said).not.toMatch(/verifying it with M-Pesa/i);
+  });
+
+  // The approved quote template tells the customer "Reply to accept".
+  it.each(['accept', 'Accepted', 'nakubali'])(
+    'treats "%s" as a quote confirmation', async (word) => {
+      const db = makeDb(async (sql) => {
+        if (sql.includes("status = 'quoted'") && sql.startsWith('SELECT')) {
+          return { rows: [{ id: 'o1', quote_kes: '14500' }] };
+        }
+        return { rows: [], rowCount: 1 };
+      });
+      await handleInbound(db, contact(), { id: 'm', body: word });
+      expect(db.query.mock.calls.some(([sql]) => sql.includes("SET status = 'confirmed'"))).toBe(true);
+    }
+  );
+});
+
+// ── Tracking lookups are scoped to the asking contact ────────────────────────
+// Codes are sequential; before this, any onboarded contact could walk
+// TRK-8800, TRK-8801, … and read every parcel's status, dates and
+// outstanding fee.
+describe('tracking privacy', () => {
+  it("answers someone else's code exactly like a code that doesn't exist", async () => {
+    const db = makeDb(async (sql) => {
+      if (sql.includes('tracking_code = $1')) {
+        return { rows: [{ id: 'o9', contact_id: 'someone-else', status: 'in_kenya',
+          tracking_code: 'TRK-8800', delivery_fee_kes: '300', customer_code: 'TC-9' }] };
+      }
+      return { rows: [] };
+    });
+    await handleInbound(db, contact(), { id: 'm', body: 'TRK-8800' });
+    const reply = sendToContact.mock.calls[0][2].text;
+    expect(reply).toMatch(/couldn't find/i);
+    expect(reply).not.toMatch(/arrived|fee|KSh/i);
+  });
+});
+
+// ── Expired quotes are not auto-confirmable ──────────────────────────────────
+describe('quote expiry', () => {
+  it('declines to auto-confirm an expired quote, tells the customer, pages staff', async () => {
+    const db = makeDb(async (sql) => {
+      if (sql.includes("status = 'quoted'") && sql.trim().startsWith('SELECT')) {
+        return { rows: [{ id: 'o1', quote_kes: '14500', tracking_code: null,
+          quote_expires_at: new Date(Date.now() - 24 * 3600_000).toISOString() }] };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    await handleInbound(db, contact(), { id: 'm', body: 'yes' });
+    expect(db.query.mock.calls.some(([sql]) => sql.includes("SET status = 'confirmed'"))).toBe(false);
+    expect(notifyStaff).toHaveBeenCalledWith(db, expect.objectContaining({
+      title: expect.stringMatching(/expired quote/i),
+    }));
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/re-checking the price/i);
+  });
+
+  it('still auto-confirms a quote inside its validity window', async () => {
+    const db = makeDb(async (sql) => {
+      if (sql.includes("status = 'quoted'") && sql.trim().startsWith('SELECT')) {
+        return { rows: [{ id: 'o1', quote_kes: '14500', tracking_code: null,
+          quote_expires_at: new Date(Date.now() + 3 * 24 * 3600_000).toISOString() }] };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    await handleInbound(db, contact(), { id: 'm', body: 'yes' });
+    expect(db.query.mock.calls.some(([sql]) => sql.includes("SET status = 'confirmed'"))).toBe(true);
   });
 });

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import {
   Search, Package, Check, Clock, AlertCircle,
-  ArrowRight, Box, MapPin, Truck, Globe, LogIn,
+  ArrowRight, Box, MapPin, Truck, Globe,
 } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
-import { useAuth } from '../context/AuthContext'
+import { useAppConfig } from '../hooks/useAppConfig'
 import { ordersApi } from '../api'
 import { useOrderUpdates } from '../hooks/useRealtimeUpdates'
 import { SEO } from '../components/SEO'
@@ -56,15 +56,30 @@ const WA_STEPS = [
   { key: 'delivered_at',  label: 'Delivered' },
 ]
 
+// A collection parcel never rides with a rider — showing that customer
+// "Out for delivery / Delivered" sent them home to wait for a van that
+// was never coming. Collection skips dispatch entirely: arrival IS the
+// ready-to-collect moment, and delivered_at records the handover at the
+// counter.
+const WA_STEPS_COLLECTION = [
+  { key: 'paid_at',       label: 'Payment received' },
+  { key: 'purchased_at',  label: 'Item purchased' },
+  { key: 'arrived_at',    label: 'Ready to collect — Stanbank House, 4th floor, Nairobi CBD' },
+  { key: 'delivered_at',  label: 'Collected' },
+]
+
 const WA_STATUS_LABELS = {
   quoting: 'Being quoted', quoted: 'Quote sent', confirmed: 'Confirmed — awaiting payment',
   paid: 'Paid — purchase in progress', purchased: 'Purchased — heading to our facility',
   in_kenya: 'Arrived in Kenya', delivery_fee_pending: 'Arrived — delivery fee pending',
-  dispatched: 'Out for delivery', delivered: 'Delivered', cancelled: 'Cancelled',
+  dispatched: 'Out for delivery', delivered: 'Delivered', collected: 'Collected',
+  cancelled: 'Cancelled',
 }
 
-const WaFlowResult = ({ tracking }) => {
-  const doneCount = WA_STEPS.filter((s) => tracking.timeline?.[s.key]).length
+const WaFlowResult = ({ tracking, mpesaTill }) => {
+  const steps = tracking.delivery_method === 'collection' ? WA_STEPS_COLLECTION : WA_STEPS
+  const doneCount = steps.filter((s) => tracking.timeline?.[s.key]).length
+  const inTransit = ['paid', 'purchased'].includes(tracking.status)
   return (
     <div className="max-w-2xl mx-auto mb-14 animate-fade-in">
       <div className="rounded-3xl bg-white/[0.04] border border-line p-6">
@@ -78,13 +93,13 @@ const WaFlowResult = ({ tracking }) => {
           </span>
         </div>
         <div className="space-y-0">
-          {WA_STEPS.map((step, idx) => {
+          {steps.map((step, idx) => {
             const at = tracking.timeline?.[step.key]
             const done = Boolean(at)
             const isNext = !done && idx === doneCount
             return (
               <div key={step.key} className="relative flex items-start gap-4 pb-8 last:pb-0">
-                {idx < WA_STEPS.length - 1 && (
+                {idx < steps.length - 1 && (
                   <span className={`absolute left-[11px] top-6 bottom-0 w-0.5 ${done ? 'bg-ember-500/60' : 'bg-white/10'}`} />
                 )}
                 <span className={`relative z-10 w-6 h-6 rounded-full grid place-items-center text-[11px] font-bold ${
@@ -104,10 +119,23 @@ const WaFlowResult = ({ tracking }) => {
             )
           })}
         </div>
+        {inTransit && (
+          <div className="mt-6 rounded-2xl bg-white/[0.04] border border-line px-4 py-3 text-sm text-mute">
+            Most parcels land in Kenya within 14–21 days of purchase — we'll message you
+            on WhatsApp the moment yours arrives.
+          </div>
+        )}
+        {tracking.status === 'dispatched' && tracking.pickup_point && (
+          <div className="mt-6 rounded-2xl bg-white/[0.04] border border-line px-4 py-3 text-sm text-mute">
+            Heading to <span className="text-white font-semibold">{tracking.pickup_point}</span> via
+            Pickup Mtaani — they'll notify you when it's ready to collect.
+          </div>
+        )}
         {tracking.delivery_fee_pending != null && (
           <div className="mt-6 rounded-2xl bg-amber-500/10 border border-amber-500/25 px-4 py-3 text-sm text-amber-200">
             Last-mile delivery fee pending: KSh {Number(tracking.delivery_fee_pending).toLocaleString()} —
-            check WhatsApp for the payment prompt.
+            pay on Lipa na M-Pesa, Buy Goods, Till <span className="font-bold">{mpesaTill}</span>,
+            then reply on WhatsApp and we'll dispatch it.
           </div>
         )}
       </div>
@@ -117,15 +145,13 @@ const WaFlowResult = ({ tracking }) => {
 
 export const TrackPackage = () => {
   const { t } = useLanguage()
-  const { isAuthenticated } = useAuth()
+  const { support_whatsapp, mpesa_till } = useAppConfig()
   const [searchParams] = useSearchParams()
   const { tn } = useParams()
   const [trackingNumber, setTrackingNumber] = useState(tn || searchParams.get('q') || '')
   const [loading, setLoading] = useState(false)
   const [package_, setPackage] = useState(null)
   const [error, setError] = useState(null)
-  const [myOrders, setMyOrders] = useState([])
-  const [loadingOrders, setLoadingOrders] = useState(false)
 
   const statusTimeline = [
     { status: 'pending',               label: 'Order Placed',          icon: Package },
@@ -149,28 +175,16 @@ export const TrackPackage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useEffect(() => { if (isAuthenticated) fetchMyOrders() }, [isAuthenticated])
-
   // Live tracking: when a parcel status changes, refresh the open package and
   // the user's order list without a manual re-track.
   useOrderUpdates((payload) => {
     if (payload?.action !== 'status_changed') return
-    if (isAuthenticated) fetchMyOrders()
     const tnNow = (trackingNumber || '').trim()
     const changed = payload.tracking_number || payload.order?.tracking_number
     if (tnNow && changed && tnNow === changed) {
       ordersApi.track(tnNow).then((res) => setPackage(res.data.tracking)).catch(() => {})
     }
   })
-
-  const fetchMyOrders = async () => {
-    try {
-      setLoadingOrders(true)
-      const res = await ordersApi.list({ limit: 20 })
-      setMyOrders(res.data.orders || [])
-    } catch (err) { console.error('Failed to load orders:', err) }
-    finally { setLoadingOrders(false) }
-  }
 
   const handleTrack = async (e) => {
     e.preventDefault()
@@ -232,7 +246,7 @@ export const TrackPackage = () => {
         )}
 
         {/* Result — WhatsApp-flow parcels (TRK-#### codes) */}
-        {package_ && package_.timeline && <WaFlowResult tracking={package_} />}
+        {package_ && package_.timeline && <WaFlowResult tracking={package_} mpesaTill={mpesa_till} />}
 
         {/* Result — legacy parcels */}
         {package_ && !package_.timeline && (
@@ -328,86 +342,21 @@ export const TrackPackage = () => {
                 </div>
               </div>
 
-              <Link to="/support" className="group flex items-center justify-between gap-4 rounded-3xl bg-surface border border-line hover:border-line-strong p-6 transition-colors">
+              <a href={`https://wa.me/${support_whatsapp}`} target="_blank" rel="noopener noreferrer"
+                className="group flex items-center justify-between gap-4 rounded-3xl bg-surface border border-line hover:border-line-strong p-6 transition-colors">
                 <div>
                   <h4 className="font-bold text-white">Need assistance?</h4>
-                  <p className="text-xs text-mute">Connect with a dispatcher</p>
+                  <p className="text-xs text-mute">Message us on WhatsApp</p>
                 </div>
                 <span className="w-11 h-11 rounded-2xl bg-white/[0.06] grid place-items-center text-ember-400 group-hover:bg-ember-gradient group-hover:text-white transition-all"><ArrowRight size={20} /></span>
-              </Link>
+              </a>
             </div>
           </div>
         )}
 
-        {/* My packages / sign-in prompt */}
-        {isAuthenticated ? (
-          <div className="mt-2">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white">My packages</h2>
-                <p className="text-sm text-mute mt-1">All your active and past shipments</p>
-              </div>
-              {loadingOrders && <div className="spinner w-5 h-5" />}
-            </div>
-
-            {!loadingOrders && myOrders.length === 0 && (
-              <div className="card empty-state">
-                <Package size={44} className="text-white/15 mb-4" />
-                <p className="empty-state-title">You don't have any packages yet.</p>
-                <Link to="/orders/new" className="btn-primary glass-sheen mt-4">Create first order</Link>
-              </div>
-            )}
-
-            {!loadingOrders && myOrders.length > 0 && (
-              <div className="space-y-3">
-                {myOrders.map((order) => {
-                  const delivery = estimateDelivery(order)
-                  const isActive = !['delivered', 'cancelled'].includes(order.status)
-                  return (
-                    <div key={order.id} onClick={() => handleQuickTrack(order.tracking_number)}
-                      className="card cursor-pointer group p-5">
-                      <div className="flex items-center justify-between gap-4 flex-wrap">
-                        <div className="flex items-center gap-4">
-                          <span className={`w-12 h-12 rounded-2xl grid place-items-center shrink-0 ${isActive ? 'bg-ember-500/10 text-ember-400 border border-ember-500/20' : 'bg-white/[0.04] text-mute border border-line'}`}>
-                            <Package size={22} />
-                          </span>
-                          <div>
-                            <p className="font-bold text-white">{order.tracking_number}</p>
-                            <p className="text-xs text-mute mt-0.5">{order.retailer} · {order.market} Hub</p>
-                          </div>
-                        </div>
-                        <div className="hidden md:block flex-1 min-w-0 px-4">
-                          <p className="text-sm text-white/70 truncate">{order.description}</p>
-                          {order.weight_kg && <p className="text-xs text-mute mt-0.5">{order.weight_kg} kg</p>}
-                        </div>
-                        <div className="flex items-center gap-3 flex-wrap justify-end">
-                          <span className={STATUS_BADGE[order.status] || 'badge-gray'}>{STATUS_LABELS[order.status] || order.status?.replace(/_/g, ' ')}</span>
-                          {(order.actual_cost || order.estimated_cost) && (
-                            <span className="text-sm font-bold text-white">KES {(order.actual_cost || order.estimated_cost)?.toLocaleString()}{!order.actual_cost && <span className="text-[10px] text-mute ml-1">est.</span>}</span>
-                          )}
-                          <span className="w-8 h-8 rounded-xl bg-white/[0.06] grid place-items-center text-mute group-hover:bg-ember-gradient group-hover:text-white transition-all"><ArrowRight size={14} /></span>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        ) : (
-          !package_ && (
-            <div className="mt-2">
-              <div className="glow-card p-8 flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
-                <span className="ember-badge w-16 h-16 rounded-3xl"><LogIn size={28} /></span>
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold text-white mb-1.5">See all your packages</h3>
-                  <p className="text-mute text-sm">Sign in to view all your active and past shipments, their statuses, and delivery estimates in one place.</p>
-                </div>
-                <Link to="/login" className="btn-primary glass-sheen shrink-0">Sign in</Link>
-              </div>
-            </div>
-          )
-        )}
+        {/* The customer-account concept was retired with the WhatsApp-first
+            rebuild — there is no "My packages" list or customer sign-in any
+            more. Customers track by code, or ask on WhatsApp. */}
       </div>
     </div>
   )

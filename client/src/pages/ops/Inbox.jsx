@@ -81,12 +81,23 @@ export function Inbox() {
   const [selected, setSelected] = useState(null)       // contact row
   const [orders, setOrders] = useState([])
   const [messages, setMessages] = useState([])
+  const [loadingEarlier, setLoadingEarlier] = useState(false)
+  // True while the last history fetch came back full — i.e. there may be
+  // more above. The API has always supported a `before` cursor; the UI
+  // simply never used it, hard-capping every thread at 50 messages.
+  const [mayHaveEarlier, setMayHaveEarlier] = useState(false)
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const bottomRef = useRef(null)
   const fileRef = useRef(null)
   const navigate = useNavigate()
   const [params] = useSearchParams()
+
+  // The query the list is actually filtered by — set on submit, not per
+  // keystroke. SSE refreshes used to re-query with the live input value,
+  // so a half-typed search silently re-filtered the inbox the moment any
+  // message arrived.
+  const submittedQ = useRef('')
 
   const loadConversations = useCallback(async (query = '') => {
     try {
@@ -106,6 +117,7 @@ export function Inbox() {
       setSelected(conv.data.contact)
       setOrders(conv.data.orders || [])
       setMessages(msgs.data.messages || [])
+      setMayHaveEarlier((msgs.data.messages || []).length >= 50)
       waApi.markRead(contactId).catch(() => {})
       setConversations((prev) =>
         prev.map((c) => (c.id === contactId ? { ...c, unread_count: 0 } : c)))
@@ -123,12 +135,18 @@ export function Inbox() {
   }, [params, openConversation])
 
   useWaInboxUpdates((data) => {
-    loadConversations(q)
-    if (selected && data.contact_id === selected.id) openConversation(selected.id)
+    loadConversations(submittedQ.current)
+    // Re-open (and mark read) only while somebody is actually looking.
+    // A conversation left selected in a background tab used to clear its
+    // own unread badge for messages no human ever read.
+    if (selected && data.contact_id === selected.id
+        && document.visibilityState === 'visible') {
+      openConversation(selected.id)
+    }
   })
   useWaNewCustomer((data) => {
     toast.success(`New customer onboarded: ${data.full_name || data.phone} (${data.customer_code})`)
-    loadConversations(q)
+    loadConversations(submittedQ.current)
   })
   // Someone wants a quote. The assistant tells them one is coming; only a
   // person can actually send it, so this toast stays up until it is
@@ -142,10 +160,30 @@ export function Inbox() {
         {data.full_name || data.phone} sent a product link — tap to open
       </button>
     ), { duration: Infinity, icon: '🔗' })
-    loadConversations(q)
+    loadConversations(submittedQ.current)
   })
 
-  const onSearch = (e) => { e.preventDefault(); loadConversations(q.trim()) }
+  const onSearch = (e) => {
+    e.preventDefault()
+    submittedQ.current = q.trim()
+    loadConversations(submittedQ.current)
+  }
+
+  const loadEarlier = async () => {
+    if (!selected || messages.length === 0) return
+    setLoadingEarlier(true)
+    try {
+      const oldest = messages[0].created_at
+      const res = await waApi.messages(selected.id, oldest)
+      const earlier = res.data.messages || []
+      setMessages((prev) => [...earlier, ...prev])
+      setMayHaveEarlier(earlier.length >= 50)
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Could not load earlier messages')
+    } finally {
+      setLoadingEarlier(false)
+    }
+  }
 
   const sendText = async () => {
     const text = draft.trim()
@@ -219,7 +257,7 @@ export function Inbox() {
       toast.success(res.data.ai_paused
         ? 'Assistant paused — you have this chat'
         : 'Assistant is answering this chat again')
-      loadConversations(q)
+      loadConversations(submittedQ.current)
     } catch (e) {
       toast.error(e.response?.data?.message || 'Failed to update assistant')
     }
@@ -368,6 +406,14 @@ export function Inbox() {
               )}
 
               <div className="h-[48vh] overflow-y-auto px-4 py-4 space-y-2">
+                {mayHaveEarlier && (
+                  <div className="text-center">
+                    <button onClick={loadEarlier} disabled={loadingEarlier}
+                      className="px-3 py-1.5 rounded-full bg-white/5 border border-line text-xs text-mute hover:text-white disabled:opacity-50">
+                      {loadingEarlier ? 'Loading…' : 'Load earlier messages'}
+                    </button>
+                  </div>
+                )}
                 {messages.map((m) => (
                   <div key={m.id} className={`flex ${m.direction === 'out' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words ${

@@ -6,8 +6,46 @@ import {
   ChevronDown, MoreHorizontal, Newspaper, MessageSquareText, KanbanSquare, HandCoins, Users,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { paymentsApi } from '../api'
+import { useWaPipelineUpdates, useSseConnected } from '../hooks/useRealtimeUpdates'
+import { useNotificationPermission } from '../hooks/useNotificationPermission'
 import brandMark1x from '../assets/brand-mark.webp'
 import brandMark2x from '../assets/brand-mark@2x.webp'
+
+/**
+ * Live count of till payments waiting for review, for the Payments tab
+ * badge. Money waiting invisibly is the pipeline's real bottleneck — the
+ * queue page itself only refreshed by hand, so a payment could sit all
+ * afternoon with nothing anywhere saying so. Refetches (debounced) on
+ * every pipeline SSE event, which includes payment openings and
+ * settlements.
+ */
+function usePendingPaymentsCount(enabled) {
+  const [count, setCount] = useState(0)
+  const timer = useRef(null)
+
+  const refresh = useCallback(() => {
+    if (!enabled) { setCount(0); return }
+    paymentsApi.pendingMpesaQueue()
+      .then((r) => setCount((r.data.payments || []).length))
+      .catch(() => {})
+  }, [enabled])
+
+  useEffect(() => { refresh() }, [refresh])
+  useWaPipelineUpdates(() => {
+    if (!enabled) return
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(refresh, 800)
+  })
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
+  return count
+}
+
+const CountBadge = ({ n }) => (n > 0 ? (
+  <span className="min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-ember-500 text-white text-[10px] font-bold grid place-items-center leading-none">
+    {n > 99 ? '99+' : n}
+  </span>
+) : null)
 
 /* ── Brand mark + wordmark ─────────────────────────────────────────────────── */
 const Brand = ({ onClick }) => (
@@ -45,9 +83,10 @@ function buildNav({ isAuthenticated, isAdmin }) {
     }
   }
 
-  // Admins get the payment queue in the bottom bar — approving till
-  // payments is the step that unblocks every order, so it can't live two
-  // menus deep.
+  // Every staff role gets the payment queue in the bottom bar — approving
+  // till payments is the step that unblocks every order, so it can't live
+  // two menus deep. (It was admin-only, with the operator slot wasted on a
+  // duplicated Track tab.)
   const tabs = isAdmin ? [
     { to: '/ops/inbox',    label: 'Inbox',    icon: MessageSquareText },
     { to: '/ops/pipeline', label: 'Pipeline', icon: KanbanSquare },
@@ -56,21 +95,21 @@ function buildNav({ isAuthenticated, isAdmin }) {
   ] : [
     { to: '/ops/inbox',    label: 'Inbox',    icon: MessageSquareText },
     { to: '/ops/pipeline', label: 'Pipeline', icon: KanbanSquare },
-    { to: '/track',        label: 'Track',    icon: Search },
+    { to: '/ops/payments', label: 'Payments', icon: HandCoins },
     { to: '/track',        label: 'Track',    icon: Search },
   ]
 
   const groups = [
     { key: 'operations', label: 'Operations', links: [
-      { to: '/ops/inbox',    label: 'WhatsApp inbox',   icon: MessageSquareText },
-      { to: '/ops/pipeline', label: 'Order pipeline',   icon: KanbanSquare },
-      { to: '/track',        label: 'Public tracking',  icon: Search },
+      { to: '/ops/inbox',    label: 'WhatsApp inbox',      icon: MessageSquareText },
+      { to: '/ops/pipeline', label: 'Order pipeline',      icon: KanbanSquare },
+      { to: '/ops/payments', label: 'Payments to approve', icon: HandCoins },
+      { to: '/track',        label: 'Public tracking',     icon: Search },
     ]},
   ]
 
   if (isAdmin) {
     groups.push({ key: 'admin', label: 'Admin', links: [
-      { to: '/ops/payments', label: 'Payments to approve', icon: HandCoins },
       { to: '/ops/team',     label: 'Team and errors',     icon: Users },
       { to: '/ops/settings', label: 'WhatsApp settings',   icon: Settings },
     ]})
@@ -114,6 +153,28 @@ export function Nav() {
   const profileRef = useRef(null)
 
   const { tabs, groups } = buildNav({ isAuthenticated, isAdmin })
+  const isStaff = isAuthenticated && ['operator', 'admin'].includes(role)
+  const pendingPayments = usePendingPaymentsCount(isStaff)
+
+  // Ask staff for notification permission once — the SSE handlers fire
+  // browser notifications for quote requests and background-tab inbound
+  // messages, but Notification.permission was never requested, so the
+  // guard always short-circuited and no notification ever showed.
+  const { permission, requestPermission } = useNotificationPermission()
+  useEffect(() => {
+    if (isStaff && permission === 'default') requestPermission()
+  }, [isStaff, permission, requestPermission])
+
+  // "Reconnecting" pill: a dead SSE stream used to look identical to a
+  // live one — stale boards with full confidence. 5s grace hides the
+  // initial-connect flash.
+  const sseConnected = useSseConnected()
+  const [showStale, setShowStale] = useState(false)
+  useEffect(() => {
+    if (sseConnected || !isStaff) { setShowStale(false); return }
+    const t = setTimeout(() => setShowStale(true), 5000)
+    return () => clearTimeout(t)
+  }, [sseConnected, isStaff])
 
   useEffect(() => { setMenuOpen(false); setProfileOpen(false) }, [location.pathname])
 
@@ -151,13 +212,23 @@ export function Nav() {
             {tabs.map((l) => (
               <NavLink key={l.to} to={l.to} end={l.to === '/'}
                 className={({ isActive }) => (isActive ? 'nav-link-active' : 'nav-link')}>
-                {l.label}
+                <span className="inline-flex items-center gap-1.5">
+                  {l.label}
+                  {l.to === '/ops/payments' && <CountBadge n={pendingPayments} />}
+                </span>
               </NavLink>
             ))}
           </div>
 
           {/* Right cluster */}
           <div className="flex items-center gap-2">
+            {showStale && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-semibold"
+                title="Live updates are down — the boards may be stale until this reconnects">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                Reconnecting
+              </span>
+            )}
             {!isAuthenticated ? (
               <Link to="/login" className="hidden sm:inline-flex nav-link"><LogIn size={16} /> Staff login</Link>
             ) : (
@@ -211,7 +282,12 @@ export function Nav() {
                 }`}>
               {({ isActive }) => (
                 <>
-                  <tab.icon size={20} className={isActive ? 'drop-shadow-[0_0_8px_rgba(242,100,24,0.5)]' : ''} />
+                  <span className="relative">
+                    <tab.icon size={20} className={isActive ? 'drop-shadow-[0_0_8px_rgba(242,100,24,0.5)]' : ''} />
+                    {tab.to === '/ops/payments' && pendingPayments > 0 && (
+                      <span className="absolute -top-1.5 -right-2"><CountBadge n={pendingPayments} /></span>
+                    )}
+                  </span>
                   <span>{tab.label}</span>
                 </>
               )}

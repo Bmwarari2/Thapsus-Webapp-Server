@@ -19,12 +19,17 @@ async function loadReader() {
   return new mod.BrowserMultiFormatReader()
 }
 
-export function BarcodeScanner({ open, onScan, onClose }) {
+export function BarcodeScanner({ open, onScan, onClose, continuous = false }) {
   const videoRef = useRef(null)
   const controlsRef = useRef(null) // returned by decodeFromVideoDevice; .stop() closes the stream
   const readerRef = useRef(null)
   const [state, setState]   = useState('idle') // 'idle' | 'starting' | 'running' | 'error'
   const [error, setError]   = useState('')
+  // Continuous mode: the camera stays on and every distinct code fires
+  // onScan — the flight-landed workflow, where forty parcels get scanned
+  // in a row. Repeat reads of the same label are ignored for a moment so
+  // one parcel held under the camera doesn't advance twice.
+  const lastReadRef = useRef({ text: '', at: 0 })
 
   useEffect(() => {
     if (!open) return
@@ -52,11 +57,18 @@ export function BarcodeScanner({ open, onScan, onClose }) {
             if (result) {
               const text = result.getText()
               if (text) {
-                // Stop the camera *before* surfacing the value so the
-                // indicator light goes off immediately and the parent
-                // doesn't have to wait for cleanup.
-                try { controls2.stop() } catch { /* ignore */ }
-                onScan(text)
+                if (continuous) {
+                  const now = Date.now()
+                  if (lastReadRef.current.text === text && now - lastReadRef.current.at < 3000) return
+                  lastReadRef.current = { text, at: now }
+                  onScan(text) // camera stays on for the next parcel
+                } else {
+                  // Stop the camera *before* surfacing the value so the
+                  // indicator light goes off immediately and the parent
+                  // doesn't have to wait for cleanup.
+                  try { controls2.stop() } catch { /* ignore */ }
+                  onScan(text)
+                }
               }
             }
             // err is fired roughly per video frame when no code is
@@ -97,7 +109,7 @@ export function BarcodeScanner({ open, onScan, onClose }) {
       controlsRef.current = null
       readerRef.current = null
     }
-  }, [open, onScan])
+  }, [open, onScan, continuous])
 
   // ESC closes the overlay.
   useEffect(() => {

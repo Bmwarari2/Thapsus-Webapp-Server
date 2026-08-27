@@ -42,11 +42,14 @@ export const Footer = () => {
           <div>
             <h3 className="font-black text-xl mb-6 text-white tracking-tighter leading-none">{t('nav.home')}</h3>
             <ul className="space-y-3 text-sm font-semibold text-mute">
+              {/* /pricing and /support were retired with the WhatsApp-first
+                  rebuild and 404'd from every page. Rates live in the FAQ;
+                  support is the WhatsApp conversation. */}
               <li><a href="/" className="hover:text-ember-400 hover:translate-x-1 inline-block transition-transform duration-300">{t('nav.home')}</a></li>
-              <li><a href="/pricing" className="hover:text-ember-400 hover:translate-x-1 inline-block transition-transform duration-300">{t('nav.pricing')}</a></li>
+              <li><a href="/faq" className="hover:text-ember-400 hover:translate-x-1 inline-block transition-transform duration-300">{t('nav.pricing')}</a></li>
               <li><a href="/track" className="hover:text-ember-400 hover:translate-x-1 inline-block transition-transform duration-300">{t('nav.track')}</a></li>
               <li><a href="/articles" className="hover:text-ember-400 hover:translate-x-1 inline-block transition-transform duration-300">Shipping guides</a></li>
-              <li><a href="/support" className="hover:text-ember-400 hover:translate-x-1 inline-block transition-transform duration-300">{t('nav.support')}</a></li>
+              <li><a href={`https://wa.me/${support_whatsapp}`} target="_blank" rel="noopener noreferrer" className="hover:text-ember-400 hover:translate-x-1 inline-block transition-transform duration-300">{t('nav.support')}</a></li>
             </ul>
           </div>
 

@@ -195,6 +195,7 @@ export async function sendCustomerStatusMessage(db, contact, order, settings) {
         templateParams: { full_name: contact.full_name, order_ref: code },
         text:
           `Your item has been purchased and is on its way to our facility. ` +
+          `Most parcels land in Kenya within 14 to 21 days of purchase — we'll message you the moment yours arrives. ` +
           `Track it anytime by sending your code ${code}.`,
       });
     case 'in_kenya': {

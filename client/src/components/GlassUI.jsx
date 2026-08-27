@@ -65,6 +65,22 @@ export const StatusBadge = ({ status, color }) => {
     completed:        'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
     failed:           'bg-red-500/10 text-red-300 border-red-500/20',
     closed:           'bg-white/5 text-mute border-line',
+    // WhatsApp pipeline (wa_orders / payments). These were missing, so
+    // every badge on the board rendered as the undifferentiated grey
+    // fallback and the colour coding was dead.
+    quoting:          'bg-blue-500/10 text-blue-300 border-blue-500/20',
+    quoted:           'bg-indigo-500/10 text-indigo-300 border-indigo-500/20',
+    confirmed:        'bg-amber-500/10 text-amber-300 border-amber-500/20',
+    awaiting_review:  'bg-amber-500/10 text-amber-300 border-amber-500/20',
+    purchased:        'bg-purple-500/10 text-purple-300 border-purple-500/20',
+    in_kenya:         'bg-teal-500/10 text-teal-300 border-teal-500/20',
+    delivery_fee_pending: 'bg-yellow-500/10 text-yellow-300 border-yellow-500/20',
+    dispatched:       'bg-ember-500/10 text-ember-400 border-ember-500/25',
+    collected:        'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
+    // Team page passes roles / account states through the same badge.
+    admin:            'bg-ember-500/10 text-ember-400 border-ember-500/25',
+    operator:         'bg-blue-500/10 text-blue-300 border-blue-500/20',
+    inactive:         'bg-white/5 text-mute border-line',
   }
   const cls = color || map[status] || 'bg-white/5 text-mute border-line'
   return (

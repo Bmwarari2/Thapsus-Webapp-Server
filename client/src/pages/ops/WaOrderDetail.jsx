@@ -6,7 +6,6 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { waApi, paymentsApi } from '../../api'
-import { useAuth } from '../../context/AuthContext'
 import { GlassStyles, GlassCard, PageHeading, StatusBadge } from '../../components/GlassUI'
 import { PrintableParcelLabel } from '../../components/PrintableParcelLabel'
 import { useWaPipelineUpdates } from '../../hooks/useRealtimeUpdates'
@@ -40,7 +39,6 @@ function nextActions(order) {
 
 export function WaOrderDetail() {
   const { id } = useParams()
-  const { user } = useAuth()
   const [order, setOrder] = useState(null)
   const [events, setEvents] = useState([])
   const [payments, setPayments] = useState([])
@@ -57,6 +55,9 @@ export function WaOrderDetail() {
   // point, having once invented coverage of one.
   const [pickup, setPickup] = useState('')
   const [mpesaRef, setMpesaRef] = useState('')
+  // What the reviewer saw on the till statement; blank = the outstanding
+  // amount (the common case). A short amount needs an override reason.
+  const [amountReceived, setAmountReceived] = useState('')
   const [supplierRef, setSupplierRef] = useState('')
   const [siblings, setSiblings] = useState([])   // others in the same supplier order
   const [busy, setBusy] = useState(false)
@@ -64,6 +65,12 @@ export function WaOrderDetail() {
   // M-Pesa STK is unavailable in production (provider withdrawn), so the
   // dashboard offers till instructions + manual approval only.
   const [stkAvailable, setStkAvailable] = useState(false)
+  // Live quote inputs (FX rate, default margin + fee) so the KES total is
+  // visible BEFORE the quote goes out. Sending was the one irreversible
+  // customer-facing action with no preview — the arithmetic only rendered
+  // after the customer had already been told the number, and the only
+  // remedy for a typo was re-quoting them.
+  const [quoteDefaults, setQuoteDefaults] = useState(undefined) // undefined=loading, null=unavailable
 
   const load = useCallback(async () => {
     try {
@@ -96,6 +103,9 @@ export function WaOrderDetail() {
     waApi.settings()
       .then((r) => setStkAvailable(Boolean(r.data.capabilities?.stk_available)))
       .catch(() => setStkAvailable(false))
+    waApi.quoteDefaults()
+      .then((r) => setQuoteDefaults(r.data))
+      .catch(() => setQuoteDefaults(null))
   }, [])
   useWaPipelineUpdates((data) => { if (data.order_id === id) load() })
 
@@ -130,15 +140,55 @@ export function WaOrderDetail() {
   const requestPay = (method, purpose) =>
     run(() => waApi.requestPayment(id, { method, purpose }),
       method === 'stk' ? 'STK push sent' : 'Payment instructions sent')()
-  const approvePayment = (paymentId) =>
-    run(() => paymentsApi.approve(paymentId), 'Payment approved')()
+  // Approving needs the amount the reviewer matched on the till
+  // statement; the "KSh received" input (blank = the amount due) feeds
+  // both this and mark-paid. A short amount prompts for an override
+  // reason, same as the queue page.
+  const approvePayment = (p) => run(async () => {
+    const amt = Math.round(Number(amountReceived.trim() === '' ? p.amount_due_kes : amountReceived))
+    if (!Number.isFinite(amt) || amt <= 0) {
+      throw Object.assign(new Error(), { response: { data: { message: 'Enter the amount received on the till statement' } } })
+    }
+    try {
+      return await paymentsApi.approve(p.id, { amountReceived: amt })
+    } catch (e) {
+      if (e.response?.data?.error !== 'amount_mismatch') throw e
+      const reason = window.prompt(`${e.response.data.message}`)
+      if (!reason || reason.trim().length < 10) throw e
+      return await paymentsApi.approve(p.id, { amountReceived: amt, overrideReason: reason.trim() })
+    }
+  }, 'Payment approved')()
   // Record a till payment even when no payments row exists yet — the
   // common case, since customers who confirm a quote on WhatsApp pay
   // immediately without an operator ever pressing "request payment".
   const markPaid = run(async () => {
-    const res = await waApi.markPaid(id, { mpesa_reference: mpesaRef.trim() || null })
-    setMpesaRef('')
-    return res
+    const outstanding = Number(
+      ['quoting', 'quoted', 'confirmed'].includes(order?.status)
+        ? order?.quote_kes : order?.delivery_fee_kes
+    ) || 0
+    const amt = amountReceived.trim() === '' ? outstanding : Math.round(Number(amountReceived))
+    if (!Number.isFinite(amt) || amt <= 0) {
+      throw Object.assign(new Error(), { response: { data: { message: 'Enter the amount received on the till statement' } } })
+    }
+    try {
+      const res = await waApi.markPaid(id, {
+        mpesa_reference: mpesaRef.trim() || null,
+        amount_received_kes: amt,
+      })
+      setMpesaRef(''); setAmountReceived('')
+      return res
+    } catch (e) {
+      if (e.response?.data?.error !== 'amount_mismatch') throw e
+      const reason = window.prompt(`${e.response.data.message}`)
+      if (!reason || reason.trim().length < 10) throw e
+      const res = await waApi.markPaid(id, {
+        mpesa_reference: mpesaRef.trim() || null,
+        amount_received_kes: amt,
+        override_reason: reason.trim(),
+      })
+      setMpesaRef(''); setAmountReceived('')
+      return res
+    }
   }, 'Payment recorded — tracking code and receipt sent')
   const resendReceipt = run(() => waApi.resendReceipt(id), 'Receipt re-sent')
   const saveSupplierRef = run(
@@ -161,7 +211,6 @@ export function WaOrderDetail() {
   const awaitingReview = payments.find((p) => p.status === 'awaiting_review')
   const feePayable = ['in_kenya', 'delivery_fee_pending'].includes(order.status)
     && !order.delivery_fee_waived && !order.delivery_fee_paid_at && Number(order.delivery_fee_kes) > 0
-  const isAdmin = user?.role === 'admin'
   // Label needs something to call the item: the operator's note, else
   // the retailer host off the first product link.
   const itemName = order.product_note
@@ -173,6 +222,20 @@ export function WaOrderDetail() {
     ? Number(order.quote_kes || 0)
     : feePayable ? Number(order.delivery_fee_kes || 0) : 0
   const owesMoney = outstandingKes > 0
+
+  // Same arithmetic the server runs on Send: usd × rate × (1 + margin%)
+  // + last-mile fee. Blank margin falls back to the settings default,
+  // matching the server's behaviour.
+  const preview = (() => {
+    if (!quoteDefaults) return null
+    const price = Number(usd)
+    if (!Number.isFinite(price) || price <= 0) return null
+    const pct = margin.trim() === '' ? Number(quoteDefaults.markup_pct_default) : Number(margin)
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) return null
+    const goods = Math.round(price * Number(quoteDefaults.usd_kes) * (1 + pct / 100))
+    const fee = method === 'collection' ? 0 : Number(quoteDefaults.default_delivery_fee_kes || 0)
+    return { goods, fee, total: goods + fee, rate: Number(quoteDefaults.usd_kes), pct }
+  })()
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
@@ -249,6 +312,23 @@ export function WaOrderDetail() {
                   </button>
                 ))}
               </div>
+              {/* What Send will actually tell the customer, before it does. */}
+              {preview ? (
+                <div className="mt-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 px-3.5 py-2.5 text-sm">
+                  <span className="text-emerald-200">
+                    ${Number(usd).toFixed(2)} × {preview.rate.toFixed(2)}
+                    {preview.pct > 0 ? ` + ${preview.pct}%` : ''}
+                    {preview.fee > 0 ? ` + KSh ${preview.fee.toLocaleString()} delivery` : ''}
+                    {' = '}
+                  </span>
+                  <span className="text-white font-bold">KSh {preview.total.toLocaleString()}</span>
+                  <span className="text-emerald-200/80"> — the customer will be quoted this total.</span>
+                </div>
+              ) : quoteDefaults === null && Number(usd) > 0 ? (
+                <p className="text-xs text-amber-300/80 mt-2">
+                  Live rate unavailable — the total will only be visible after sending.
+                </p>
+              ) : null}
               <p className="text-xs text-mute mt-1.5">
                 The 10% service fee is SHEIN only, and is waived while the promotion runs.
                 Enter <span className="text-white">0</span> for UK (£9/kg + £3) and Dubai ($9/kg)
@@ -355,21 +435,21 @@ export function WaOrderDetail() {
                   ? ` · customer's ref ${awaitingReview.mpesa_reference}`
                   : ''}
               </p>
-              {isAdmin ? (
-                <div className="flex flex-wrap gap-2">
-                  <input value={mpesaRef} onChange={(e) => setMpesaRef(e.target.value.toUpperCase())}
-                    placeholder="M-Pesa ref (optional)" maxLength={32}
-                    className="flex-1 min-w-[10rem] px-3 py-2 rounded-lg bg-white/5 border border-line text-white placeholder:text-mute text-sm focus:outline-none focus:border-ember-500/50" />
-                  <button onClick={markPaid} disabled={busy}
-                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold disabled:opacity-50">
-                    <CheckCircle2 size={15} /> Payment received
-                  </button>
-                </div>
-              ) : (
-                <p className="text-xs text-amber-300/80">
-                  An admin confirms till payments (Admin → Payments to approve).
-                </p>
-              )}
+              {/* Operators record payments too — this was admin-only, and
+                  operators were pointed at a queue page they couldn't open. */}
+              <div className="flex flex-wrap gap-2">
+                <input value={mpesaRef} onChange={(e) => setMpesaRef(e.target.value.toUpperCase())}
+                  placeholder="M-Pesa ref (optional)" maxLength={32}
+                  className="flex-1 min-w-[10rem] px-3 py-2 rounded-lg bg-white/5 border border-line text-white placeholder:text-mute text-sm focus:outline-none focus:border-ember-500/50" />
+                <input value={amountReceived} onChange={(e) => setAmountReceived(e.target.value)}
+                  inputMode="numeric"
+                  placeholder={`KSh received (${Number(outstandingKes).toLocaleString()})`}
+                  className="w-40 px-3 py-2 rounded-lg bg-white/5 border border-line text-white placeholder:text-mute text-sm focus:outline-none focus:border-ember-500/50" />
+                <button onClick={markPaid} disabled={busy}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold disabled:opacity-50">
+                  <CheckCircle2 size={15} /> Payment received
+                </button>
+              </div>
             </div>
           )}
 
@@ -428,8 +508,8 @@ export function WaOrderDetail() {
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusBadge status={p.status} />
-                    {p.status === 'awaiting_review' && isAdmin && (
-                      <button onClick={() => approvePayment(p.id)} disabled={busy}
+                    {p.status === 'awaiting_review' && (
+                      <button onClick={() => approvePayment(p)} disabled={busy}
                         className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold">
                         Approve
                       </button>
@@ -438,9 +518,6 @@ export function WaOrderDetail() {
                 </div>
               ))}
             </div>
-            {awaitingReview && !isAdmin && (
-              <p className="text-xs text-amber-300/80 mt-3">An admin approves manual payments (Admin → payments queue).</p>
-            )}
           </GlassCard>
 
           <GlassCard className="p-5">

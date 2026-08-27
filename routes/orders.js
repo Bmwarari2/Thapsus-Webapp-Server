@@ -453,6 +453,14 @@ router.put('/:id/status', authMiddleware, isAdmin, async (req, res) => {
     if (order) {
       pushToUser(order.user_id, 'order_update', { action: 'status_changed', order });
       pushToAdmins('admin_stats', { action: 'order_status_changed', order });
+      // In-app row + transactional email — utils/parcelStatusNotify.js
+      // was written for exactly this gap but was never imported, so every
+      // legacy status flip reached open browser tabs and nobody else.
+      // (Its own SSE push duplicates the one above; both just trigger a
+      // refetch, and this one carries the email + notifications row.)
+      const { notifyParcelStatus } = await import('../utils/parcelStatusNotify.js');
+      notifyParcelStatus(db, order.id, status)
+        .catch((e) => console.warn('[orders] parcel notify failed (non-fatal):', e?.message));
     }
 
     res.json({ success: true, message: 'Order status updated', order });

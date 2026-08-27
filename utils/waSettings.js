@@ -15,6 +15,10 @@ export const DEFAULTS = {
   promo_type: 'waive_fee',       // 'waive_fee' | 'discount'
   promo_message: '',
   default_delivery_fee_kes: 300,
+  // How long a quote stands before the price may be re-checked. The
+  // approved payment-prompt template promises "The quote expires {{4}}" —
+  // this is what fills it. Quoting stamps quote_expires_at from it.
+  quote_validity_days: 7,
   welcome_media_urls: [],
   // Optional map of logical message keys → approved sent.dm template names.
   // The templates approved in the sent.dm console, keyed by our logical
@@ -111,6 +115,8 @@ export async function getWaSettings(db) {
       promo_message: kv.promo_message ?? '',
       default_delivery_fee_kes: Number.isFinite(Number(kv.default_delivery_fee_kes))
         ? Number(kv.default_delivery_fee_kes) : DEFAULTS.default_delivery_fee_kes,
+      quote_validity_days: Number.isFinite(Number(kv.quote_validity_days)) && Number(kv.quote_validity_days) > 0
+        ? Number(kv.quote_validity_days) : DEFAULTS.quote_validity_days,
       welcome_media_urls: Array.isArray(parseJsonOr(null, kv.welcome_media_urls))
         ? parseJsonOr([], kv.welcome_media_urls) : [],
       template_map: mergeTemplateMap(parseJsonOr(null, kv.template_map)),

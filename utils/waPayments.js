@@ -71,17 +71,30 @@ export async function ensureManualPayment(db, { orderId, contactId, amountKes, p
   if (open) return { payment: open, created: false };
 
   const id = newPaymentId();
-  const { rows } = await db.query(
-    `INSERT INTO payments
-       (id, user_id, wa_contact_id, target_kind, target_id,
-        amount_gross_kes, amount_credit_kes, amount_due_kes,
-        currency, method, status, mpesa_provider, mpesa_phone_used)
-     VALUES ($1, NULL, $2, 'wa_order', $3, $4, 0, $4, 'KES', 'mpesa',
-             'awaiting_review', 'manual', $5)
-     RETURNING *`,
-    [id, contactId, orderId, amountKes, phone]
-  );
-  return { payment: rows[0], created: true };
+  try {
+    const { rows } = await db.query(
+      `INSERT INTO payments
+         (id, user_id, wa_contact_id, target_kind, target_id,
+          amount_gross_kes, amount_credit_kes, amount_due_kes,
+          currency, method, status, mpesa_provider, mpesa_phone_used)
+       VALUES ($1, NULL, $2, 'wa_order', $3, $4, 0, $4, 'KES', 'mpesa',
+               'awaiting_review', 'manual', $5)
+       RETURNING *`,
+      [id, contactId, orderId, amountKes, phone]
+    );
+    return { payment: rows[0], created: true };
+  } catch (e) {
+    // Check-then-insert race: a concurrent caller (a double "yes", the
+    // YES handler vs the operator's request-payment click) landed its
+    // row between our check and our insert. uq_payments_open_wa_order
+    // (migration 0014) turns that into a 23505 instead of a duplicate
+    // payment — settle for the row that won.
+    if (e?.code === '23505') {
+      const winner = await findOpenOrderPayment(db, orderId);
+      if (winner) return { payment: winner, created: false };
+    }
+    throw e;
+  }
 }
 
 /**

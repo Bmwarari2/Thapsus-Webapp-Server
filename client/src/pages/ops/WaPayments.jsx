@@ -4,42 +4,59 @@ import { HandCoins, CheckCircle2, XCircle, RefreshCw, ExternalLink } from 'lucid
 import toast from 'react-hot-toast'
 import { paymentsApi } from '../../api'
 import { GlassStyles, GlassCard, PageHeading, StatusBadge } from '../../components/GlassUI'
+import { useWaPipelineUpdates } from '../../hooks/useRealtimeUpdates'
 
 /**
- * /ops/payments — the manual M-Pesa approval queue.
+ * /ops/payments — the manual M-Pesa approval queue (operators + admins).
  *
  * M-Pesa STK is unavailable (provider withdrawn), so customers pay the
  * Buy Goods till and someone here confirms the money actually landed.
  * Approving is what mints the tracking code and sends the receipt, so
  * this queue is the pipeline's real bottleneck — it gets its own page and
- * its own nav item rather than hiding inside each order.
+ * its own nav item rather than hiding inside each order, and it follows
+ * the pipeline SSE stream so new payments appear without anyone pressing
+ * Refresh (it used to load once on mount and then sit stale all day).
  */
 export function WaPayments() {
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(null)
+  // Per-row "amount received" — what the reviewer matched on the till
+  // statement. Pre-filled with the amount due (the overwhelmingly common
+  // case) so verification is one glance, not data entry.
+  const [amounts, setAmounts] = useState({})
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async ({ quiet = false } = {}) => {
+    if (!quiet) setLoading(true)
     try {
       const res = await paymentsApi.pendingMpesaQueue()
       setPayments(res.data.payments || [])
     } catch (e) {
-      toast.error(e.response?.data?.message || 'Failed to load the payment queue')
+      if (!quiet) toast.error(e.response?.data?.message || 'Failed to load the payment queue')
     } finally {
-      setLoading(false)
+      if (!quiet) setLoading(false)
     }
   }, [])
 
   useEffect(() => { load() }, [load])
+  // Payment rows open (customer says YES), settle, and get rejected via
+  // pipeline events — refresh quietly on each one.
+  useWaPipelineUpdates(() => load({ quiet: true }))
 
   const approve = async (p) => {
+    const isWaOrder = p.target_kind === 'wa_order'
+    const amountReceived = isWaOrder
+      ? Math.round(Number(amounts[p.id] ?? p.amount_due_kes))
+      : undefined
+    if (isWaOrder && (!Number.isFinite(amountReceived) || amountReceived <= 0)) {
+      return toast.error('Enter the amount received on the till statement')
+    }
     if (!window.confirm(
-      `Confirm KSh ${Number(p.amount_due_kes).toLocaleString()} from ${p.user_name || p.user_email} `
+      `Confirm KSh ${Number(amountReceived ?? p.amount_due_kes).toLocaleString()} from ${p.user_name || p.user_email} `
       + `is on the M-Pesa till statement?`)) return
     setBusy(p.id)
     try {
-      await paymentsApi.approve(p.id)
+      await paymentsApi.approve(p.id, { amountReceived })
       toast.success('Payment approved — tracking code and receipt sent')
       await load()
     } catch (e) {
@@ -48,8 +65,8 @@ export function WaPayments() {
         const reason = window.prompt(`${data.message}\n\nReason for approving anyway (min 10 chars):`)
         if (reason && reason.trim().length >= 10) {
           try {
-            await paymentsApi.approve(p.id, { overrideReason: reason.trim() })
-            toast.success('Payment approved with override')
+            await paymentsApi.approve(p.id, { overrideReason: reason.trim(), amountReceived })
+            toast.success('Payment approved with override — the receipt shows the amount received and the balance due')
             await load()
           } catch (e2) {
             toast.error(e2.response?.data?.message || 'Approval failed')
@@ -64,12 +81,14 @@ export function WaPayments() {
   }
 
   const reject = async (p) => {
-    const reason = window.prompt('Why are you rejecting this payment? (the customer can pay again)')
+    const reason = window.prompt(
+      'Why are you rejecting this payment?\n\n'
+      + 'This reason is SENT TO THE CUSTOMER on WhatsApp, with instructions to pay again.')
     if (!reason || reason.trim().length < 3) return
     setBusy(p.id)
     try {
       await paymentsApi.reject(p.id, reason.trim())
-      toast.success('Payment rejected')
+      toast.success('Payment rejected — the customer has been told why')
       await load()
     } catch (e) {
       toast.error(e.response?.data?.message || 'Rejection failed')
@@ -118,6 +137,30 @@ export function WaPayments() {
                     ? <span className="text-emerald-300">Customer's M-Pesa ref: <b>{p.mpesa_reference}</b></span>
                     : <span className="text-amber-300/80">No M-Pesa reference yet — check the till statement</span>}
                 </p>
+                {/* Legacy SMS-paste rows: show the claimed amount and flag a
+                    short payment before anyone clicks Approve. */}
+                {p.mpesa_message_amount_kes != null && Number(p.mpesa_message_amount_kes) < Number(p.amount_due_kes) && (
+                  <p className="text-xs mt-1">
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-red-500/15 border border-red-500/30 text-red-300 font-bold">
+                      SMS shows KSh {Number(p.mpesa_message_amount_kes).toLocaleString()} — short of the invoice
+                    </span>
+                  </p>
+                )}
+                {p.target_kind === 'wa_order' && (
+                  <label className="flex items-center gap-2 text-xs text-mute mt-2">
+                    Received on till:
+                    <input
+                      value={amounts[p.id] ?? String(p.amount_due_kes)}
+                      onChange={(e) => setAmounts((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                      inputMode="numeric"
+                      className={`w-28 px-2 py-1 rounded-lg bg-white/5 border text-white text-xs focus:outline-none ${
+                        Number(amounts[p.id] ?? p.amount_due_kes) < Number(p.amount_due_kes)
+                          ? 'border-red-500/60 text-red-200'
+                          : 'border-line'
+                      }`} />
+                    KSh
+                  </label>
+                )}
                 {p.target_kind === 'wa_order' && (
                   <Link to={`/ops/orders/${p.target_id}`}
                     className="inline-flex items-center gap-1 text-xs text-ember-400 hover:text-ember-300 mt-1.5">

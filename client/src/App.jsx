@@ -84,7 +84,9 @@ function App() {
             <Route path="/ops/inbox" element={<ProtectedRoute roles={['operator']}><Inbox /></ProtectedRoute>} />
             <Route path="/ops/pipeline" element={<ProtectedRoute roles={['operator']}><Pipeline /></ProtectedRoute>} />
             <Route path="/ops/orders/:id" element={<ProtectedRoute roles={['operator']}><WaOrderDetail /></ProtectedRoute>} />
-            <Route path="/ops/payments" element={<ProtectedRoute adminOnly={true}><WaPayments /></ProtectedRoute>} />
+            {/* Operators approve payments too — the queue being admin-only
+                made one admin the bottleneck for every order. */}
+            <Route path="/ops/payments" element={<ProtectedRoute roles={['operator']}><WaPayments /></ProtectedRoute>} />
             <Route path="/ops/settings" element={<ProtectedRoute adminOnly={true}><WaSettings /></ProtectedRoute>} />
             <Route path="/ops/team" element={<ProtectedRoute adminOnly={true}><Team /></ProtectedRoute>} />
 

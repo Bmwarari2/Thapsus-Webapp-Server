@@ -231,10 +231,16 @@ export function checkItem(itemName) {
 
   // Search through all categories
   for (const [categoryKey, categoryData] of Object.entries(PROHIBITED_ITEMS)) {
-    // Check exact matches and partial matches
+    // A match is the list phrase appearing as WHOLE WORDS in the item
+    // name (or an exact match). The old bidirectional substring check
+    // also matched the item name inside the list phrase, so "ash"
+    // flagged via "ashes" and any short generic word tripped whichever
+    // longer phrase happened to contain it.
     const matchFound = categoryData.items.some(item => {
       const normalizedItem = item.toLowerCase();
-      return normalizedName === normalizedItem || normalizedName.includes(normalizedItem) || normalizedItem.includes(normalizedName);
+      if (normalizedName === normalizedItem) return true;
+      const escaped = normalizedItem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`\\b${escaped}\\b`).test(normalizedName);
     });
 
     if (matchFound) {

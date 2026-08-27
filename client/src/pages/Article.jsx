@@ -4,6 +4,7 @@ import { Clock, Calendar, ArrowLeft, ArrowRight, Lightbulb, AlertTriangle, Check
 import { getArticleBySlug, getRelatedArticles } from '../data/articles'
 import { SEO } from '../components/SEO'
 import { Reveal } from '../components/motion'
+import { useAppConfig } from '../hooks/useAppConfig'
 
 const SITE_URL = 'https://thapsus.uk'
 
@@ -112,6 +113,7 @@ function Block({ block }) {
 
 export const Article = () => {
   const { slug } = useParams()
+  const { support_whatsapp } = useAppConfig()
   const article = getArticleBySlug(slug)
   const related = useMemo(() => getRelatedArticles(article?.related), [article])
 
@@ -248,13 +250,17 @@ export const Article = () => {
           </section>
         )}
 
-        {/* CTA */}
+        {/* CTA — the funnel is a WhatsApp message. Every article read used
+            to dead-end here on two links (/pricing, /register) that 404'd
+            after the WhatsApp-first rebuild retired those pages. */}
         <div className="glow-card p-8 text-center mt-12">
-          <h3 className="text-2xl font-bold text-white mb-2">Ready to ship from the UK to Kenya?</h3>
-          <p className="text-mute mb-6">Get an instant quote, or let us buy and ship it for you.</p>
+          <h3 className="text-2xl font-bold text-white mb-2">Ready to shop the world from Kenya?</h3>
+          <p className="text-mute mb-6">Send us a product link on WhatsApp and we reply with an all-in KES quote.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link to="/pricing" className="btn-primary glass-sheen">Get a quote</Link>
-            <Link to="/register" className="btn-secondary">Create a free account</Link>
+            <a href={`https://wa.me/${support_whatsapp}?text=${encodeURIComponent('Hi! I would like a quote.')}`}
+              target="_blank" rel="noopener noreferrer"
+              className="btn-primary glass-sheen">Get a quote on WhatsApp</a>
+            <Link to="/track" className="btn-secondary">Track a parcel</Link>
           </div>
         </div>
 

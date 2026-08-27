@@ -16,15 +16,14 @@ const ARTICLE_SLUGS = articles.map((a) => a.slug);
 // served by the SPA fallback (or prerendered, for /articles) so crawlers get
 // a 200 + rendered content. Keep this in step with the public <Route>s.
 const PUBLIC_ROUTES = [
+  // /pricing, /uk-stores, /prohibited and /register were retired with the
+  // WhatsApp-first rebuild — the SPA 404s them, and a sitemap pointing
+  // crawlers at 404s hurts more than it helps.
   { path: '/',              changefreq: 'weekly',  priority: 1.0  },
-  { path: '/pricing',       changefreq: 'weekly',  priority: 0.9  },
   { path: '/track',         changefreq: 'daily',   priority: 0.9  },
   { path: '/articles',      changefreq: 'weekly',  priority: 0.8  },
-  { path: '/uk-stores',     changefreq: 'weekly',  priority: 0.7  },
   { path: '/faq',           changefreq: 'monthly', priority: 0.6  },
-  { path: '/prohibited',    changefreq: 'monthly', priority: 0.6  },
   { path: '/login',         changefreq: 'monthly', priority: 0.5  },
-  { path: '/register',      changefreq: 'monthly', priority: 0.5  },
   { path: '/forgot-password', changefreq: 'yearly', priority: 0.3 },
   { path: '/privacy',       changefreq: 'yearly',  priority: 0.3  },
   { path: '/terms',         changefreq: 'yearly',  priority: 0.3  },
