@@ -27,6 +27,7 @@ export function WaSettings() {
           welcome_media_urls: (s.welcome_media_urls || []).join('\n'),
           template_map: JSON.stringify(s.template_map || {}, null, 2),
           ai_enabled: s.ai_enabled === true,
+          nudges_enabled: s.nudges_enabled !== false,
           ai_knowledge_base: s.ai_knowledge_base || '',
           ai_resume_after_minutes: String(s.ai_resume_after_minutes ?? 120),
           staff_alert_numbers: (s.staff_alert_numbers || []).join('\n'),
@@ -51,6 +52,7 @@ export function WaSettings() {
         welcome_media_urls: form.welcome_media_urls.split('\n').map((s) => s.trim()).filter(Boolean),
         template_map: templateMap,
         ai_enabled: form.ai_enabled,
+        nudges_enabled: form.nudges_enabled,
         ai_knowledge_base: form.ai_knowledge_base,
         ai_resume_after_minutes: Number(form.ai_resume_after_minutes),
         staff_alert_numbers: form.staff_alert_numbers.split('\n').map((n) => n.trim()).filter(Boolean),
@@ -143,6 +145,21 @@ export function WaSettings() {
               </p>
             </div>
             <input type="checkbox" checked={form.ai_enabled} onChange={set('ai_enabled')}
+              className="w-5 h-5 accent-orange-600" />
+          </label>
+          <label className="flex items-start justify-between gap-4 cursor-pointer">
+            <div>
+              <span className="block text-sm font-semibold text-white mb-1">Follow-up nudges</span>
+              <p className="text-xs text-mute">
+                One-shot follow-ups inside WhatsApp's 24-hour window: a quote unanswered for a few
+                hours gets a "we're holding it for you", a customer who asked about the service but
+                never sent a cart gets a how-to-share-your-cart message before the window shuts, and
+                a fresh delivery gets one "anything else on your list?". Each sends at most once,
+                never while you hold the chat. Quotes still unanswered on day 2 page staff for a
+                personal follow-up.
+              </p>
+            </div>
+            <input type="checkbox" checked={form.nudges_enabled} onChange={set('nudges_enabled')}
               className="w-5 h-5 accent-orange-600" />
           </label>
           <div>

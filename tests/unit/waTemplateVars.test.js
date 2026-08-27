@@ -141,9 +141,17 @@ describe('the default template map', () => {
     // An unmapped slot sends free text, which is refused outside the
     // 24-hour window — silently, and precisely for the messages that
     // arrive weeks after a customer last wrote in.
+    //
+    // quote_reminder is the one deliberate exception: it is declared
+    // ahead of approval (mapping an UNapproved name would make every
+    // quote nudge fail at the provider), and its caller
+    // (utils/waNudges.js) already restricts itself to the open window
+    // until the template is approved and mapped in Settings.
+    const AWAITING_APPROVAL = ['quote_reminder'];
     const { DEFAULTS } = await import('../../utils/waSettings.js');
     expect(Object.keys(DEFAULTS.template_map).sort())
-      .toEqual(Object.keys(TEMPLATE_SLOTS).sort());
+      .toEqual(Object.keys(TEMPLATE_SLOTS)
+        .filter((k) => !AWAITING_APPROVAL.includes(k)).sort());
   });
 });
 
