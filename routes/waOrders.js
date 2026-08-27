@@ -626,7 +626,17 @@ router.post('/:id/request-payment', authMiddleware, STAFF, idempotency, async (r
         sentBy: req.user.id,
       });
     } else {
+      // templateKey so this can still land when the customer's 24-hour
+      // window has shut — an operator often sends till instructions days
+      // after the customer last wrote in. In-window the richer free text
+      // below is what goes out (see waSend.js).
       await sendToContact(req.db, contact, {
+        templateKey: 'payment_prompt',
+        templateParams: {
+          full_name: order.full_name,
+          order_ref: order.tracking_code || orderRef(order),
+          total_kes: amountKes.toLocaleString('en-KE'),
+        },
         text:
           `To pay KSh ${amountKes.toLocaleString('en-KE')}:\n` +
           `1. Lipa na M-Pesa, Buy Goods (Till)\n` +
@@ -657,9 +667,12 @@ router.post('/:id/request-payment', authMiddleware, STAFF, idempotency, async (r
  * markPaymentPaid state machine the admin queue uses — which mints the
  * tracking code, sends it, and pushes the PDF receipt.
  *
- * Admin-gated, matching routes/adminPayments.js: only admins settle money.
+ * Staff-gated, matching routes/adminPayments.js: operators settle money
+ * too, with reviewed_by/reviewed_at and the order event as the audit
+ * trail. This was admin-only, which made one admin the serial bottleneck
+ * for every order in the business.
  */
-router.post('/:id/mark-paid', authMiddleware, requireRole('admin'), idempotency, async (req, res) => {
+router.post('/:id/mark-paid', authMiddleware, STAFF, idempotency, async (req, res) => {
   try {
     const { rows } = await req.db.query(`${ORDER_SELECT} WHERE o.id = $1`, [req.params.id]);
     const order = rows[0];
@@ -832,7 +845,13 @@ router.post('/:id/waive-fee', authMiddleware, STAFF, async (req, res) => {
     );
     const { rows: c } = await req.db.query(`SELECT id, phone FROM wa_contacts WHERE id = $1`, [order.contact_id]);
     if (c[0]) {
+      // templateKey: a waiver usually lands weeks after the customer last
+      // wrote in, when free text is refused. The arrived_waived template
+      // ("your delivery fee is on us, we will dispatch shortly") is true
+      // for this case too.
       await sendToContact(req.db, c[0], {
+        templateKey: 'arrived_waived',
+        templateParams: { tracking_code: order.tracking_code || '' },
         text: `Good news — your delivery fee for ${order.tracking_code} has been waived. We'll dispatch your parcel shortly.`,
         sentBy: req.user.id,
       });
@@ -882,6 +901,9 @@ router.post('/:id/receipt/resend', authMiddleware, STAFF, async (req, res) => {
     const contact = {
       id: order.contact_id, phone: order.phone,
       full_name: order.full_name, customer_code: order.customer_code,
+      // The receipt PDF prints the delivery address; without this the
+      // "Deliver to" block rendered blank.
+      delivery_address: order.delivery_address,
     };
     const { generateAndStoreReceipt } = await import('../utils/receiptPdf.js');
     const path = await generateAndStoreReceipt({ order, contact, payment: payRows[0] });
@@ -891,7 +913,15 @@ router.post('/:id/receipt/resend', authMiddleware, STAFF, async (req, res) => {
     );
     // Short /r/ link — the signed Supabase URL is ~600 chars of JWT and
     // looks like spam on WhatsApp. The redirect re-signs on each click.
+    // Guard the null case (JWT_SECRET unset, missing tracking code):
+    // without it the customer received literally "your receipt: null".
     const url = receiptShortUrl(order);
+    if (!url) {
+      return res.status(500).json({
+        success: false,
+        message: 'Receipt was generated but the link could not be built — check JWT_SECRET and the order tracking code.',
+      });
+    }
     await sendToContact(req.db, contact, {
       templateKey: 'receipt',
       templateParams: {

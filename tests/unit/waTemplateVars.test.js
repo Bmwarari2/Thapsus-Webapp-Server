@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TEMPLATE_SLOTS, toPositionalParams, requiredFields } from '../../utils/waTemplateVars.js';
+import { TEMPLATE_SLOTS, toPositionalParams, requiredFields, renderTemplateBody } from '../../utils/waTemplateVars.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -186,5 +186,26 @@ describe('a stored template map layers over the defaults', () => {
     expect((await mergeSettings([])).quote).toBe('Quote_Ready');
     expect((await mergeSettings(null)).quote).toBe('Quote_Ready');
     expect((await mergeSettings({ quote: 42 })).quote).toBe('Quote_Ready');
+  });
+});
+
+// ── renderTemplateBody — the transcript copy for template sends ──────────────
+// wa_messages.body used to store the free-text fallback even when a
+// template was sent, so the inbox showed staff a message the customer
+// never received.
+describe('renderTemplateBody', () => {
+  it('fills the approved body with the named params, in slot order', () => {
+    const body = renderTemplateBody('payment_prompt', {
+      full_name: 'Jane', order_ref: 'TRK-8821', total_kes: '17,094',
+    });
+    expect(body).toContain('Hi Jane');
+    expect(body).toContain('TRK-8821');
+    expect(body).toContain('KES 17,094');
+    expect(body).toContain('expires soon'); // missing expires_at → fallback
+    expect(body).not.toMatch(/\{\{\d+\}\}/);
+  });
+
+  it('returns null for an unknown key so the caller keeps its free text', () => {
+    expect(renderTemplateBody('payment_verifying', { reference: 'X' })).toBeNull();
   });
 });

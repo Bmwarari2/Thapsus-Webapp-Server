@@ -1173,3 +1173,59 @@ describe('human takeover and AI memory', () => {
     expect(db.query.mock.calls.some(([sql]) => sql.includes('SET ai_summary'))).toBe(true);
   });
 });
+
+// ── Paid-claim ordering + state awareness ────────────────────────────────────
+// "ok, I have paid" opens with a confirm word, and used to hit the
+// quote-confirm branch first — the customer got the till instructions
+// again for money they had just sent. And a claim about money already
+// settled got "we're verifying it now", which reads as nobody having
+// their money.
+describe('paid claims vs quote confirmation', () => {
+  it('routes "ok I have paid" to the payment branch, not the confirm branch', async () => {
+    const db = makeDb(async (sql) => {
+      // A quoted order exists — the confirm branch WOULD have fired.
+      if (sql.includes("status = 'quoted'") && sql.startsWith('SELECT')) {
+        return { rows: [{ id: 'o1', quote_kes: '14500' }] };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    await handleInbound(db, contact(), { id: 'm', body: 'ok I have paid' });
+    expect(db.query.mock.calls.some(([sql]) => sql.includes("SET status = 'confirmed'"))).toBe(false);
+    expect(notifyStaff).toHaveBeenCalledWith(db, expect.objectContaining({
+      title: expect.stringMatching(/payment claimed/i),
+    }));
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/verifying it with M-Pesa/i);
+  });
+
+  it('answers a claim about settled money with the parcel status, and pages no one', async () => {
+    const db = makeDb(async (sql) => {
+      // No open payment…
+      if (sql.includes('payments') && sql.includes('wa_contact_id')) return { rows: [] };
+      // …and the latest order is already purchased.
+      if (sql.includes('FROM wa_orders') && sql.includes('contact_id = $1')) {
+        return { rows: [{ id: 'o1', status: 'purchased', tracking_code: 'TRK-8821', purchased_at: '2026-08-12' }] };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    await handleInbound(db, contact(), { id: 'm', body: 'I have paid, any update?' });
+    expect(notifyStaff).not.toHaveBeenCalled();
+    const said = sendToContact.mock.calls[0][2].text;
+    expect(said).toContain('TRK-8821');
+    expect(said).toMatch(/confirmed — nothing is pending/i);
+    expect(said).not.toMatch(/verifying it with M-Pesa/i);
+  });
+
+  // The approved quote template tells the customer "Reply to accept".
+  it.each(['accept', 'Accepted', 'nakubali'])(
+    'treats "%s" as a quote confirmation', async (word) => {
+      const db = makeDb(async (sql) => {
+        if (sql.includes("status = 'quoted'") && sql.startsWith('SELECT')) {
+          return { rows: [{ id: 'o1', quote_kes: '14500' }] };
+        }
+        return { rows: [], rowCount: 1 };
+      });
+      await handleInbound(db, contact(), { id: 'm', body: word });
+      expect(db.query.mock.calls.some(([sql]) => sql.includes("SET status = 'confirmed'"))).toBe(true);
+    }
+  );
+});

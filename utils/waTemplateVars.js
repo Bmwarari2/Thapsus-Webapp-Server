@@ -127,3 +127,20 @@ const FALLBACK = {
 export function requiredFields(templateKey) {
   return TEMPLATE_SLOTS[templateKey]?.vars ?? [];
 }
+
+/**
+ * The message a template send actually puts on the customer's phone, with
+ * the variables filled in. Used for the transcript: wa_messages.body used
+ * to store the free-text fallback even when a template was sent, so the
+ * inbox showed staff a message the customer never received — a customer
+ * saying "you never sent the till number" while the transcript showed it.
+ *
+ * @returns {string|null} the rendered body, or null for an unknown key
+ *   (the caller keeps its free-text copy — that IS what was sent).
+ */
+export function renderTemplateBody(templateKey, named = {}) {
+  const slot = TEMPLATE_SLOTS[templateKey];
+  if (!slot) return null;
+  const pos = toPositionalParams(templateKey, named);
+  return slot.body.replace(/\{\{(\d+)\}\}/g, (_, n) => pos[`var_${n}`] ?? '');
+}

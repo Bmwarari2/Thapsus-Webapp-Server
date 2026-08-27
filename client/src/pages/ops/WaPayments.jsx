@@ -4,34 +4,40 @@ import { HandCoins, CheckCircle2, XCircle, RefreshCw, ExternalLink } from 'lucid
 import toast from 'react-hot-toast'
 import { paymentsApi } from '../../api'
 import { GlassStyles, GlassCard, PageHeading, StatusBadge } from '../../components/GlassUI'
+import { useWaPipelineUpdates } from '../../hooks/useRealtimeUpdates'
 
 /**
- * /ops/payments — the manual M-Pesa approval queue.
+ * /ops/payments — the manual M-Pesa approval queue (operators + admins).
  *
  * M-Pesa STK is unavailable (provider withdrawn), so customers pay the
  * Buy Goods till and someone here confirms the money actually landed.
  * Approving is what mints the tracking code and sends the receipt, so
  * this queue is the pipeline's real bottleneck — it gets its own page and
- * its own nav item rather than hiding inside each order.
+ * its own nav item rather than hiding inside each order, and it follows
+ * the pipeline SSE stream so new payments appear without anyone pressing
+ * Refresh (it used to load once on mount and then sit stale all day).
  */
 export function WaPayments() {
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async ({ quiet = false } = {}) => {
+    if (!quiet) setLoading(true)
     try {
       const res = await paymentsApi.pendingMpesaQueue()
       setPayments(res.data.payments || [])
     } catch (e) {
-      toast.error(e.response?.data?.message || 'Failed to load the payment queue')
+      if (!quiet) toast.error(e.response?.data?.message || 'Failed to load the payment queue')
     } finally {
-      setLoading(false)
+      if (!quiet) setLoading(false)
     }
   }, [])
 
   useEffect(() => { load() }, [load])
+  // Payment rows open (customer says YES), settle, and get rejected via
+  // pipeline events — refresh quietly on each one.
+  useWaPipelineUpdates(() => load({ quiet: true }))
 
   const approve = async (p) => {
     if (!window.confirm(
@@ -64,12 +70,14 @@ export function WaPayments() {
   }
 
   const reject = async (p) => {
-    const reason = window.prompt('Why are you rejecting this payment? (the customer can pay again)')
+    const reason = window.prompt(
+      'Why are you rejecting this payment?\n\n'
+      + 'This reason is SENT TO THE CUSTOMER on WhatsApp, with instructions to pay again.')
     if (!reason || reason.trim().length < 3) return
     setBusy(p.id)
     try {
       await paymentsApi.reject(p.id, reason.trim())
-      toast.success('Payment rejected')
+      toast.success('Payment rejected — the customer has been told why')
       await load()
     } catch (e) {
       toast.error(e.response?.data?.message || 'Rejection failed')

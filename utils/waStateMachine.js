@@ -27,13 +27,16 @@
 //      gets the order's live status back, no operator needed (Phase 4
 //      self-service). Collection orders get collection wording — they
 //      never enter dispatch.
-//   3. Quote confirmation — a "yes"-like reply while the contact has
+//   3. Payment claim — "I've paid" / a pasted M-Pesa SMS gets an
+//      it's-being-verified reply (never a handoff), the reference stamped
+//      onto the open payment, and a staff alert. Runs BEFORE the
+//      confirmation branch because "ok, I have paid" opens with a
+//      confirm word. When nothing is open and the latest order is
+//      settled, the reply is the parcel's live status instead.
+//   3b. Quote confirmation — a "yes"-like reply while the contact has
 //      exactly one order awaiting confirmation flips it to 'confirmed',
 //      opens the awaiting_review payment row, and sends till
 //      instructions. Anything ambiguous falls through to a human.
-//   3b. Payment claim — "I've paid" / a pasted M-Pesa SMS gets an
-//      it's-being-verified reply (never a handoff), the reference stamped
-//      onto the open payment, and a staff alert.
 //   4. Everything else: when the Gemini layer is enabled (wa_settings
 //      ai_enabled + GEMINI_API_KEY), it answers from the operator's
 //      knowledge base PLUS a live summary of this customer's own orders
@@ -71,7 +74,10 @@ import {
   findOpenContactPayment, mpesaTill,
 } from './waPayments.js';
 
-const CONFIRM_WORDS = /^(yes+|yeah|yep|ok(ay)?|confirm(ed)?|proceed|sawa( sawa)?|ndio|ndiyo|poa|1)\b/i;
+// "accept" is here because the approved quote template tells the customer
+// "Reply to accept" — a customer following that instruction literally must
+// land in this branch, not fall through to the AI.
+const CONFIRM_WORDS = /^(yes+|yeah|yep|ok(ay)?|confirm(ed)?|accept(ed)?|proceed|sawa( sawa)?|ndio|ndiyo|nakubali|poa|1)\b/i;
 
 // "I've paid" in the shapes Kenyan customers actually type, including a
 // pasted M-Pesa confirmation (which always carries a 10-char reference).
@@ -242,7 +248,80 @@ export async function handleInbound(db, contact, message) {
     return replyTrackingStatus(db, contact, trackingCode);
   }
 
-  // 3. Quote confirmation.
+  // 3. Customer says they've paid — evaluated BEFORE the quote-confirm
+  // branch, because "ok, I have paid" opens with a confirm word and used
+  // to match it first: the customer was answered with the till
+  // instructions again, for money they had just sent. With STK
+  // unavailable every payment is checked against the M-Pesa statement by
+  // hand, so we answer this ourselves rather than letting the AI
+  // improvise (it used to read the message as a complaint and hand off
+  // with "let me get a colleague", which reads like nobody has their
+  // money).
+  if (body && PAID_CLAIM.test(body)) {
+    const ref = extractMpesaReference(body);
+
+    let open = null;
+    try {
+      open = await findOpenContactPayment(db, contact.id);
+    } catch (e) {
+      console.warn('[waStateMachine] payment-claim lookup failed:', e?.message);
+    }
+
+    // Nothing awaiting verification. "I paid yesterday, any update?" used
+    // to get "our team is verifying it now" — the worst possible reply to
+    // somebody whose money already cleared. When their latest order is
+    // settled, answer with where the parcel actually is, and page no one.
+    if (!open) {
+      const { rows: latest } = await db.query(
+        `SELECT * FROM wa_orders
+          WHERE contact_id = $1 AND status <> 'cancelled'
+          ORDER BY created_at DESC LIMIT 1`,
+        [contact.id]
+      );
+      const settled = latest[0];
+      if (settled && settled.tracking_code
+          && !['quoting', 'quoted', 'confirmed'].includes(settled.status)) {
+        return sendToContact(db, contact, {
+          text:
+            `Your payment for ${settled.tracking_code} is confirmed — nothing is pending on our side.\n` +
+            parcelStateSentence(settled, settled.tracking_code),
+        });
+      }
+    }
+
+    notifyStaff(db, {
+      title: 'Payment claimed — verify on M-Pesa',
+      detail: `${contact.full_name || contact.phone} (${contact.customer_code || 'no code'}): "${body.slice(0, 160)}"${ref ? ` — ref ${ref}` : ''}`,
+      dedupeKey: `paid:${contact.id}:${ref || body.slice(0, 40)}`,
+    });
+
+    let amountKes = null;
+    try {
+      if (open) {
+        amountKes = Number(open.amount_due_kes);
+        if (ref) await attachMpesaReference(db, open.id, ref);
+      }
+    } catch (e) {
+      console.warn('[waStateMachine] payment-claim bookkeeping failed:', e?.message);
+    }
+
+    // One reassurance per burst — customers often send the M-Pesa SMS and
+    // "I have paid" as two messages seconds apart.
+    if (!await sentRecently(db, contact.id, VERIFYING_MARKER, 30)) {
+      await sendToContact(db, contact, {
+        templateKey: 'payment_verifying',
+        templateParams: { reference: ref || 'pending confirmation' },
+        text:
+          `Asante. We've got your payment notification${ref ? ` (ref *${ref}*)` : ''}` +
+          `${amountKes ? ` for KSh ${amountKes.toLocaleString('en-KE')}` : ''} and our team is ` +
+          `${VERIFYING_MARKER} now.\n\n` +
+          `We'll confirm here as soon as it clears and send your tracking code — usually within a few minutes.`,
+      });
+    }
+    return;
+  }
+
+  // 3b. Quote confirmation.
   if (CONFIRM_WORDS.test(body)) {
     const { rows } = await db.query(
       `SELECT id, quote_kes FROM wa_orders
@@ -301,48 +380,6 @@ export async function handleInbound(db, contact, message) {
       });
       return;
     }
-  }
-
-  // 3b. Customer says they've paid. With STK unavailable every payment is
-  // checked against the M-Pesa statement by hand, so we answer this
-  // ourselves rather than letting the AI improvise (it used to read the
-  // message as a complaint and hand off with "let me get a colleague",
-  // which reads like nobody has their money). Tell them it's being
-  // verified, stamp the reference onto their open payment so the operator
-  // can match it, and page staff.
-  if (body && PAID_CLAIM.test(body)) {
-    const ref = extractMpesaReference(body);
-    notifyStaff(db, {
-      title: 'Payment claimed — verify on M-Pesa',
-      detail: `${contact.full_name || contact.phone} (${contact.customer_code || 'no code'}): "${body.slice(0, 160)}"${ref ? ` — ref ${ref}` : ''}`,
-      dedupeKey: `paid:${contact.id}:${ref || body.slice(0, 40)}`,
-    });
-
-    let amountKes = null;
-    try {
-      const open = await findOpenContactPayment(db, contact.id);
-      if (open) {
-        amountKes = Number(open.amount_due_kes);
-        if (ref) await attachMpesaReference(db, open.id, ref);
-      }
-    } catch (e) {
-      console.warn('[waStateMachine] payment-claim bookkeeping failed:', e?.message);
-    }
-
-    // One reassurance per burst — customers often send the M-Pesa SMS and
-    // "I have paid" as two messages seconds apart.
-    if (!await sentRecently(db, contact.id, VERIFYING_MARKER, 30)) {
-      await sendToContact(db, contact, {
-        templateKey: 'payment_verifying',
-        templateParams: { reference: ref || 'pending confirmation' },
-        text:
-          `Asante. We've got your payment notification${ref ? ` (ref *${ref}*)` : ''}` +
-          `${amountKes ? ` for KSh ${amountKes.toLocaleString('en-KE')}` : ''} and our team is ` +
-          `${VERIFYING_MARKER} now.\n\n` +
-          `We'll confirm here as soon as it clears and send your tracking code — usually within a few minutes.`,
-      });
-    }
-    return;
   }
 
   // 4. AI answer — knowledge base + who they are + what we remember +

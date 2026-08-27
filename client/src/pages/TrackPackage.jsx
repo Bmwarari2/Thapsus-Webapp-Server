@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
+import { useAppConfig } from '../hooks/useAppConfig'
 import { ordersApi } from '../api'
 import { useOrderUpdates } from '../hooks/useRealtimeUpdates'
 import { SEO } from '../components/SEO'
@@ -118,6 +119,7 @@ const WaFlowResult = ({ tracking }) => {
 export const TrackPackage = () => {
   const { t } = useLanguage()
   const { isAuthenticated } = useAuth()
+  const { support_whatsapp } = useAppConfig()
   const [searchParams] = useSearchParams()
   const { tn } = useParams()
   const [trackingNumber, setTrackingNumber] = useState(tn || searchParams.get('q') || '')
@@ -328,13 +330,14 @@ export const TrackPackage = () => {
                 </div>
               </div>
 
-              <Link to="/support" className="group flex items-center justify-between gap-4 rounded-3xl bg-surface border border-line hover:border-line-strong p-6 transition-colors">
+              <a href={`https://wa.me/${support_whatsapp}`} target="_blank" rel="noopener noreferrer"
+                className="group flex items-center justify-between gap-4 rounded-3xl bg-surface border border-line hover:border-line-strong p-6 transition-colors">
                 <div>
                   <h4 className="font-bold text-white">Need assistance?</h4>
-                  <p className="text-xs text-mute">Connect with a dispatcher</p>
+                  <p className="text-xs text-mute">Message us on WhatsApp</p>
                 </div>
                 <span className="w-11 h-11 rounded-2xl bg-white/[0.06] grid place-items-center text-ember-400 group-hover:bg-ember-gradient group-hover:text-white transition-all"><ArrowRight size={20} /></span>
-              </Link>
+              </a>
             </div>
           </div>
         )}
@@ -354,7 +357,8 @@ export const TrackPackage = () => {
               <div className="card empty-state">
                 <Package size={44} className="text-white/15 mb-4" />
                 <p className="empty-state-title">You don't have any packages yet.</p>
-                <Link to="/orders/new" className="btn-primary glass-sheen mt-4">Create first order</Link>
+                <a href={`https://wa.me/${support_whatsapp}`} target="_blank" rel="noopener noreferrer"
+                  className="btn-primary glass-sheen mt-4">Order on WhatsApp</a>
               </div>
             )}
 

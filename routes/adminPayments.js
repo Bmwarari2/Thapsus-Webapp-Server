@@ -1,21 +1,32 @@
 // routes/adminPayments.js
-// Admin queue for M-Pesa payment review. Stripe payments don't need admin
-// touch — the webhook flips them automatically. M-Pesa payments arrive as
-// 'awaiting_review' once the customer pastes their confirmation SMS; an
-// admin verifies the parsed reference + amount against the actual M-Pesa
+// Staff queue for M-Pesa payment review (operators and admins). Stripe
+// payments don't need this touch — the webhook flips them automatically.
+// M-Pesa payments arrive as 'awaiting_review' once the customer pastes
+// their confirmation SMS (legacy flow) or confirms a quote on WhatsApp;
+// a reviewer verifies the reference + amount against the actual M-Pesa
 // statement before approving.
 
 import express from 'express';
+import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { markPaymentPaid } from '../utils/markPaymentPaid.js';
+import { sendToContact } from '../utils/waSend.js';
+import { mpesaTill } from '../utils/waPayments.js';
+import { pushToStaff } from './events.js';
 
 const router = express.Router();
 
-const ADMIN = requireRole('admin'); // tighter than the staff list — only admins approve money
+// Operators approve too (admins pass via requireRole's bypass). This
+// queue used to be admin-only, which made one admin the serial bottleneck
+// for every order in the business — operators were even shown a button
+// pointing at a page they could not open. The audit trail holds either
+// way: markPaymentPaid stamps reviewed_by/reviewed_at with whoever
+// approved, and the override reason is persisted on the row.
+const REVIEWER = requireRole('operator');
 
 /** GET /api/admin/payments/pending — every M-Pesa payment awaiting review. */
-router.get('/pending', authMiddleware, ADMIN, async (req, res) => {
+router.get('/pending', authMiddleware, REVIEWER, async (req, res) => {
   try {
     // LEFT JOINs: legacy payments hang off a users row, WhatsApp-flow
     // payments hang off a wa_contacts row (user_id IS NULL).
@@ -64,7 +75,7 @@ router.get('/pending', authMiddleware, ADMIN, async (req, res) => {
  * `uq_payments_mpesa_ref` partial unique index, which fires at the
  * `mpesa-confirmation` step (not here).
  */
-router.post('/:id/approve', authMiddleware, ADMIN, async (req, res) => {
+router.post('/:id/approve', authMiddleware, REVIEWER, async (req, res) => {
   try {
     const { override_reason } = req.body || {};
     const overrideReason = typeof override_reason === 'string'
@@ -150,8 +161,17 @@ router.post('/:id/approve', authMiddleware, ADMIN, async (req, res) => {
   }
 });
 
-/** POST /api/admin/payments/:id/reject — admin rejects with a reason; customer can resubmit. */
-router.post('/:id/reject', authMiddleware, ADMIN, async (req, res) => {
+/**
+ * POST /api/admin/payments/:id/reject — reject with a reason; the
+ * customer can pay again.
+ *
+ * The reason reaches the CUSTOMER for WhatsApp-flow payments. Rejection
+ * used to write the reason to the database and send nothing: the
+ * customer's last message from us was "our team is verifying it with
+ * M-Pesa now", followed by permanent silence — after they had sent
+ * money. Tell them what happened and how to put it right.
+ */
+router.post('/:id/reject', authMiddleware, REVIEWER, async (req, res) => {
   const { reason } = req.body || {};
   if (!reason || typeof reason !== 'string' || reason.trim().length < 3) {
     return res.status(400).json({ success: false, message: 'reason is required (min 3 chars)' });
@@ -165,13 +185,51 @@ router.post('/:id/reject', authMiddleware, ADMIN, async (req, res) => {
               reviewed_at = NOW(),
               updated_at = NOW()
         WHERE id = $1 AND status = 'awaiting_review'
-        RETURNING id, status`,
+        RETURNING id, status, target_kind, target_id, wa_contact_id, amount_due_kes`,
       [req.params.id, reason.trim(), req.user.id]
     );
-    if (!rows[0]) {
+    const payment = rows[0];
+    if (!payment) {
       return res.status(409).json({ success: false, message: 'Payment is not awaiting review' });
     }
-    res.json({ success: true, payment_id: rows[0].id, status: rows[0].status });
+
+    // Best-effort customer notice + audit trail; the rejection itself is
+    // already committed and must not 500 over a failed send.
+    if (payment.target_kind === 'wa_order' && payment.wa_contact_id) {
+      try {
+        const { rows: contactRows } = await req.db.query(
+          `SELECT id, phone, full_name FROM wa_contacts WHERE id = $1`,
+          [payment.wa_contact_id]
+        );
+        const contact = contactRows[0];
+        const amount = Number(payment.amount_due_kes);
+        if (contact) {
+          await sendToContact(req.db, contact, {
+            text:
+              `We couldn't verify your payment of KSh ${amount.toLocaleString('en-KE')}: ` +
+              `${reason.trim()}\n\n` +
+              `If you have paid, reply here with the M-Pesa confirmation SMS and we'll check again. ` +
+              `To pay: Lipa na M-Pesa, Buy Goods, Till *${mpesaTill()}*.`,
+            sentBy: req.user.id,
+          });
+        }
+        await req.db.query(
+          `INSERT INTO wa_order_events (id, order_id, from_status, to_status, actor_user_id, note)
+           SELECT $1, $2, status, status, $3, $4 FROM wa_orders WHERE id = $2`,
+          [uuidv4(), payment.target_id, req.user.id,
+           `Payment ${payment.id} rejected — ${reason.trim().slice(0, 180)}`]
+        );
+        pushToStaff('wa_pipeline_update', {
+          order_id: payment.target_id,
+          contact_id: payment.wa_contact_id,
+          payment_rejected: true,
+        });
+      } catch (e) {
+        console.warn(`[adminPayments] rejection notice for ${payment.id} failed:`, e?.message);
+      }
+    }
+
+    res.json({ success: true, payment_id: payment.id, status: payment.status });
   } catch (err) {
     logRouteError(req, res, err, 'POST /admin/payments/:id/reject');
     res.status(500).json({ success: false, message: 'Failed to reject payment' });

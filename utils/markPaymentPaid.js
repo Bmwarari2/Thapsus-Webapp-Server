@@ -339,7 +339,8 @@ async function firePostPaidHook(db, payment) {
  */
 async function fireWaOrderPostPaidHook(db, payment) {
   const { rows } = await db.query(
-    `SELECT o.*, c.id AS c_id, c.phone, c.full_name, c.customer_code
+    `SELECT o.*, c.id AS c_id, c.phone, c.full_name, c.customer_code,
+            c.delivery_address
        FROM wa_orders o JOIN wa_contacts c ON c.id = o.contact_id
       WHERE o.id = $1`,
     [payment.target_id]
@@ -352,6 +353,9 @@ async function fireWaOrderPostPaidHook(db, payment) {
   const contact = {
     id: order.c_id, phone: order.phone,
     full_name: order.full_name, customer_code: order.customer_code,
+    // The receipt PDF prints the delivery address; without this the
+    // "Deliver to" block rendered blank.
+    delivery_address: order.delivery_address,
   };
   const { sendToContact } = await import('./waSend.js');
   const { pushToStaff } = await import('../routes/events.js');

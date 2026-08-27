@@ -25,28 +25,25 @@ export const ProtectedRoute = ({ children, adminOnly = false, roles = null, fina
     return <Navigate to="/login" replace />
   }
 
-  // Influencers are confined to their own section. Any protected route that
-  // doesn't explicitly list the 'influencer' role bounces them back to their
-  // dashboard, so they never land on the customer/ops/admin surfaces.
-  if (user?.role === 'influencer') {
-    const allowsInfluencer = Array.isArray(roles) && roles.includes('influencer')
-    if (!allowsInfluencer) return <Navigate to="/influencer" replace />
-  }
+  // Where a rejected user lands. The old fallbacks pointed at /dashboard
+  // and /influencer — routes that no longer exist, so every role failure
+  // ended on the 404 page. Staff go to their console; anyone else home.
+  const fallback = ['operator', 'admin'].includes(user?.role) ? '/ops/inbox' : '/'
 
   if (adminOnly && !isAdmin) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={fallback} replace />
   }
 
   // Finance dashboard is gated to a "selected admin" (can_manage_finances),
   // not every admin.
   if (financeOnly && !canManageFinances) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={fallback} replace />
   }
 
   if (Array.isArray(roles) && roles.length > 0) {
     const role = user?.role
     if (role !== 'admin' && !roles.includes(role)) {
-      return <Navigate to="/dashboard" replace />
+      return <Navigate to={fallback} replace />
     }
   }
 

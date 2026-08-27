@@ -6,7 +6,6 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { waApi, paymentsApi } from '../../api'
-import { useAuth } from '../../context/AuthContext'
 import { GlassStyles, GlassCard, PageHeading, StatusBadge } from '../../components/GlassUI'
 import { PrintableParcelLabel } from '../../components/PrintableParcelLabel'
 import { useWaPipelineUpdates } from '../../hooks/useRealtimeUpdates'
@@ -40,7 +39,6 @@ function nextActions(order) {
 
 export function WaOrderDetail() {
   const { id } = useParams()
-  const { user } = useAuth()
   const [order, setOrder] = useState(null)
   const [events, setEvents] = useState([])
   const [payments, setPayments] = useState([])
@@ -161,7 +159,6 @@ export function WaOrderDetail() {
   const awaitingReview = payments.find((p) => p.status === 'awaiting_review')
   const feePayable = ['in_kenya', 'delivery_fee_pending'].includes(order.status)
     && !order.delivery_fee_waived && !order.delivery_fee_paid_at && Number(order.delivery_fee_kes) > 0
-  const isAdmin = user?.role === 'admin'
   // Label needs something to call the item: the operator's note, else
   // the retailer host off the first product link.
   const itemName = order.product_note
@@ -355,21 +352,17 @@ export function WaOrderDetail() {
                   ? ` · customer's ref ${awaitingReview.mpesa_reference}`
                   : ''}
               </p>
-              {isAdmin ? (
-                <div className="flex flex-wrap gap-2">
-                  <input value={mpesaRef} onChange={(e) => setMpesaRef(e.target.value.toUpperCase())}
-                    placeholder="M-Pesa ref (optional)" maxLength={32}
-                    className="flex-1 min-w-[10rem] px-3 py-2 rounded-lg bg-white/5 border border-line text-white placeholder:text-mute text-sm focus:outline-none focus:border-ember-500/50" />
-                  <button onClick={markPaid} disabled={busy}
-                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold disabled:opacity-50">
-                    <CheckCircle2 size={15} /> Payment received
-                  </button>
-                </div>
-              ) : (
-                <p className="text-xs text-amber-300/80">
-                  An admin confirms till payments (Admin → Payments to approve).
-                </p>
-              )}
+              {/* Operators record payments too — this was admin-only, and
+                  operators were pointed at a queue page they couldn't open. */}
+              <div className="flex flex-wrap gap-2">
+                <input value={mpesaRef} onChange={(e) => setMpesaRef(e.target.value.toUpperCase())}
+                  placeholder="M-Pesa ref (optional)" maxLength={32}
+                  className="flex-1 min-w-[10rem] px-3 py-2 rounded-lg bg-white/5 border border-line text-white placeholder:text-mute text-sm focus:outline-none focus:border-ember-500/50" />
+                <button onClick={markPaid} disabled={busy}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold disabled:opacity-50">
+                  <CheckCircle2 size={15} /> Payment received
+                </button>
+              </div>
             </div>
           )}
 
@@ -428,7 +421,7 @@ export function WaOrderDetail() {
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusBadge status={p.status} />
-                    {p.status === 'awaiting_review' && isAdmin && (
+                    {p.status === 'awaiting_review' && (
                       <button onClick={() => approvePayment(p.id)} disabled={busy}
                         className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold">
                         Approve
@@ -438,9 +431,6 @@ export function WaOrderDetail() {
                 </div>
               ))}
             </div>
-            {awaitingReview && !isAdmin && (
-              <p className="text-xs text-amber-300/80 mt-3">An admin approves manual payments (Admin → payments queue).</p>
-            )}
           </GlassCard>
 
           <GlassCard className="p-5">
