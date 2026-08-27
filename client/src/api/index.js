@@ -293,6 +293,8 @@ export const waApi = {
   sendMessage: (contactId, payload) =>
     api.post(`/wa/conversations/${contactId}/messages`, payload),
   markRead: (contactId) => api.post(`/wa/conversations/${contactId}/read`),
+  /** Silence the unanswered-conversation reminder for the current message. */
+  dismissReminder: (contactId) => api.post(`/wa/conversations/${contactId}/dismiss-reminder`),
   setAi: (contactId, enabled) => api.post(`/wa/conversations/${contactId}/ai`, { enabled }),
   updateContact: (contactId, data) => api.put(`/wa/contacts/${contactId}`, data),
   uploadUrl: (filename, content_type) =>

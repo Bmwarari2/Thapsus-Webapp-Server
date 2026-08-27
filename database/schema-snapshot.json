@@ -3369,6 +3369,11 @@
     "nn": true,
     "t": "text"
    },
+   "unanswered_alerted_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
    "unread_count": {
     "hd": true,
     "nn": true,

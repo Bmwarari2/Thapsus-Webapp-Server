@@ -58,3 +58,54 @@ describe('sweepOnce', () => {
     expect(sendText).toHaveBeenCalledWith('254712345678', 'hello', { idempotencyKey: 'msg-1-r1' });
   });
 });
+
+// ── Unanswered-conversation reminder: once per stretch, silenceable ──────────
+// This used to re-page hourly for as long as a conversation sat
+// unanswered. It now fires once, 15 minutes in, claims the stretch
+// (unanswered_alerted_at) before paging, and the inbox's "No reply
+// needed" button writes the same stamp to silence it pre-emptively.
+describe('unanswered-conversation reminder', () => {
+  const WAITING = {
+    id: 'c7', full_name: 'Grace', phone: '254712345678', customer_code: 'TC-1042',
+    last_message_at: new Date(Date.now() - 20 * 60000).toISOString(),
+    last_message_preview: 'is the promo still on?',
+  };
+
+  it('pages once and claims the stretch BEFORE paging', async () => {
+    const calls = [];
+    const pool = {
+      query: vi.fn(async (sql) => {
+        calls.push(sql);
+        if (sql.includes('unanswered_alerted_at IS NULL')) return { rows: [WAITING] };
+        if (sql.includes('SET unanswered_alerted_at')) return { rows: [], rowCount: 1 };
+        return { rows: [], rowCount: 0 };
+      }),
+    };
+    await sweepOnce(pool);
+    const claimIdx = calls.findIndex((sql) => sql.includes('SET unanswered_alerted_at'));
+    expect(claimIdx).toBeGreaterThan(-1);
+    expect(notifyStaff).toHaveBeenCalledWith(pool, expect.objectContaining({
+      title: expect.stringMatching(/unanswered/i),
+      detail: expect.stringContaining('No reply needed'),
+    }));
+    // The claim must land before the page went out.
+    const pageOrder = notifyStaff.mock.invocationCallOrder[0];
+    const claimOrder = pool.query.mock.invocationCallOrder[claimIdx];
+    expect(claimOrder).toBeLessThan(pageOrder);
+  });
+
+  it('the eligibility query excludes already-alerted (or silenced) stretches', async () => {
+    // The dedupe lives in SQL: unanswered_alerted_at newer than the last
+    // inbound keeps the row out of the result set entirely. Pin that the
+    // query carries the predicate, so a refactor can't quietly go back
+    // to hourly re-pages.
+    const pool = { query: vi.fn(async () => ({ rows: [], rowCount: 0 })) };
+    await sweepOnce(pool);
+    const sql = pool.query.mock.calls
+      .map(([s]) => s)
+      .find((s) => s.includes("interval '24 hours'") && s.includes("= 'in'"));
+    expect(sql).toContain('unanswered_alerted_at IS NULL');
+    expect(sql).toContain('unanswered_alerted_at < c.last_message_at');
+    expect(notifyStaff).not.toHaveBeenCalled();
+  });
+});

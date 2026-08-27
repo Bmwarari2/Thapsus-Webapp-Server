@@ -170,6 +170,30 @@ router.post('/conversations/:contactId/read', authMiddleware, STAFF, async (req,
 });
 
 /**
+ * POST /api/wa/conversations/:contactId/dismiss-reminder — silence the
+ * unanswered-conversation reminder for the CURRENT message.
+ *
+ * Some messages genuinely need no reply — a "thank you", an emoji, a
+ * screenshot for the record. Without this, the sweeper paged staff 15
+ * minutes later anyway. Stamping unanswered_alerted_at marks the current
+ * stretch as handled; a new customer message later re-arms the reminder
+ * automatically, so silencing never mutes the conversation for good.
+ */
+router.post('/conversations/:contactId/dismiss-reminder', authMiddleware, STAFF, async (req, res) => {
+  try {
+    const { rowCount } = await req.db.query(
+      `UPDATE wa_contacts SET unanswered_alerted_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [req.params.contactId]
+    );
+    if (rowCount === 0) return res.status(404).json({ success: false, message: 'Contact not found' });
+    res.json({ success: true });
+  } catch (err) {
+    logRouteError(req, res, err, 'POST /api/wa/conversations/:contactId/dismiss-reminder');
+    res.status(500).json({ success: false, message: 'Failed to dismiss the reminder' });
+  }
+});
+
+/**
  * Read a phone number the way an operator typed it.
  *
  * Kenyan numbers come in every shape and normalizeKenyanPhone knows them

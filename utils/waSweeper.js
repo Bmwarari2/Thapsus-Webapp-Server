@@ -206,8 +206,15 @@ async function sweepStalePayments(pool) {
 // whose LAST message is still the customer's — a handoff nobody picked
 // up, an AI outage, a link waiting on a quote. Capped at 24h back so a
 // restart doesn't replay ancient history.
+//
+// ONE reminder per unanswered stretch, 15 minutes in — this used to
+// re-page hourly for as long as the conversation sat unanswered, which
+// staff found more annoying than useful. wa_contacts.unanswered_alerted_at
+// records the stretch already alerted (or silenced via the inbox's
+// "No reply needed" button); a fresh customer message after a reply
+// re-arms it because the stamp is then older than the latest inbound.
 async function sweepUnansweredInbound(pool) {
-  const staleMin = minutes('WA_SLA_UNANSWERED_MINUTES', 30);
+  const staleMin = minutes('WA_SLA_UNANSWERED_MINUTES', 15);
   const { rows } = await pool.query(
     `SELECT c.id, c.full_name, c.phone, c.customer_code,
             c.last_message_at, c.last_message_preview
@@ -218,17 +225,25 @@ async function sweepUnansweredInbound(pool) {
         AND (SELECT m.direction FROM wa_messages m
               WHERE m.contact_id = c.id
               ORDER BY m.created_at DESC LIMIT 1) = 'in'
+        AND (c.unanswered_alerted_at IS NULL
+             OR c.unanswered_alerted_at < c.last_message_at)
       ORDER BY c.last_message_at ASC
       LIMIT 20`,
     [String(staleMin)]
   );
   for (const c of rows) {
+    // Claim before paging — a crash mid-loop reminds zero times, not two.
+    await pool.query(
+      `UPDATE wa_contacts SET unanswered_alerted_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [c.id]
+    );
     const ageMin = Math.round((Date.now() - new Date(c.last_message_at).getTime()) / MIN);
     await notifyStaff(pool, {
       title: 'Customer message unanswered',
       detail: `${c.full_name || c.phone} (${c.customer_code || 'no code'}) has been waiting ${ageMin} minutes: `
-        + `"${String(c.last_message_preview || '').slice(0, 120)}"`,
-      dedupeKey: `sla-unanswered:${c.id}:${hourBucket()}`,
+        + `"${String(c.last_message_preview || '').slice(0, 120)}". `
+        + `Reply from the inbox, or tap "No reply needed" there if nothing is required. This reminder won't repeat.`,
+      dedupeKey: `sla-unanswered:${c.id}:${c.last_message_at}`,
     });
   }
 }
