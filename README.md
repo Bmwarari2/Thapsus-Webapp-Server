@@ -161,8 +161,8 @@ POST /api/wa/webhook              — inbound WhatsApp (raw body, HMAC-verified,
      /api/wa/conversations…       — operator inbox: threads, messages, send, read, per-chat AI toggle
      /api/wa/orders…              — pipeline: list/search, quote, confirm, request payment, mark paid,
                                     advance, waive fee, receipt, scan resolver
-     /api/wa/settings             — markup, promo, fees, welcome media, template map, AI, staff alerts,
-                                    webhook doctor (admin)
+     /api/wa/settings             — markup, FX buffer, promo, fees, welcome media, template map, AI,
+                                    staff alerts, webhook doctor (admin)
      /api/admin/payments          — manual M-Pesa approval queue (admin)
      /api/auth                    — operator login, /me, password reset, logout, supabase-token
      /api/tracking/:code          — public tracking (wa_orders first, legacy orders as fallback)
