@@ -10,32 +10,9 @@ import { GlassStyles, GlassCard, PageHeading, StatusBadge } from '../../componen
 import { PrintableParcelLabel } from '../../components/PrintableParcelLabel'
 import { useWaPipelineUpdates } from '../../hooks/useRealtimeUpdates'
 import MTAANI_AGENTS from '../../lib/pickupMtaaniAgents.json'
-
-// Which single-step advance buttons to offer per current status. Payment
-// statuses move via the payments machinery, not these buttons.
-const NEXT_ACTIONS = {
-  paid: [{ to: 'purchased', label: 'Mark purchased' }],
-  purchased: [{ to: 'in_kenya', label: 'Arrived in Kenya' }],
-  in_kenya: [{ to: 'dispatched', label: 'Dispatch' }],
-  delivery_fee_pending: [{ to: 'dispatched', label: 'Dispatch' }],
-  dispatched: [{ to: 'delivered', label: 'Mark delivered' }],
-}
-
-// A collection order never leaves the building on a rider. Offering
-// Dispatch on one is how TRK-8831 was told "ready to collect at
-// Stanbank House" and then, seventeen seconds later, that a rider was
-// on the way to its address.
-const COLLECTION_ACTIONS = {
-  in_kenya: [{ to: 'collected', label: 'Mark as collected' }],
-  delivery_fee_pending: [{ to: 'collected', label: 'Mark as collected' }],
-}
-
-function nextActions(order) {
-  if (order.delivery_method === 'collection') {
-    return COLLECTION_ACTIONS[order.status] || []
-  }
-  return NEXT_ACTIONS[order.status] || []
-}
+// Stage buttons live in lib so they are unit-testable — a collection
+// order at 'purchased' once offered none at all (TRK-8826).
+import { nextActions } from '../../lib/orderStages'
 
 export function WaOrderDetail() {
   const { id } = useParams()
