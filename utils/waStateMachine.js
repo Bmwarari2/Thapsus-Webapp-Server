@@ -6,15 +6,27 @@
 // (bot replies, state transitions, operator alerts).
 //
 // Dispatch order:
+//   0. Empty message — a sticker, a contact card, an unsupported
+//      attachment. Nothing to answer, so nothing is sent; the inbox
+//      already has it with the badge raised.
 //   1. Onboarding — contact not yet 'active'. Leads with what we do and
 //      what we charge, then invites a product link; the name and delivery
 //      address are asked for while the customer is already waiting on a
 //      quote, which is the only moment those questions cost nothing.
 //      Name + address mints the Customer Code. No M-Pesa number is
 //      collected — payments are identified from the M-Pesa statement.
+//   1b. Product link — pages staff on WhatsApp and raises a sticky
+//      toast in the inbox, whoever holds the thread. Only a person can
+//      send a quote, and an unnoticed quote request is the most
+//      expensive thing this system can drop.
+//   1c. SHEIN product link with no cart — asks for the cart link
+//      instead. A product link often won't open on our side and never
+//      shows the size or colour picked. Said once per 30 minutes, and
+//      not at all while a human holds the thread.
 //   2. Tracking auto-reply — an 'active' contact texting a TRK-#### code
 //      gets the order's live status back, no operator needed (Phase 4
-//      self-service).
+//      self-service). Collection orders get collection wording — they
+//      never enter dispatch.
 //   3. Quote confirmation — a "yes"-like reply while the contact has
 //      exactly one order awaiting confirmation flips it to 'confirmed',
 //      opens the awaiting_review payment row, and sends till

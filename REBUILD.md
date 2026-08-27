@@ -147,14 +147,32 @@ delivered`, each step firing its own WhatsApp message. Parcel labels are
 printed from the order screen (100 × 150 mm thermal, Code128 barcode) and
 can be scanned back with the camera scanner or a USB wedge.
 
-On arrival in Kenya the **promo toggle** decides what happens:
-`promo_active` with `promo_type=waive_fee` waives the last-mile fee, tells
-the customer, and leaves the order dispatchable. Otherwise the order goes
-to `delivery_fee_pending` and the customer is asked for the fee. It can
-also be waived per-order from the dashboard.
+Arrival in Kenya branches four ways, and each branch has its own
+approved template because all four fire long after the customer's
+24-hour window has shut:
+
+| Order | Arrival message | Next |
+| --- | --- | --- |
+| Collection | `arrived_collect` — the office address and opening hours | `collected`, and the only button is **Mark as collected** |
+| Delivery, fee already in the quote | `arrived_paid` — nothing owed | `dispatched → delivered` |
+| Delivery, fee outstanding, promo waiving it | `arrived_waived` | `dispatched → delivered` |
+| Delivery, fee outstanding | `arrived_fee` — the amount and how to pay | `delivery_fee_pending` until settled or waived |
+
+Collection orders never enter dispatch. Marking one collected sends
+nothing — the arrival message already told them where to come, and the
+customer is standing at the counter when the button is pressed.
+
+For **delivery** orders, staff can assign a Pickup Mtaani agent
+(`wa_orders.pickup_point`) instead of a door drop, which changes the
+dispatch message from "our rider will call you" to the named point. The
+customer names an area; the assistant is forbidden from confirming an
+agent, having once told a customer we cover Hurlingham and been right
+only by luck. Which agent serves an area is the team's call, made
+against a list only they can see.
 
 At any point the customer can text their tracking code and get a live
-status reply with no operator involved.
+status reply with no operator involved, worded for collection or
+delivery as appropriate.
 
 ---
 
@@ -201,9 +219,9 @@ pass once the last legacy order is delivered — ask for "stage F cleanup".
 
 ## 4. What was added
 
-### Schema — migrations `0004` and `0005`
+### Schema — migrations `0004`–`0013`
 
-Both are additive only and are already applied to production.
+All additive only, all applied to production.
 
 | Table | Purpose |
 | --- | --- |
@@ -219,8 +237,23 @@ duplicated: `user_id` is now nullable, `wa_contact_id` was added, the
 `target_kind` check accepts `'wa_order'`, and a CHECK enforces that a
 payment belongs to either a user or a WhatsApp contact.
 
-Migration `0005` added `human_takeover_at`, `ai_summary` and
-`ai_summary_at` to `wa_contacts`.
+The later migrations are all small, and each one exists because
+something went wrong in production:
+
+| Migration | What it changed | Why |
+| --- | --- | --- |
+| `0005` | `wa_contacts.human_takeover_at`, `ai_summary`, `ai_summary_at` | Human takeover and durable AI memory |
+| `0006` | Folded the archived 254Shippers database in | Same business, separate build — its people, orders, payments and conversations |
+| `0007` | `wa_orders.supplier_ref` | The retailer's own order number, so "which of ours is this?" is answerable |
+| `0008` | Dropped `awaiting_mpesa` from the onboarding state CHECK | Nothing asks for an M-Pesa number any more |
+| `0009` | Cleared `delivery_fee_pending` on settled orders | Paying or waiving the fee left the status saying it was still owed |
+| `0010` | `wa_orders.delivery_method`, `delivery_fee_in_quote` | The last-mile fee is quoted with the order |
+| `0011` | `collected` status | Collection orders never enter dispatch |
+| `0012` | `wa_orders.pickup_point` | The admin picks the Pickup Mtaani agent, not the customer |
+| `0013` | `users.phone` nullable | Staff accounts are created from a name and an email |
+
+Contacts that already had an M-Pesa number keep it — `0008` dropped only
+the onboarding state, not the column.
 
 ### WhatsApp transport — `utils/sentdm.js`
 
@@ -257,12 +290,20 @@ Everything that happens on an inbound message, in strict order. Money and
 state run **before** the AI is ever consulted and stay fully
 deterministic:
 
+0. **Empty message** — a sticker, a contact card, an unsupported
+   attachment. Nothing to answer, so nothing is sent. One customer's
+   empty message was read as their delivery address, failed validation,
+   and got them asked the same question again.
 1. **Human takeover check** — is the assistant paused on this chat?
-2. **Onboarding** — anything not yet `active`
-3. **Tracking auto-reply** — a `TRK-####` in the message
-4. **Quote confirmation** — a yes-like reply against exactly one quoted order
-5. **Payment claim** — "I've paid" or a pasted M-Pesa SMS
-6. **AI fall-through** — everything else
+2. **Product link** — pages staff on WhatsApp and raises a sticky toast
+   in the inbox, whoever holds the thread
+3. **SHEIN cart request** — a SHEIN link with no `shc=` cannot be
+   quoted, so the cart link is asked for before an operator discovers it
+4. **Onboarding** — anything not yet `active`
+5. **Tracking auto-reply** — a `TRK-####` in the message
+6. **Quote confirmation** — a yes-like reply against exactly one quoted order
+7. **Payment claim** — "I've paid" or a pasted M-Pesa SMS
+8. **AI fall-through** — everything else
 
 Conversation state lives entirely on `wa_contacts.state`. There are no
 in-memory sessions, so a deploy or restart never loses a customer
@@ -346,6 +387,14 @@ truncated HMAC over the order id, keyed on `JWT_SECRET` — and
 URL. Because it re-signs on each click the link never expires, which the
 old 7-day signed URL did. Nothing is stored, so there was no migration.
 
+Inbox attachments take the same route. `utils/mediaLink.js` mints a
+`/m/<token>` link over the private `wa-media` bucket, and
+`routes/mediaRedirect.js` re-signs it on each click. Inbound media is a
+separate problem: sent.dm does not put the file on the hydrated message,
+so `extractInboundMedia()` looks through the raw webhook envelope as
+well, checking a list of known keys before falling back to a bounded
+deep scan for anything that looks like a media URL.
+
 `PrintableParcelLabel.jsx` follows the standard shipping-label
 convention: ruled outer box, a boxed TO: block sized to be read at arm's
 length, a two-column code grid, and a Code128 barcode across the bottom
@@ -360,10 +409,10 @@ Five screens under `/ops`, all behind the operator role:
 | --- | --- |
 | `/ops/inbox` | Unified WhatsApp inbox — conversations, unread badges, live SSE, composer with media upload, per-chat AI toggle, "create order from link" |
 | `/ops/pipeline` | Five-column board (Quoting / Paid / Purchased / In Kenya / Delivered), global `TC-`/`TRK-` search, camera scanner |
-| `/ops/orders/:id` | Quote entry with live KES preview, payment actions, status advance, fee settle/waive, receipt, printable label |
+| `/ops/orders/:id` | Quote entry with live KES preview, delivery method, pickup-point picker, payment actions, status advance, fee settle/waive, receipt, printable label |
 | `/ops/payments` | Manual M-Pesa approval queue (admin) — the pipeline's real bottleneck, so it gets its own screen and nav item |
 | `/ops/settings` | Markup, promo toggle, default fee, welcome media, template map, AI toggle + knowledge base, staff alert numbers, webhook doctor (admin) |
-| `/ops/team` | Staff accounts and recent server errors (admin) — what survived the old admin dashboard |
+| `/ops/team` | Staff accounts and recent server errors (admin) — what survived the old admin dashboard. New accounts are created with a temporary password shown once on screen; no email is sent |
 
 The public site keeps the home page, public tracking, FAQ, articles,
 legal pages and operator login. Everything else is gone.
@@ -377,7 +426,7 @@ so they don't get "fixed" by accident.
 
 **No emojis anywhere a customer can see.** Removed from the state
 machine, the pipeline alerts, the quote and till instructions, the PDF
-receipt, all 13 templates and the homepage WhatsApp prefill. The
+receipt, all eleven templates and the homepage WhatsApp prefill. The
 assistant's guardrails forbid them too, so the model can't reintroduce
 what the templates dropped. Operator dashboard chrome keeps its icons.
 
@@ -428,28 +477,53 @@ Dead variables to remove are listed in [`CUTOVER.md`](./CUTOVER.md) §5.
 
 ### Supabase Storage
 
-A **private** bucket named `receipts` must exist. Receipts are written to
-`receipts/<orderId>/<paymentId>.pdf` with upsert, so a retry overwrites
-rather than duplicating.
+Two **private** buckets must exist: `receipts` and `wa-media`. Receipts
+are written to `receipts/<orderId>/<paymentId>.pdf` with upsert, so a
+retry overwrites rather than duplicating; inbox attachments go to
+`wa-media`. Neither is publicly readable — both are served through the
+re-signing short links (`/r/`, `/m/`).
+
+Storage is not reachable from SQL. Erasing a customer's data means
+deleting their objects through the Storage API separately; a `DELETE`
+against `storage.objects` is refused by Supabase and rolls the whole
+transaction back.
 
 ### WhatsApp templates
 
 Free-form replies work inside WhatsApp's 24-hour customer-service window,
 which covers every reply to a customer message. Business-initiated
-messages outside that window need approved templates.
-`sentdm-templates.json` holds all 13 ready to upload; once approved, map
-them in `/ops/settings` → template map. Unmapped keys keep falling back
-to free text.
+messages outside that window need approved templates — and arrival,
+dispatch and receipt land two to three weeks after the customer last
+wrote in, so their window is always shut.
+
+All eleven slots are mapped, so nothing the code can send falls back to
+free text. Six were approved from `sentdm-templates.json` under `tc_`
+names; the other five keep the names they were approved under before
+that manifest existed. `tc_arrived_waived` was classified MARKETING by
+Meta and can be refused for anyone opted out of marketing — it only
+fires when the promo toggle waives the delivery fee. The full map and
+the reasoning are in [`CUTOVER.md`](./CUTOVER.md) §5.
+
+A stored map is merged **over** the defaults per key, never swapped in
+for them. Production once held a four-key map, and a wholesale replace
+made the other seven resolve to nothing — every one of those sends went
+out as free text and was refused. To disable a slot deliberately, map it
+to an empty string.
 
 ### Verification
 
 Every change runs `npm test`, `npm run check:drift -- --snapshot` and
 `npm run build`. The WhatsApp layer is covered by unit tests for the
-state machine (61 cases: onboarding edges, tracking formats, confirmation
-ambiguity, payment claims, takeover and resume, both AI sentinels),
-the sentinel classifier, order flow transitions, code minting, sent.dm
-signature verification, receipt rendering and receipt links, plus an
-`appBoot` test pinning the `/r/` route above the SPA fallback.
+state machine (79 cases: onboarding edges, empty messages, tracking
+formats for both delivery and collection, confirmation ambiguity,
+payment claims, SHEIN cart requests, takeover and resume, both AI
+sentinels), the sentinel classifier, order flow transitions, code
+minting, quote and delivery-fee arithmetic, fee settlement, sent.dm
+signature verification and inbound media extraction, receipt rendering,
+receipt and media short links, the template-variable orderings, and the
+WhatsApp text formatter. Integration suites cover order creation and
+staff-account creation end to end, and an `appBoot` test pins the `/r/`
+and `/m/` routes above the SPA fallback.
 
 ### Known limitation
 
@@ -474,3 +548,18 @@ Commits are on `claude/thapsus-cargo-simplify-jl983m`, oldest first.
 | AI | `0eeb0d0`, `d337ac1`, `f131e20`, `59ac2ed` | Gemini assistant; AI-first onboarding; model discovery; live order context |
 | Ops reality | `b45cf55`, `862dd9b` | Manual payments + staff alerts; handoff acknowledgement, takeover, AI memory |
 | Polish | `624cc3a`, `006a590`, `7888a8c`, `a1ef0e3` | Payment verification reply + approval path; no emojis, short receipt links, 24h delivery; structured tracking reply, label and receipt redesign; OFF_TOPIC vs HANDOFF |
+
+Merged to `main` since; later work is on `main` directly and grouped by
+theme rather than by commit:
+
+| Theme | What |
+| --- | --- |
+| Sales-first opening | The assistant leads with what we do and what we charge, invites a product link, and asks for the name and address only while the customer is waiting on a quote. M-Pesa collection dropped (`0008`) |
+| Per-order markup | `markup_pct` moved onto the order — the 10% is a SHEIN service fee, and the weight-based UK and Dubai lanes carry none |
+| Delivery fee up front | Quoted with the order rather than requested on arrival (`0010`); `delivery_fee_in_quote` keeps older orders on the flow they were quoted under |
+| Collection orders | `collected` status (`0011`) — collection skips dispatch and delivery entirely |
+| Pickup Mtaani | `wa_orders.pickup_point` (`0012`), assigned by staff from the agent list; the assistant may recommend an area but never confirms an agent |
+| Template map | Every slot mapped, and a stored map now merges over the defaults instead of replacing them — the bug that silently dropped seven templates |
+| Inbox media | `/m/` short links over the `wa-media` bucket, inbound media pulled from the raw webhook envelope, and a WhatsApp-markup renderer so `*bold*` stops showing as asterisks |
+| Staff accounts | Created from a name and an email with a temporary password shown once; no invitation email, phone optional (`0013`) |
+| SHEIN carts | A SHEIN product link is answered with a request for the cart link, deterministically, ahead of the AI |

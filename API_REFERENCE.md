@@ -57,6 +57,13 @@ bot replies. Not called by anything you own.
 | PUT | `/wa/contacts/:contactId` | Edit name, delivery address, M-Pesa number (never asked for — kept for STK on contacts that already have one). |
 | POST | `/wa/upload-url` | `{ filename, content_type }` → signed Supabase Storage PUT for outbound media. |
 
+Media sent from the inbox goes out as a short `/m/:token` link rather
+than its Supabase signed URL: the signed one runs to several hundred
+characters of JWT and expires after seven days, so a message opened later
+led nowhere. Inbound attachments are stored on the message
+(`media_url` / `media_type`) and rendered in the thread — images inline,
+everything else as a link.
+
 ---
 
 ## WhatsApp — orders (`/api/wa/orders`, operator)
@@ -70,6 +77,7 @@ bot replies. Not called by anything you own.
 | GET | `/wa/orders/:id` | Order + contact + audit trail + payments. |
 | POST | `/wa/orders/:id/quote` | **Idempotent.** `{ usd_price, markup_pct?, delivery_method? }`. Server computes `usd × live USD_KES × (1 + markup/100)`, snapshots the inputs, sends the quote. `markup_pct` is per-order (0–100), defaulting to the settings value — the 10% is a SHEIN charge, so UK (£9/kg + £3) and Dubai ($9/kg) orders pass `0`. `delivery_method` is `delivery` (adds the last-mile fee to the quote) or `collection` (adds nothing); it defaults to the contact's `delivery_preference`, then to `delivery`. 409 unless status is `quoting`/`quoted`; 503 if the FX rate is stale. |
 | POST | `/wa/orders/:id/confirm` | Operator confirms on the customer's behalf. Silent — the payment prompt follows separately. |
+| PATCH | `/wa/orders/:id/pickup-point` | `{ pickup_point }` — staff assign the Pickup Mtaani agent; an empty value clears it. The customer names an area, never an agent: the assistant is forbidden from confirming a point. Setting one changes the dispatch message from "our rider will call you" to the named point. |
 | POST | `/wa/orders/:id/request-payment` | **Idempotent.** `{ method: 'stk'\|'manual', purpose: 'order'\|'delivery_fee', phone? }`. `manual` opens/reuses an `awaiting_review` payment and sends till instructions. `stk` returns 409 `stk_unavailable` unless `MPESA_PROVIDER=lipana`. |
 | POST | `/wa/orders/:id/mark-paid` | **Admin. Idempotent.** `{ mpesa_reference?, note? }`. Get-or-creates the payment for whatever the order owes, stamps the reference, settles through `markPaymentPaid` — minting the tracking code and sending the receipt. |
 | POST | `/wa/orders/:id/advance` | `{ to_status, note? }`. Validated single-step move; each fires its WhatsApp alert. `paid` is not operator-advanceable. Refuses `dispatched` while an unwaived fee is outstanding. |
@@ -114,6 +122,7 @@ bot replies. Not called by anything you own.
 | --- | --- | --- |
 | GET | `/api/tracking/:trackingNumber` | Status-only lookup, rate-limited. Checks `wa_orders.tracking_code` first, falls back to legacy `orders.tracking_number`. |
 | GET | `/r/:token` | Short receipt link. Verifies the HMAC and 302s to a freshly signed 10-minute PDF URL. 404 (HTML) on anything malformed, unknown or unsigned. |
+| GET | `/m/:token` | Short media link, same shape. The token carries the storage path, so the HMAC is the only thing keeping it from reaching any object the service key can — the bucket is pinned in `utils/mediaLink.js`, and traversal and absolute paths are rejected before the HMAC is consulted. |
 | GET | `/api/exchange/rates` · `/convert` · `/health` | FX rates. |
 | GET | `/api/app-config` | Runtime client config. |
 | GET | `/sitemap.xml` · `/robots.txt` | SEO. |
@@ -163,6 +172,10 @@ curl -N -H "Authorization: Bearer <sc_token>" https://thapsus.uk/api/events
 legacy order/transaction surfaces. `/ops/team` uses the users and
 error-log endpoints; the rest exists to finish pre-WhatsApp work and has
 no screen behind it.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| POST | `/admin/users/create` | `{ name, email, role, password?, phone? }`. **Sends no email.** A blank password is generated; either way it comes back as `temp_password` — the only time it is readable — for the screen to show once. `email_verified_at` is stamped at creation, because login refuses an unverified account with "activate your account from the link we emailed you" and no such link exists. No setup token is minted; `/admin/users/:id/resend-welcome` mints its own if one is ever wanted. |
 
 ---
 
