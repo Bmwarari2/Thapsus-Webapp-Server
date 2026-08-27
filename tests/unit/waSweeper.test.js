@@ -39,8 +39,19 @@ describe('sweepOnce', () => {
     };
     await sweepOnce(pool);
     expect(notifyStaff).toHaveBeenCalledWith(pool, expect.objectContaining({
-      title: expect.stringMatching(/still waiting for review/i),
+      title: expect.stringMatching(/waiting for review/i),
+      detail: expect.stringContaining("won't repeat"),
     }));
+    // Once-only: the stamp is claimed before the page goes out, and the
+    // eligibility query excludes already-alerted (or muted) rows.
+    const claimIdx = pool.query.mock.calls.findIndex(([sql]) => sql.includes('SET review_alerted_at'));
+    expect(claimIdx).toBeGreaterThan(-1);
+    expect(pool.query.mock.invocationCallOrder[claimIdx])
+      .toBeLessThan(notifyStaff.mock.invocationCallOrder[0]);
+    const eligibility = pool.query.mock.calls
+      .map(([sql]) => sql)
+      .find((sql) => sql.includes("p.status = 'awaiting_review'") && sql.trim().startsWith('SELECT'));
+    expect(eligibility).toContain('review_alerted_at IS NULL');
   });
 
   it('retries a failed free-text send when the window is open', async () => {
@@ -106,6 +117,44 @@ describe('unanswered-conversation reminder', () => {
       .find((s) => s.includes("interval '24 hours'") && s.includes("= 'in'"));
     expect(sql).toContain('unanswered_alerted_at IS NULL');
     expect(sql).toContain('unanswered_alerted_at < c.last_message_at');
+    expect(notifyStaff).not.toHaveBeenCalled();
+  });
+});
+
+// ── Money pages fire once, not on a repeat schedule ──────────────────────────
+// Stalled orders and expired quotes used to re-page daily; each is now
+// claimed in the audit trail before paging, exactly like the customer
+// nudges.
+describe('once-only money pages', () => {
+  it('stalled-order page claims the audit event first and says it will not repeat', async () => {
+    const pool = {
+      query: vi.fn(async (sql) => {
+        if (sql.includes("interval '48 hours'") && sql.includes('Stalled-order staff page sent')
+            && sql.trim().startsWith('SELECT')) {
+          return { rows: [{ id: 'o1', tracking_code: 'TRK-8825', status: 'paid',
+            paid_at: new Date(Date.now() - 3 * 86400_000).toISOString(), dispatched_at: null,
+            full_name: 'Jane', phone: '2547', customer_code: 'TC-1' }] };
+        }
+        return { rows: [], rowCount: 1 };
+      }),
+    };
+    await sweepOnce(pool);
+    const claim = pool.query.mock.calls.find(([sql]) =>
+      sql.includes('INSERT INTO wa_order_events') && sql.includes('Stalled-order staff page sent'));
+    expect(claim).toBeTruthy();
+    expect(notifyStaff).toHaveBeenCalledWith(pool, expect.objectContaining({
+      title: expect.stringMatching(/not yet purchased/i),
+      detail: expect.stringContaining("won't repeat"),
+    }));
+  });
+
+  it('expired-quote page is excluded once its audit note exists', async () => {
+    const pool = { query: vi.fn(async () => ({ rows: [], rowCount: 0 })) };
+    await sweepOnce(pool);
+    const sql = pool.query.mock.calls
+      .map(([s]) => s)
+      .find((s) => s.includes('quote_expires_at < NOW()') && s.trim().startsWith('SELECT'));
+    expect(sql).toContain('Expired-quote staff page sent');
     expect(notifyStaff).not.toHaveBeenCalled();
   });
 });

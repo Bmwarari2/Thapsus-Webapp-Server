@@ -2314,6 +2314,11 @@
     "nn": false,
     "t": "text"
    },
+   "review_alerted_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
    "reviewed_at": {
     "hd": false,
     "nn": false,

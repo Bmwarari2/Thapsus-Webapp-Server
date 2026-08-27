@@ -187,6 +187,33 @@ router.post('/:id/approve', authMiddleware, REVIEWER, async (req, res) => {
 });
 
 /**
+ * POST /api/admin/payments/:id/dismiss-reminder — silence the
+ * waiting-for-review page for this payment.
+ *
+ * The sweeper pages staff once, 15 minutes after a payment opens.
+ * Stamping review_alerted_at before that moment means the page never
+ * fires — for a payment someone has already seen and will handle. The
+ * payment itself still has to be approved or rejected; this only mutes
+ * the reminder.
+ */
+router.post('/:id/dismiss-reminder', authMiddleware, REVIEWER, async (req, res) => {
+  try {
+    const { rowCount } = await req.db.query(
+      `UPDATE payments SET review_alerted_at = NOW(), updated_at = NOW()
+        WHERE id = $1 AND status = 'awaiting_review'`,
+      [req.params.id]
+    );
+    if (rowCount === 0) {
+      return res.status(409).json({ success: false, message: 'Payment is not awaiting review' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logRouteError(req, res, err, 'POST /admin/payments/:id/dismiss-reminder');
+    res.status(500).json({ success: false, message: 'Failed to dismiss the reminder' });
+  }
+});
+
+/**
  * POST /api/admin/payments/:id/reject — reject with a reason; the
  * customer can pay again.
  *

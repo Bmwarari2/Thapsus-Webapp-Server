@@ -141,6 +141,8 @@ export const paymentsApi = {
       ...(amountReceived != null ? { amount_received_kes: amountReceived } : {}),
     }),
   reject: (id, reason) => api.post(`/admin/payments/${id}/reject`, { reason }),
+  /** Silence the waiting-for-review reminder for one payment. */
+  dismissReminder: (id) => api.post(`/admin/payments/${id}/dismiss-reminder`),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
