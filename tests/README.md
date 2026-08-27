@@ -9,9 +9,7 @@ tests/
 ├── README.md                  ← you are here
 ├── db-test.js                 ← legacy DB-connectivity script (`npm run test:db`)
 ├── unit/                      ← pure-function tests, no DB / network needed
-│   └── sanitize.test.js
 └── integration/               ← supertest tests that exercise routes end-to-end
-    └── (suites added in W3.2 onwards)
 ```
 
 ## Running
@@ -47,10 +45,31 @@ suites do not need to be rewritten.
 - Always assert against a real HTTP boundary in integration tests
   (status code, headers, body) — not internal function returns.
 
-## What's tested as of this scaffold
+## What's tested
 
-- `middleware/sanitize.js` — body / query XSS scrubbing + payload-too-large
-  guards. See `tests/unit/sanitize.test.js`.
+482 unit + smoke tests, plus integration suites that self-skip without
+`TEST_DATABASE_URL`. `ARCHITECTURE.md` §13 has the full map; the shape of
+it:
 
-The auth, role, and webhook integration suites land in follow-up PRs
-(plan items W3.2, W3.3, W3.4, W3.5).
+- **The conversation** — `waStateMachine` (the dispatcher, 113 cases:
+  onboarding edges, tracking formats, confirmation ambiguity, payment
+  claims, SHEIN cart requests, takeover and resume, and the facts block
+  that tells the assistant whether a link ever arrived), `waAiClassify`
+  (the sentinel boundary and the quote-in-flight guard), `waNudges`,
+  `waSweeper`, `waText`.
+- **The money** — `waQuote` (margin, delivery fee, the FX buffer and its
+  2dp rounding), `waDeliveryFeeSettle`, `waPayments`,
+  `markPaymentPaidRecovery`, `lipanaWebhook`, `pricing`, `fxRefresh`.
+  Several of these exist because `Number(null) === 0` quietly gave money
+  away.
+- **The pipeline** — `waOrderFlow` (transition edges), `orderStages`
+  (which advance buttons the order screen offers), `waCodes`,
+  `waMethodSwitch`.
+- **The plumbing** — `sentdm` / `sentdmMedia` (signature verification,
+  inbound media), `waTemplateVars` (every template body against its
+  positional ordering), `receiptPdf` / `receiptLink` / `mediaLink`,
+  `sanitize`, `idempotency`, `schemaDrift`, `sseEvents`, `logRetention`,
+  `productLinks`, `outboxShouldQueue`.
+
+A test here is usually pinning a specific incident, and the comment above
+it says which. Read that before changing what it asserts.

@@ -97,8 +97,12 @@ sent.dm webhook registration, Gmail OAuth for operator password reset.
 | `WA_SWEEP_INTERVAL_MINUTES` | `utils/waSweeper.js` | Sweeper cadence, default 5. |
 | `WA_SLA_PAYMENT_MINUTES` / `WA_SLA_UNANSWERED_MINUTES` | `utils/waSweeper.js` | Minutes before the one-shot staff reminder fires, default 15 each. |
 
-FX (`utils/fxRefresh.js`) refreshes `USD_KES` daily from frankfurter.dev —
-quoting reads it directly. Log retention prunes `error_logs` /
+FX (`utils/fxRefresh.js`) refreshes `USD_KES` daily from frankfurter.dev.
+That is a **mid-market** rate, so quoting does not use it raw:
+`wa_settings.fx_buffer_pct` (default 2.5) lifts it to the rate a quote is
+priced at, covering the KES→GBP spread the business actually pays. The
+buffer is deliberately separate from the service margin — the margin gets
+promoted and waived, this is cost recovery and must not be. Log retention prunes `error_logs` /
 `admin_logs` / `email_logs` daily. The sweeper (`utils/waSweeper.js`,
 every 5 minutes) is the safety net for anything that fires once and can
 be missed — it retries failed sends, re-fires lost post-payment hooks,
@@ -188,7 +192,7 @@ is authoritative.
 | `/ops/pipeline` | operator | Five-column board, global code search, barcode scanner |
 | `/ops/orders/:id` | operator | Quote, payment, status, fee, receipt, printable label |
 | `/ops/payments` | admin | Manual M-Pesa approval queue |
-| `/ops/settings` | admin | Markup, promo, AI knowledge base, templates, webhook doctor |
+| `/ops/settings` | admin | Markup, FX buffer, promo, AI knowledge base, templates, webhook doctor |
 | `/ops/team` | admin | Staff accounts + recent server errors |
 
 Adding a teammate sends **no email**. You set a temporary password (or
@@ -228,9 +232,11 @@ assertion — on every PR. `security.yml` runs CodeQL weekly.
 
 ## Further reading
 
+- [`CLAUDE.md`](./CLAUDE.md) — start here if you are about to change something: the commands, the schema-change drill, and the rules that have already cost money once.
 - [`REBUILD.md`](./REBUILD.md) — what changed in the rebuild and why.
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md) — auth, RLS, webhooks, middleware ordering, the WhatsApp layer.
 - [`API_REFERENCE.md`](./API_REFERENCE.md) — endpoint contracts.
 - [`CUTOVER.md`](./CUTOVER.md) — deploy runbook and go-live checks.
 - [`SETUP.md`](./SETUP.md) — local dev and third-party wiring.
 - [`SECURITY.md`](./SECURITY.md) — disclosure policy and threat model.
+- [`database/MIGRATIONS.md`](./database/MIGRATIONS.md) — the migration ledger and the drift guardrails.

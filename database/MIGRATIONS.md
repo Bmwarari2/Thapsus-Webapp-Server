@@ -25,11 +25,34 @@ makes drift a CI failure instead of a production outage.
 The 59 historical pre-baseline migrations were removed from the tree (they were
 never applied by the runner); they remain available in git history under
 `database/migrations/_archive/` if forensic reference is needed. **New migrations
-start at `0001_*.sql`** and layer on top of the baseline. Applied so far:
-`0001` (drop plaintext token columns), `0002` (influencer referral programme),
-`0003` (influencer partner logins + link-open analytics with coarse
-geolocation). Both `0002` and `0003` have been applied to the live Supabase
-project and recorded in the `_migrations` ledger.
+start at `0001_*.sql`** and layer on top of the baseline. Applied so far,
+all recorded in the live `_migrations` ledger:
+
+| # | What it adds |
+| --- | --- |
+| `0001` | Drop plaintext token columns |
+| `0002` | Influencer referral programme *(feature since removed; the tables remain)* |
+| `0003` | Influencer partner logins + link-open analytics with coarse geolocation |
+| `0004` | **The WhatsApp core** — `wa_contacts`, `wa_messages`, `wa_orders`, `wa_order_events`, `wa_settings`, code sequences |
+| `0005` | Human takeover + the assistant's durable conversation memory |
+| `0006` | Import of the 254shippers history |
+| `0007` | `wa_orders.supplier_ref` — the retailer's own order number |
+| `0008` | Drop the M-Pesa number from onboarding (payments are read off the statement) |
+| `0009` | A settled last-mile fee leaves `delivery_fee_pending` |
+| `0010` | Last-mile fee moves into the quote (`delivery_fee_in_quote`) |
+| `0011` | `collected` terminal status for collection orders |
+| `0012` | `wa_orders.pickup_point` (Pickup Mtaani agent) |
+| `0013` | `users.phone` made optional |
+| `0014` | Payments hardening |
+| `0015` | `wa_orders.quote_expires_at` — quotes get a real expiry |
+| `0016` | `wa_contacts.unanswered_alerted_at` — the unanswered reminder fires once |
+| `0017` | `payments.review_alerted_at` — the payment reminder fires once |
+| `0018` | `wa_orders.fx_buffer_pct` — the cushion snapshot on a quote |
+
+Every one is additive. `RUN_MIGRATIONS_ON_BOOT=true` in production, so a
+deploy applies anything missing before serving; applying one by hand
+first is safe because each is written to be idempotent
+(`ADD COLUMN IF NOT EXISTS`, `ON CONFLICT DO NOTHING`).
 
 The live `_migrations` ledger has both baseline filenames recorded, so
 `migrate:check` is green against live; the archived filenames remaining in
