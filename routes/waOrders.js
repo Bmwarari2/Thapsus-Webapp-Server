@@ -15,7 +15,7 @@ import { idempotency } from '../middleware/idempotency.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { getUsdToKesRate, FxRateUnavailableError } from '../utils/fx.js';
 import { getWaSettings } from '../utils/waSettings.js';
-import { deliveryFeeFor, resolveMarkupPct } from '../utils/waQuote.js';
+import { deliveryFeeFor, resolveMarkupPct, switchDeliveryMethod } from '../utils/waQuote.js';
 import { transition, isValidEdge, sendCustomerStatusMessage } from '../utils/waOrderFlow.js';
 import { sendToContact } from '../utils/waSend.js';
 import { extractTrackingCode, extractCustomerCode, nextTrackingCode } from '../utils/waCodes.js';
@@ -943,6 +943,104 @@ router.patch('/:id/pickup-point', authMiddleware, STAFF, async (req, res) => {
   } catch (err) {
     logRouteError(req, res, err, 'PATCH /api/wa/orders/:id/pickup-point');
     res.status(500).json({ success: false, message: 'Failed to set the pickup point' });
+  }
+});
+
+/**
+ * PATCH /api/wa/orders/:id/delivery-method  { delivery_method, notify? }
+ *
+ * Customers change their minds — "actually I'll pick it up", "please
+ * bring it after all". The method used to be fixed at quote time, so
+ * every later message fired on the wrong branch: a collector was
+ * promised a rider, a delivery customer was sent to Stanbank House, and
+ * the fee was wrong either way. The money rules live in
+ * utils/waQuote.switchDeliveryMethod (see its header); this route
+ * persists them, re-amounts any open payment, writes the audit event,
+ * and tells the customer what changed (pass notify:false to stay quiet).
+ * Too late once the parcel is dispatched, delivered, collected or
+ * cancelled.
+ */
+router.patch('/:id/delivery-method', authMiddleware, STAFF, async (req, res) => {
+  try {
+    const method = req.body?.delivery_method;
+    const { rows } = await req.db.query(`${ORDER_SELECT} WHERE o.id = $1`, [req.params.id]);
+    const order = rows[0];
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+
+    const settings = await getWaSettings(req.db);
+    const plan = switchDeliveryMethod(order, method, settings.default_delivery_fee_kes);
+    if (plan.error) return res.status(409).json({ success: false, message: plan.error });
+
+    const sets = ['updated_at = NOW()'];
+    const params = [order.id];
+    for (const [col, val] of Object.entries(plan.updates)) {
+      params.push(val);
+      sets.push(`${col} = $${params.length}`);
+    }
+    const { rows: updated } = await req.db.query(
+      `UPDATE wa_orders SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
+      params
+    );
+
+    // An open till payment must ask for the NEW total, or the operator
+    // approves against a figure the customer was never told.
+    if (plan.updates.quote_kes != null) {
+      await req.db.query(
+        `UPDATE payments
+            SET amount_due_kes = $2, amount_gross_kes = $2, updated_at = NOW()
+          WHERE target_kind = 'wa_order' AND target_id = $1 AND status = 'awaiting_review'`,
+        [order.id, plan.updates.quote_kes]
+      );
+    }
+
+    const noteBits = [`Switched to ${method}`];
+    if (plan.updates.quote_kes != null) noteBits.push(`new total KSh ${Number(plan.updates.quote_kes).toLocaleString('en-KE')}`);
+    if (plan.refundFeeKes > 0) noteBits.push(`customer already paid the KSh ${plan.refundFeeKes.toLocaleString('en-KE')} delivery fee — settle the difference with them`);
+    if (plan.feeOwedOnArrivalKes > 0) noteBits.push(`KSh ${plan.feeOwedOnArrivalKes.toLocaleString('en-KE')} delivery fee now due on arrival`);
+    await req.db.query(
+      `INSERT INTO wa_order_events (id, order_id, from_status, to_status, actor_user_id, note)
+       VALUES ($1, $2, $3, $3, $4, $5)`,
+      [uuidv4(), order.id, order.status, req.user.id, noteBits.join(' — ')]
+    );
+    pushToStaff('wa_pipeline_update', { order_id: order.id, contact_id: order.contact_id, status: order.status });
+
+    // Tell the customer, unless the operator is only correcting a record
+    // (notify:false) or nothing has been communicated yet (no quote).
+    if (req.body?.notify !== false && order.quote_kes != null) {
+      const ref = order.tracking_code || orderRef(order);
+      const newTotal = plan.updates.quote_kes != null ? Number(plan.updates.quote_kes) : null;
+      let text;
+      if (method === 'collection') {
+        text = plan.prePayment
+          ? `We've updated ${ref} for collection at Stanbank House, 4th floor, Nairobi CBD — no delivery fee applies.` +
+            (newTotal != null ? ` Your new total is *KSh ${newTotal.toLocaleString('en-KE')}*.` : '') +
+            (order.status === 'quoted' ? `\nReply *YES* to confirm.` : `\nTo pay: Lipa na M-Pesa, Buy Goods, Till *${MPESA_TILL}*.`)
+          : `We've updated ${ref} for collection at Stanbank House, 4th floor, Nairobi CBD` +
+            (['in_kenya', 'delivery_fee_pending'].includes(updated[0].status)
+              ? ` — it's ready whenever you are. We're open Monday to Saturday, closed Sunday.`
+              : ` — we'll message you the moment it's ready to collect.`) +
+            (plan.refundFeeKes > 0
+              ? `\nYour order included a KSh ${plan.refundFeeKes.toLocaleString('en-KE')} delivery fee — our team will be in touch about the difference.`
+              : '');
+      } else {
+        text = plan.prePayment
+          ? `We've updated ${ref} for delivery to your address.` +
+            (newTotal != null ? ` Delivery adds KSh ${Number(plan.updates.delivery_fee_kes || 0).toLocaleString('en-KE')}, making your total *KSh ${newTotal.toLocaleString('en-KE')}*.` : '') +
+            (order.status === 'quoted' ? `\nReply *YES* to confirm.` : `\nTo pay: Lipa na M-Pesa, Buy Goods, Till *${MPESA_TILL}*.`)
+          : `We've updated ${ref} for delivery to your address.` +
+            (plan.feeOwedOnArrivalKes > 0
+              ? ` The last step will be a KSh ${plan.feeOwedOnArrivalKes.toLocaleString('en-KE')} delivery fee — we'll send the payment details when it ${['in_kenya', 'delivery_fee_pending'].includes(updated[0].status) ? 'is ready to send out' : 'arrives in Kenya'}.`
+              : '');
+      }
+      await sendToContact(req.db, { id: order.contact_id, phone: order.phone }, {
+        text, sentBy: req.user.id,
+      });
+    }
+
+    res.json({ success: true, order: updated[0] });
+  } catch (err) {
+    logRouteError(req, res, err, 'PATCH /api/wa/orders/:id/delivery-method');
+    res.status(500).json({ success: false, message: 'Failed to switch the delivery method' });
   }
 });
 

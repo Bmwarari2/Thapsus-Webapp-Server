@@ -330,6 +330,15 @@ export const waApi = {
   /** Staff assign the Pickup Mtaani agent; the customer only names an area. */
   setPickupPoint: (id, pickup_point) =>
     api.patch(`/wa/orders/${id}/pickup-point`, { pickup_point }),
+  /**
+   * Switch an order between delivery and collection so later messages
+   * fire on the right branch. Money follows: pre-payment the fee moves
+   * in/out of the quote (open payment re-amounted); post-payment a
+   * switch to delivery owes the fee on arrival. notify:false skips the
+   * customer message.
+   */
+  setDeliveryMethod: (id, delivery_method, notify = true) =>
+    api.patch(`/wa/orders/${id}/delivery-method`, { delivery_method, notify }),
   requestPayment: (id, { method = 'stk', purpose = 'order', phone = undefined } = {}) =>
     api.post(`/wa/orders/${id}/request-payment`, { method, purpose, phone },
       { headers: { 'Idempotency-Key': newIdempotencyKey() } }),

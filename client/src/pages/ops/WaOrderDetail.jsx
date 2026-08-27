@@ -134,6 +134,26 @@ export function WaOrderDetail() {
 
   const savePickup = run(() => waApi.setPickupPoint(id, pickup), 'Pickup point saved')
 
+  // Switch delivery ↔ collection so every later message (arrival,
+  // dispatch, tracking replies) fires on the right branch. The confirm
+  // spells out what happens to the money, because it differs by stage.
+  const switchMethod = (to) => {
+    if (!order) return
+    const fee = Number(order.delivery_fee_kes || 0)
+    const prePayment = ['quoting', 'quoted', 'confirmed'].includes(order.status)
+    const consequence = to === 'collection'
+      ? (prePayment
+        ? (fee > 0 ? `The KSh ${fee.toLocaleString()} delivery fee comes off the total and the customer is told the new amount.` : 'The customer is told collection details.')
+        : (fee > 0 && order.delivery_fee_in_quote
+          ? `They already paid the KSh ${fee.toLocaleString()} delivery fee — you'll need to settle the difference with them.`
+          : 'Arrival and tracking messages will use collection wording.'))
+      : (prePayment
+        ? 'The delivery fee is added to the total and the customer is told the new amount.'
+        : 'A delivery fee becomes due on arrival and the customer is told.')
+    if (!window.confirm(`Switch this order to ${to}?\n\n${consequence}`)) return
+    run(() => waApi.setDeliveryMethod(id, to), `Order switched to ${to}`)()
+  }
+
   const confirm = run(() => waApi.confirm(id), 'Order confirmed')
   const advance = (to) => run(() => waApi.advance(id, to), 'Status updated')()
   const waive = run(() => waApi.waiveFee(id), 'Delivery fee waived')
@@ -561,6 +581,22 @@ export function WaOrderDetail() {
 
           <GlassCard className="p-5">
             <h2 className="font-bold text-white mb-3">Delivery details</h2>
+            {/* Which journey this parcel is on — and the switch, so a
+                customer who changes their mind doesn't get rider messages
+                for a parcel they'll collect (or vice versa). */}
+            <div className="flex items-center justify-between gap-2 mb-3 pb-3 border-b border-line">
+              <span className="text-sm text-white">
+                {order.delivery_method === 'collection' ? 'Collection — CBD office' : 'Delivery to address / Mtaani'}
+              </span>
+              {!['dispatched', 'delivered', 'collected', 'cancelled'].includes(order.status) && (
+                <button
+                  onClick={() => switchMethod(order.delivery_method === 'collection' ? 'delivery' : 'collection')}
+                  disabled={busy}
+                  className="px-3 py-1.5 rounded-lg bg-white/5 border border-line text-white text-xs font-semibold hover:bg-white/10 disabled:opacity-50">
+                  Switch to {order.delivery_method === 'collection' ? 'delivery' : 'collection'}
+                </button>
+              )}
+            </div>
             <p className="text-sm text-white">{order.full_name || '—'}</p>
             <p className="text-sm text-mute">{order.delivery_address || 'No address on file'}</p>
             <p className="text-sm text-mute mt-1">M-Pesa: {order.mpesa_number || '—'}</p>
