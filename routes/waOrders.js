@@ -15,7 +15,7 @@ import { idempotency } from '../middleware/idempotency.js';
 import { logRouteError } from '../utils/errorLogger.js';
 import { getUsdToKesRate, FxRateUnavailableError } from '../utils/fx.js';
 import { getWaSettings } from '../utils/waSettings.js';
-import { deliveryFeeFor, resolveMarkupPct, switchDeliveryMethod } from '../utils/waQuote.js';
+import { deliveryFeeFor, effectiveFxRate, resolveMarkupPct, switchDeliveryMethod } from '../utils/waQuote.js';
 import { normalizeProductLinks } from '../utils/productLinks.js';
 import { transition, isValidEdge, sendCustomerStatusMessage } from '../utils/waOrderFlow.js';
 import { sendToContact } from '../utils/waSend.js';
@@ -214,9 +214,18 @@ router.get('/quote-defaults', authMiddleware, STAFF, async (req, res) => {
       getUsdToKesRate(req.db),
       getWaSettings(req.db),
     ]);
+    // usd_kes is the rate a quote is PRICED at (mid + the FX buffer), so
+    // the preview arithmetic matches what the customer is sent to the
+    // shilling. usd_kes_mid and fx_buffer_pct ride alongside it so the
+    // operator can see the cushion rather than wonder why the dashboard
+    // rate differs from the one on their banking app.
+    const { rate: quoteRate, error: fxError } = effectiveFxRate(rate, settings.fx_buffer_pct);
+    if (fxError) return res.status(500).json({ success: false, message: fxError });
     res.json({
       success: true,
-      usd_kes: Number(rate),
+      usd_kes: quoteRate,
+      usd_kes_mid: Number(rate),
+      fx_buffer_pct: Number(settings.fx_buffer_pct),
       markup_pct_default: Number(settings.markup_pct),
       default_delivery_fee_kes: Number(settings.default_delivery_fee_kes),
       quote_validity_days: Number(settings.quote_validity_days),
@@ -529,7 +538,15 @@ router.post('/:id/quote', authMiddleware, STAFF, idempotency, async (req, res) =
     const { feeKes, error: feeError } = deliveryFeeFor(method, settings.default_delivery_fee_kes);
     if (feeError) return res.status(400).json({ success: false, message: feeError });
 
-    const goodsKes = Math.round(usd * rate * (1 + markup / 100));
+    // Price off the buffered rate, not the mid-market one the FX table
+    // holds. Mid is the midpoint of a spread nobody trades at; the KES →
+    // GBP round trip this business actually makes costs 3–4 KES on the
+    // cross, and quoting at mid gave that away on every order.
+    const { rate: quoteRate, bufferPct, error: fxError } =
+      effectiveFxRate(rate, settings.fx_buffer_pct);
+    if (fxError) return res.status(500).json({ success: false, message: fxError });
+
+    const goodsKes = Math.round(usd * quoteRate * (1 + markup / 100));
     const quoteKes = goodsKes + feeKes;
 
     // The approved payment-prompt template promises "The quote expires
@@ -543,9 +560,14 @@ router.post('/:id/quote', authMiddleware, STAFF, idempotency, async (req, res) =
               delivery_method = $6, delivery_fee_kes = $7,
               delivery_fee_in_quote = true,
               quote_expires_at = NOW() + ($8 || ' days')::interval,
+              fx_buffer_pct = $9,
               status = 'quoted', quoted_at = NOW(), updated_at = NOW()
         WHERE id = $1 RETURNING *`,
-      [order.id, usd, rate, markup, quoteKes, method, feeKes, String(validityDays)]
+      // fx_rate holds the rate the customer was quoted at — the buffered
+      // one, which is what the quote message and the receipt print.
+      // fx_buffer_pct records how much of it was cushion, so the mid rate
+      // of the day stays recoverable from the pair.
+      [order.id, usd, quoteRate, markup, quoteKes, method, feeKes, String(validityDays), bufferPct]
     );
     await req.db.query(
       `INSERT INTO wa_order_events (id, order_id, from_status, to_status, actor_user_id, note)
@@ -567,7 +589,7 @@ router.post('/:id/quote', authMiddleware, STAFF, idempotency, async (req, res) =
       text:
         `*Your quote is ready*\n` +
         `Item price: $${usd.toFixed(2)}\n` +
-        `Exchange rate: 1 USD = ${Number(rate).toFixed(2)} KES\n` +
+        `Exchange rate: 1 USD = ${quoteRate.toFixed(2)} KES\n` +
         // No margin line when there is no margin — printing "Service
         // margin: 0%" on a promotional quote invites the question of
         // what it would otherwise have been.

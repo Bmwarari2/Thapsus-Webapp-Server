@@ -1,8 +1,8 @@
 // routes/waSettings.js
 //
-// Admin API for the WhatsApp flow settings: quote markup %, the promo
-// toggle (waive last-mile fee / discount messaging), the default delivery
-// fee, welcome media, and the sent.dm template map.
+// Admin API for the WhatsApp flow settings: quote markup %, the FX
+// buffer, the promo toggle (waive last-mile fee / discount messaging),
+// the default delivery fee, welcome media, and the sent.dm template map.
 
 import express from 'express';
 import { authMiddleware, isAdmin } from '../middleware/auth.js';
@@ -93,6 +93,13 @@ router.put('/', authMiddleware, isAdmin, async (req, res) => {
         return res.status(400).json({ success: false, message: 'quote_validity_days must be 1–90' });
       }
       updates.push(['quote_validity_days', String(Math.round(v))]);
+    }
+    if (body.fx_buffer_pct !== undefined) {
+      const v = Number(body.fx_buffer_pct);
+      if (!Number.isFinite(v) || v < 0 || v > 25) {
+        return res.status(400).json({ success: false, message: 'fx_buffer_pct must be 0–25' });
+      }
+      updates.push(['fx_buffer_pct', String(v)]);
     }
     if (body.nudges_enabled !== undefined) {
       updates.push(['nudges_enabled', body.nudges_enabled === true ? 'true' : 'false']);

@@ -3550,6 +3550,11 @@
     "nn": false,
     "t": "timestamptz"
    },
+   "fx_buffer_pct": {
+    "hd": false,
+    "nn": false,
+    "t": "numeric"
+   },
    "fx_rate": {
     "hd": false,
     "nn": false,

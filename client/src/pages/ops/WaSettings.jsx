@@ -24,6 +24,7 @@ export function WaSettings() {
           promo_type: s.promo_type,
           promo_message: s.promo_message || '',
           default_delivery_fee_kes: String(s.default_delivery_fee_kes),
+          fx_buffer_pct: String(s.fx_buffer_pct ?? 2.5),
           welcome_media_urls: (s.welcome_media_urls || []).join('\n'),
           template_map: JSON.stringify(s.template_map || {}, null, 2),
           ai_enabled: s.ai_enabled === true,
@@ -49,6 +50,7 @@ export function WaSettings() {
         promo_type: form.promo_type,
         promo_message: form.promo_message,
         default_delivery_fee_kes: Number(form.default_delivery_fee_kes),
+        fx_buffer_pct: Number(form.fx_buffer_pct),
         welcome_media_urls: form.welcome_media_urls.split('\n').map((s) => s.trim()).filter(Boolean),
         template_map: templateMap,
         ai_enabled: form.ai_enabled,
@@ -75,14 +77,28 @@ export function WaSettings() {
     <div className="max-w-3xl mx-auto px-4 py-8">
       <GlassStyles />
       <PageHeading icon={Settings2} title="WhatsApp Settings"
-        subtitle="Quote margin, promos, delivery fee and templates" />
+        subtitle="Quote margin, FX buffer, promos, delivery fee and templates" />
 
       <div className="space-y-4">
         <GlassCard className="p-5 space-y-4">
           <div>
             <label className="block text-sm font-semibold text-white mb-1.5">Quote margin (%)</label>
             <input value={form.markup_pct} onChange={set('markup_pct')} inputMode="decimal" className={inputCls} />
-            <p className="text-xs text-mute mt-1">Final KES = USD price × live rate × (1 + margin/100)</p>
+            <p className="text-xs text-mute mt-1">
+              Final KES = USD price × quoting rate × (1 + margin/100). This is the SHEIN
+              service fee — waive it freely; the FX buffer below is what protects the money.
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-white mb-1.5">FX buffer (%)</label>
+            <input value={form.fx_buffer_pct} onChange={set('fx_buffer_pct')} inputMode="decimal" className={inputCls} />
+            <p className="text-xs text-mute mt-1">
+              Lifts the mid-market USD→KES rate to the rate quotes are actually priced at.
+              The live rate is a <span className="text-white">mid</span> rate — the midpoint of
+              a spread nobody trades at — while collecting KES and paying suppliers in GBP
+              costs 3–4 shillings on the cross. This is cost recovery, not margin, so leave it
+              on even when the service fee is waived. 0 quotes at mid and absorbs the spread.
+            </p>
           </div>
           <div>
             <label className="block text-sm font-semibold text-white mb-1.5">Default delivery fee (KSh)</label>

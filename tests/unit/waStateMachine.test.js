@@ -575,9 +575,10 @@ describe('product links page a human', () => {
 // ── Gemini layer ─────────────────────────────────────────────────────────────
 // waAi is module-mocked (hoisted); aiConfigured defaults to false so every
 // pre-AI test above runs the deterministic paths unchanged.
-vi.mock('../../utils/waAi.js', () => ({
-  HANDOFF: 'HANDOFF',
-  OFF_TOPIC: 'OFF_TOPIC',
+// Only the model round-trips are stubbed. renderFacts stays real, so a
+// test that reads the facts block sees exactly what the prompt would.
+vi.mock('../../utils/waAi.js', async (importActual) => ({
+  ...(await importActual()),
   aiConfigured: vi.fn(() => false),
   chatReply: vi.fn(),
   onboardingTurn: vi.fn(),
@@ -898,6 +899,133 @@ describe('AI order awareness', () => {
     await handleInbound(db, contact(), { id: 'm1', body: 'TRK-8821' });
     expect(waAi.chatReply).not.toHaveBeenCalled();
     expect(sendToContact.mock.calls[0][2].text).toContain('TRK-8821');
+  });
+});
+
+// +447428777090. "Hi" → "How long does it take?" → "How do I pay?",
+// with no link and no order anywhere, and the assistant replied "your
+// quote is being worked out now and will come through here shortly".
+// Nothing was. They were left waiting on a message nobody would send,
+// and the payment question — answered in full by the knowledge base —
+// was never answered at all.
+//
+// The model had the transcript and the order list. What it did not have
+// was any statement of what is TRUE of our system, so it inferred an
+// order from how far along the chat felt. These pin the facts block that
+// replaces the inference.
+describe('what the assistant is told about the state of a conversation', () => {
+  const aiSettings = {
+    markup_pct: 10, promo_active: false, promo_type: 'waive_fee',
+    promo_message: '', default_delivery_fee_kes: 300,
+    welcome_media_urls: [], template_map: {},
+    ai_enabled: true, ai_knowledge_base: 'PAYING\nWe take payment by M-Pesa.',
+  };
+
+  async function ai() {
+    const waAi = await import('../../utils/waAi.js');
+    waAi.aiConfigured.mockReturnValue(true);
+    getWaSettings.mockResolvedValue(aiSettings);
+    return waAi;
+  }
+
+  // orders → rows from wa_orders; inbound → the customer's own messages.
+  function db({ orders = [], inbound = [] } = {}) {
+    return makeDb(async (sql) => {
+      if (sql.includes('FROM wa_orders')) return { rows: orders };
+      if (sql.includes("direction = 'in'")) return { rows: inbound };
+      return { rows: [] };
+    });
+  }
+
+  it('tells the onboarding turn that nothing is being quoted (TRK-none)', async () => {
+    const waAi = await ai();
+    waAi.onboardingTurn.mockResolvedValueOnce({
+      kind: 'reply', reply: 'We take payment by M-Pesa. Send your cart link and we will quote you.',
+      full_name: null, delivery_address: null,
+    });
+    await handleInbound(
+      db({ inbound: [{ body: 'Hi' }, { body: 'How long does it take?' }, { body: 'How do I pay?' }] }),
+      contact({ state: 'awaiting_name', full_name: null, delivery_address: null, customer_code: null }),
+      { id: 'm3', body: 'How do I pay?' }
+    );
+
+    const facts = waAi.onboardingTurn.mock.calls[0][0].facts;
+    expect(facts).toMatch(/link received from them: NO/);
+    expect(facts).toMatch(/Orders on file: NONE/);
+    expect(facts).toMatch(/NO quote is being prepared/);
+    expect(facts).toMatch(/Still missing from their profile: full name/);
+  });
+
+  it('tells it a quote IS coming once a link is in and an order is open', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce(says('The team is pricing it now.'));
+    await handleInbound(
+      db({
+        orders: [{ status: 'quoting' }],
+        inbound: [{ body: 'https://onelink.shein.com/49/5zw9b7anck7k?shc=2_RwLdztAJWDF' }],
+      }),
+      contact(), { id: 'm1', body: 'any news?' }
+    );
+
+    const facts = waAi.chatReply.mock.calls[0][0].facts;
+    expect(facts).toMatch(/link received from them: YES/);
+    expect(facts).toMatch(/quote IS genuinely being prepared/);
+    // and the reply that would have been a lie a moment ago goes out
+    expect(sendToContact.mock.calls[0][2].text).toBe('The team is pricing it now.');
+  });
+
+  it('counts a link sent earlier in the chat, not only the message in hand', async () => {
+    // The quote genuinely is coming when the link arrived three messages
+    // ago; only looking at this message would call that a hallucination.
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce(says('reply'));
+    await handleInbound(
+      db({ orders: [{ status: 'quoting' }], inbound: [{ body: 'and how long?' }, { body: 'https://www.next.co.uk/x' }] }),
+      contact(), { id: 'm1', body: 'and how long?' }
+    );
+    expect(waAi.chatReply.mock.calls[0][0].facts).toMatch(/link received from them: YES/);
+  });
+
+  it('does not count a quoted order as a quote still in flight', async () => {
+    // 'quoted' means the customer has the number already. Saying it is
+    // being worked out would be as wrong as inventing one.
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce(says('reply'));
+    await handleInbound(
+      db({ orders: [{ status: 'quoted' }], inbound: [{ body: 'https://www.next.co.uk/x' }] }),
+      contact(), { id: 'm1', body: 'hi' }
+    );
+    const facts = waAi.chatReply.mock.calls[0][0].facts;
+    expect(facts).toMatch(/Orders on file: 1/);
+    expect(facts).toMatch(/NO quote is being prepared/);
+  });
+
+  it('marks a first-ever message as one', async () => {
+    const waAi = await ai();
+    waAi.onboardingTurn.mockResolvedValueOnce({
+      kind: 'reply', reply: 'Karibu!', full_name: null, delivery_address: null,
+    });
+    await handleInbound(
+      db({ inbound: [{ body: 'Hi' }] }),
+      contact({ state: 'new', full_name: null, delivery_address: null, customer_code: null }),
+      { id: 'm1', body: 'Hi' }
+    );
+    expect(waAi.onboardingTurn.mock.calls[0][0].facts).toMatch(/FIRST message they have ever sent/);
+  });
+
+  it('pages staff when the guard caught a promise we could not keep', async () => {
+    const waAi = await ai();
+    waAi.onboardingTurn.mockResolvedValueOnce({
+      kind: 'reply', reply: 'We take payment by M-Pesa. Send your cart link.',
+      full_name: null, delivery_address: null, falseClaim: true,
+    });
+    await handleInbound(
+      db({ inbound: [{ body: 'How do I pay?' }] }),
+      contact({ state: 'awaiting_name', full_name: null, delivery_address: null, customer_code: null }),
+      { id: 'm1', body: 'How do I pay?' }
+    );
+    expect(notifyStaff).toHaveBeenCalledWith(expect.anything(),
+      expect.objectContaining({ title: expect.stringMatching(/quote that does not exist/i) }));
   });
 });
 

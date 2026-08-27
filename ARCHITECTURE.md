@@ -149,6 +149,28 @@ control token can't reach a customer:
 classifies as `handoff`, so every failure mode degrades to the pre-AI
 behaviour: a human picks it up.
 
+**It is told where the conversation stands, not left to infer it.**
+`conversationFacts()` in `utils/waStateMachine.js` looks up three things
+per turn — has this customer ever sent a product or cart link, is any
+order on file, is one actually sitting in `quoting` — and
+`renderFacts()` puts them in both prompts above the transcript. The
+model had been inferring all of it from ten messages of chat and getting
+it wrong: +447428777090 asked "How do I pay?" three messages in, having
+sent nothing, and was told "your quote is being worked out now and will
+come through here shortly". A transcript shows what was said; only the
+system knows what is true.
+
+**And the claim is checked, not just discouraged.**
+`claimsQuoteInFlight()` matches a reply asserting our side is already
+pricing something ("your quote is on the way", "the team is pricing
+it"), while leaving the invitation we most want it to send ("send your
+cart link and we'll quote you") alone. When the facts say nothing is in
+flight, the turn is regenerated once with the false claim named, and a
+second offence degrades to `HANDOFF` and pages staff (`falseClaim` on
+the turn). Same reasoning as `looksLikeName()`: a promise that leaves a
+customer waiting for a message nobody will send is too expensive to
+depend on the model having a good day.
+
 **The model is discovered, not hardcoded.** `resolveModel()` calls
 ListModels, ranks candidates, caches for 6 hours and self-heals on a 404.
 Google retires model names on a rolling basis; a hardcoded default took
@@ -187,7 +209,8 @@ wa_settings   key/value, operator-editable
 - `wa_contacts.customer_code` — `TC-####` from `wa_customer_code_seq`, minted when onboarding completes.
 - `wa_orders.tracking_code` — `TRK-####` from `wa_tracking_code_seq`, minted **inside the payment transaction**, so the code exists the instant money lands.
 - `wa_messages.provider_message_id` — unique; the inbound dedupe key and the handle delivery-status callbacks update.
-- `wa_orders` snapshots `usd_price`, `fx_rate`, `markup_pct` and `quote_kes` at quote time. Never recompute a historical quote from today's rate.
+- `wa_orders` snapshots `usd_price`, `fx_rate`, `markup_pct`, `fx_buffer_pct` and `quote_kes` at quote time. Never recompute a historical quote from today's rate.
+- `wa_orders.fx_rate` is the **buffered** rate the customer was quoted at, not the mid-market rate. `exchange_rates.USD_KES` is a mid rate — the midpoint of a spread nobody trades at — and the business collects KES while paying suppliers in GBP from the UK, a round trip costing 3–4 KES on the cross. `wa_settings.fx_buffer_pct` (default 2.5) lifts mid to the quoting rate; `wa_orders.fx_buffer_pct` records how much of the snapshot was cushion, so the day's mid stays recoverable. NULL means the order predates the buffer. It is deliberately **not** `markup_pct`: the service margin is promoted and waived (it was 0 on all 18 quotes to the first month's end), while the buffer is cost recovery and must survive a promotion.
 - `wa_orders.delivery_method` — `delivery` or `collection`, and `delivery_fee_in_quote` records that `quote_kes` already contains the fee. Watch `Number(null) === 0` around the fee columns: a NULL fee means "not yet decided, still owed", and reading it as zero grants a free delivery to every order quoted before `0010`.
 - `wa_orders.pickup_point` — the Pickup Mtaani agent, set by staff. The customer names an area; the assistant is forbidden from confirming a point, having once invented coverage of one and been right only by luck.
 
@@ -483,6 +506,7 @@ sits in the queue until it is approved or rejected.
 - **`delivery_fee_pending` should be rare.** Since `0010` the last-mile fee rides on the quote, so only pre-`0010` orders and ones priced without a method land there. An order in that status with `delivery_fee_paid_at` set is a bug — the status is a claim about a debt.
 - **`Number(null)` is `0`, and that has bitten this codebase three times** — on `markup_pct`, on `default_delivery_fee_kes`, and on `delivery_fee_kes`. Each would have quietly given money away. Absence is checked explicitly, never by falsiness, anywhere a number can be missing.
 - **`looksLikeName()` is strict on purpose.** It refuses questions, digits, anything past five words and phrases opening the way requests do. A customer once replied "Can I first get the pricing and quotation ndio tujue details" and it became their name; they were addressed as "Can". A rejected real name costs one repeated question, an accepted sentence corrupts the record.
+- **The assistant never says a quote is coming unless one is.** A customer who has sent no link has nothing being priced; telling them otherwise leaves them waiting on a message that will never arrive, and answers whatever they actually asked with nothing. The prompt carries the checked facts and `claimsQuoteInFlight()` enforces them.
 - **The assistant never names a Pickup Mtaani point.** It once told a customer we cover Hurlingham. That happened to be true, and nothing had checked. Which agent serves an area is the team's call, made against a list only they can see.
 - **Every `template_map` slot is mapped, and a test enforces it.** An unmapped slot falls back to free text, which is refused outside the 24-hour window — silently, and precisely for arrival and dispatch, which land weeks after a customer last wrote in. That failure mode cost real customers their notifications twice before it was understood.
 
@@ -501,7 +525,8 @@ The WhatsApp layer's behaviour lives in `tests/unit/waStateMachine.test.js`
 tracking-code formats for delivery and collection, confirmation
 ambiguity, payment-claim matching and its deliberate non-matches, SHEIN
 cart requests, takeover and auto-resume, both AI sentinels, and that the
-reply survives flattening. `waAiClassify` covers the sentinel boundary,
+reply survives flattening. `waAiClassify` covers the sentinel boundary, the
+quote-in-flight guard and the facts block,
 `waOrderFlow` the transition edges, `waQuote` and `waDeliveryFeeSettle`
 the arithmetic (both exist because `Number(null) === 0` quietly produced
 a zero markup and a zero fee), `waTemplateVars` the positional variable

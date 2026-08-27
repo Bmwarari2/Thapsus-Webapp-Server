@@ -67,7 +67,7 @@ import { sendToContact } from './waSend.js';
 import { extractTrackingCode, nextCustomerCode } from './waCodes.js';
 import { pushToStaff } from '../routes/events.js';
 import { getWaSettings } from './waSettings.js';
-import { aiConfigured, chatReply, onboardingTurn, summarizeConversation } from './waAi.js';
+import { aiConfigured, chatReply, onboardingTurn, renderFacts, summarizeConversation } from './waAi.js';
 import { notifyStaff } from './waStaffAlert.js';
 import {
   attachMpesaReference, ensureManualPayment, extractMpesaReference,
@@ -420,6 +420,7 @@ export async function handleInbound(db, contact, message) {
         history,
         message: body,
         orderContext: await loadOrderContext(db, contact.id),
+        facts: await conversationFacts(db, contact),
         profile: describeContact(contact),
         summary: contact.ai_summary,
       });
@@ -641,6 +642,52 @@ async function loadOrderContext(db, contactId) {
   }).join('\n');
 }
 
+/**
+ * What is actually true of this conversation, for the AI prompt.
+ *
+ * +447428777090 asked "How do I pay?" three messages into a chat with no
+ * link and no order, and was told "your quote is being worked out now
+ * and will come through here shortly". Nothing was. The model had the
+ * transcript and the order list, and inferred an order from how far
+ * along the conversation felt — the prompt's "tell them the quote is
+ * coming" rule was written for the message after a link arrives, and
+ * nothing told the model whether a link had ever arrived.
+ *
+ * So it is looked up rather than inferred: has this customer ever sent a
+ * link, is any order open, is a quote genuinely being prepared. Cheap,
+ * indexed, and it runs once per AI turn.
+ */
+async function conversationFacts(db, contact) {
+  const [orders, inbound] = await Promise.all([
+    db.query(
+      `SELECT status FROM wa_orders WHERE contact_id = $1 AND status <> 'cancelled'`,
+      [contact.id]
+    ),
+    db.query(
+      `SELECT body FROM wa_messages
+        WHERE contact_id = $1 AND direction = 'in' AND body IS NOT NULL
+        ORDER BY created_at DESC LIMIT 60`,
+      [contact.id]
+    ),
+  ]);
+
+  const missing = [];
+  if (!contact.full_name) missing.push('full name');
+  if (!contact.delivery_address) missing.push('delivery address or pickup point');
+
+  return renderFacts({
+    // Any link they have ever sent, not just this message: a link three
+    // messages ago is exactly the case where a quote IS coming.
+    linkReceived: inbound.rows.some((m) => PRODUCT_LINK.test(m.body || '')),
+    orderCount: orders.rows.length,
+    // 'quoting' is an order a person has opened and not yet priced —
+    // the only state in which "your quote is coming" is a true sentence.
+    quoteInFlight: orders.rows.some((o) => o.status === 'quoting'),
+    missing,
+    inboundCount: inbound.rows.length,
+  });
+}
+
 // What to ask for next, keyed by the awaiting_* state. Used when an
 // off-topic message interrupts signup — the redirect carries the
 // question so the flow keeps moving.
@@ -744,6 +791,7 @@ async function aiOnboarding(db, contact, message, body, settings) {
     history,
     message: body,
     orderContext: await loadOrderContext(db, contact.id),
+    facts: await conversationFacts(db, contact),
     profile: {
       full_name: contact.full_name || null,
       delivery_address: contact.delivery_address || null,
@@ -795,6 +843,17 @@ async function aiOnboarding(db, contact, message, body, settings) {
   } else if (turn.kind === 'handoff') {
     await handOffToHuman(db, contact, body);
     return; // a person has the thread now — don't also run the welcome media
+  }
+
+  // The assistant tried to promise a quote nobody was preparing and the
+  // guard caught it. Worth a person's eyes: it means either the prompt
+  // is drifting or this customer really is waiting on something.
+  if (turn.falseClaim) {
+    notifyStaff(db, {
+      title: 'Assistant nearly promised a quote that does not exist',
+      detail: `${contact.full_name || contact.phone}: "${body.slice(0, 200)}" — no link and no order on file.`,
+      dedupeKey: `falseclaim:${contact.id}`,
+    });
   }
 
   // First-ever exchange: send the welcome infographics (best-effort).

@@ -258,6 +258,12 @@ export function WaOrderDetail() {
   // Same arithmetic the server runs on Send: usd × rate × (1 + margin%)
   // + last-mile fee. Blank margin falls back to the settings default,
   // matching the server's behaviour.
+  //
+  // quoteDefaults.usd_kes is already the BUFFERED rate — mid plus
+  // wa_settings.fx_buffer_pct, rounded to the 2dp the quote message
+  // prints — so this preview and the customer's total agree to the
+  // shilling. usd_kes_mid is carried alongside only to show the
+  // operator what the cushion is costing them.
   const preview = (() => {
     if (!quoteDefaults) return null
     const price = Number(usd)
@@ -266,7 +272,12 @@ export function WaOrderDetail() {
     if (!Number.isFinite(pct) || pct < 0 || pct > 100) return null
     const goods = Math.round(price * Number(quoteDefaults.usd_kes) * (1 + pct / 100))
     const fee = method === 'collection' ? 0 : Number(quoteDefaults.default_delivery_fee_kes || 0)
-    return { goods, fee, total: goods + fee, rate: Number(quoteDefaults.usd_kes), pct }
+    return {
+      goods, fee, total: goods + fee, pct,
+      rate: Number(quoteDefaults.usd_kes),
+      mid: Number(quoteDefaults.usd_kes_mid) || null,
+      buffer: Number(quoteDefaults.fx_buffer_pct) || 0,
+    }
   })()
 
   return (
@@ -395,6 +406,13 @@ export function WaOrderDetail() {
                   </span>
                   <span className="text-white font-bold">KSh {preview.total.toLocaleString()}</span>
                   <span className="text-emerald-200/80"> — the customer will be quoted this total.</span>
+                  {preview.buffer > 0 && preview.mid ? (
+                    <p className="text-xs text-emerald-200/70 mt-1">
+                      Rate includes a {preview.buffer}% FX buffer over today's mid-market{' '}
+                      {preview.mid.toFixed(2)} — that covers the KES→GBP spread, so don't
+                      discount it away. Change it under Settings.
+                    </p>
+                  ) : null}
                 </div>
               ) : quoteDefaults === null && Number(usd) > 0 ? (
                 <p className="text-xs text-amber-300/80 mt-2">
@@ -415,7 +433,11 @@ export function WaOrderDetail() {
               <span className="text-mute">Item price</span>
               <span className="text-white text-right">${Number(order.usd_price).toFixed(2)}</span>
               <span className="text-mute">Rate</span>
-              <span className="text-white text-right">1 USD = {Number(order.fx_rate).toFixed(2)} KES</span>
+              <span className="text-white text-right">
+                1 USD = {Number(order.fx_rate).toFixed(2)} KES
+                {order.fx_buffer_pct != null && Number(order.fx_buffer_pct) > 0
+                  ? ` (incl. ${Number(order.fx_buffer_pct)}% FX buffer)` : ''}
+              </span>
               <span className="text-mute">Margin</span>
               <span className="text-white text-right">{Number(order.markup_pct)}%</span>
               {order.delivery_fee_in_quote && (

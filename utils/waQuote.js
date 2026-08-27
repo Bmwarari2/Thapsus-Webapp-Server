@@ -162,3 +162,49 @@ export function switchDeliveryMethod(order, method, defaultFeeKes) {
 
   return { error: null, updates, refundFeeKes, feeOwedOnArrivalKes, prePayment };
 }
+
+/**
+ * The rate a quote is actually priced at.
+ *
+ * exchange_rates.USD_KES is a MID-MARKET rate — the midpoint between
+ * what a bank buys and sells at, which nobody actually trades at. The
+ * business banks in GBP in the UK and pays suppliers from there, so
+ * every order is a round trip through a real desk: KES in, GBP out.
+ * That round trip costs 3–4 KES on the USD/KES cross, and quoting at
+ * mid means the whole spread comes out of the margin.
+ *
+ * It is deliberately NOT markup_pct. The service margin is a price we
+ * promote and waive — it is 0% on every UK, Dubai and promotional SHEIN
+ * order, which is all 18 quotes to date. The buffer is cost recovery,
+ * not profit, so it survives a promotion that zeroes the margin.
+ *
+ * The result is rounded to 2dp because the quote message prints the
+ * rate to 2dp. A customer who multiplies the printed rate by the
+ * printed USD price gets our total to the shilling — quoting at full
+ * float precision and printing a rounded rate left a few shillings
+ * unexplained on every quote.
+ *
+ * @param {unknown} midRate     exchange_rates USD_KES (mid-market)
+ * @param {unknown} bufferPct   wa_settings.fx_buffer_pct
+ * @returns {{ rate: number, bufferPct: number, error: string|null }}
+ */
+export function effectiveFxRate(midRate, bufferPct) {
+  const mid = Number(midRate);
+  if (!Number.isFinite(mid) || mid <= 0) {
+    return { rate: NaN, bufferPct: NaN, error: 'Exchange rate is not a usable number' };
+  }
+  // Number(null) and Number('') are both 0, and 0 is a legitimate
+  // buffer — so "absent" must not be allowed to become "no buffer" by
+  // accident. An unset setting means the reader is broken, not that
+  // this quote should absorb the spread.
+  if (bufferPct === undefined || bufferPct === null || bufferPct === '') {
+    return { rate: NaN, bufferPct: NaN, error: 'fx_buffer_pct is not a usable percentage' };
+  }
+  const buffer = Number(bufferPct);
+  // Capped well below markup_pct's 100: this covers a bank spread, and
+  // a fat-fingered 25 already prices every order out of the market.
+  if (!Number.isFinite(buffer) || buffer < 0 || buffer > 25) {
+    return { rate: NaN, bufferPct: NaN, error: 'fx_buffer_pct must be between 0 and 25' };
+  }
+  return { rate: Math.round(mid * (1 + buffer / 100) * 100) / 100, bufferPct: buffer, error: null };
+}

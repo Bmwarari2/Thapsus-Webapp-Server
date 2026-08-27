@@ -19,6 +19,18 @@ export const DEFAULTS = {
   // approved payment-prompt template promises "The quote expires {{4}}" —
   // this is what fills it. Quoting stamps quote_expires_at from it.
   quote_validity_days: 7,
+  // Cushion on the mid-market USD→KES rate, so a quote is priced at a
+  // rate we can actually transact at.
+  //
+  // exchange_rates.USD_KES is the frankfurter.dev MID rate. The business
+  // banks in GBP and pays suppliers from the UK, so every order is a
+  // real round trip — KES in, GBP out — costing 3–4 KES on the cross.
+  // Quoting at mid handed that spread away on all 18 quotes to date.
+  //
+  // Separate from markup_pct on purpose: the margin is a price we
+  // promote and waive (0% on every UK, Dubai and promo-SHEIN order),
+  // while this is cost recovery and must survive a promotion.
+  fx_buffer_pct: 2.5,
   // Kill switch for the automated revenue follow-ups (utils/waNudges.js):
   // quote follow-up, browse-abandon and repeat-purchase nudges, plus the
   // stalled-quote staff pages. On by default — the first month's data
@@ -123,6 +135,15 @@ export async function getWaSettings(db) {
         ? Number(kv.default_delivery_fee_kes) : DEFAULTS.default_delivery_fee_kes,
       quote_validity_days: Number.isFinite(Number(kv.quote_validity_days)) && Number(kv.quote_validity_days) > 0
         ? Number(kv.quote_validity_days) : DEFAULTS.quote_validity_days,
+      // A stored 0 is a deliberate "quote at mid" and must survive, so
+      // this checks the range rather than truthiness. The null/'' guard
+      // comes first because Number('') is 0 — an empty row would
+      // otherwise read as a deliberate zero and silently drop the
+      // cushion off every quote.
+      fx_buffer_pct: kv.fx_buffer_pct != null && kv.fx_buffer_pct !== ''
+        && Number.isFinite(Number(kv.fx_buffer_pct))
+        && Number(kv.fx_buffer_pct) >= 0 && Number(kv.fx_buffer_pct) <= 25
+        ? Number(kv.fx_buffer_pct) : DEFAULTS.fx_buffer_pct,
       nudges_enabled: kv.nudges_enabled != null
         ? kv.nudges_enabled === 'true' : DEFAULTS.nudges_enabled,
       welcome_media_urls: Array.isArray(parseJsonOr(null, kv.welcome_media_urls))
