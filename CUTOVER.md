@@ -10,7 +10,7 @@ for what changed and why, [`REBUILD.md`](./REBUILD.md).
 
 ## Done in production
 
-- ✅ Migrations `0004`–`0013` applied to the live Supabase project
+- ✅ Migrations `0004`–`0018` applied to the live Supabase project
   (additive only; recorded in `_migrations`; drift snapshot regenerated).
   `RUN_MIGRATIONS_ON_BOOT=true` is set permanently, so each deploy
   applies anything missing before serving.

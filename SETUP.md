@@ -211,9 +211,10 @@ npm run test:db                # standalone DB connectivity smoke
 ```
 
 Unit suites (no DB required):
-- `tests/unit/waStateMachine.test.js` — the conversation dispatcher, 79 cases: onboarding edges, empty messages, tracking formats for delivery and collection, confirmation ambiguity, payment claims, SHEIN cart requests, takeover and resume, both AI sentinels
-- `tests/unit/waAiClassify.test.js` / `waOrderFlow.test.js` / `waCodes.test.js` — AI sentinel boundary, pipeline edges, code minting
-- `tests/unit/waQuote.test.js` / `waDeliveryFeeSettle.test.js` — quote and delivery-fee arithmetic (both exist because `Number(null) === 0` silently produced a zero markup and a zero fee)
+- `tests/unit/waStateMachine.test.js` — the conversation dispatcher, 113 cases: onboarding edges, empty messages, tracking formats for delivery and collection, confirmation ambiguity, payment claims, SHEIN cart requests, takeover and resume, both AI sentinels, and the facts block that tells the assistant whether a link ever arrived
+- `tests/unit/waAiClassify.test.js` / `waOrderFlow.test.js` / `waCodes.test.js` — AI sentinel boundary, the quote-in-flight guard (a reply must not promise a quote nobody is preparing), pipeline edges, code minting
+- `tests/unit/waQuote.test.js` / `waDeliveryFeeSettle.test.js` — quote and delivery-fee arithmetic, including the FX buffer and its 2dp rounding (both files exist because `Number(null) === 0` silently produced a zero markup and a zero fee)
+- `tests/unit/orderStages.test.js` — which advance buttons the order screen offers, and that collection orders keep the shared early stages
 - `tests/unit/waTemplateVars.test.js` — template bodies against their positional variable orderings
 - `tests/unit/waText.test.js` — the WhatsApp markup renderer used by the inbox
 - `tests/unit/sentdm.test.js` / `sentdmMedia.test.js` / `lipanaWebhook.test.js` — webhook signature verification and inbound media extraction
@@ -261,7 +262,7 @@ Thapsus-Webapp-Server/
 │       └── hooks/           # SSE subscriptions
 ├── database/
 │   ├── init.js              # pg.Pool, _migrations ledger, opt-in runner
-│   ├── migrations/          # 0000 baseline … 0013 (0004 is the WhatsApp core)
+│   ├── migrations/          # 0000 baseline … 0018 (0004 is the WhatsApp core)
 │   └── schema-snapshot.json # drift-checker baseline
 ├── middleware/
 │   ├── auth.js              # HS256-pinned verify, revocation, password-changed-at, is_active
@@ -286,7 +287,7 @@ Thapsus-Webapp-Server/
 ### Customer — WhatsApp only
 - The first reply leads with what we do and what we charge, then invites a product link — it does not open with a questionnaire
 - Name and delivery address are collected while the customer is already waiting on a quote; both present mints a permanent Customer Code (`TC-####`). No M-Pesa number is asked for
-- Send a product link, get a KES quote (live USD→KES × per-order markup, last-mile fee included for delivery orders)
+- Send a product link, get a KES quote (USD→KES at the mid rate plus the FX buffer, × per-order markup, last-mile fee included for delivery orders)
 - A SHEIN product link is answered with a request for the cart link — a product link often won't open on our side and never shows the size or colour picked
 - Confirm with "yes", pay the Buy Goods till, get a Tracking Code (`TRK-####`) and a PDF receipt
 - Text the tracking code any time for a live status reply, worded for delivery or collection
@@ -295,7 +296,7 @@ Thapsus-Webapp-Server/
 ### Operator dashboard
 - Unified WhatsApp inbox, live over SSE, with a per-chat AI toggle, media attachments both directions, and WhatsApp markup rendered rather than shown as asterisks
 - Five-column pipeline board, global `TC-`/`TRK-` search, camera + wedge barcode scanning
-- Quote entry with live KES preview and per-order markup; delivery method and Pickup Mtaani point; status advance with automatic customer alerts
+- Quote entry with live KES preview and per-order markup — the preview names the FX buffer and the day's mid rate so a cost is not discounted away as margin; delivery method and Pickup Mtaani point; status advance with automatic customer alerts
 - Collection orders skip dispatch and delivery — their only action is "Mark as collected"
 - Manual M-Pesa approval queue (admin)
 - Promo toggle to waive last-mile delivery fees, globally or per order

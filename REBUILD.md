@@ -81,7 +81,8 @@ item price in USD. The
 server does the arithmetic — it never trusts a client-supplied total:
 
 ```
-quote_kes = round(usd_price × live_USD_KES_rate × (1 + markup_pct / 100))
+quoting_rate = round2(mid_USD_KES × (1 + fx_buffer_pct / 100))
+quote_kes    = round(usd_price × quoting_rate × (1 + markup_pct / 100))
 ```
 
 Customers who collect never enter dispatch. Their parcel goes
@@ -113,10 +114,40 @@ margin: 10%" in the message as though it were intended.
 
 The live rate comes from the `USD_KES` row that `utils/fxRefresh.js`
 upserts daily from frankfurter.dev; `markup_pct` comes from
-`wa_settings` and defaults to 10. All three inputs plus the result are
+`wa_settings` and defaults to 10. All the inputs plus the result are
 snapshotted onto the order row, so a rate move tomorrow can't retroactively
 change what a customer was quoted today. The quote is sent to WhatsApp
 with the breakdown shown.
+
+**The rate quotes are priced at is not the mid-market rate.**
+`exchange_rates.USD_KES` is frankfurter.dev's **mid** rate — the
+midpoint of a spread nobody actually trades at. The business collects
+KES and pays suppliers in GBP from the UK, so every order is a real
+round trip costing 3–4 shillings on the cross. Quoting at mid handed
+that away on all 18 quotes of the first month, which had also all run at
+`markup_pct = 0` (the SHEIN promotion, and the weight-priced UK and
+Dubai lanes carry no percentage), so nothing anywhere absorbed it.
+
+`wa_settings.fx_buffer_pct` — default **2.5**, capped at 25 — lifts mid
+to the rate a quote is priced at. It is deliberately **not**
+`markup_pct`: the service margin is a price we promote and waive, while
+the buffer is cost recovery and has to survive a promotion that zeroes
+the margin. `utils/waQuote.js` `effectiveFxRate()` rounds the result to
+2dp, the precision the quote message prints, so a customer who
+multiplies the printed rate by the printed USD price lands on our total
+to the shilling.
+
+`wa_orders.fx_rate` therefore stores the **buffered** rate — what the
+customer was quoted and what the receipt prints — and `fx_buffer_pct`
+records how much of it was cushion, so the day's mid stays recoverable
+from the pair. NULL means the order was quoted before the buffer
+existed. Existing quotes were not repriced.
+
+The customer sees a rate, never a buffer: the quote message prints
+`Exchange rate: 1 USD = 132.58 KES` where 132.58 is ours, not a claim
+about the interbank market. The operator sees both — the live KES
+preview names the buffer and the day's mid underneath the total, so
+nobody discounts a cost back out believing it was margin.
 
 ### Phase 3 — Payment and procurement
 
@@ -219,7 +250,7 @@ pass once the last legacy order is delivered — ask for "stage F cleanup".
 
 ## 4. What was added
 
-### Schema — migrations `0004`–`0013`
+### Schema — migrations `0004`–`0018`
 
 All additive only, all applied to production.
 
@@ -227,9 +258,9 @@ All additive only, all applied to production.
 | --- | --- |
 | `wa_contacts` | One row per WhatsApp number: profile, `customer_code`, onboarding `state`, unread counters, conversation head, AI memory |
 | `wa_messages` | Full transcript both directions, `provider_message_id` unique for inbound dedupe and delivery-status updates |
-| `wa_orders` | The order: product links, quote snapshot (`usd_price`, `fx_rate`, `markup_pct`, `quote_kes`), `tracking_code`, status, delivery fee, receipt path, per-status timestamps |
+| `wa_orders` | The order: product links, quote snapshot (`usd_price`, `fx_rate` — the buffered rate — `markup_pct`, `fx_buffer_pct`, `quote_kes`), `tracking_code`, status, delivery fee, receipt path, per-status timestamps |
 | `wa_order_events` | Append-only audit trail of every status move and who made it |
-| `wa_settings` | Operator-editable key/value: markup, promo, default fee, welcome media, template map, AI toggle + knowledge base, staff alert numbers |
+| `wa_settings` | Operator-editable key/value: markup, FX buffer, promo, default fee, quote validity, nudge switch, welcome media, template map, AI toggle + knowledge base, staff alert numbers |
 
 Sequences `wa_customer_code_seq` (from 1042) and `wa_tracking_code_seq`
 (from 8821) mint the public codes. `payments` was extended rather than
@@ -343,6 +374,34 @@ operator and muted the bot for two hours. Both entry points return a
 tagged `{kind, text}` through a shared `classifyReply()`, so a control
 sentinel can never be mistaken for a message and sent to a customer.
 
+**It is told where the conversation stands; it does not infer it.**
+`conversationFacts()` in the state machine looks up three things per
+turn — has this customer ever sent a product or cart link, is any order
+on file, is one actually sitting in `quoting` — and `renderFacts()` puts
+them into both prompts above the transcript, marked as outranking the
+model's own reading of the chat.
+
+That gap cost a real conversation. A customer opened with "Hi", asked
+how long delivery takes, then asked **"How do I pay?"** — no link sent,
+no order anywhere — and was told "your quote is being worked out now and
+will come through here shortly". Nothing was. They were left waiting on a
+message nobody would send, and the payment question, which the knowledge
+base answers in full, was never answered. The prompt's "tell them the
+quote is coming" rule was written for the message *after* a link
+arrives, and nothing told the model whether one ever had. A transcript
+shows what was said; only the system knows what is true.
+
+The prompt's steps now branch on those facts rather than assuming the
+link arrived, and `claimsQuoteInFlight()` enforces it instead of hoping:
+it matches a reply asserting our side is already pricing something,
+while leaving the invitation the funnel depends on — "send your cart
+link and we'll quote you" — alone. When the facts say nothing is in
+flight, the turn is regenerated once with the false claim named; a
+second offence degrades to `HANDOFF` so a person answers, and pages
+staff either way. Same reasoning as `looksLikeName()`: a promise that
+leaves a customer waiting for a message nobody will send is too
+expensive to depend on the model having a good day.
+
 ### Human takeover
 
 When an operator replies — or the assistant hands off — the assistant
@@ -411,7 +470,7 @@ Five screens under `/ops`, all behind the operator role:
 | `/ops/pipeline` | Five-column board (Quoting / Paid / Purchased / In Kenya / Delivered), global `TC-`/`TRK-` search, camera scanner |
 | `/ops/orders/:id` | Quote entry with live KES preview, delivery method, pickup-point picker, payment actions, status advance, fee settle/waive, receipt, printable label |
 | `/ops/payments` | Manual M-Pesa approval queue (admin) — the pipeline's real bottleneck, so it gets its own screen and nav item |
-| `/ops/settings` | Markup, promo toggle, default fee, welcome media, template map, AI toggle + knowledge base, staff alert numbers, webhook doctor (admin) |
+| `/ops/settings` | Markup, FX buffer, promo toggle, default fee, welcome media, template map, AI toggle + knowledge base, staff alert numbers, webhook doctor (admin) |
 | `/ops/team` | Staff accounts and recent server errors (admin) — what survived the old admin dashboard. New accounts are created with a temporary password shown once on screen; no email is sent |
 
 The public site keeps the home page, public tracking, FAQ, articles,
@@ -556,6 +615,8 @@ theme rather than by commit:
 | --- | --- |
 | Sales-first opening | The assistant leads with what we do and what we charge, invites a product link, and asks for the name and address only while the customer is waiting on a quote. M-Pesa collection dropped (`0008`) |
 | Per-order markup | `markup_pct` moved onto the order — the 10% is a SHEIN service fee, and the weight-based UK and Dubai lanes carry none |
+| FX buffer | `fx_buffer_pct` lifts the mid-market rate to one we can transact at. Separate from the margin because the margin gets waived and this must not |
+| The assistant is told the conversation's state | `conversationFacts()` looks up whether a link ever arrived and whether an order is open, rather than letting the model infer it from the transcript |
 | Delivery fee up front | Quoted with the order rather than requested on arrival (`0010`); `delivery_fee_in_quote` keeps older orders on the flow they were quoted under |
 | Collection orders | `collected` status (`0011`) — collection skips dispatch and delivery entirely |
 | Pickup Mtaani | `wa_orders.pickup_point` (`0012`), assigned by staff from the agent list; the assistant may recommend an area but never confirms an agent |
