@@ -62,6 +62,50 @@ export function aiConfigured() {
   return Boolean(process.env.GEMINI_API_KEY);
 }
 
+/**
+ * Does this reply tell the customer a quote is being prepared or is on
+ * its way?
+ *
+ * +447428777090 opened with "Hi", asked how long delivery takes, then
+ * asked "How do I pay?" — having sent no link and having no order. The
+ * assistant answered "your quote is being worked out now and will come
+ * through here shortly. There's nothing to pay or decide until you've
+ * seen it." Nothing was being worked out. Nobody was ever going to send
+ * that quote, and the question they actually asked — which the knowledge
+ * base answers in full — went unanswered while they waited.
+ *
+ * The prompt now carries the facts that make this avoidable, but a claim
+ * that leaves a customer waiting for a message that will never arrive is
+ * too expensive to leave to whether the model is having a good day. Same
+ * reasoning as looksLikeName in the state machine: cheap rule, enforced
+ * in code.
+ *
+ * Deliberately narrow. It matches a claim about OUR side being underway
+ * ("your quote is being worked out", "the team is pricing it", "your
+ * total is on the way"), not an invitation ("send your cart and we'll
+ * quote you"), not a conditional ("once you send a link, a quote
+ * follows"), and not the customer's own words.
+ */
+const QUOTE_NOUN = '(quote|quotation|total|price|pricing|figure|costing)';
+const IN_FLIGHT = [
+  // "your quote is being worked out / prepared / put together"
+  new RegExp(`\\b${QUOTE_NOUN}\\b[^.!?]{0,40}\\bis\\b[^.!?]{0,20}\\bbeing\\b`, 'i'),
+  // "your quote is on the way / is coming / will come through shortly"
+  new RegExp(`\\b${QUOTE_NOUN}\\b[^.!?]{0,40}\\b(is|will be|'ll be|is being)\\b[^.!?]{0,25}\\b(on (its|the) way|coming|ready|through|sent|with you)\\b`, 'i'),
+  new RegExp(`\\b${QUOTE_NOUN}\\b[^.!?]{0,40}\\bwill\\b[^.!?]{0,25}\\b(come|arrive|follow|reach you|be sent)\\b`, 'i'),
+  // "the team is working on / pricing / preparing your order"
+  /\b(team|we|i)\b[^.!?]{0,20}\b(are|is|'re|'m|am)\b[^.!?]{0,15}\b(working (it|on)|pricing|preparing|putting together|calculating|sorting)\b/i,
+  // "we are getting your quote ready"
+  new RegExp(`\\bgetting\\b[^.!?]{0,25}\\b${QUOTE_NOUN}\\b[^.!?]{0,15}\\bready\\b`, 'i'),
+];
+
+/** @param {string|null} text @returns {boolean} */
+export function claimsQuoteInFlight(text) {
+  const t = String(text || '');
+  if (!t) return false;
+  return IN_FLIGHT.some((re) => re.test(t));
+}
+
 let _model = null;      // { name, at }
 
 /**
@@ -181,6 +225,7 @@ STRICT RULES you must never break:
 - NEVER name, confirm or rule out a specific Pickup Mtaani point, agent or neighbourhood, and never say whether we cover a named area. A customer asked about Hurlingham and was told "yes, we deliver to Pickup Mtaani points in Hurlingham for KSh 300" — invented, and right only by luck. Which agent a parcel goes to is the team's decision, made against the current agent list. Say that we deliver through Pickup Mtaani countrywide, that they can tell us the area they would like, and that the team will confirm the exact point.
 - NEVER ask for card numbers, PINs, or passwords.
 - Only state facts found in the KNOWLEDGE BASE or in THIS CUSTOMER'S ORDERS.
+- NEVER say a quote is being worked out, being prepared, on its way, coming shortly, or that the team is pricing anything, unless WHERE THIS CONVERSATION STANDS says a product link has been received or an order is on file. Someone who has sent us nothing has nothing being priced: telling them otherwise leaves them waiting for a message that will never arrive, and it answers whatever they actually asked with nothing. Answer their question, then ask for the product or cart link — the link is the ONLY thing that starts a quote.
 - You MAY tell the customer the status, tracking code, dates and agreed total of the orders listed under THIS CUSTOMER'S ORDERS — that is live data from our system. NEVER invent an order, code, date or status.
 - Reply with exactly ${HANDOFF} — nothing else — when a PERSON is needed: the customer asks for a human, is upset, is complaining, wants a refund or a cancellation, or asks something about our service or their order that you cannot answer from the knowledge base or the order list above. This reaches an operator, so use it whenever their question is genuinely ours to answer.
 - Reply with exactly ${OFF_TOPIC} — nothing else — when the message has NOTHING to do with Thapsus Cargo, shopping, shipping or their orders: general-knowledge questions, news, sport, politics, medical or legal advice, maths, requests to write or translate something, jokes, chit-chat past a greeting, or an obvious wrong number. Do NOT answer these and do NOT escalate them — ${OFF_TOPIC} is not a failure, it is the correct answer.
@@ -199,6 +244,62 @@ the conversation one step toward an order is the other half:
 - Someone who declines twice, or says they are not interested, is left in peace: acknowledge warmly, tell them we are here when they need us, and stop selling.`;
 
 /**
+ * The verified state of this conversation, as a prompt block.
+ *
+ * The model was inferring all of this from a ten-message transcript and
+ * getting it wrong: it read "How do I pay?" from someone at the name
+ * stage as putting off a detail, and applied the "tell them the quote is
+ * coming" rule to a customer who had never sent a link. The transcript
+ * does not say what is true of our system; this does, and it is checked
+ * rather than guessed.
+ *
+ * @param {{linkReceived?: boolean, orderCount?: number, quoteInFlight?: boolean,
+ *          missing?: string[], inboundCount?: number}} f
+ */
+export function renderFacts(f = {}) {
+  const lines = [];
+  lines.push(f.linkReceived
+    ? '- Product or cart link received from them: YES. The team prices these by hand.'
+    : '- Product or cart link received from them: NO — they have never sent one.');
+  lines.push(f.orderCount
+    ? `- Orders on file: ${f.orderCount}. Details are under THIS CUSTOMER'S ORDERS below.`
+    : '- Orders on file: NONE. Nothing has been quoted, nothing is being priced, nothing is on its way to them.');
+  lines.push(f.quoteInFlight
+    ? '- A quote IS genuinely being prepared for them, so saying so is true.'
+    : '- NO quote is being prepared. Do NOT say one is coming, being worked out, or on its way — '
+      + 'it is untrue, and they would wait for a message nobody is going to send. '
+      + 'Ask for the product or cart link instead: that is what starts a quote.');
+  if (f.missing?.length) lines.push(`- Still missing from their profile: ${f.missing.join('; ')}.`);
+  lines.push(f.inboundCount === 1
+    ? '- This is the FIRST message they have ever sent us.'
+    : `- Messages they have sent us so far: ${f.inboundCount ?? 'unknown'}.`);
+  return lines.join('\n');
+}
+
+/**
+ * One corrective retry when the model claims work that is not happening.
+ *
+ * The prompt already says not to, and mostly it does not. This is the
+ * backstop for the day it does: the claim is named, the model answers
+ * again, and only if it repeats itself does the turn degrade to HANDOFF
+ * — a person answering beats a promise nobody can keep.
+ */
+async function regenerateWithoutFalseClaim({ system, contents, reply, json = false, schema = null }) {
+  console.warn('[waAi] reply claimed a quote was in flight with none on file — regenerating');
+  const corrected = [
+    ...contents,
+    { role: 'model', parts: [{ text: reply }] },
+    { role: 'user', parts: [{ text:
+      'SYSTEM CORRECTION, not from the customer: that reply said a quote was being prepared or '
+      + 'on its way. It is not — no product link has been received and no order exists. Answer '
+      + 'the customer\'s message again: address what they actually asked, using the knowledge '
+      + 'base, and close by asking for the product or cart link. Do not mention a quote already '
+      + 'being worked on.' }] },
+  ];
+  return generate({ system, contents: corrected, json, schema });
+}
+
+/**
  * Answer a general customer message from the knowledge base.
  * @param {object} p
  * @param {string} p.knowledgeBase  operator-maintained facts
@@ -209,7 +310,7 @@ the conversation one step toward an order is the other half:
  *   without an exact tracking code
  * @returns {Promise<{kind: 'reply'|'handoff'|'off_topic', text: string|null}>}
  */
-export async function chatReply({ knowledgeBase, history, message, orderContext, profile, summary }) {
+export async function chatReply({ knowledgeBase, history, message, orderContext, profile, summary, facts }) {
   const system =
     `You are the WhatsApp assistant for Thapsus Cargo, a Kenyan service that buys items ` +
     `from online stores abroad and delivers them to customers' doors in Kenya. Customers ` +
@@ -217,6 +318,11 @@ export async function chatReply({ knowledgeBase, history, message, orderContext,
     `parcels by texting their tracking code.\n\n` +
     `WHO YOU ARE TALKING TO:\n${profile || '(unknown)'}\n\n` +
     `WHAT YOU KNOW ABOUT THEM FROM EARLIER CONVERSATIONS:\n${summary || '(nothing recorded yet)'}\n\n` +
+    // Checked facts, ahead of the transcript on purpose: what the chat
+    // looks like is not what our system says, and the model was reading
+    // an order into a conversation that had none.
+    `WHERE THIS CONVERSATION STANDS (verified from our system — trust this over your own ` +
+    `reading of the chat):\n${facts || '(unknown)'}\n\n` +
     `THIS CUSTOMER'S ORDERS (live from our system):\n${orderContext || '(none on file)'}\n\n` +
     `KNOWLEDGE BASE:\n${knowledgeBase || '(empty)'}\n${GUARDRAILS}`;
 
@@ -228,7 +334,24 @@ export async function chatReply({ knowledgeBase, history, message, orderContext,
     { role: 'user', parts: [{ text: String(message).slice(0, 2000) }] },
   ];
 
-  return classifyReply(await generate({ system, contents }));
+  let text = await generate({ system, contents });
+  if (!quoteInFlightAllowed(facts) && claimsQuoteInFlight(text)) {
+    text = await regenerateWithoutFalseClaim({ system, contents, reply: text });
+    // Still promising a quote nobody is preparing. A person answering is
+    // better than a promise we cannot keep.
+    if (claimsQuoteInFlight(text)) return { kind: 'handoff', text: null };
+  }
+  return classifyReply(text);
+}
+
+/**
+ * May a reply say a quote is on its way? Only when the facts block says
+ * something is actually in flight. Unknown facts stay permissive — the
+ * guard exists to catch inventions, not to gag a caller that hasn't been
+ * given the context yet.
+ */
+function quoteInFlightAllowed(facts) {
+  return !/^- NO quote is being prepared\./m.test(String(facts || ''));
 }
 
 /**
@@ -246,7 +369,7 @@ export async function chatReply({ knowledgeBase, history, message, orderContext,
  * @param {{full_name: string|null, delivery_address: string|null}} p.profile
  * @returns {Promise<{kind: 'reply'|'handoff'|'off_topic', reply: string|null, full_name: string|null, delivery_address: string|null}>}
  */
-export async function onboardingTurn({ knowledgeBase, history, message, profile, orderContext }) {
+export async function onboardingTurn({ knowledgeBase, history, message, profile, orderContext, facts }) {
   const missing = [];
   if (!profile.full_name) missing.push('full name (as written on parcels)');
   // Not everyone wants a delivery. Collection is a first-class answer —
@@ -276,12 +399,28 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
     `coming. THEN, in the same message, ask for the first detail we still need, explaining ` +
     `it is so we can get the parcel to them once they accept. That waiting time is the only ` +
     `moment worth spending on questions.\n` +
-    `3. IF THEY ASK SOMETHING — answer it from the knowledge base first, then continue.\n` +
-    `4. IF THEY ASK TO SEE THE PRICE FIRST, or otherwise put off giving a detail — say yes. ` +
-    `Tell them the quote is coming and that nothing is needed until they have seen it, and do ` +
-    `NOT repeat the question in that same message. Leave the field null and ask again only ` +
-    `after they have accepted. Somebody deciding whether to buy at all is not being difficult, ` +
-    `and re-asking reads as though nobody listened.\n\n` +
+    `3. IF THEY ASK SOMETHING — answer it, from the knowledge base, in that same message and ` +
+    `before anything else. How payment works, how long delivery takes, what we charge, where ` +
+    `to collect: all of it is written below. A question deflected with "your quote is coming" ` +
+    `has been answered with nothing, and that is how we lose people who were ready to order.\n` +
+    `4. IF THEY ASK TO SEE THE PRICE FIRST, or otherwise put off giving a detail — say yes, ` +
+    `and do NOT repeat the question in that same message. Leave the field null and ask again ` +
+    `only after they have accepted. Somebody deciding whether to buy at all is not being ` +
+    `difficult, and re-asking reads as though nobody listened. What you say next depends on ` +
+    `WHERE THIS CONVERSATION STANDS, NOT on how far along the chat feels:\n` +
+    `   - A link HAS been received: the quote really is coming. Say so, and that nothing is ` +
+    `needed until they have seen it.\n` +
+    `   - NO link has been received: there is nothing to quote yet, so never say a quote is ` +
+    `on its way. Answer what they asked, say what a quote will cover and that it costs them ` +
+    `nothing, and ask for the product or cart link. The link is the only thing that starts a ` +
+    `quote — without it, waiting is all they will ever do.\n\n` +
+    // The +447428777090 case. "Hi" → "How long does it take?" → "How do
+    // I pay?", no link, no order, and the assistant answered "your quote
+    // is being worked out now and will come through here shortly". The
+    // rule above was written for step 2 and applied with no way to know
+    // step 2 had never happened.
+    `WHERE THIS CONVERSATION STANDS (verified from our system — trust this over your own ` +
+    `reading of the chat):\n${facts || '(unknown)'}\n\n` +
     `Still needed from them: ${missing.join('; ') || 'nothing'}.\n` +
     `- Ask for ONE missing detail at a time, but extract EVERY detail their message contains ` +
     `(people often give several at once).\n` +
@@ -319,25 +458,49 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
     { role: 'user', parts: [{ text: String(message).slice(0, 2000) }] },
   ];
 
-  const text = await generate({
-    system,
-    contents,
-    json: true,
-    schema: {
-      type: 'object',
-      properties: {
-        reply: { type: 'string' },
-        full_name: { type: 'string', nullable: true },
-        delivery_address: { type: 'string', nullable: true },
-        delivery_preference: { type: 'string', nullable: true, enum: ['delivery', 'collection'] },
-      },
-      required: ['reply'],
+  const schema = {
+    type: 'object',
+    properties: {
+      reply: { type: 'string' },
+      full_name: { type: 'string', nullable: true },
+      delivery_address: { type: 'string', nullable: true },
+      delivery_preference: { type: 'string', nullable: true, enum: ['delivery', 'collection'] },
     },
-  });
+    required: ['reply'],
+  };
+  const text = await generate({ system, contents, json: true, schema });
 
-  let parsed;
-  try { parsed = JSON.parse(text); } catch { throw new Error('Gemini returned invalid JSON'); }
   const str = (v, max) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
+  const parse = (raw) => {
+    try { return JSON.parse(raw); } catch { throw new Error('Gemini returned invalid JSON'); }
+  };
+  let parsed = parse(text);
+
+  // A quote promised to somebody who has sent us nothing. The prompt
+  // covers this; the check is here because the cost of it slipping
+  // through is a customer waiting weeks for a message that does not
+  // exist, and their real question left unanswered.
+  let falseClaim = false;
+  if (!quoteInFlightAllowed(facts) && claimsQuoteInFlight(str(parsed?.reply, 1200))) {
+    falseClaim = true;
+    parsed = parse(await regenerateWithoutFalseClaim({
+      system, contents, reply: text, json: true, schema,
+    }));
+    // Extraction still stands from either attempt — the profile fields
+    // are facts about their message, not about our promise.
+    if (claimsQuoteInFlight(str(parsed?.reply, 1200))) {
+      return {
+        kind: 'handoff',
+        reply: null,
+        falseClaim,
+        full_name: str(parsed?.full_name, 120),
+        delivery_address: str(parsed?.delivery_address, 400),
+        delivery_preference: ['delivery', 'collection'].includes(parsed?.delivery_preference)
+          ? parsed.delivery_preference : null,
+      };
+    }
+  }
+
   // Fields the model extracted stand even when the reply itself is a
   // sentinel — someone can give their name and ask an off-topic question
   // in the same breath.
@@ -345,6 +508,7 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
   return {
     kind,
     reply,
+    falseClaim,
     full_name: str(parsed?.full_name, 120),
     delivery_address: str(parsed?.delivery_address, 400),
     // Only the two known values reach the caller — the column has a
