@@ -19,6 +19,12 @@ export const DEFAULTS = {
   // approved payment-prompt template promises "The quote expires {{4}}" —
   // this is what fills it. Quoting stamps quote_expires_at from it.
   quote_validity_days: 7,
+  // Kill switch for the automated revenue follow-ups (utils/waNudges.js):
+  // quote follow-up, browse-abandon and repeat-purchase nudges, plus the
+  // stalled-quote staff pages. On by default — the first month's data
+  // showed warm leads consistently going cold after our reply with no
+  // follow-up anywhere.
+  nudges_enabled: true,
   welcome_media_urls: [],
   // Optional map of logical message keys → approved sent.dm template names.
   // The templates approved in the sent.dm console, keyed by our logical
@@ -117,6 +123,8 @@ export async function getWaSettings(db) {
         ? Number(kv.default_delivery_fee_kes) : DEFAULTS.default_delivery_fee_kes,
       quote_validity_days: Number.isFinite(Number(kv.quote_validity_days)) && Number(kv.quote_validity_days) > 0
         ? Number(kv.quote_validity_days) : DEFAULTS.quote_validity_days,
+      nudges_enabled: kv.nudges_enabled != null
+        ? kv.nudges_enabled === 'true' : DEFAULTS.nudges_enabled,
       welcome_media_urls: Array.isArray(parseJsonOr(null, kv.welcome_media_urls))
         ? parseJsonOr([], kv.welcome_media_urls) : [],
       template_map: mergeTemplateMap(parseJsonOr(null, kv.template_map)),

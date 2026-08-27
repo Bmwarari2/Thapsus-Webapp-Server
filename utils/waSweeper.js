@@ -29,6 +29,7 @@ import { getWaSettings } from './waSettings.js';
 import { sentDmConfigured, sendText } from './sentdm.js';
 import { sessionWindowOpen } from './waSend.js';
 import { fireWaOrderPostPaidHook } from './markPaymentPaid.js';
+import { runNudges } from './waNudges.js';
 
 const MIN = 60 * 1000;
 const WARMUP_MS = 90 * 1000;
@@ -92,6 +93,9 @@ export async function sweepOnce(pool) {
     reconcilePostPaidHooks(pool),
     remindUnpaidConfirmed(pool),
     flagExpiredQuotes(pool),
+    // Revenue follow-ups (quote/browse/repeat nudges + stalled-quote
+    // staff pages) — utils/waNudges.js, gated by wa_settings.nudges_enabled.
+    runNudges(pool),
   ]);
 }
 

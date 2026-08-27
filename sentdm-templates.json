@@ -12,7 +12,8 @@
     "arrived_paid": "tc_arrived_paid",
     "arrived_collect": "tc_arrived_collect",
     "dispatched": "tc_dispatched",
-    "receipt": "tc_receipt"
+    "receipt": "tc_receipt",
+    "quote_reminder": "tc_quote_reminder"
   },
   "templates": [
     {
@@ -166,6 +167,21 @@
         "samples": [
           "TRK-8829",
           "TRK-8829.vtDo2gQ"
+        ]
+      }
+    },
+    {
+      "name": "tc_quote_reminder",
+      "key": "quote_reminder",
+      "channel": "whatsapp",
+      "language": "en",
+      "category": "UTILITY",
+      "body": {
+        "template": "Hi {{1}}, your quote for order {{2}} is still available: KES {{3}}. Reply YES to confirm it, or send an updated cart and we will send a fresh quote.",
+        "samples": [
+          "Martha",
+          "TRK-8823",
+          "6,486"
         ]
       }
     }

@@ -83,6 +83,16 @@ export const TEMPLATE_SLOTS = {
     body: 'Your receipt for order {{1}} is ready at thapsus.uk/r/{{2}} — keep it for your records.',
     vars: ['tracking_code', 'receipt_token'],
   },
+
+  // Declared ahead of approval, like the arrival slots above: nothing
+  // reads this until it is approved in the sent.dm console and mapped in
+  // Settings. Once mapped, the quote follow-up nudge (utils/waNudges.js)
+  // can also reach customers whose 24-hour window has shut — today it
+  // only sends in-window free text.
+  quote_reminder: {
+    body: 'Hi {{1}}, your quote for order {{2}} is still available: KES {{3}}. Reply YES to confirm it, or send an updated cart and we will send a fresh quote.',
+    vars: ['full_name', 'order_ref', 'total_kes'],
+  },
 };
 
 /**

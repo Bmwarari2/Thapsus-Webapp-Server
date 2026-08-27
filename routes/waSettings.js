@@ -94,6 +94,9 @@ router.put('/', authMiddleware, isAdmin, async (req, res) => {
       }
       updates.push(['quote_validity_days', String(Math.round(v))]);
     }
+    if (body.nudges_enabled !== undefined) {
+      updates.push(['nudges_enabled', body.nudges_enabled === true ? 'true' : 'false']);
+    }
     if (body.welcome_media_urls !== undefined) {
       if (!Array.isArray(body.welcome_media_urls)
           || body.welcome_media_urls.some((u) => typeof u !== 'string' || !/^https:\/\//.test(u) || u.length > 2048)
