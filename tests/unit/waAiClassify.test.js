@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyReply, claimsQuoteInFlight, renderFacts, HANDOFF, OFF_TOPIC } from '../../utils/waAi.js';
+import { classifyReply, claimsQuoteInFlight, renderFacts, unbackedFigures, HANDOFF, OFF_TOPIC } from '../../utils/waAi.js';
 
 // classifyReply is the boundary that stops a control sentinel reaching a
 // customer's phone. It runs on every AI reply, so it gets its own tests.
@@ -26,9 +26,15 @@ describe('classifyReply', () => {
     }
   });
 
-  it('prefers off-topic when the model emits both', () => {
-    // Shouldn't happen, but the customer must not receive either word.
-    expect(classifyReply(`${HANDOFF} ${OFF_TOPIC}`).kind).toBe('off_topic');
+  // Exact match, not substring. "Our HANDOFF process takes a minute." is
+  // a legitimate sentence and used to be discarded, handing the customer
+  // to a person instead of answering them.
+  it('treats a sentinel as a sentinel only when it IS the whole reply', () => {
+    expect(classifyReply('HANDOFF').kind).toBe('handoff');
+    expect(classifyReply('  "HANDOFF" ').kind).toBe('handoff');
+    expect(classifyReply('OFF_TOPIC.').kind).toBe('off_topic');
+    expect(classifyReply('Our HANDOFF process takes a minute.').kind).toBe('reply');
+    expect(classifyReply('That is OFF_TOPIC for us but here is the answer').kind).toBe('reply');
   });
 
   it('caps a runaway generation', () => {
@@ -82,19 +88,28 @@ describe('claimsQuoteInFlight', () => {
 // far along a chat feels. Its wording is load-bearing: the guard in
 // waAi.js reads the "NO quote is being prepared" line back out of it.
 describe('renderFacts', () => {
-  it('states plainly that nothing is in flight for a cold contact', () => {
+  // One line about the quote, never a YES and a NO about the same thing.
+  // The first version rendered "link received: YES" directly above "NO
+  // quote is being prepared" and told the model to ask for the link the
+  // customer had just sent.
+  it('says plainly that nothing is being priced for a cold contact', () => {
     const facts = renderFacts({ linkReceived: false, orderCount: 0, quoteInFlight: false, inboundCount: 3 });
-    expect(facts).toMatch(/link received from them: NO/);
-    expect(facts).toMatch(/Orders on file: NONE/);
-    expect(facts).toMatch(/^- NO quote is being prepared\./m);
-    expect(facts).toMatch(/product or cart link/);
+    expect(facts).toMatch(/never sent us a product or cart link/);
+    expect(facts).toMatch(/do NOT say a quote is coming/);
+    expect(facts).not.toMatch(/quote IS genuinely being prepared/);
   });
 
-  it('permits the claim once a link is in and a quote is open', () => {
-    const facts = renderFacts({ linkReceived: true, orderCount: 1, quoteInFlight: true, inboundCount: 6 });
-    expect(facts).toMatch(/link received from them: YES/);
+  it('permits the claim once a link is in and nothing has been quoted since', () => {
+    const facts = renderFacts({ linkReceived: true, orderCount: 0, quoteInFlight: true, inboundCount: 6 });
     expect(facts).toMatch(/quote IS genuinely being prepared/);
-    expect(facts).not.toMatch(/^- NO quote is being prepared\./m);
+    expect(facts).toMatch(/Do NOT ask for a link again/);
+    expect(facts).not.toMatch(/never sent us a product or cart link/);
+  });
+
+  it('says a past link is spent once it has been quoted', () => {
+    const facts = renderFacts({ linkReceived: true, orderCount: 1, quoteInFlight: false, inboundCount: 9 });
+    expect(facts).toMatch(/already been quoted or is too old/);
+    expect(facts).not.toMatch(/quote IS genuinely being prepared/);
   });
 
   it('names the first message as such, and lists what is missing', () => {
@@ -102,4 +117,60 @@ describe('renderFacts', () => {
     expect(facts).toMatch(/FIRST message they have ever sent/);
     expect(facts).toMatch(/Still missing from their profile: full name/);
   });
+});
+
+// "Never price a specific item" was in the prompt three times and in code
+// zero times — while the assistant had already sent a customer "Please
+// proceed with payment of KSh 4,980", a sentence that is nowhere in this
+// codebase. It was right, and nothing checked it.
+describe('unbackedFigures', () => {
+  const backing = 'Last-mile delivery is KSh 300. UK is £9 per kilogram plus £3. '
+    + 'Minimum order $25. - Tracking TRK-8834; agreed total KSh 4,980';
+
+  it('catches a total the model worked out itself', () => {
+    expect(unbackedFigures('Your 5 items come to about KSh 8,400 including delivery.', backing))
+      .toEqual(['KSh 8,400']);
+  });
+
+  it('passes a figure that is genuinely in this turn\'s context', () => {
+    expect(unbackedFigures('Your agreed total is KSh 4,980 and delivery was KSh 300.', backing)).toEqual([]);
+  });
+
+  it('ignores rate-card language, which is always from the knowledge base', () => {
+    expect(unbackedFigures('UK is £9 per kilogram plus a £3 handling fee, minimum $25.', backing)).toEqual([]);
+  });
+
+  it('is not fooled by thousands separators or trailing zeros', () => {
+    expect(unbackedFigures('That is KSh 4980 in total.', backing)).toEqual([]);
+    expect(unbackedFigures('KSh 4,980.00 please.', backing)).toEqual([]);
+  });
+
+  it('catches every unbacked figure, not just the first', () => {
+    expect(unbackedFigures('Roughly KSh 7,200 for the tops and KSh 3,100 for the shoes.', backing))
+      .toEqual(['KSh 7,200', 'KSh 3,100']);
+  });
+});
+
+// The guard is the last line of defence for the incident it is named
+// after, and it must not gag the sales line the funnel depends on.
+describe('claimsQuoteInFlight — the shape of the claim, not a phrase list', () => {
+  it.each([
+    'Your quote is being worked out now.',
+    'The team is pricing it now.',
+    'I have shared your cart with the team and they will send your total here soon.',
+    'We are looking at your cart right now and will come back with the KES figure.',
+    'Your cart is with our pricing team.',
+    'Give us a few minutes and we will send the amount.',
+    'Noted, the team will revert with the price shortly.',
+  ])('catches %s', (t) => expect(claimsQuoteInFlight(t)).toBe(true));
+
+  // Judged per sentence, so an invitation sitting next to anything else
+  // is still an invitation.
+  it.each([
+    'Share your cart or product link now and the team will get your KES quote ready.',
+    'Send us the link and we will quote you in KES within the hour.',
+    'Once you send a cart link, a quote follows within the hour.',
+    'A quote costs nothing and commits you to nothing.',
+    'Yes, we deliver to Nakuru. Delivery is KSh 300. Share your cart link and we will send your total.',
+  ])('leaves the invitation alone: %s', (t) => expect(claimsQuoteInFlight(t)).toBe(false));
 });

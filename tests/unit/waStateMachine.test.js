@@ -20,7 +20,7 @@ vi.mock('../../utils/waSettings.js', () => ({
   })),
 }));
 
-import { handleInbound } from '../../utils/waStateMachine.js';
+import { handleInbound, isUnqualifiedConfirm, claimsPaid, looksLikeDestination } from '../../utils/waStateMachine.js';
 import { sendToContact } from '../../utils/waSend.js';
 import { pushToStaff } from '../../routes/events.js';
 import { getWaSettings } from '../../utils/waSettings.js';
@@ -258,7 +258,7 @@ describe('quote confirmation', () => {
     });
   }
 
-  it.each(['yes', 'YES', 'sawa', 'ndio', 'ok', 'confirm', '1'])(
+  it.each(['yes', 'YES', 'sawa', 'ndio', 'ok', 'confirm', 'haya', 'nimekubali', 'sure', 'go ahead'])(
     'confirms the single quoted order on %j', async (word) => {
       const db = confirmDb({ quotedRows: [quotedOrder] });
       await handleInbound(db, contact(), { id: 'm', body: word });
@@ -268,6 +268,28 @@ describe('quote confirmation', () => {
       expect(sendToContact.mock.calls[0][2].text).toMatch(/confirmed/i);
     }
   );
+
+  // Accepting a quote moves money state and fires a payment demand, so
+  // it is a judgement, not a prefix match. The bare digit 1 is gone —
+  // "1.24kg" is a weight, not consent — and anything carrying a question,
+  // a condition or more than four words goes to a person instead.
+  it.each([
+    '1',
+    '1.24kg',
+    '1 top please',
+    'yes its a macbook',
+    'Okay so this is the final price, no added costs?',
+    'Accepted. Delivery is free at the moment, right?',
+    "Okay I'll send the link by tonight",
+    'Ok sure. I am currently in Kisumu',
+    "okay confirm the price then I'll get back to you when i am ready",
+    'Okay, allow me to visit your offices first to verify that you have a physical location',
+  ])('does NOT bill anyone on %j', async (word) => {
+    const db = confirmDb({ quotedRows: [quotedOrder] });
+    await handleInbound(db, contact(), { id: 'm', body: word });
+    const update = db.query.mock.calls.find(([sql]) => sql.includes("SET status = 'confirmed'"));
+    expect(update).toBeUndefined();
+  });
 
   it('opens the awaiting_review payment so there is something to approve', async () => {
     const db = confirmDb({ quotedRows: [quotedOrder] });
@@ -928,7 +950,9 @@ describe('what the assistant is told about the state of a conversation', () => {
     return waAi;
   }
 
-  // orders → rows from wa_orders; inbound → the customer's own messages.
+  // orders → rows from wa_orders; inbound → the customer's own messages,
+  // newest first, as the query returns them.
+  const AGO = (mins) => new Date(Date.now() - mins * 60_000).toISOString();
   function db({ orders = [], inbound = [] } = {}) {
     return makeDb(async (sql) => {
       if (sql.includes('FROM wa_orders')) return { rows: orders };
@@ -937,67 +961,76 @@ describe('what the assistant is told about the state of a conversation', () => {
     });
   }
 
-  it('tells the onboarding turn that nothing is being quoted (TRK-none)', async () => {
+  it('tells the onboarding turn that nothing is being priced when no link ever came', async () => {
     const waAi = await ai();
     waAi.onboardingTurn.mockResolvedValueOnce({
       kind: 'reply', reply: 'We take payment by M-Pesa. Send your cart link and we will quote you.',
       full_name: null, delivery_address: null,
     });
     await handleInbound(
-      db({ inbound: [{ body: 'Hi' }, { body: 'How long does it take?' }, { body: 'How do I pay?' }] }),
+      db({ inbound: [
+        { body: 'How do I pay?', created_at: AGO(1) },
+        { body: 'How long does it take?', created_at: AGO(5) },
+        { body: 'Hi', created_at: AGO(9) },
+      ] }),
       contact({ state: 'awaiting_name', full_name: null, delivery_address: null, customer_code: null }),
       { id: 'm3', body: 'How do I pay?' }
     );
 
     const facts = waAi.onboardingTurn.mock.calls[0][0].facts;
-    expect(facts).toMatch(/link received from them: NO/);
-    expect(facts).toMatch(/Orders on file: NONE/);
-    expect(facts).toMatch(/NO quote is being prepared/);
+    expect(facts).toMatch(/never sent us a product or cart link/);
+    expect(facts).toMatch(/do NOT say a quote is coming/);
     expect(facts).toMatch(/Still missing from their profile: full name/);
   });
 
-  it('tells it a quote IS coming once a link is in and an order is open', async () => {
+  // TRK-8834: the cart link arrived at 19:38 and the operator did not
+  // open the order until 19:43. For those five minutes the customer was
+  // genuinely waiting on a quote and there was no row to prove it — so
+  // the fact is keyed on the link, which is the event the customer can
+  // actually see.
+  it('says a quote IS coming from the link alone, before any order row exists', async () => {
     const waAi = await ai();
     waAi.chatReply.mockResolvedValueOnce(says('The team is pricing it now.'));
     await handleInbound(
-      db({
-        orders: [{ status: 'quoting' }],
-        inbound: [{ body: 'https://onelink.shein.com/49/5zw9b7anck7k?shc=2_RwLdztAJWDF' }],
-      }),
-      contact(), { id: 'm1', body: 'any news?' }
+      db({ orders: [], inbound: [{ body: 'https://onelink.shein.com/49/5zw?shc=2_Rw', created_at: AGO(2) }] }),
+      contact(), { id: 'm1', body: 'and how long does it take?' }
     );
 
     const facts = waAi.chatReply.mock.calls[0][0].facts;
-    expect(facts).toMatch(/link received from them: YES/);
     expect(facts).toMatch(/quote IS genuinely being prepared/);
-    // and the reply that would have been a lie a moment ago goes out
+    expect(facts).toMatch(/Do NOT ask for a link again/);
+    // and the reply that the old rule called a hallucination goes out
     expect(sendToContact.mock.calls[0][2].text).toBe('The team is pricing it now.');
   });
 
   it('counts a link sent earlier in the chat, not only the message in hand', async () => {
-    // The quote genuinely is coming when the link arrived three messages
-    // ago; only looking at this message would call that a hallucination.
     const waAi = await ai();
     waAi.chatReply.mockResolvedValueOnce(says('reply'));
     await handleInbound(
-      db({ orders: [{ status: 'quoting' }], inbound: [{ body: 'and how long?' }, { body: 'https://www.next.co.uk/x' }] }),
+      db({ inbound: [
+        { body: 'and how long?', created_at: AGO(1) },
+        { body: 'https://www.next.co.uk/p/123', created_at: AGO(6) },
+      ] }),
       contact(), { id: 'm1', body: 'and how long?' }
     );
-    expect(waAi.chatReply.mock.calls[0][0].facts).toMatch(/link received from them: YES/);
+    expect(waAi.chatReply.mock.calls[0][0].facts).toMatch(/quote IS genuinely being prepared/);
   });
 
-  it('does not count a quoted order as a quote still in flight', async () => {
-    // 'quoted' means the customer has the number already. Saying it is
-    // being worked out would be as wrong as inventing one.
+  // Once we have answered, the wait is over. Saying "your quote is
+  // coming" to someone holding their quote is as wrong as inventing one.
+  it('stops claiming a quote is coming once one has been sent', async () => {
     const waAi = await ai();
     waAi.chatReply.mockResolvedValueOnce(says('reply'));
     await handleInbound(
-      db({ orders: [{ status: 'quoted' }], inbound: [{ body: 'https://www.next.co.uk/x' }] }),
+      db({
+        orders: [{ status: 'quoted', quoted_at: AGO(3) }],
+        inbound: [{ body: 'https://www.next.co.uk/p/123', created_at: AGO(30) }],
+      }),
       contact(), { id: 'm1', body: 'hi' }
     );
     const facts = waAi.chatReply.mock.calls[0][0].facts;
-    expect(facts).toMatch(/Orders on file: 1/);
-    expect(facts).toMatch(/NO quote is being prepared/);
+    expect(facts).toMatch(/already been quoted or is too old/);
+    expect(facts).not.toMatch(/quote IS genuinely being prepared/);
   });
 
   it('marks a first-ever message as one', async () => {
@@ -1006,7 +1039,7 @@ describe('what the assistant is told about the state of a conversation', () => {
       kind: 'reply', reply: 'Karibu!', full_name: null, delivery_address: null,
     });
     await handleInbound(
-      db({ inbound: [{ body: 'Hi' }] }),
+      db({ inbound: [{ body: 'Hi', created_at: AGO(0) }] }),
       contact({ state: 'new', full_name: null, delivery_address: null, customer_code: null }),
       { id: 'm1', body: 'Hi' }
     );
@@ -1020,7 +1053,7 @@ describe('what the assistant is told about the state of a conversation', () => {
       full_name: null, delivery_address: null, falseClaim: true,
     });
     await handleInbound(
-      db({ inbound: [{ body: 'How do I pay?' }] }),
+      db({ inbound: [{ body: 'How do I pay?', created_at: AGO(0) }] }),
       contact({ state: 'awaiting_name', full_name: null, delivery_address: null, customer_code: null }),
       { id: 'm1', body: 'How do I pay?' }
     );
@@ -1130,14 +1163,19 @@ describe('staff WhatsApp alerts', () => {
     expect(db.query.mock.calls.some(([sql]) => sql.includes('human_takeover_at = NOW()'))).toBe(false);
   });
 
-  it('only redirects once an hour, however chatty the wrong number is', async () => {
+  // Still only one redirect an hour — but silence is not the fallback.
+  // A second off-topic in the hour is more likely a real customer being
+  // misread twice than a wrong number texting twice, and before this the
+  // misread customer got nothing at all: no reply, no alert, no takeover.
+  it('says nothing twice in an hour, but pages a person instead of going quiet', async () => {
     const waAi = await ai();
     waAi.chatReply.mockResolvedValueOnce(OFF_TOPIC_REPLY);
     const db = makeDb(async (sql) =>
       (sql.includes("direction = 'out'") ? { rows: [{ '?column?': 1 }] } : { rows: [] }));
     await handleInbound(db, contact(), { id: 'm1', body: 'tell me a joke' });
     expect(sendToContact).not.toHaveBeenCalled();
-    expect(notifyStaff).not.toHaveBeenCalled();
+    expect(notifyStaff).toHaveBeenCalledWith(expect.anything(),
+      expect.objectContaining({ title: expect.stringMatching(/probably not off-topic/i) }));
   });
 
   it('does not alert on an ordinary answered question', async () => {
@@ -1335,6 +1373,10 @@ describe('paid claims vs quote confirmation', () => {
       }
       return { rows: [], rowCount: 1 };
     });
+    // The deterministic branch answers and returns, so the assistant is
+    // never reached — but stub it anyway, because an unstubbed throw is
+    // now a staff page rather than a silent log.
+    (await import('../../utils/waAi.js')).chatReply.mockResolvedValueOnce(says('unused'));
     await handleInbound(db, contact(), { id: 'm', body: 'I have paid, any update?' });
     expect(notifyStaff).not.toHaveBeenCalled();
     const said = sendToContact.mock.calls[0][2].text;
@@ -1407,4 +1449,57 @@ describe('quote expiry', () => {
     await handleInbound(db, contact(), { id: 'm', body: 'yes' });
     expect(db.query.mock.calls.some(([sql]) => sql.includes("SET status = 'confirmed'"))).toBe(true);
   });
+});
+
+
+// Predicates that decide money or re-ask a customer. Each case below is a
+// real message from the production corpus or a Swahili form of one.
+describe('what counts as accepting a quote', () => {
+  it.each(['Yes', 'yes', 'Sawa', 'Sawa sawa', 'Ndio', 'Haya', 'Nakubali', 'Nimekubali',
+           'Ni sawa', 'Niko sawa', 'Poa', 'Twende', 'Sure', 'Fine', 'Go ahead',
+           'Accept', 'Confirmed', 'Proceed', 'Yes please'])(
+    'accepts %j', (t) => expect(isUnqualifiedConfirm(t)).toBe(true));
+
+  // A prefix match is not consent. The bare digit 1 made a weight, a
+  // quantity and a shoe size into an accepted quote.
+  it.each(['1', '1.24kg', '1 top please', 'yes its a macbook',
+           'Okay so this is the final price, no added costs?',
+           'Accepted. Delivery is free at the moment, right?',
+           "Okay I'll send the link by tonight",
+           "Okay thanks... I'll resend another link once I've edited it",
+           'Ok sure. I am currently in Kisumu',
+           "okay confirm the price then I'll get back to you when i am ready",
+           'Okay, allow me to visit your offices first',
+           'Okay for now can I use the free shipping order?', ''])(
+    'refuses %j', (t) => expect(isUnqualifiedConfirm(t)).toBe(false));
+});
+
+describe('what counts as "I have paid"', () => {
+  it.each(['I have paid', 'I have paid, any update?', 'Paid', 'Payment sent',
+           'Nimelipa', 'Nimeshalipa', 'Nimelipia', 'Nishalipa', 'Nimefanya payment',
+           'Nimemaliza kulipa', 'Nimetuma pesa'])(
+    'fires on %j', (t) => expect(claimsPaid(t, null)).toBe(true));
+
+  // Both of these were answered "Asante. We've got your payment
+  // notification and our team is verifying it with M-Pesa now" — plus a
+  // staff page. The second is a lead saying they will buy next month.
+  it.each(['When is payment done?', 'Is payment done before or after delivery?',
+           'can I try again at the end of the month once I get paid?',
+           'I will pay once I get paid', 'How do I pay?'])(
+    'stays quiet on %j', (t) => expect(claimsPaid(t, null)).toBe(false));
+
+  it('trusts a pasted M-Pesa confirmation whatever its shape', () => {
+    expect(claimsPaid('When is payment done? paid SFG5H8K2L9', 'SFG5H8K2L9')).toBe(true);
+  });
+});
+
+describe('what counts as somewhere to send a parcel', () => {
+  // Five characters rejected every one of these, and the customer was
+  // asked the same question again on the next turn.
+  it.each(['Voi', 'Juja', 'Meru', 'Embu', 'Ruai', 'Yaya', 'Nakuru', 'CBD',
+           'Greenspan Estate, Donholm', 'Stanbank'])(
+    'accepts %j', (t) => expect(looksLikeDestination(t)).toBe(true));
+
+  it.each(['', 'Hi', 'ok', 'yes'])(
+    'refuses %j', (t) => expect(looksLikeDestination(t)).toBe(false));
 });

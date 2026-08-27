@@ -150,26 +150,60 @@ classifies as `handoff`, so every failure mode degrades to the pre-AI
 behaviour: a human picks it up.
 
 **It is told where the conversation stands, not left to infer it.**
-`conversationFacts()` in `utils/waStateMachine.js` looks up three things
-per turn — has this customer ever sent a product or cart link, is any
-order on file, is one actually sitting in `quoting` — and
-`renderFacts()` puts them in both prompts above the transcript. The
-model had been inferring all of it from ten messages of chat and getting
-it wrong: +447428777090 asked "How do I pay?" three messages in, having
-sent nothing, and was told "your quote is being worked out now and will
-come through here shortly". A transcript shows what was said; only the
-system knows what is true.
+`conversationFacts()` in `utils/waStateMachine.js` looks it up per turn
+and `renderFacts()` puts it in both prompts above the transcript, as a
+**single** line about the quote. The model had been inferring it from
+ten messages of chat and getting it wrong: +447428777090 asked "How do I
+pay?" three messages in, having sent nothing, and was told "your quote
+is being worked out now and will come through here shortly." A
+transcript shows what was said; only the system knows what is true.
 
-**And the claim is checked, not just discouraged.**
-`claimsQuoteInFlight()` matches a reply asserting our side is already
-pricing something ("your quote is on the way", "the team is pricing
-it"), while leaving the invitation we most want it to send ("send your
-cart link and we'll quote you") alone. When the facts say nothing is in
-flight, the turn is regenerated once with the false claim named, and a
-second offence degrades to `HANDOFF` and pages staff (`falseClaim` on
-the turn). Same reasoning as `looksLikeName()`: a promise that leaves a
-customer waiting for a message nobody will send is too expensive to
-depend on the model having a good day.
+**A quote is in flight when a link has arrived and nothing has been
+quoted since** — not when an order sits at `quoting`. That first version
+measured the wrong interval and would have broken the cleanest sale in
+the database: TRK-8834 sent a cart link at 19:38 and the operator did
+not open the order until 19:43, so for five minutes the customer was
+genuinely waiting and no row proved it. Worse, the block rendered "link
+received: YES" directly above "NO quote is being prepared" and told the
+model to ask for the link it had just been sent. 20 of 24 priced orders
+spent two minutes or less at `quoting` and 13 spent none at all — the
+operator creates the order already priced — so the flag was false for
+almost the whole time anyone was actually waiting. The customer's wait
+starts at the link, which is the event they can see, so that is what it
+keys on.
+
+**And the output is checked, not just discouraged.** `falseClaimIn()`
+rejects two things: a promise that a quote is coming when nothing is in
+flight (`claimsQuoteInFlight()`), and a money figure the turn's own
+context cannot account for (`unbackedFigures()`). Either one regenerates
+the turn once with the problem named; a second offence degrades to
+`HANDOFF` and pages staff.
+
+`claimsQuoteInFlight()` judges **per sentence**, skipping sentences that
+ask for a link — otherwise it flags "send your cart and we'll quote you
+in KES within the hour", which is the reply the funnel depends on.
+
+`unbackedFigures()` exists because "never price a specific item" was in
+the prompt three times and in code zero times, while the assistant had
+already sent a customer *"Please proceed with payment of KSh 4,980 via
+Lipa na M-Pesa to Buy Goods Till 5530500"* — a sentence that appears
+nowhere in this codebase. That figure was correct, which is the point:
+nothing checked it. Only currency-marked amounts over 100 are checked,
+so the model stays free to say "£9 per kilogram" and "2 to 3 weeks".
+
+Same reasoning as `looksLikeName()`: a promise that leaves a customer
+waiting for a message nobody will send, or a price nobody can honour, is
+too expensive to depend on the model having a good day.
+
+**The memory note sits below the guardrails and is labelled unverified.**
+`ai_summary` is model-written prose distilled from what the customer
+said, and it used to be injected above both the knowledge base and the
+rules under a heading that read as established fact — a standing channel
+for anything a customer asserted once. Production notes already carry
+M-Pesa numbers the onboarding flow deliberately never asks for, and one
+records a fee concession. The summariser is now barred from recording
+commercial terms, instructions addressed to the assistant, and
+volunteered contact details.
 
 **The model is discovered, not hardcoded.** `resolveModel()` calls
 ListModels, ranks candidates, caches for 6 hours and self-heals on a 404.
@@ -506,7 +540,9 @@ sits in the queue until it is approved or rejected.
 - **`delivery_fee_pending` should be rare.** Since `0010` the last-mile fee rides on the quote, so only pre-`0010` orders and ones priced without a method land there. An order in that status with `delivery_fee_paid_at` set is a bug — the status is a claim about a debt.
 - **`Number(null)` is `0`, and that has bitten this codebase three times** — on `markup_pct`, on `default_delivery_fee_kes`, and on `delivery_fee_kes`. Each would have quietly given money away. Absence is checked explicitly, never by falsiness, anywhere a number can be missing.
 - **`looksLikeName()` is strict on purpose.** It refuses questions, digits, anything past five words and phrases opening the way requests do. A customer once replied "Can I first get the pricing and quotation ndio tujue details" and it became their name; they were addressed as "Can". A rejected real name costs one repeated question, an accepted sentence corrupts the record.
-- **The assistant never says a quote is coming unless one is.** A customer who has sent no link has nothing being priced; telling them otherwise leaves them waiting on a message that will never arrive, and answers whatever they actually asked with nothing. The prompt carries the checked facts and `claimsQuoteInFlight()` enforces them.
+- **The assistant never says a quote is coming unless one is, and never states a figure it cannot point at.** Both are checked in code (`falseClaimIn()`), because the prompt said each of them three times and stopped neither.
+- **Accepting a quote is a judgement, not a prefix match.** `isUnqualifiedConfirm()` requires a short, unqualified message — no question, no conjunction, at most three words — before a "yes" moves money state and fires a payment demand. The bare digit `1` used to match, so `"1.24kg"` accepted a live quote; `"okay confirm the price then I'll get back to you when i am ready"` did too.
+- **The assistant says we deliver countrywide, but never names a Pickup Mtaani point.** The old rule forbade both, so the model filled the gap itself and told a customer about "a Pickup Mtaani point in Nakuru". The knowledge base now carries the true answer.
 - **The assistant never names a Pickup Mtaani point.** It once told a customer we cover Hurlingham. That happened to be true, and nothing had checked. Which agent serves an area is the team's call, made against a list only they can see.
 - **Every `template_map` slot is mapped, and a test enforces it.** An unmapped slot falls back to free text, which is refused outside the 24-hour window — silently, and precisely for arrival and dispatch, which land weeks after a customer last wrote in. That failure mode cost real customers their notifications twice before it was understood.
 

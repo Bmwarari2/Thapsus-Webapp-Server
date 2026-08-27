@@ -61,10 +61,22 @@ stops a reply promising a quote nobody is preparing. The prompt says
 both too — the code is what makes it true on a bad day.
 
 **Tell the model what is true, don't let it infer.**
-`conversationFacts()` looks up whether a link ever arrived and whether an
-order is open, because a transcript shows what was *said* and only the
-system knows what *is*. A customer was once told "your quote is being
-worked out" having sent nothing.
+`conversationFacts()` looks up whether a link arrived and whether
+anything has been quoted since, because a transcript shows what was
+*said* and only the system knows what *is*. A customer was once told
+"your quote is being worked out" having sent nothing.
+
+**Measure the interval the customer can see.** The first version of that
+fact keyed on an order sitting at `quoting` — a status 13 of 24 orders
+never occupied, because the operator creates the order already priced.
+The customer's wait starts when they send the link. Getting this wrong
+would have suppressed a true, converting reply.
+
+**Check the output, not just the prompt.** `falseClaimIn()` rejects a
+promised quote nobody is preparing and any money figure the turn's own
+context cannot account for. "Never price a specific item" was in the
+prompt three times and in code zero times, and the assistant sent a real
+customer a payment instruction with an amount and the till number.
 
 **Free text beats templates inside the 24-hour window, and only inside
 it.** WhatsApp refuses free text outside the window, so every logical

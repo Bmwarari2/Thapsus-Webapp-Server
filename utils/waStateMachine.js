@@ -77,7 +77,45 @@ import {
 // "accept" is here because the approved quote template tells the customer
 // "Reply to accept" — a customer following that instruction literally must
 // land in this branch, not fall through to the AI.
-const CONFIRM_WORDS = /^(yes+|yeah|yep|ok(ay)?|confirm(ed)?|accept(ed)?|proceed|sawa( sawa)?|ndio|ndiyo|nakubali|poa|1)\b/i;
+//
+// Matching this is not on its own consent: see isUnqualifiedConfirm.
+const CONFIRM_WORDS =
+  /^(yes+|yeah|yep|ok(ay)?|sure|fine|confirm(ed)?|accept(ed)?|proceed|go ahead|sawa( ?sawa)?|haya|ndio|ndiyo|nakubali|nimekubali|ni sawa|niko sawa|poa|twende)\b/i;
+
+// A conjunction or a condition means the message is doing something other
+// than agreeing. "Okay so this is the final price, no added costs?" and
+// "Okay I'll send the link by tonight" both open with a confirm word and
+// neither is a yes.
+const QUALIFIER =
+  /[?¿]|\b(but|however|though|although|first|before|after|once|when|if|unless|instead|also|and|then|so|lakini|kwanza|halafu|kabla|nikipata|nitakuambia|later|tonight|tomorrow|kesho)\b/i;
+// Three, not four. "yes its a macbook" is four words, carries no
+// question and no conjunction, and is a customer answering "what is it?"
+// — not accepting a price. Real acceptances are almost always one or two
+// words ("Yes", "Sawa sawa", "Go ahead"); a longer one costs an extra
+// exchange, and erring the other way bills someone still deciding.
+const MAX_CONFIRM_WORDS = 3;
+
+/**
+ * Is this message a plain, unqualified acceptance of the open quote?
+ *
+ * Accepting a quote moves money state and fires a payment demand, so it
+ * is a judgement, not a prefix match. The old rule matched the start of
+ * the message and nothing else, which meant "1.24kg" (the bare digit 1),
+ * "yes its a macbook", and "okay confirm the price then I'll get back to
+ * you when i am ready" all accepted a live quote. The bare 1 is gone —
+ * a weight, a quantity or a shoe size is not consent — and anything
+ * carrying a question, a condition or more than four words now goes to a
+ * person instead.
+ *
+ * Erring toward the AI costs one extra exchange. Erring the other way
+ * bills someone who was still deciding.
+ */
+export function isUnqualifiedConfirm(value) {
+  const v = String(value || '').trim();
+  if (!v || !CONFIRM_WORDS.test(v)) return false;
+  if (QUALIFIER.test(v)) return false;
+  return v.split(/\s+/).filter(Boolean).length <= MAX_CONFIRM_WORDS;
+}
 
 // "I've paid" in the shapes Kenyan customers actually type, including a
 // pasted M-Pesa confirmation (which always carries a 10-char reference).
@@ -85,7 +123,37 @@ const CONFIRM_WORDS = /^(yes+|yeah|yep|ok(ay)?|confirm(ed)?|accept(ed)?|proceed|
 // "I sent the link" and in our own "Lipa na M-Pesa" instructions quoted
 // back at us, and a false positive here silences the assistant.
 const PAID_CLAIM =
-  /\bpaid\b|\bnimelipa\b|\bnimeshalipa\b|\bnimetuma\b|\bpayment (sent|made|done|complete)\b|\bsent (the |you )?(money|payment|cash|funds)\b|\bconfirmed\b[\s\S]{0,80}\bksh/i;
+  /\bpaid\b|\bnime(sha)?lipa\b|\bnimelipia\b|\bnishalipa\b|\bnimemaliza kulipa\b|\bnimefanya payment\b|\bnimetuma\b|\bnimesend\b|\bpayment (sent|made|done|complete)\b|\bsent (the |you )?(money|payment|cash|funds)\b|\bconfirmed\b[\s\S]{0,80}\bksh/i;
+
+/**
+ * Did the customer say they HAVE paid, rather than ask about paying?
+ *
+ * "When is payment done?" and "can I try again at the end of the month
+ * once I get paid?" both matched the pattern above and were both answered
+ * "Asante. We've got your payment notification and our team is verifying
+ * it with M-Pesa now" — plus a staff page. The second was a lead telling
+ * us they would buy next month, answered as a transaction.
+ *
+ * A question with no M-Pesa reference in it is a question. A pasted
+ * confirmation always carries the 10-character reference, so the
+ * exception costs nothing.
+ */
+export function claimsPaid(value, ref) {
+  const v = String(value || '').trim();
+  if (!PAID_CLAIM.test(v)) return false;
+  // A pasted M-Pesa confirmation always carries the 10-character
+  // reference, and nobody pastes one to ask a question.
+  if (ref) return true;
+  // An interrogative OPENER, not merely a question mark: "I have paid,
+  // any update?" is a claim that happens to end in one, while "When is
+  // payment done?" is an enquiry that was being answered "Asante. We've
+  // got your payment notification and our team is verifying it now."
+  if (/^\s*(how|when|where|what|which|why|can|could|do|does|did|is|are|was|will|would|should|kwani|vipi|lini|naweza|je)\b/i.test(v)) return false;
+  // "...once I get paid" is a customer telling us they will buy next
+  // month. It was answered as a transaction, and paged a person.
+  if (/\b(get|gets|getting|got|be|been|am|are|is)\s+paid\b/i.test(v) && !/\bhave\s+paid\b/i.test(v)) return false;
+  return true;
+}
 
 // A product link is now the whole point of the first conversation — the
 // assistant opens by inviting one, and everything after it (the quote,
@@ -94,7 +162,20 @@ const PAID_CLAIM =
 // the pattern that says "there is a URL in here", kept deliberately
 // dumb — any link a customer sends us is worth a person's attention,
 // and a false positive costs one alert.
-const PRODUCT_LINK = /\bhttps?:\/\/\S+|\b(?:www\.|[a-z0-9-]+\.)(?:com|co\.uk|co\.ke|net|org|shop|store|me|ae|cn|us)\b\/?\S*/i;
+// Bare `something.com` used to count, which meant every e-mail address
+// collected at signup ("kibugicharles128@gmail.com") paged staff with
+// "Product link received — quote needed" and, worse, set linkReceived
+// true forever for that contact. A scheme or a www. is now required, and
+// an @ anywhere before the host disqualifies it.
+// A scheme, a www., or a bare host WITH A PATH — "next.co.uk/p/123" is a
+// link a customer really does paste; "gmail.com" on its own never is.
+// The lookbehind kills the local-part-then-@ case outright.
+const PRODUCT_LINK = new RegExp(
+  '(?<![\\w@.])(?:'
+  + 'https?:\\/\\/\\S+'
+  + '|www\\.[a-z0-9-]+(?:\\.[a-z0-9-]+)+\\S*'
+  + '|[a-z0-9-]+(?:\\.[a-z0-9-]+)+\\/\\S+'
+  + ')', 'i');
 
 // SHEIN links come in two shapes and only one of them is usable.
 //
@@ -132,7 +213,12 @@ const OFF_TOPIC_MARKER = 'only help with Thapsus Cargo';
 // How much verbatim transcript rides in the prompt, and how often the
 // durable memory note behind it gets refreshed.
 const HISTORY_WINDOW = 30;
-const SUMMARY_EVERY_MESSAGES = 20;
+// How far back a product link still means "they are waiting on a quote".
+// The fact was previously read off the last 60 inbound messages with no
+// time bound at all, so a customer whose order was delivered in July was
+// still flagged as waiting in September.
+const LINK_MEMORY_DAYS = 14;
+const SUMMARY_EVERY_MESSAGES = 8;
 
 const STATUS_LABEL = {
   quoting: 'Being quoted',
@@ -257,7 +343,7 @@ export async function handleInbound(db, contact, message) {
   // improvise (it used to read the message as a complaint and hand off
   // with "let me get a colleague", which reads like nobody has their
   // money).
-  if (body && PAID_CLAIM.test(body)) {
+  if (body && claimsPaid(body, extractMpesaReference(body))) {
     const ref = extractMpesaReference(body);
 
     let open = null;
@@ -322,7 +408,7 @@ export async function handleInbound(db, contact, message) {
   }
 
   // 3b. Quote confirmation.
-  if (CONFIRM_WORDS.test(body)) {
+  if (isUnqualifiedConfirm(body)) {
     const { rows } = await db.query(
       `SELECT id, quote_kes, tracking_code, quote_expires_at FROM wa_orders
         WHERE contact_id = $1 AND status = 'quoted'
@@ -443,7 +529,17 @@ export async function handleInbound(db, contact, message) {
       // the verbatim window. Never blocks the reply.
       maybeRefreshSummary(db, contact).catch(() => {});
     } catch (e) {
+      // The message is in the inbox with the badge raised, but nobody is
+      // told, and the 15-minute sweeper is the only thing that will ever
+      // notice. A customer who asked a real question and got silence has
+      // usually already decided.
       console.warn('[waStateMachine] AI fallthrough failed (non-fatal):', e?.message);
+      notifyStaff(db, {
+        title: 'Assistant failed to answer — needs a person',
+        detail: `${contact.full_name || contact.phone} (${contact.customer_code || 'no code'}): `
+          + `"${body.slice(0, 160)}" — the assistant errored (${e?.message || 'unknown'}) and sent nothing.`,
+        dedupeKey: `aierror:${contact.id}:${message.id}`,
+      });
     }
   }
 }
@@ -561,7 +657,19 @@ async function sentRecently(db, contactId, marker, minutes) {
  *   them (mid-onboarding), so the redirect also moves the flow along.
  */
 async function replyOffTopic(db, contact, followUp = '') {
-  if (await sentRecently(db, contact.id, OFF_TOPIC_MARKER, 60)) return;
+  // Suppressed because we said the same thing within the hour. That is
+  // right for a wrong number texting twice and wrong for a real customer
+  // misread twice — who would otherwise get nothing at all: no reply, no
+  // alert, no takeover. Page a person instead of going quiet.
+  if (await sentRecently(db, contact.id, OFF_TOPIC_MARKER, 60)) {
+    notifyStaff(db, {
+      title: 'Second off-topic in an hour — probably not off-topic',
+      detail: `${contact.full_name || contact.phone} (${contact.customer_code || 'no code'}) `
+        + `has been classified off-topic twice running. They have had one reply and are now getting silence.`,
+      dedupeKey: `offtopic-twice:${contact.id}`,
+    });
+    return;
+  }
   await sendToContact(db, contact, {
     text:
       `Sorry, I can ${OFF_TOPIC_MARKER} orders — quotes, payments, tracking and delivery. `
@@ -660,14 +768,16 @@ async function loadOrderContext(db, contactId) {
 async function conversationFacts(db, contact) {
   const [orders, inbound] = await Promise.all([
     db.query(
-      `SELECT status FROM wa_orders WHERE contact_id = $1 AND status <> 'cancelled'`,
+      `SELECT status, quoted_at FROM wa_orders
+        WHERE contact_id = $1 AND status <> 'cancelled'`,
       [contact.id]
     ),
     db.query(
-      `SELECT body FROM wa_messages
+      `SELECT body, created_at FROM wa_messages
         WHERE contact_id = $1 AND direction = 'in' AND body IS NOT NULL
+          AND created_at > NOW() - ($2 || ' days')::interval
         ORDER BY created_at DESC LIMIT 60`,
-      [contact.id]
+      [contact.id, String(LINK_MEMORY_DAYS)]
     ),
   ]);
 
@@ -675,14 +785,29 @@ async function conversationFacts(db, contact) {
   if (!contact.full_name) missing.push('full name');
   if (!contact.delivery_address) missing.push('delivery address or pickup point');
 
+  // The most recent link they sent, not merely whether they ever sent one.
+  const lastLink = inbound.rows.find((m) => PRODUCT_LINK.test(m.body || ''));
+  const lastLinkAt = lastLink ? new Date(lastLink.created_at).getTime() : null;
+  // The most recent quote we sent them.
+  const lastQuotedAt = orders.rows
+    .map((o) => (o.quoted_at ? new Date(o.quoted_at).getTime() : 0))
+    .reduce((a, b) => Math.max(a, b), 0);
+
   return renderFacts({
-    // Any link they have ever sent, not just this message: a link three
-    // messages ago is exactly the case where a quote IS coming.
-    linkReceived: inbound.rows.some((m) => PRODUCT_LINK.test(m.body || '')),
+    linkReceived: Boolean(lastLinkAt),
     orderCount: orders.rows.length,
-    // 'quoting' is an order a person has opened and not yet priced —
-    // the only state in which "your quote is coming" is a true sentence.
-    quoteInFlight: orders.rows.some((o) => o.status === 'quoting'),
+    // A quote is in flight when the customer can see why it would be:
+    // they sent a link and nothing has been quoted since. Keying this on
+    // an order sitting at 'quoting' was wrong in the only way that
+    // matters — 20 of 24 priced orders spent two minutes or less in that
+    // status, and 13 spent none at all, because the operator creates the
+    // order already priced. The customer's wait starts when they send
+    // the link, minutes before any row exists. TRK-8834 sent a cart link
+    // at 19:38 and was not opened until 19:43; for those five minutes
+    // the old rule called a true "your quote is coming" a hallucination,
+    // suppressed it, and handed the warmest lead in the business to a
+    // stall.
+    quoteInFlight: Boolean(lastLinkAt) && lastLinkAt > lastQuotedAt,
     missing,
     inboundCount: inbound.rows.length,
   });
@@ -705,7 +830,13 @@ const PICKUP_WORDS = /\b(cbd|town|stanbank|pick\s?up|pickup|mtaani|collect(ion)?
 /** Is this plausibly a destination — an address, or a pickup point? */
 export function looksLikeDestination(value) {
   const v = String(value || '').trim();
-  return v.length >= 5 || PICKUP_WORDS.test(v);
+  if (!v || NOT_A_NAME.test(v)) return false;
+  // Five characters rejected Voi, Juja, Meru, Embu, Ruai and Yaya — all
+  // real answers — and the customer was then asked the same question
+  // again. The operator confirms the exact Pickup Mtaani point anyway, so
+  // a short town name loses nothing; a greeting is the only thing worth
+  // turning away.
+  return v.length >= 3 || PICKUP_WORDS.test(v);
 }
 
 /**
@@ -781,7 +912,7 @@ async function aiOnboarding(db, contact, message, body, settings) {
     `SELECT direction, body FROM (
        SELECT direction, body, created_at FROM wa_messages
         WHERE contact_id = $1 AND body IS NOT NULL AND id <> $2
-        ORDER BY created_at DESC LIMIT 10
+        ORDER BY created_at DESC LIMIT ${HISTORY_WINDOW}
      ) h ORDER BY created_at ASC`,
     [contact.id, message.id]
   );
@@ -800,11 +931,18 @@ async function aiOnboarding(db, contact, message, body, settings) {
 
   // Apply extracted fields under the same rules as the scripted flow.
   const fields = {};
-  if (!contact.full_name && looksLikeName(turn.full_name)) {
-    fields.full_name = turn.full_name.trim();
+  // A field the model claimed to have read but the gate then threw away.
+  // The reply was sent regardless — so the customer was thanked for a
+  // detail nothing had saved, and asked for it again on the next turn.
+  // Asking the specific question instead is the only honest reply.
+  let rejected = null;
+  if (!contact.full_name && turn.full_name) {
+    if (looksLikeName(turn.full_name)) fields.full_name = turn.full_name.trim();
+    else rejected = `Sorry — just to be sure I have it right: what is the full name the parcel should be labelled with?`;
   }
-  if (!contact.delivery_address && looksLikeDestination(turn.delivery_address)) {
-    fields.delivery_address = turn.delivery_address;
+  if (!contact.delivery_address && turn.delivery_address) {
+    if (looksLikeDestination(turn.delivery_address)) fields.delivery_address = turn.delivery_address;
+    else if (!rejected) rejected = `Sorry — where should the parcel go? An address (estate/building, street, town), or the area you'd rather collect in.`;
   }
   // Seeds the operator's default at quote time — delivery is charged the
   // last-mile fee and collection is not, so it is worth keeping whatever
@@ -833,7 +971,9 @@ async function aiOnboarding(db, contact, message, body, settings) {
   }
 
   if (turn.kind === 'reply' && turn.reply) {
-    await sendToContact(db, contact, { text: turn.reply });
+    // `rejected` means the model wrote its reply believing it had the
+    // detail. Sending that reply would confirm something we did not save.
+    await sendToContact(db, contact, { text: rejected || turn.reply });
   } else if (turn.kind === 'off_topic') {
     // Off-topic mid-signup: redirect, then re-ask whatever we still
     // need so the conversation doesn't stall. (Before this branch
