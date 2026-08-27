@@ -3580,6 +3580,11 @@
     "nn": false,
     "t": "timestamptz"
    },
+   "quote_expires_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
+   },
    "quote_kes": {
     "hd": false,
     "nn": false,

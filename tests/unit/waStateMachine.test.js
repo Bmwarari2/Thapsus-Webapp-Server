@@ -146,7 +146,7 @@ describe('tracking auto-reply', () => {
     const db = makeDb(async (sql) => {
       if (sql.includes('tracking_code')) {
         return { rows: [{
-          id: 'o1', status: 'in_kenya', tracking_code: 'TRK-8821',
+          id: 'o1', contact_id: 'c1', status: 'in_kenya', tracking_code: 'TRK-8821',
           paid_at: '2026-08-01', purchased_at: '2026-08-02', arrived_at: '2026-08-10',
           dispatched_at: null, delivered_at: null,
           delivery_fee_waived: false, delivery_fee_kes: null, customer_code: 'TC-1042',
@@ -171,7 +171,7 @@ describe('tracking auto-reply', () => {
   // legible after sent.dm flattens newlines into " · " separators.
   function trackedOrder(over = {}) {
     return {
-      id: 'o1', status: 'dispatched', tracking_code: 'TRK-8821', quote_kes: '17094',
+      id: 'o1', contact_id: 'c1', status: 'dispatched', tracking_code: 'TRK-8821', quote_kes: '17094',
       paid_at: '2026-08-01', purchased_at: '2026-08-02', arrived_at: '2026-08-10',
       dispatched_at: '2026-08-12', delivered_at: null,
       delivery_fee_waived: false, delivery_fee_kes: null, delivery_fee_paid_at: null,
@@ -813,7 +813,7 @@ describe('AI-first mode', () => {
     const waAi = await ai();
     const db = makeDb(async (sql) => {
       if (sql.includes('tracking_code')) {
-        return { rows: [{ id: 'o1', status: 'paid', tracking_code: 'TRK-8821',
+        return { rows: [{ id: 'o1', contact_id: 'c1', status: 'paid', tracking_code: 'TRK-8821',
           paid_at: '2026-08-01', purchased_at: null, arrived_at: null,
           dispatched_at: null, delivered_at: null,
           delivery_fee_waived: false, delivery_fee_kes: null, customer_code: 'TC-1042' }] };
@@ -888,7 +888,7 @@ describe('AI order awareness', () => {
     const waAi = await ai();
     const db = makeDb(async (sql) => {
       if (sql.includes('tracking_code = $1')) return { rows: [{
-        id: 'o1', status: 'dispatched', tracking_code: 'TRK-8821',
+        id: 'o1', contact_id: 'c1', status: 'dispatched', tracking_code: 'TRK-8821',
         paid_at: '2026-08-01', purchased_at: null, arrived_at: null,
         dispatched_at: '2026-08-11', delivered_at: null,
         delivery_fee_waived: false, delivery_fee_kes: null, customer_code: 'TC-1042',
@@ -1127,7 +1127,7 @@ describe('human takeover and AI memory', () => {
     const db = makeDb(async (sql) => {
       if (sql.includes('MAX(created_at)')) return { rows: [{ at: new Date().toISOString() }] };
       if (sql.includes('tracking_code = $1')) return { rows: [{
-        id: 'o1', status: 'dispatched', tracking_code: 'TRK-8821',
+        id: 'o1', contact_id: 'c1', status: 'dispatched', tracking_code: 'TRK-8821',
         paid_at: '2026-08-01', purchased_at: null, arrived_at: null,
         dispatched_at: '2026-08-11', delivered_at: null,
         delivery_fee_waived: false, delivery_fee_kes: null, customer_code: 'TC-1042',
@@ -1228,4 +1228,55 @@ describe('paid claims vs quote confirmation', () => {
       expect(db.query.mock.calls.some(([sql]) => sql.includes("SET status = 'confirmed'"))).toBe(true);
     }
   );
+});
+
+// ── Tracking lookups are scoped to the asking contact ────────────────────────
+// Codes are sequential; before this, any onboarded contact could walk
+// TRK-8800, TRK-8801, … and read every parcel's status, dates and
+// outstanding fee.
+describe('tracking privacy', () => {
+  it("answers someone else's code exactly like a code that doesn't exist", async () => {
+    const db = makeDb(async (sql) => {
+      if (sql.includes('tracking_code = $1')) {
+        return { rows: [{ id: 'o9', contact_id: 'someone-else', status: 'in_kenya',
+          tracking_code: 'TRK-8800', delivery_fee_kes: '300', customer_code: 'TC-9' }] };
+      }
+      return { rows: [] };
+    });
+    await handleInbound(db, contact(), { id: 'm', body: 'TRK-8800' });
+    const reply = sendToContact.mock.calls[0][2].text;
+    expect(reply).toMatch(/couldn't find/i);
+    expect(reply).not.toMatch(/arrived|fee|KSh/i);
+  });
+});
+
+// ── Expired quotes are not auto-confirmable ──────────────────────────────────
+describe('quote expiry', () => {
+  it('declines to auto-confirm an expired quote, tells the customer, pages staff', async () => {
+    const db = makeDb(async (sql) => {
+      if (sql.includes("status = 'quoted'") && sql.trim().startsWith('SELECT')) {
+        return { rows: [{ id: 'o1', quote_kes: '14500', tracking_code: null,
+          quote_expires_at: new Date(Date.now() - 24 * 3600_000).toISOString() }] };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    await handleInbound(db, contact(), { id: 'm', body: 'yes' });
+    expect(db.query.mock.calls.some(([sql]) => sql.includes("SET status = 'confirmed'"))).toBe(false);
+    expect(notifyStaff).toHaveBeenCalledWith(db, expect.objectContaining({
+      title: expect.stringMatching(/expired quote/i),
+    }));
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/re-checking the price/i);
+  });
+
+  it('still auto-confirms a quote inside its validity window', async () => {
+    const db = makeDb(async (sql) => {
+      if (sql.includes("status = 'quoted'") && sql.trim().startsWith('SELECT')) {
+        return { rows: [{ id: 'o1', quote_kes: '14500', tracking_code: null,
+          quote_expires_at: new Date(Date.now() + 3 * 24 * 3600_000).toISOString() }] };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    await handleInbound(db, contact(), { id: 'm', body: 'yes' });
+    expect(db.query.mock.calls.some(([sql]) => sql.includes("SET status = 'confirmed'"))).toBe(true);
+  });
 });

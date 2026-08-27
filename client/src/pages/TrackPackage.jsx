@@ -57,15 +57,30 @@ const WA_STEPS = [
   { key: 'delivered_at',  label: 'Delivered' },
 ]
 
+// A collection parcel never rides with a rider — showing that customer
+// "Out for delivery / Delivered" sent them home to wait for a van that
+// was never coming. Collection skips dispatch entirely: arrival IS the
+// ready-to-collect moment, and delivered_at records the handover at the
+// counter.
+const WA_STEPS_COLLECTION = [
+  { key: 'paid_at',       label: 'Payment received' },
+  { key: 'purchased_at',  label: 'Item purchased' },
+  { key: 'arrived_at',    label: 'Ready to collect — Stanbank House, 4th floor, Nairobi CBD' },
+  { key: 'delivered_at',  label: 'Collected' },
+]
+
 const WA_STATUS_LABELS = {
   quoting: 'Being quoted', quoted: 'Quote sent', confirmed: 'Confirmed — awaiting payment',
   paid: 'Paid — purchase in progress', purchased: 'Purchased — heading to our facility',
   in_kenya: 'Arrived in Kenya', delivery_fee_pending: 'Arrived — delivery fee pending',
-  dispatched: 'Out for delivery', delivered: 'Delivered', cancelled: 'Cancelled',
+  dispatched: 'Out for delivery', delivered: 'Delivered', collected: 'Collected',
+  cancelled: 'Cancelled',
 }
 
-const WaFlowResult = ({ tracking }) => {
-  const doneCount = WA_STEPS.filter((s) => tracking.timeline?.[s.key]).length
+const WaFlowResult = ({ tracking, mpesaTill }) => {
+  const steps = tracking.delivery_method === 'collection' ? WA_STEPS_COLLECTION : WA_STEPS
+  const doneCount = steps.filter((s) => tracking.timeline?.[s.key]).length
+  const inTransit = ['paid', 'purchased'].includes(tracking.status)
   return (
     <div className="max-w-2xl mx-auto mb-14 animate-fade-in">
       <div className="rounded-3xl bg-white/[0.04] border border-line p-6">
@@ -79,13 +94,13 @@ const WaFlowResult = ({ tracking }) => {
           </span>
         </div>
         <div className="space-y-0">
-          {WA_STEPS.map((step, idx) => {
+          {steps.map((step, idx) => {
             const at = tracking.timeline?.[step.key]
             const done = Boolean(at)
             const isNext = !done && idx === doneCount
             return (
               <div key={step.key} className="relative flex items-start gap-4 pb-8 last:pb-0">
-                {idx < WA_STEPS.length - 1 && (
+                {idx < steps.length - 1 && (
                   <span className={`absolute left-[11px] top-6 bottom-0 w-0.5 ${done ? 'bg-ember-500/60' : 'bg-white/10'}`} />
                 )}
                 <span className={`relative z-10 w-6 h-6 rounded-full grid place-items-center text-[11px] font-bold ${
@@ -105,10 +120,23 @@ const WaFlowResult = ({ tracking }) => {
             )
           })}
         </div>
+        {inTransit && (
+          <div className="mt-6 rounded-2xl bg-white/[0.04] border border-line px-4 py-3 text-sm text-mute">
+            Most parcels land in Kenya within 14–21 days of purchase — we'll message you
+            on WhatsApp the moment yours arrives.
+          </div>
+        )}
+        {tracking.status === 'dispatched' && tracking.pickup_point && (
+          <div className="mt-6 rounded-2xl bg-white/[0.04] border border-line px-4 py-3 text-sm text-mute">
+            Heading to <span className="text-white font-semibold">{tracking.pickup_point}</span> via
+            Pickup Mtaani — they'll notify you when it's ready to collect.
+          </div>
+        )}
         {tracking.delivery_fee_pending != null && (
           <div className="mt-6 rounded-2xl bg-amber-500/10 border border-amber-500/25 px-4 py-3 text-sm text-amber-200">
             Last-mile delivery fee pending: KSh {Number(tracking.delivery_fee_pending).toLocaleString()} —
-            check WhatsApp for the payment prompt.
+            pay on Lipa na M-Pesa, Buy Goods, Till <span className="font-bold">{mpesaTill}</span>,
+            then reply on WhatsApp and we'll dispatch it.
           </div>
         )}
       </div>
@@ -119,7 +147,7 @@ const WaFlowResult = ({ tracking }) => {
 export const TrackPackage = () => {
   const { t } = useLanguage()
   const { isAuthenticated } = useAuth()
-  const { support_whatsapp } = useAppConfig()
+  const { support_whatsapp, mpesa_till } = useAppConfig()
   const [searchParams] = useSearchParams()
   const { tn } = useParams()
   const [trackingNumber, setTrackingNumber] = useState(tn || searchParams.get('q') || '')
@@ -234,7 +262,7 @@ export const TrackPackage = () => {
         )}
 
         {/* Result — WhatsApp-flow parcels (TRK-#### codes) */}
-        {package_ && package_.timeline && <WaFlowResult tracking={package_} />}
+        {package_ && package_.timeline && <WaFlowResult tracking={package_} mpesaTill={mpesa_till} />}
 
         {/* Result — legacy parcels */}
         {package_ && !package_.timeline && (

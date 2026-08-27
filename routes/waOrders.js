@@ -199,6 +199,92 @@ router.post('/supplier-ref', authMiddleware, STAFF, async (req, res) => {
 });
 
 /**
+ * GET /api/wa/orders/quote-defaults — the live inputs a quote is built
+ * from, so the dashboard can show the KES total BEFORE the quote is
+ * sent. Quoting was the one irreversible customer-facing action with no
+ * preview: the operator typed a USD figure and the arithmetic was only
+ * visible after the customer had already been told the number.
+ * Staff-accessible on purpose — /api/wa/settings is admin-only and
+ * carries far more than a preview needs.
+ */
+router.get('/quote-defaults', authMiddleware, STAFF, async (req, res) => {
+  try {
+    const [{ rate }, settings] = await Promise.all([
+      getUsdToKesRate(req.db),
+      getWaSettings(req.db),
+    ]);
+    res.json({
+      success: true,
+      usd_kes: Number(rate),
+      markup_pct_default: Number(settings.markup_pct),
+      default_delivery_fee_kes: Number(settings.default_delivery_fee_kes),
+      quote_validity_days: Number(settings.quote_validity_days),
+    });
+  } catch (err) {
+    if (err instanceof FxRateUnavailableError) {
+      return res.status(err.status).json({ success: false, error: err.code, message: err.message });
+    }
+    logRouteError(req, res, err, 'GET /api/wa/orders/quote-defaults');
+    res.status(500).json({ success: false, message: 'Failed to load quote defaults' });
+  }
+});
+
+/**
+ * POST /api/wa/orders/advance-batch  { order_ids[], to_status, note? }
+ *
+ * The flight-landed case: forty parcels arrive at once and every one
+ * needs 'in_kenya'. That used to be forty round-trips through the order
+ * screen. Each order still goes through transition() individually — the
+ * edge validation, audit rows, and the customer's arrival message all
+ * fire exactly as a single advance would — and the response reports
+ * per-order outcomes so a mixed batch (one already moved, one a
+ * collection order) fails only where it should.
+ */
+router.post('/advance-batch', authMiddleware, STAFF, async (req, res) => {
+  try {
+    const to = String(req.body?.to_status || '').trim();
+    if (!['quoted', 'confirmed', 'purchased', 'in_kenya', 'dispatched', 'delivered', 'collected', 'cancelled'].includes(to)) {
+      return res.status(400).json({ success: false, message: `to_status '${to}' is not operator-advanceable` });
+    }
+    const ids = Array.isArray(req.body?.order_ids)
+      ? [...new Set(req.body.order_ids.filter((v) => typeof v === 'string' && v))]
+      : [];
+    if (ids.length === 0 || ids.length > 100) {
+      return res.status(400).json({ success: false, message: 'Pick between 1 and 100 orders' });
+    }
+
+    const results = [];
+    for (const id of ids) {
+      // Same fee guard as the single-advance route: never dispatch with
+      // an unsettled, unwaived delivery fee.
+      if (to === 'dispatched') {
+        const { rows } = await req.db.query(
+          `SELECT status, delivery_fee_waived, delivery_fee_paid_at, delivery_fee_kes
+             FROM wa_orders WHERE id = $1`, [id]
+        );
+        const o = rows[0];
+        if (o && o.status === 'delivery_fee_pending'
+            && !o.delivery_fee_waived && !o.delivery_fee_paid_at && Number(o.delivery_fee_kes) > 0) {
+          results.push({ id, ok: false, reason: 'delivery fee unpaid' });
+          continue;
+        }
+      }
+      const r = await transition(req.db, id, to, {
+        actorUserId: req.user.id,
+        note: req.body?.note || null,
+      });
+      results.push({ id, ok: r.ok, status: r.status, reason: r.ok ? undefined : r.reason });
+    }
+
+    const advanced = results.filter((r) => r.ok).length;
+    res.json({ success: true, advanced, failed: results.length - advanced, results });
+  } catch (err) {
+    logRouteError(req, res, err, 'POST /api/wa/orders/advance-batch');
+    res.status(500).json({ success: false, message: 'Batch advance failed' });
+  }
+});
+
+/**
  * GET /api/wa/orders/scan/:code — scanner/search resolver. Accepts a
  * TRK code in any formatting; returns the order for the detail screen.
  */
@@ -443,14 +529,20 @@ router.post('/:id/quote', authMiddleware, STAFF, idempotency, async (req, res) =
     const goodsKes = Math.round(usd * rate * (1 + markup / 100));
     const quoteKes = goodsKes + feeKes;
 
+    // The approved payment-prompt template promises "The quote expires
+    // {{4}}" — this stamp is what makes that true. The FX snapshot means
+    // something once the quote actually lapses.
+    const validityDays = Math.round(Number(settings.quote_validity_days) || 7);
+
     const { rows: updated } = await req.db.query(
       `UPDATE wa_orders
           SET usd_price = $2, fx_rate = $3, markup_pct = $4, quote_kes = $5,
               delivery_method = $6, delivery_fee_kes = $7,
               delivery_fee_in_quote = true,
+              quote_expires_at = NOW() + ($8 || ' days')::interval,
               status = 'quoted', quoted_at = NOW(), updated_at = NOW()
         WHERE id = $1 RETURNING *`,
-      [order.id, usd, rate, markup, quoteKes, method, feeKes]
+      [order.id, usd, rate, markup, quoteKes, method, feeKes, String(validityDays)]
     );
     await req.db.query(
       `INSERT INTO wa_order_events (id, order_id, from_status, to_status, actor_user_id, note)
@@ -483,6 +575,8 @@ router.post('/:id/quote', authMiddleware, STAFF, idempotency, async (req, res) =
           ? `Delivery to your address or Pickup Mtaani point: KSh ${feeKes.toLocaleString('en-KE')}\n`
           : `Collection from our CBD office: free\n`) +
         `*Total: KSh ${quoteKes.toLocaleString('en-KE')}*\n\n` +
+        `This quote is valid until ${new Date(updated[0].quote_expires_at)
+          .toLocaleDateString('en-KE', { day: 'numeric', month: 'long' })}.\n` +
         `Reply *YES* to confirm and we'll send the M-Pesa payment details.`,
       sentBy: req.user.id,
     });
@@ -636,6 +730,9 @@ router.post('/:id/request-payment', authMiddleware, STAFF, idempotency, async (r
           full_name: order.full_name,
           order_ref: order.tracking_code || orderRef(order),
           total_kes: amountKes.toLocaleString('en-KE'),
+          expires_at: order.quote_expires_at
+            ? new Date(order.quote_expires_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'long' })
+            : undefined,
         },
         text:
           `To pay KSh ${amountKes.toLocaleString('en-KE')}:\n` +

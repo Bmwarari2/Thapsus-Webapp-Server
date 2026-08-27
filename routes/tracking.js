@@ -52,6 +52,7 @@ router.get('/:trackingNumber', optionalAuth, async (req, res) => {
       const { rows } = await db.query(
         `SELECT tracking_code, status, delivery_fee_waived,
                 delivery_fee_kes, delivery_fee_paid_at,
+                delivery_method, pickup_point,
                 paid_at, purchased_at, arrived_at, dispatched_at, delivered_at,
                 created_at, updated_at
            FROM wa_orders WHERE tracking_code = $1`,
@@ -64,6 +65,11 @@ router.get('/:trackingNumber', optionalAuth, async (req, res) => {
         tracking: {
           tracking_number: o.tracking_code,
           status: o.status,
+          // Which journey this parcel is on. Without it the page showed
+          // every collection customer an "Out for delivery / Delivered"
+          // timeline for a parcel nobody was ever going to drive to them.
+          delivery_method: o.delivery_method || 'delivery',
+          pickup_point: o.pickup_point || null,
           timeline: {
             paid_at: o.paid_at,
             purchased_at: o.purchased_at,

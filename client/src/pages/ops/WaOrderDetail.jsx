@@ -65,6 +65,12 @@ export function WaOrderDetail() {
   // M-Pesa STK is unavailable in production (provider withdrawn), so the
   // dashboard offers till instructions + manual approval only.
   const [stkAvailable, setStkAvailable] = useState(false)
+  // Live quote inputs (FX rate, default margin + fee) so the KES total is
+  // visible BEFORE the quote goes out. Sending was the one irreversible
+  // customer-facing action with no preview — the arithmetic only rendered
+  // after the customer had already been told the number, and the only
+  // remedy for a typo was re-quoting them.
+  const [quoteDefaults, setQuoteDefaults] = useState(undefined) // undefined=loading, null=unavailable
 
   const load = useCallback(async () => {
     try {
@@ -97,6 +103,9 @@ export function WaOrderDetail() {
     waApi.settings()
       .then((r) => setStkAvailable(Boolean(r.data.capabilities?.stk_available)))
       .catch(() => setStkAvailable(false))
+    waApi.quoteDefaults()
+      .then((r) => setQuoteDefaults(r.data))
+      .catch(() => setQuoteDefaults(null))
   }, [])
   useWaPipelineUpdates((data) => { if (data.order_id === id) load() })
 
@@ -131,8 +140,24 @@ export function WaOrderDetail() {
   const requestPay = (method, purpose) =>
     run(() => waApi.requestPayment(id, { method, purpose }),
       method === 'stk' ? 'STK push sent' : 'Payment instructions sent')()
-  const approvePayment = (paymentId) =>
-    run(() => paymentsApi.approve(paymentId), 'Payment approved')()
+  // Approving needs the amount the reviewer matched on the till
+  // statement; the "KSh received" input (blank = the amount due) feeds
+  // both this and mark-paid. A short amount prompts for an override
+  // reason, same as the queue page.
+  const approvePayment = (p) => run(async () => {
+    const amt = Math.round(Number(amountReceived.trim() === '' ? p.amount_due_kes : amountReceived))
+    if (!Number.isFinite(amt) || amt <= 0) {
+      throw Object.assign(new Error(), { response: { data: { message: 'Enter the amount received on the till statement' } } })
+    }
+    try {
+      return await paymentsApi.approve(p.id, { amountReceived: amt })
+    } catch (e) {
+      if (e.response?.data?.error !== 'amount_mismatch') throw e
+      const reason = window.prompt(`${e.response.data.message}`)
+      if (!reason || reason.trim().length < 10) throw e
+      return await paymentsApi.approve(p.id, { amountReceived: amt, overrideReason: reason.trim() })
+    }
+  }, 'Payment approved')()
   // Record a till payment even when no payments row exists yet — the
   // common case, since customers who confirm a quote on WhatsApp pay
   // immediately without an operator ever pressing "request payment".
@@ -197,6 +222,20 @@ export function WaOrderDetail() {
     ? Number(order.quote_kes || 0)
     : feePayable ? Number(order.delivery_fee_kes || 0) : 0
   const owesMoney = outstandingKes > 0
+
+  // Same arithmetic the server runs on Send: usd × rate × (1 + margin%)
+  // + last-mile fee. Blank margin falls back to the settings default,
+  // matching the server's behaviour.
+  const preview = (() => {
+    if (!quoteDefaults) return null
+    const price = Number(usd)
+    if (!Number.isFinite(price) || price <= 0) return null
+    const pct = margin.trim() === '' ? Number(quoteDefaults.markup_pct_default) : Number(margin)
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) return null
+    const goods = Math.round(price * Number(quoteDefaults.usd_kes) * (1 + pct / 100))
+    const fee = method === 'collection' ? 0 : Number(quoteDefaults.default_delivery_fee_kes || 0)
+    return { goods, fee, total: goods + fee, rate: Number(quoteDefaults.usd_kes), pct }
+  })()
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
@@ -273,6 +312,23 @@ export function WaOrderDetail() {
                   </button>
                 ))}
               </div>
+              {/* What Send will actually tell the customer, before it does. */}
+              {preview ? (
+                <div className="mt-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 px-3.5 py-2.5 text-sm">
+                  <span className="text-emerald-200">
+                    ${Number(usd).toFixed(2)} × {preview.rate.toFixed(2)}
+                    {preview.pct > 0 ? ` + ${preview.pct}%` : ''}
+                    {preview.fee > 0 ? ` + KSh ${preview.fee.toLocaleString()} delivery` : ''}
+                    {' = '}
+                  </span>
+                  <span className="text-white font-bold">KSh {preview.total.toLocaleString()}</span>
+                  <span className="text-emerald-200/80"> — the customer will be quoted this total.</span>
+                </div>
+              ) : quoteDefaults === null && Number(usd) > 0 ? (
+                <p className="text-xs text-amber-300/80 mt-2">
+                  Live rate unavailable — the total will only be visible after sending.
+                </p>
+              ) : null}
               <p className="text-xs text-mute mt-1.5">
                 The 10% service fee is SHEIN only, and is waived while the promotion runs.
                 Enter <span className="text-white">0</span> for UK (£9/kg + £3) and Dubai ($9/kg)
@@ -453,7 +509,7 @@ export function WaOrderDetail() {
                   <div className="flex items-center gap-2">
                     <StatusBadge status={p.status} />
                     {p.status === 'awaiting_review' && (
-                      <button onClick={() => approvePayment(p.id)} disabled={busy}
+                      <button onClick={() => approvePayment(p)} disabled={busy}
                         className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold">
                         Approve
                       </button>

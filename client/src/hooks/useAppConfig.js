@@ -23,6 +23,7 @@ const FALLBACK_CONFIG = {
   support_whatsapp: '447424531483',
   support_email: 'support@thapsus.uk',
   otp_length: 6,
+  mpesa_till: '5530500',
 };
 
 // Shared across hook instances so we fetch once per session.

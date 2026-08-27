@@ -709,6 +709,11 @@ export const waApi = {
   // Orders / pipeline
   orders: (params = {}) => api.get('/wa/orders', { params }),
   order: (id) => api.get(`/wa/orders/${id}`),
+  /** Live quote inputs (FX rate, default margin + fee) for the KES preview. */
+  quoteDefaults: () => api.get('/wa/orders/quote-defaults'),
+  /** Advance many orders one step at once — each fires its own customer alert. */
+  advanceBatch: (order_ids, to_status, note = null) =>
+    api.post('/wa/orders/advance-batch', { order_ids, to_status, note }),
   /** Create an order. `status` drops it straight into a later stage for
    *  work that arrived mid-flight; `notify` opts into telling the customer. */
   createOrder: (contact_id, product_links = [], product_note = null, extra = {}) =>

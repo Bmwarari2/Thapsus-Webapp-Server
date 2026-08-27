@@ -27,6 +27,10 @@ router.get('/', (req, res) => {
     support_whatsapp: process.env.APP_SUPPORT_WHATSAPP || '447424531483',
     support_email: process.env.APP_SUPPORT_EMAIL || 'support@thapsus.uk',
     otp_length: Number(process.env.APP_OTP_LENGTH) || 6,
+    // The Buy Goods till is what customers pay into — it is printed in
+    // every payment prompt already, so the tracking page may show it too
+    // instead of sending people back to WhatsApp to find the number.
+    mpesa_till: process.env.MPESA_TILL_NUMBER || '5530500',
   };
   res.set('Cache-Control', 'public, max-age=300');
   res.json({ success: true, config });

@@ -324,7 +324,7 @@ export async function handleInbound(db, contact, message) {
   // 3b. Quote confirmation.
   if (CONFIRM_WORDS.test(body)) {
     const { rows } = await db.query(
-      `SELECT id, quote_kes FROM wa_orders
+      `SELECT id, quote_kes, tracking_code, quote_expires_at FROM wa_orders
         WHERE contact_id = $1 AND status = 'quoted'
         ORDER BY quoted_at DESC`,
       [contact.id]
@@ -333,6 +333,24 @@ export async function handleInbound(db, contact, message) {
     // yes. Zero or several quoted orders → let the operator sort it out.
     if (rows.length === 1) {
       const order = rows[0];
+      // An expired quote is not automatically confirmable: the FX rate
+      // has moved on and the template told them the price may change.
+      // Tell the customer the price is being re-checked, page staff to
+      // re-quote, and touch nothing.
+      if (order.quote_expires_at && new Date(order.quote_expires_at).getTime() < Date.now()) {
+        notifyStaff(db, {
+          title: 'Expired quote confirmed — re-quote needed',
+          detail: `${contact.full_name || contact.phone} (${contact.customer_code || 'no code'}) said yes to a quote `
+            + `that expired ${new Date(order.quote_expires_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}. Send a fresh quote.`,
+          dedupeKey: `expired-confirm:${order.id}`,
+        });
+        await sendToContact(db, contact, {
+          text:
+            `Thanks for confirming! Your quote has expired, so we're just re-checking the price ` +
+            `with today's exchange rate. We'll send the confirmed amount and payment details here shortly.`,
+        });
+        return;
+      }
       await db.query(
         `UPDATE wa_orders
             SET status = 'confirmed', confirmed_at = NOW(), updated_at = NOW()
@@ -371,6 +389,9 @@ export async function handleInbound(db, contact, message) {
           full_name: contact.full_name,
           order_ref: order.tracking_code || 'your order',
           total_kes: Number(order.quote_kes).toLocaleString('en-KE'),
+          expires_at: order.quote_expires_at
+            ? new Date(order.quote_expires_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'long' })
+            : undefined,
         },
         text:
           `Great! Your order is confirmed at KSh ${Number(order.quote_kes).toLocaleString('en-KE')}.\n\n` +
@@ -932,11 +953,17 @@ async function replyTrackingStatus(db, contact, trackingCode) {
     [trackingCode]
   );
   const order = rows[0];
-  if (!order) {
+  // Codes are sequential, so an unscoped reply let any onboarded contact
+  // walk TRK-8800, TRK-8801, … and read every parcel's status, milestone
+  // dates and outstanding fee. A code that isn't yours gets the same
+  // wording as one that doesn't exist — the difference is nobody's
+  // business — and a person can still help with the legitimate
+  // checking-for-a-friend case.
+  if (!order || order.contact_id !== contact.id) {
     return sendToContact(db, contact, {
       text:
-        `We couldn't find a parcel with code ${trackingCode} — double-check the code on your receipt. ` +
-        `If it still doesn't work, reply here and our team will help you out.`,
+        `We couldn't find a parcel with code ${trackingCode} on this number — double-check the code ` +
+        `on your receipt. If you're checking a parcel for someone else, reply here and our team will help.`,
     });
   }
 
@@ -961,8 +988,11 @@ function parcelStateSentence(order, trackingCode) {
         + `We'll let you know the moment it's purchased.`;
 
     case 'purchased':
+      // The 2–3 week stretch with nothing to say is where "where is my
+      // parcel?" volume comes from — a coarse honest window beats
+      // repeating the same sentence with no horizon.
       return `${trackingCode} — your item was purchased${on(order.purchased_at)} and is on its way to our facility. `
-        + `We'll message you as soon as it lands in Kenya.`;
+        + `Most parcels land in Kenya within 14 to 21 days of purchase — we'll message you the moment yours does.`;
 
     case 'in_kenya':
       // A customer who chose to collect is not waiting on a rider, and

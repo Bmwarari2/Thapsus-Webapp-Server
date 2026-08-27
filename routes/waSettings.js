@@ -87,6 +87,13 @@ router.put('/', authMiddleware, isAdmin, async (req, res) => {
       }
       updates.push(['default_delivery_fee_kes', String(Math.round(v))]);
     }
+    if (body.quote_validity_days !== undefined) {
+      const v = Number(body.quote_validity_days);
+      if (!Number.isFinite(v) || v < 1 || v > 90) {
+        return res.status(400).json({ success: false, message: 'quote_validity_days must be 1–90' });
+      }
+      updates.push(['quote_validity_days', String(Math.round(v))]);
+    }
     if (body.welcome_media_urls !== undefined) {
       if (!Array.isArray(body.welcome_media_urls)
           || body.welcome_media_urls.some((u) => typeof u !== 'string' || !/^https:\/\//.test(u) || u.length > 2048)

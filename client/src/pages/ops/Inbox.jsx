@@ -81,6 +81,11 @@ export function Inbox() {
   const [selected, setSelected] = useState(null)       // contact row
   const [orders, setOrders] = useState([])
   const [messages, setMessages] = useState([])
+  const [loadingEarlier, setLoadingEarlier] = useState(false)
+  // True while the last history fetch came back full — i.e. there may be
+  // more above. The API has always supported a `before` cursor; the UI
+  // simply never used it, hard-capping every thread at 50 messages.
+  const [mayHaveEarlier, setMayHaveEarlier] = useState(false)
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const bottomRef = useRef(null)
@@ -112,6 +117,7 @@ export function Inbox() {
       setSelected(conv.data.contact)
       setOrders(conv.data.orders || [])
       setMessages(msgs.data.messages || [])
+      setMayHaveEarlier((msgs.data.messages || []).length >= 50)
       waApi.markRead(contactId).catch(() => {})
       setConversations((prev) =>
         prev.map((c) => (c.id === contactId ? { ...c, unread_count: 0 } : c)))
@@ -161,6 +167,22 @@ export function Inbox() {
     e.preventDefault()
     submittedQ.current = q.trim()
     loadConversations(submittedQ.current)
+  }
+
+  const loadEarlier = async () => {
+    if (!selected || messages.length === 0) return
+    setLoadingEarlier(true)
+    try {
+      const oldest = messages[0].created_at
+      const res = await waApi.messages(selected.id, oldest)
+      const earlier = res.data.messages || []
+      setMessages((prev) => [...earlier, ...prev])
+      setMayHaveEarlier(earlier.length >= 50)
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Could not load earlier messages')
+    } finally {
+      setLoadingEarlier(false)
+    }
   }
 
   const sendText = async () => {
@@ -384,6 +406,14 @@ export function Inbox() {
               )}
 
               <div className="h-[48vh] overflow-y-auto px-4 py-4 space-y-2">
+                {mayHaveEarlier && (
+                  <div className="text-center">
+                    <button onClick={loadEarlier} disabled={loadingEarlier}
+                      className="px-3 py-1.5 rounded-full bg-white/5 border border-line text-xs text-mute hover:text-white disabled:opacity-50">
+                      {loadingEarlier ? 'Loading…' : 'Load earlier messages'}
+                    </button>
+                  </div>
+                )}
                 {messages.map((m) => (
                   <div key={m.id} className={`flex ${m.direction === 'out' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words ${

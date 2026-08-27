@@ -90,7 +90,83 @@ export async function sweepOnce(pool) {
     sweepStalledOrders(pool),
     retryFailedSends(pool),
     reconcilePostPaidHooks(pool),
+    remindUnpaidConfirmed(pool),
+    flagExpiredQuotes(pool),
   ]);
+}
+
+// ── 6. Confirmed but unpaid: one payment reminder ───────────────────────────
+// The customer said YES and got the till details, then life happened.
+// One reminder a day later (the approved Payment_Reminder template
+// exists for exactly this, and now carries a real expiry date). Sent
+// once per order, deduped through the audit trail so restarts and
+// multiple instances can't double-remind.
+async function remindUnpaidConfirmed(pool) {
+  const { rows } = await pool.query(
+    `SELECT o.id, o.quote_kes, o.quote_expires_at, o.tracking_code, o.product_note,
+            c.id AS contact_id, c.phone, c.full_name
+       FROM wa_orders o JOIN wa_contacts c ON c.id = o.contact_id
+      WHERE o.status = 'confirmed'
+        AND o.confirmed_at < NOW() - interval '24 hours'
+        AND o.confirmed_at > NOW() - interval '14 days'
+        AND (o.quote_expires_at IS NULL OR o.quote_expires_at > NOW())
+        AND NOT EXISTS (
+          SELECT 1 FROM wa_order_events e
+           WHERE e.order_id = o.id AND e.note = 'Payment reminder sent'
+        )
+      ORDER BY o.confirmed_at ASC
+      LIMIT 10`
+  );
+  for (const o of rows) {
+    // Claim the reminder in the audit trail BEFORE sending, so a crash
+    // mid-loop reminds zero times rather than twice.
+    await pool.query(
+      `INSERT INTO wa_order_events (id, order_id, from_status, to_status, note)
+       VALUES (gen_random_uuid()::text, $1, 'confirmed', 'confirmed', 'Payment reminder sent')`,
+      [o.id]
+    );
+    const { sendToContact } = await import('./waSend.js');
+    const { mpesaTill } = await import('./waPayments.js');
+    const amount = Number(o.quote_kes);
+    await sendToContact(pool, { id: o.contact_id, phone: o.phone }, {
+      templateKey: 'payment_prompt',
+      templateParams: {
+        full_name: o.full_name,
+        order_ref: o.tracking_code || 'your order',
+        total_kes: amount.toLocaleString('en-KE'),
+        expires_at: o.quote_expires_at
+          ? new Date(o.quote_expires_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'long' })
+          : undefined,
+      },
+      text:
+        `A quick reminder about your confirmed order: KSh ${amount.toLocaleString('en-KE')} is still due.\n` +
+        `To pay: Lipa na M-Pesa, Buy Goods, Till *${mpesaTill()}*.\n` +
+        `Reply here once you've paid — or tell us if you've changed your mind, no problem at all.`,
+    });
+    console.info(`[wa-sweeper] payment reminder sent for order ${o.id}`);
+  }
+}
+
+// ── 7. Expired quotes: staff decide, once ───────────────────────────────────
+// Nothing auto-cancels — the customer may still want it at a fresh
+// price. Staff get one page per order per day while it sits expired.
+async function flagExpiredQuotes(pool) {
+  const { rows } = await pool.query(
+    `SELECT o.id, o.quote_kes, o.quote_expires_at, c.full_name, c.phone, c.customer_code
+       FROM wa_orders o JOIN wa_contacts c ON c.id = o.contact_id
+      WHERE o.status = 'quoted' AND o.quote_expires_at < NOW()
+        AND o.quote_expires_at > NOW() - interval '7 days'
+      ORDER BY o.quote_expires_at ASC
+      LIMIT 10`
+  );
+  for (const o of rows) {
+    await notifyStaff(pool, {
+      title: 'Quote expired without an answer',
+      detail: `${o.full_name || o.phone} (${o.customer_code || 'no code'}) — KSh ${Number(o.quote_kes).toLocaleString('en-KE')} `
+        + `quote expired. Re-quote at today's rate, or cancel the order.`,
+      dedupeKey: `quote-expired:${o.id}:${dayBucket()}`,
+    });
+  }
 }
 
 // ── 1. Payments waiting on a reviewer ───────────────────────────────────────
