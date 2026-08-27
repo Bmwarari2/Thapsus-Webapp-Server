@@ -142,7 +142,7 @@ describe('lipanaWebhookHandler — payload parsing', () => {
 });
 
 describe('lipanaWebhookHandler — idempotency + lookup', () => {
-  it('short-circuits with duplicate:true on replay (idempotency rowCount 0)', async () => {
+  it('short-circuits with duplicate:true on replay (event already recorded as seen)', async () => {
     verifyWebhookSignature.mockReturnValue(true);
     const req = makeReq({
       headers: { 'x-lipana-signature': 'sig' },
@@ -150,15 +150,70 @@ describe('lipanaWebhookHandler — idempotency + lookup', () => {
         event: 'payment.success',
         data: { transactionId: 'TX-REPLAY' },
       })),
-      dbQueryImpl: async () => ({ rowCount: 0 }),
+      dbQueryImpl: async (sql) => (sql.includes('lipana_events_seen')
+        ? { rows: [{ '?column?': 1 }], rowCount: 1 }
+        : { rows: [], rowCount: 0 }),
     });
     const res = makeRes();
 
     await lipanaWebhookHandler(req, res);
 
     expect(res.jsonBody).toEqual({ received: true, duplicate: true });
-    expect(req.db.query).toHaveBeenCalledTimes(1); // only the idempotency insert
+    expect(req.db.query).toHaveBeenCalledTimes(1); // only the idempotency check
     expect(markPaymentPaid).not.toHaveBeenCalled();
+  });
+
+  // The event id must be consumed AFTER processing, not before: the old
+  // insert-first order meant a settlement failure left the payment
+  // unpaid while the redelivery short-circuited as a duplicate forever.
+  it('a settlement failure returns 500 and does NOT record the event, so Lipana redelivers', async () => {
+    verifyWebhookSignature.mockReturnValue(true);
+    markPaymentPaid.mockResolvedValueOnce({ ok: false, reason: 'state-flip-failed' });
+    const queries = [];
+    const req = makeReq({
+      headers: { 'x-lipana-signature': 'sig' },
+      body: Buffer.from(JSON.stringify({
+        event: 'payment.success',
+        data: { transactionId: 'TX-FAIL' },
+      })),
+      dbQueryImpl: async (sql) => {
+        queries.push(sql);
+        if (sql.includes('lipana_events_seen') && sql.startsWith('SELECT')) return { rows: [] };
+        if (sql.includes('FROM payments')) return { rows: [{ id: 'PAY-9', status: 'pending' }] };
+        return { rows: [], rowCount: 1 };
+      },
+    });
+    const res = makeRes();
+
+    await lipanaWebhookHandler(req, res);
+
+    expect(res.statusCode).toBe(500);
+    expect(queries.some((sql) => sql.includes('INSERT INTO lipana_events_seen'))).toBe(false);
+  });
+
+  it('a successful settlement records the event as seen afterwards', async () => {
+    verifyWebhookSignature.mockReturnValue(true);
+    markPaymentPaid.mockResolvedValueOnce({ ok: true });
+    const queries = [];
+    const req = makeReq({
+      headers: { 'x-lipana-signature': 'sig' },
+      body: Buffer.from(JSON.stringify({
+        event: 'payment.success',
+        data: { transactionId: 'TX-OK' },
+      })),
+      dbQueryImpl: async (sql) => {
+        queries.push(sql);
+        if (sql.includes('lipana_events_seen') && sql.startsWith('SELECT')) return { rows: [] };
+        if (sql.includes('FROM payments')) return { rows: [{ id: 'PAY-10', status: 'pending' }] };
+        return { rows: [], rowCount: 1 };
+      },
+    });
+    const res = makeRes();
+
+    await lipanaWebhookHandler(req, res);
+
+    expect(res.jsonBody).toEqual({ received: true, ok: true });
+    expect(queries.some((sql) => sql.includes('INSERT INTO lipana_events_seen'))).toBe(true);
   });
 
   it('returns no_payment when no matching payments row exists', async () => {

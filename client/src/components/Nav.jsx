@@ -7,7 +7,8 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { paymentsApi } from '../api'
-import { useWaPipelineUpdates } from '../hooks/useRealtimeUpdates'
+import { useWaPipelineUpdates, useSseConnected } from '../hooks/useRealtimeUpdates'
+import { useNotificationPermission } from '../hooks/useNotificationPermission'
 import brandMark1x from '../assets/brand-mark.webp'
 import brandMark2x from '../assets/brand-mark@2x.webp'
 
@@ -152,7 +153,28 @@ export function Nav() {
   const profileRef = useRef(null)
 
   const { tabs, groups } = buildNav({ isAuthenticated, isAdmin })
-  const pendingPayments = usePendingPaymentsCount(isAuthenticated && ['operator', 'admin'].includes(role))
+  const isStaff = isAuthenticated && ['operator', 'admin'].includes(role)
+  const pendingPayments = usePendingPaymentsCount(isStaff)
+
+  // Ask staff for notification permission once — the SSE handlers fire
+  // browser notifications for quote requests and background-tab inbound
+  // messages, but Notification.permission was never requested, so the
+  // guard always short-circuited and no notification ever showed.
+  const { permission, requestPermission } = useNotificationPermission()
+  useEffect(() => {
+    if (isStaff && permission === 'default') requestPermission()
+  }, [isStaff, permission, requestPermission])
+
+  // "Reconnecting" pill: a dead SSE stream used to look identical to a
+  // live one — stale boards with full confidence. 5s grace hides the
+  // initial-connect flash.
+  const sseConnected = useSseConnected()
+  const [showStale, setShowStale] = useState(false)
+  useEffect(() => {
+    if (sseConnected || !isStaff) { setShowStale(false); return }
+    const t = setTimeout(() => setShowStale(true), 5000)
+    return () => clearTimeout(t)
+  }, [sseConnected, isStaff])
 
   useEffect(() => { setMenuOpen(false); setProfileOpen(false) }, [location.pathname])
 
@@ -200,6 +222,13 @@ export function Nav() {
 
           {/* Right cluster */}
           <div className="flex items-center gap-2">
+            {showStale && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-semibold"
+                title="Live updates are down — the boards may be stale until this reconnects">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                Reconnecting
+              </span>
+            )}
             {!isAuthenticated ? (
               <Link to="/login" className="hidden sm:inline-flex nav-link"><LogIn size={16} /> Staff login</Link>
             ) : (

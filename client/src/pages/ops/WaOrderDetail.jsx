@@ -55,6 +55,9 @@ export function WaOrderDetail() {
   // point, having once invented coverage of one.
   const [pickup, setPickup] = useState('')
   const [mpesaRef, setMpesaRef] = useState('')
+  // What the reviewer saw on the till statement; blank = the outstanding
+  // amount (the common case). A short amount needs an override reason.
+  const [amountReceived, setAmountReceived] = useState('')
   const [supplierRef, setSupplierRef] = useState('')
   const [siblings, setSiblings] = useState([])   // others in the same supplier order
   const [busy, setBusy] = useState(false)
@@ -134,9 +137,33 @@ export function WaOrderDetail() {
   // common case, since customers who confirm a quote on WhatsApp pay
   // immediately without an operator ever pressing "request payment".
   const markPaid = run(async () => {
-    const res = await waApi.markPaid(id, { mpesa_reference: mpesaRef.trim() || null })
-    setMpesaRef('')
-    return res
+    const outstanding = Number(
+      ['quoting', 'quoted', 'confirmed'].includes(order?.status)
+        ? order?.quote_kes : order?.delivery_fee_kes
+    ) || 0
+    const amt = amountReceived.trim() === '' ? outstanding : Math.round(Number(amountReceived))
+    if (!Number.isFinite(amt) || amt <= 0) {
+      throw Object.assign(new Error(), { response: { data: { message: 'Enter the amount received on the till statement' } } })
+    }
+    try {
+      const res = await waApi.markPaid(id, {
+        mpesa_reference: mpesaRef.trim() || null,
+        amount_received_kes: amt,
+      })
+      setMpesaRef(''); setAmountReceived('')
+      return res
+    } catch (e) {
+      if (e.response?.data?.error !== 'amount_mismatch') throw e
+      const reason = window.prompt(`${e.response.data.message}`)
+      if (!reason || reason.trim().length < 10) throw e
+      const res = await waApi.markPaid(id, {
+        mpesa_reference: mpesaRef.trim() || null,
+        amount_received_kes: amt,
+        override_reason: reason.trim(),
+      })
+      setMpesaRef(''); setAmountReceived('')
+      return res
+    }
   }, 'Payment recorded — tracking code and receipt sent')
   const resendReceipt = run(() => waApi.resendReceipt(id), 'Receipt re-sent')
   const saveSupplierRef = run(
@@ -358,6 +385,10 @@ export function WaOrderDetail() {
                 <input value={mpesaRef} onChange={(e) => setMpesaRef(e.target.value.toUpperCase())}
                   placeholder="M-Pesa ref (optional)" maxLength={32}
                   className="flex-1 min-w-[10rem] px-3 py-2 rounded-lg bg-white/5 border border-line text-white placeholder:text-mute text-sm focus:outline-none focus:border-ember-500/50" />
+                <input value={amountReceived} onChange={(e) => setAmountReceived(e.target.value)}
+                  inputMode="numeric"
+                  placeholder={`KSh received (${Number(outstandingKes).toLocaleString()})`}
+                  className="w-40 px-3 py-2 rounded-lg bg-white/5 border border-line text-white placeholder:text-mute text-sm focus:outline-none focus:border-ember-500/50" />
                 <button onClick={markPaid} disabled={busy}
                   className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold disabled:opacity-50">
                   <CheckCircle2 size={15} /> Payment received

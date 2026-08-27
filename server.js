@@ -19,6 +19,7 @@ import { initializeDatabase, getPool } from './database/init.js';
 import { logError, errorLoggingMiddleware, logRouteError } from './utils/errorLogger.js';
 import { startLogRetention } from './utils/logRetention.js';
 import { startFxRefresh } from './utils/fxRefresh.js';
+import { startWaSweeper } from './utils/waSweeper.js';
 import { sanitizeBody, sanitizeQuery } from './middleware/sanitize.js';
 
 dotenv.config();
@@ -628,10 +629,17 @@ Ready ✨
     // untouched (utils/fxRefresh.js for the why).
     const stopFxRefresh = startFxRefresh(pool);
 
+    // Five-minute sweep over the states that mean a customer is waiting:
+    // unreviewed payments, unanswered messages, stalled orders, failed
+    // sends, and paid orders whose post-payment hook never finished.
+    // Also asserts the staff-alert config at boot (utils/waSweeper.js).
+    const stopWaSweeper = startWaSweeper(pool);
+
     const shutdown = (signal) => {
       console.log(`${signal} — shutting down gracefully`);
       try { stopLogRetention?.() } catch { /* ignore */ }
       try { stopFxRefresh?.() } catch { /* ignore */ }
+      try { stopWaSweeper?.() } catch { /* ignore */ }
       server.close(() => { pool.end(); process.exit(0); });
     };
     process.on('SIGTERM', () => shutdown('SIGTERM'));

@@ -705,6 +705,28 @@ router.post('/:id/mark-paid', authMiddleware, STAFF, idempotency, async (req, re
       || (typeof req.body?.mpesa_reference === 'string' && req.body.mpesa_reference.trim()
         ? req.body.mpesa_reference.trim().toUpperCase().slice(0, 32) : null);
 
+    // What the operator actually saw on the till statement. Optional for
+    // backwards compatibility, but the dashboard always sends it — it is
+    // what makes the receipt's PAID stamp a verified claim, and a short
+    // amount needs an explicit override reason, same as the queue page.
+    let receivedKes = null;
+    if (req.body?.amount_received_kes != null) {
+      receivedKes = Math.round(Number(req.body.amount_received_kes));
+      if (!Number.isFinite(receivedKes) || receivedKes <= 0) {
+        return res.status(400).json({ success: false, message: 'amount_received_kes must be a positive number' });
+      }
+      const overrideReason = typeof req.body?.override_reason === 'string' ? req.body.override_reason.trim() : '';
+      if (receivedKes < amountKes && overrideReason.length < 10) {
+        return res.status(409).json({
+          success: false,
+          error: 'amount_mismatch',
+          message: `KES ${receivedKes.toLocaleString()} received but KES ${amountKes.toLocaleString()} is due. Provide override_reason (>=10 chars) to approve anyway.`,
+          amount_due_kes: amountKes,
+          amount_claimed_kes: receivedKes,
+        });
+      }
+    }
+
     const { payment } = await ensureManualPayment(req.db, {
       orderId: order.id,
       contactId: order.contact_id,
@@ -718,6 +740,17 @@ router.post('/:id/mark-paid', authMiddleware, STAFF, idempotency, async (req, re
       });
     }
     if (reference) await attachMpesaReference(req.db, payment.id, reference);
+    if (receivedKes != null) {
+      const overrideReason = typeof req.body?.override_reason === 'string' ? req.body.override_reason.trim() : '';
+      await req.db.query(
+        `UPDATE payments
+            SET amount_received_kes = $2,
+                approval_override_reason = COALESCE($3, approval_override_reason),
+                updated_at = NOW()
+          WHERE id = $1 AND status = 'awaiting_review'`,
+        [payment.id, receivedKes, receivedKes < amountKes ? overrideReason : null]
+      );
+    }
 
     const result = await markPaymentPaid(req.db, payment.id, { adminUserId: req.user.id });
     if (!result.ok) {

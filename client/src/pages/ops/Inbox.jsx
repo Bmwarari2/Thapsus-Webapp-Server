@@ -88,6 +88,12 @@ export function Inbox() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
 
+  // The query the list is actually filtered by — set on submit, not per
+  // keystroke. SSE refreshes used to re-query with the live input value,
+  // so a half-typed search silently re-filtered the inbox the moment any
+  // message arrived.
+  const submittedQ = useRef('')
+
   const loadConversations = useCallback(async (query = '') => {
     try {
       const res = await waApi.conversations(query)
@@ -123,12 +129,18 @@ export function Inbox() {
   }, [params, openConversation])
 
   useWaInboxUpdates((data) => {
-    loadConversations(q)
-    if (selected && data.contact_id === selected.id) openConversation(selected.id)
+    loadConversations(submittedQ.current)
+    // Re-open (and mark read) only while somebody is actually looking.
+    // A conversation left selected in a background tab used to clear its
+    // own unread badge for messages no human ever read.
+    if (selected && data.contact_id === selected.id
+        && document.visibilityState === 'visible') {
+      openConversation(selected.id)
+    }
   })
   useWaNewCustomer((data) => {
     toast.success(`New customer onboarded: ${data.full_name || data.phone} (${data.customer_code})`)
-    loadConversations(q)
+    loadConversations(submittedQ.current)
   })
   // Someone wants a quote. The assistant tells them one is coming; only a
   // person can actually send it, so this toast stays up until it is
@@ -142,10 +154,14 @@ export function Inbox() {
         {data.full_name || data.phone} sent a product link — tap to open
       </button>
     ), { duration: Infinity, icon: '🔗' })
-    loadConversations(q)
+    loadConversations(submittedQ.current)
   })
 
-  const onSearch = (e) => { e.preventDefault(); loadConversations(q.trim()) }
+  const onSearch = (e) => {
+    e.preventDefault()
+    submittedQ.current = q.trim()
+    loadConversations(submittedQ.current)
+  }
 
   const sendText = async () => {
     const text = draft.trim()
@@ -219,7 +235,7 @@ export function Inbox() {
       toast.success(res.data.ai_paused
         ? 'Assistant paused — you have this chat'
         : 'Assistant is answering this chat again')
-      loadConversations(q)
+      loadConversations(submittedQ.current)
     } catch (e) {
       toast.error(e.response?.data?.message || 'Failed to update assistant')
     }

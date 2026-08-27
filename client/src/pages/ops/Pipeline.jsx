@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react'
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { KanbanSquare, Search, ScanLine, MessageSquareText, RefreshCw, UserPlus, PackagePlus, Tags, X } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -30,24 +30,32 @@ export function Pipeline() {
   const [supplierRef, setSupplierRef] = useState('')
   const navigate = useNavigate()
 
-  const load = useCallback(async (query = '') => {
-    setLoading(true)
+  // The query the board is actually showing — set on submit, not on every
+  // keystroke. SSE refreshes used to re-query with the live input value,
+  // so typing three characters without pressing Enter silently re-filtered
+  // the whole board to that half-typed string the moment any pipeline
+  // event arrived.
+  const submittedQ = useRef('')
+
+  const load = useCallback(async (query = submittedQ.current, { quiet = false } = {}) => {
+    if (!quiet) setLoading(true)
     try {
       const res = await waApi.orders(query ? { q: query } : {})
       setOrders(res.data.orders || [])
     } catch (e) {
-      toast.error(e.response?.data?.message || 'Failed to load orders')
+      if (!quiet) toast.error(e.response?.data?.message || 'Failed to load orders')
     } finally {
-      setLoading(false)
+      if (!quiet) setLoading(false)
     }
   }, [])
 
   useEffect(() => { load() }, [load])
-  useWaPipelineUpdates(() => load(q))
+  useWaPipelineUpdates(() => load(submittedQ.current, { quiet: true }))
 
   const onSearch = (e) => {
     e.preventDefault()
-    load(q.trim())
+    submittedQ.current = q.trim()
+    load(submittedQ.current)
   }
 
   const onScan = async (code) => {
@@ -80,7 +88,7 @@ export function Pipeline() {
       const res = await waApi.setSupplierRef([...picked], ref)
       toast.success(`${res.data.updated} ${res.data.updated === 1 ? 'parcel' : 'parcels'} tagged to ${ref}`)
       cancelTagging()
-      load(q)
+      load()
     } catch (e) {
       toast.error(e.response?.data?.message || 'Could not tag the orders')
     }
@@ -118,7 +126,7 @@ export function Pipeline() {
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-line text-white hover:bg-white/10 transition-colors">
             <ScanLine size={18} /> Scan
           </button>
-          <button onClick={() => load(q)}
+          <button onClick={() => load()}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-line text-white hover:bg-white/10 transition-colors">
             <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           </button>
@@ -224,7 +232,7 @@ export function Pipeline() {
 
       <BarcodeScanner open={scanOpen} onScan={onScan} onClose={() => setScanOpen(false)} />
       {addCustomerOpen && (
-        <AddCustomerModal onClose={() => setAddCustomerOpen(false)} onAdded={() => load(q)} />
+        <AddCustomerModal onClose={() => setAddCustomerOpen(false)} onAdded={() => load()} />
       )}
       {addOrderOpen && (
         <AddOrderModal onClose={() => setAddOrderOpen(false)}

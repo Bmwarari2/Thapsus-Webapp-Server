@@ -2234,6 +2234,11 @@
     "nn": true,
     "t": "bigint"
    },
+   "amount_received_kes": {
+    "hd": false,
+    "nn": false,
+    "t": "bigint"
+   },
    "approval_override_reason": {
     "hd": false,
     "nn": false,
@@ -3420,6 +3425,11 @@
     "hd": false,
     "nn": false,
     "t": "text"
+   },
+   "retry_count": {
+    "hd": true,
+    "nn": true,
+    "t": "integer"
    },
    "sent_by": {
     "hd": false,

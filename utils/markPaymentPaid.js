@@ -337,7 +337,12 @@ async function firePostPaidHook(db, payment) {
  *   delivery fee        → short confirmation; operator dispatches next.
  * Dynamic imports keep the legacy payment path free of the wa modules.
  */
-async function fireWaOrderPostPaidHook(db, payment) {
+// Exported for the sweeper (utils/waSweeper.js): a crash between the
+// payment COMMIT and this hook used to leave a paid customer with no
+// tracking-code message and no receipt, permanently — re-firing is safe
+// because every step is idempotent (receipt upserts to the same path,
+// and the guard above stops double announcements).
+export async function fireWaOrderPostPaidHook(db, payment) {
   const { rows } = await db.query(
     `SELECT o.*, c.id AS c_id, c.phone, c.full_name, c.customer_code,
             c.delivery_address
@@ -376,6 +381,28 @@ async function fireWaOrderPostPaidHook(db, payment) {
     return;
   }
   if (order.status !== 'paid') return; // replay of an old event — nothing to say
+
+  // A settlement whose receipt belongs to a DIFFERENT payment means a
+  // second payment row was approved against an already-paid order (the
+  // pre-0014 duplicate-row race, or a deliberate double approval).
+  // Re-announcing would send a second "payment received" + overwrite the
+  // receipt — say so to staff instead, and touch nothing.
+  if (order.receipt_path && !String(order.receipt_path).includes(payment.id)) {
+    console.warn(
+      `[firePostPaidHook:${payment.id}] order ${order.id} already settled with receipt `
+      + `${order.receipt_path} — skipping re-announcement of a second payment`
+    );
+    try {
+      const { notifyStaff } = await import('./waStaffAlert.js');
+      await notifyStaff(db, {
+        title: 'Second payment settled on an already-paid order',
+        detail: `${order.tracking_code || order.id}: payment ${payment.id} approved but the order `
+          + `already holds a receipt. Check the payments and refund if the customer paid twice.`,
+        dedupeKey: `double-settle:${order.id}:${payment.id}`,
+      });
+    } catch { /* best-effort */ }
+    return;
+  }
 
   // Main payment: tracking code announcement + PDF receipt.
   await sendToContact(db, contact, {

@@ -153,5 +153,23 @@ export async function sendToContact(db, contact, opts = {}) {
     });
   } catch { /* SSE best-effort */ }
 
+  // A send the provider REJECTS at request time (unapproved template,
+  // window refusal, bad key) produces no provider message id — so no
+  // status webhook ever arrives and the async failed-send alert in
+  // routes/waWebhook.js can never fire. Page staff from here instead:
+  // almost no caller checks the return value, and a customer who was
+  // never reached looks exactly like one who was. Dynamic import and
+  // fire-and-forget — an alert failure must not fail the send path,
+  // and unconfigured environments (dev/CI) stay quiet.
+  if (error && error !== 'sentdm_not_configured') {
+    import('./waStaffAlert.js')
+      .then(({ notifyStaff }) => notifyStaff(db, {
+        title: 'Customer did not receive a message',
+        detail: `${contact.phone}: "${(effectiveText || '').slice(0, 120)}" — ${error.slice(0, 160)}`,
+        dedupeKey: `send-failed-sync:${id}`,
+      }))
+      .catch(() => {});
+  }
+
   return error ? { ok: false, id, error } : { ok: true, id };
 }

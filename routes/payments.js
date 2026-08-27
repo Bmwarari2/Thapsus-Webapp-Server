@@ -700,14 +700,19 @@ export async function lipanaWebhookHandler(req, res) {
     return res.status(400).send('Malformed payload');
   }
 
-  // Idempotency.
+  // Idempotency — CHECK first, RECORD only after the event is handled.
+  // The previous order (insert-then-process) consumed the event id
+  // before doing the work: a settlement failure (DB blip, hook throw)
+  // left the row unpaid, and Lipana's redelivery then short-circuited
+  // as a duplicate forever — money received, payment stuck 'pending'.
+  // Two concurrent deliveries both passing this check is harmless:
+  // markPaymentPaid is FOR UPDATE + already-paid idempotent.
   try {
-    const { rowCount } = await req.db.query(
-      `INSERT INTO lipana_events_seen (event_id, event_type)
-       VALUES ($1, $2) ON CONFLICT (event_id) DO NOTHING`,
-      [eventId, event]
+    const { rows: seen } = await req.db.query(
+      `SELECT 1 FROM lipana_events_seen WHERE event_id = $1`,
+      [eventId]
     );
-    if (rowCount === 0) {
+    if (seen.length > 0) {
       return res.json({ received: true, duplicate: true });
     }
   } catch (e) {
@@ -715,8 +720,20 @@ export async function lipanaWebhookHandler(req, res) {
     // Don't 500 on the idempotency table — fall through and let the
     // payment lookup short-circuit if we've already paid this one.
   }
+  const recordSeen = async () => {
+    try {
+      await req.db.query(
+        `INSERT INTO lipana_events_seen (event_id, event_type)
+         VALUES ($1, $2) ON CONFLICT (event_id) DO NOTHING`,
+        [eventId, event]
+      );
+    } catch (e) {
+      console.warn('[lipana-webhook] could not record event as seen:', e.message);
+    }
+  };
 
   if (!transactionId && !checkoutRequestID) {
+    await recordSeen();
     return res.json({ received: true, no_transaction_id: true });
   }
 
@@ -737,6 +754,7 @@ export async function lipanaWebhookHandler(req, res) {
     // info level: it's expected noise on a live webhook URL, not a
     // real failure mode for our customers.
     console.info(`[lipana-webhook] orphan ${event} for TXN ${transactionId || '∅'} / CR ${checkoutRequestID || '∅'} — no matching payment row`);
+    await recordSeen();
     return res.json({ received: true, no_payment: true });
   }
 
@@ -745,8 +763,21 @@ export async function lipanaWebhookHandler(req, res) {
     case 'transaction.success': {
       const result = await markPaymentPaid(req.db, payment.id);
       if (!result.ok && !result.alreadyPaid) {
+        // Money moved but our settlement failed. 500 so Lipana
+        // redelivers (the event is deliberately NOT recorded as seen),
+        // and page staff — this used to be a console line and a
+        // permanently stuck 'pending' row.
         console.warn('[lipana-webhook] markPaid failed:', result.reason);
+        import('../utils/waStaffAlert.js')
+          .then(({ notifyStaff }) => notifyStaff(req.db, {
+            title: 'STK payment settlement failed',
+            detail: `Payment ${payment.id}: money confirmed by Lipana but settlement failed (${result.reason}). Will retry on redelivery.`,
+            dedupeKey: `lipana-settle-failed:${payment.id}`,
+          }))
+          .catch(() => {});
+        return res.status(500).json({ received: false, error: 'settlement_failed' });
       }
+      await recordSeen();
       return res.json({ received: true, ok: result.ok || result.alreadyPaid === true });
     }
     case 'payment.failed':
@@ -767,13 +798,16 @@ export async function lipanaWebhookHandler(req, res) {
           WHERE id = $1 AND status IN ('pending','awaiting_review')`,
         [payment.id]
       );
+      await recordSeen();
       return res.json({ received: true, failed: true });
     }
     case 'payment.initiated':
     case 'transaction.initiated':
       // No-op — we already inserted as 'pending'.
+      await recordSeen();
       return res.json({ received: true, ignored: event });
     default:
+      await recordSeen();
       return res.json({ received: true, ignored: event });
   }
 }

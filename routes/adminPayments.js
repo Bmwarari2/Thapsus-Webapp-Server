@@ -71,6 +71,15 @@ router.get('/pending', authMiddleware, REVIEWER, async (req, res) => {
  *      (mpesa_message_amount_kes IS NULL) — admins should not approve
  *      a payment that never received its confirmation step.
  *
+ *   4. WhatsApp-flow payments (target_kind='wa_order') have no SMS-paste
+ *      step, and used to be exempt from ALL of this — the reviewer's
+ *      click recorded nothing about what they saw, a short payment could
+ *      settle silently, and the receipt asserted the full amount. The
+ *      reviewer now supplies `amount_received_kes` — the figure they
+ *      matched on the till statement — which is persisted on the row,
+ *      cross-checked against amount_due_kes (same override flow as the
+ *      legacy SMS check), and printed on the receipt.
+ *
  * Cross-payment reference reuse is blocked by migration 032's
  * `uq_payments_mpesa_ref` partial unique index, which fires at the
  * `mpesa-confirmation` step (not here).
@@ -105,42 +114,58 @@ router.post('/:id/approve', authMiddleware, REVIEWER, async (req, res) => {
         message: `Payment is in status '${payment.status}', not 'awaiting_review'.`,
       });
     }
-    // WhatsApp-flow manual payments have no SMS-paste step — the admin
-    // approves against the M-Pesa statement directly, and the amount was
-    // fixed server-side at request time. Legacy customer-pasted payments
-    // keep the SMS requirement + amount cross-check below.
-    if (payment.target_kind !== 'wa_order' && payment.mpesa_message_amount_kes == null) {
-      return res.status(409).json({
-        success: false,
-        message: 'No M-Pesa SMS on file. Ask the customer to paste their confirmation message before approving.',
-      });
+
+    const due = Number(payment.amount_due_kes);
+    let claimed;
+    let receivedKes = null;
+    if (payment.target_kind === 'wa_order') {
+      // The reviewer states what they saw on the till statement.
+      receivedKes = Math.round(Number(req.body?.amount_received_kes));
+      if (!Number.isFinite(receivedKes) || receivedKes <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'amount_received_required',
+          message: 'Enter the amount actually received on the till statement (amount_received_kes).',
+          amount_due_kes: due,
+        });
+      }
+      claimed = receivedKes;
+    } else {
+      // Legacy customer-pasted payments keep the SMS requirement +
+      // amount cross-check.
+      if (payment.mpesa_message_amount_kes == null) {
+        return res.status(409).json({
+          success: false,
+          message: 'No M-Pesa SMS on file. Ask the customer to paste their confirmation message before approving.',
+        });
+      }
+      claimed = Number(payment.mpesa_message_amount_kes);
     }
 
-    const claimed = Number(payment.mpesa_message_amount_kes);
-    const due     = Number(payment.amount_due_kes);
     const isShort = Number.isFinite(claimed) && Number.isFinite(due) && claimed < due;
 
     if (isShort && overrideReason.length < 10) {
       return res.status(409).json({
         success: false,
         error: 'amount_mismatch',
-        message: `M-Pesa SMS shows KES ${claimed.toLocaleString()} but the invoice is KES ${due.toLocaleString()}. Provide override_reason (>=10 chars) to approve anyway, or reject with a reason.`,
+        message: `KES ${claimed.toLocaleString()} received but the invoice is KES ${due.toLocaleString()}. Provide override_reason (>=10 chars) to approve anyway, or reject with a reason.`,
         amount_due_kes: due,
         amount_claimed_kes: claimed,
       });
     }
 
-    // Persist the override BEFORE markPaymentPaid flips the row, since
-    // markPaymentPaid sets reviewed_by/reviewed_at + status='paid' and
-    // we want the override note to land in the same DB visit. The flip
-    // doesn't touch approval_override_reason.
-    if (isShort) {
+    // Persist the verified amount + any override BEFORE markPaymentPaid
+    // flips the row, since markPaymentPaid sets reviewed_by/reviewed_at +
+    // status='paid' and we want both to land while the row is still
+    // awaiting_review. The flip touches neither column.
+    if (receivedKes != null || isShort) {
       await req.db.query(
         `UPDATE payments
-            SET approval_override_reason = $2,
+            SET amount_received_kes = COALESCE($2, amount_received_kes),
+                approval_override_reason = COALESCE($3, approval_override_reason),
                 updated_at = NOW()
           WHERE id = $1 AND status = 'awaiting_review'`,
-        [req.params.id, overrideReason]
+        [req.params.id, receivedKes, isShort ? overrideReason : null]
       );
     }
 

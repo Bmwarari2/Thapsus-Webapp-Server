@@ -149,16 +149,21 @@ export const paymentsApi = {
     return api.get(`/payments/me/credit/ledger${tail}`)
   },
 
-  // ── Admin-only ──
+  // ── Staff (operators + admins) ──
   pendingMpesaQueue: () => api.get('/admin/payments/pending'),
   /**
-   * Approve an M-Pesa payment. Pass `overrideReason` when the SMS amount
-   * is short of the invoice — server requires >=10 chars and persists it
-   * on the payments row as `approval_override_reason` (audit P1.2).
+   * Approve an M-Pesa payment. For WhatsApp-flow payments the server
+   * requires `amountReceived` — the figure the reviewer matched on the
+   * till statement; it is persisted and printed on the receipt. Pass
+   * `overrideReason` when the amount is short of the invoice — server
+   * requires >=10 chars and persists it on the payments row as
+   * `approval_override_reason` (audit P1.2).
    */
-  approve: (id, { overrideReason } = {}) =>
-    api.post(`/admin/payments/${id}/approve`,
-      overrideReason ? { override_reason: overrideReason } : {}),
+  approve: (id, { overrideReason, amountReceived } = {}) =>
+    api.post(`/admin/payments/${id}/approve`, {
+      ...(overrideReason ? { override_reason: overrideReason } : {}),
+      ...(amountReceived != null ? { amount_received_kes: amountReceived } : {}),
+    }),
   reject: (id, reason) => api.post(`/admin/payments/${id}/reject`, { reason }),
 }
 
@@ -730,10 +735,17 @@ export const waApi = {
   advance: (id, to_status, note = null) =>
     api.post(`/wa/orders/${id}/advance`, { to_status, note }),
   waiveFee: (id) => api.post(`/wa/orders/${id}/waive-fee`),
-  /** Admin: record a manual M-Pesa payment against whatever the order owes. */
-  markPaid: (id, { mpesa_reference = null, note = null } = {}) =>
-    api.post(`/wa/orders/${id}/mark-paid`, { mpesa_reference, note },
-      { headers: { 'Idempotency-Key': newIdempotencyKey() } }),
+  /**
+   * Staff: record a manual M-Pesa payment against whatever the order
+   * owes. `amount_received_kes` is what the reviewer saw on the till
+   * statement; a short amount needs `override_reason` (>=10 chars).
+   */
+  markPaid: (id, { mpesa_reference = null, note = null, amount_received_kes = null, override_reason = null } = {}) =>
+    api.post(`/wa/orders/${id}/mark-paid`, {
+      mpesa_reference, note,
+      ...(amount_received_kes != null ? { amount_received_kes } : {}),
+      ...(override_reason ? { override_reason } : {}),
+    }, { headers: { 'Idempotency-Key': newIdempotencyKey() } }),
   receiptUrl: (id) => api.get(`/wa/orders/${id}/receipt`),
   resendReceipt: (id) => api.post(`/wa/orders/${id}/receipt/resend`),
 

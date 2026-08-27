@@ -7,7 +7,7 @@
  * Also fires browser Notifications (if permission is 'granted') whenever
  * an order_update: status_changed event arrives.
  */
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 /**
@@ -82,6 +82,46 @@ function fireBrowserNotification(order) {
   }
 }
 
+/**
+ * Operator-facing notifications for the WhatsApp events. Before this,
+ * fireBrowserNotification only listened to the legacy customer event, so
+ * an operator on the Pipeline tab had zero signal that a customer had
+ * messaged. A quote request always notifies (a person has to price it);
+ * a plain inbound message notifies only when the tab is hidden — when
+ * it's visible, the inbox badge and toast already have their attention.
+ */
+function fireWaStaffNotification(type, data) {
+  if (typeof window === 'undefined') return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  let title = null;
+  let body = '';
+  if (type === 'wa_quote_request') {
+    title = 'Quote needed';
+    body = `${data?.full_name || data?.phone || 'Customer'} sent a product link:\n${data?.preview || ''}`;
+  } else if (type === 'wa_inbox_update' && data?.direction === 'in' && document.visibilityState !== 'visible') {
+    title = 'New WhatsApp message';
+    body = `${data?.customer_code || data?.phone || 'Customer'}: ${data?.preview || ''}`;
+  }
+  if (!title) return;
+
+  try {
+    const n = new Notification(title, {
+      body,
+      icon: '/logo.png',
+      badge: '/logo.png',
+      tag: `wa-${type}-${data?.contact_id || ''}`,  // collapses bursts per chat
+    });
+    n.onclick = () => {
+      window.focus();
+      window.location.href = data?.contact_id ? `/ops/inbox?contact=${data.contact_id}` : '/ops/inbox';
+      n.close();
+    };
+  } catch (err) {
+    console.warn('[Notification] Failed to fire:', err);
+  }
+}
+
 const BASE_URL = import.meta.env.VITE_API_URL || '';
 
 // ── Robust storage helper (mirrors api/client.js) ─────────────────────────────
@@ -98,6 +138,22 @@ let globalSource    = null;
 let globalListeners = {};    // { eventType: Set<callback> }
 let reconnectTimer  = null;
 let currentToken    = null;
+// Replay bookkeeping: the server stamps every event with an id and keeps
+// a ring buffer. On reconnect we hand back the last id we processed and
+// the server re-sends what we missed — before this, anything pushed
+// during a reconnect gap (laptop sleep, a deploy) was lost silently.
+let lastEventId     = null;
+let hadConnection   = false;
+// Connection state, observable via useSseConnected() so the UI can say
+// "live" vs "stale" instead of looking identical either way.
+let sseConnected    = false;
+const statusListeners = new Set();
+
+function setConnected(v) {
+  if (sseConnected === v) return;
+  sseConnected = v;
+  statusListeners.forEach(cb => { try { cb(v); } catch (_) { /* ignore */ } });
+}
 
 function subscribe(eventType, cb) {
   if (!globalListeners[eventType]) globalListeners[eventType] = new Set();
@@ -114,24 +170,43 @@ function connectSSE(token) {
   if (globalSource) { globalSource.close(); globalSource = null; }
   currentToken = token;
 
-  const url    = `${BASE_URL}/api/events?token=${encodeURIComponent(token)}`;
+  let url = `${BASE_URL}/api/events?token=${encodeURIComponent(token)}`;
+  if (hadConnection && lastEventId != null) {
+    url += `&last_event_id=${encodeURIComponent(lastEventId)}`;
+  }
   const source = new EventSource(url);
   globalSource = source;
 
   source.addEventListener('connected', () => {
     console.debug('[SSE] connected');
+    hadConnection = true;
+    setConnected(true);
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  });
+
+  // The server couldn't replay what we missed (buffer rolled over, or it
+  // restarted). Nudge the boards into a refetch through the events they
+  // already reload on.
+  source.addEventListener('replay_gap', () => {
+    console.debug('[SSE] replay gap — refetching');
+    lastEventId = null;
+    dispatch('wa_inbox_update', { replay_gap: true });
+    dispatch('wa_pipeline_update', { replay_gap: true });
   });
 
   SSE_EVENTS.forEach(type => {
       source.addEventListener(type, e => {
         try {
+          if (e.lastEventId) lastEventId = e.lastEventId;
           const data = JSON.parse(e.data);
           dispatch(type, data);
 
           // Fire a browser notification whenever an order changes status
           if (type === 'order_update' && data?.action === 'status_changed' && data?.order) {
             fireBrowserNotification(data.order);
+          }
+          if (type === 'wa_quote_request' || type === 'wa_inbox_update') {
+            fireWaStaffNotification(type, data);
           }
         } catch (_) { /* ignore */ }
     });
@@ -140,6 +215,7 @@ function connectSSE(token) {
   source.onerror = () => {
     source.close();
     globalSource = null;
+    setConnected(false);
     if (!reconnectTimer) {
       reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
@@ -154,6 +230,7 @@ function disconnectSSE() {
   if (globalSource) { globalSource.close(); globalSource = null; }
   if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   currentToken = null;
+  setConnected(false);
 }
 
 // ── Main hook ─────────────────────────────────────────────────────────────────
@@ -170,6 +247,21 @@ export function useRealtimeUpdates() {
 
   const on = useCallback((eventType, cb) => subscribe(eventType, cb), []);
   return { on };
+}
+
+/**
+ * Live connection state for the ops chrome: true while the SSE stream is
+ * up. Lets the dashboard show a "reconnecting" pill instead of stale
+ * boards that look identical to live ones.
+ */
+export function useSseConnected() {
+  const [connected, setConnected] = useState(sseConnected);
+  useEffect(() => {
+    statusListeners.add(setConnected);
+    setConnected(sseConnected);
+    return () => statusListeners.delete(setConnected);
+  }, []);
+  return connected;
 }
 
 // ── Typed helpers ─────────────────────────────────────────────────────────────
