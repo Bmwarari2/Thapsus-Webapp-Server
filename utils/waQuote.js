@@ -74,3 +74,91 @@ export function deliveryFeeFor(method, defaultFeeKes) {
   }
   return { feeKes: Math.round(fee), error: null };
 }
+
+/**
+ * Switching an order between delivery and collection, as pure arithmetic.
+ *
+ * Customers change their minds — "actually I'll pick it up", "please
+ * bring it after all" — and before this existed the method was fixed at
+ * quote time, so every later message fired on the wrong branch: a
+ * collector was promised a rider, a delivery customer was sent to
+ * Stanbank House. The route (PATCH /wa/orders/:id/delivery-method) does
+ * the I/O; this function decides what changes, so the money rules live
+ * in one testable place.
+ *
+ * Money rules:
+ *   * Before payment (quoting/quoted/confirmed) the fee moves in and out
+ *     of the quote: → collection removes it from quote_kes, → delivery
+ *     adds the current default. Any open awaiting_review payment must be
+ *     re-amounted by the caller (`updates.quote_kes` says so).
+ *   * After payment the agreed total is history and never mutated:
+ *     → delivery means a fee is now owed on arrival
+ *       (delivery_fee_in_quote=false + the default amount, which is what
+ *       the arrival branch reads);
+ *     → collection means nothing more is due — fee columns are left as
+ *       the record of what was paid, and `refundFeeKes` names the fee
+ *       the customer paid for a delivery they no longer want, for the
+ *       audit note and the team to settle.
+ *   * dispatched/delivered/collected/cancelled are too late to switch.
+ *
+ * @param {object} order  wa_orders row (status + money columns)
+ * @param {'delivery'|'collection'} method  target
+ * @param {unknown} defaultFeeKes  wa_settings.default_delivery_fee_kes
+ * @returns {{ error: string|null, updates: object, refundFeeKes: number,
+ *             feeOwedOnArrivalKes: number, prePayment: boolean }}
+ */
+export function switchDeliveryMethod(order, method, defaultFeeKes) {
+  const fail = (error) => ({ error, updates: {}, refundFeeKes: 0, feeOwedOnArrivalKes: 0, prePayment: false });
+  if (method !== 'delivery' && method !== 'collection') {
+    return fail("delivery_method must be 'delivery' or 'collection'");
+  }
+  if ((order.delivery_method || 'delivery') === method) {
+    return fail(`Order is already set for ${method}`);
+  }
+  if (['dispatched', 'delivered', 'collected', 'cancelled'].includes(order.status)) {
+    return fail(`Too late to switch an order in status '${order.status}'`);
+  }
+
+  const prePayment = ['quoting', 'quoted', 'confirmed'].includes(order.status);
+  const updates = { delivery_method: method };
+  // pickup_point is a Pickup Mtaani agent — a delivery destination. A
+  // collector goes to the CBD office; a stale point would put the wrong
+  // place in the dispatch message if they ever switch back.
+  if (method === 'collection') updates.pickup_point = null;
+
+  let refundFeeKes = 0;
+  let feeOwedOnArrivalKes = 0;
+
+  const quotedFee = order.delivery_fee_in_quote ? Math.max(0, Number(order.delivery_fee_kes || 0)) : 0;
+  const { feeKes: defaultFee, error: feeError } = deliveryFeeFor('delivery', defaultFeeKes);
+
+  if (prePayment && order.quote_kes != null) {
+    if (method === 'collection') {
+      updates.quote_kes = Number(order.quote_kes) - quotedFee;
+      updates.delivery_fee_kes = 0;
+      updates.delivery_fee_in_quote = true; // "the (zero) fee is in the quote"
+    } else {
+      if (feeError) return fail(feeError);
+      updates.quote_kes = Number(order.quote_kes) - quotedFee + defaultFee;
+      updates.delivery_fee_kes = defaultFee;
+      updates.delivery_fee_in_quote = true;
+    }
+    if (!(updates.quote_kes > 0)) return fail('Switching would leave the quote at zero — re-quote instead');
+  } else if (!prePayment) {
+    if (method === 'delivery') {
+      // Nothing was paid for delivery; the fee is owed on arrival unless
+      // it was already settled or waived somehow.
+      if (!order.delivery_fee_paid_at && !order.delivery_fee_waived) {
+        if (feeError) return fail(feeError);
+        updates.delivery_fee_kes = defaultFee;
+        updates.delivery_fee_in_quote = false;
+        feeOwedOnArrivalKes = defaultFee;
+      }
+    } else if (quotedFee > 0 && !order.delivery_fee_waived) {
+      // They paid for a delivery they no longer want.
+      refundFeeKes = quotedFee;
+    }
+  }
+
+  return { error: null, updates, refundFeeKes, feeOwedOnArrivalKes, prePayment };
+}
