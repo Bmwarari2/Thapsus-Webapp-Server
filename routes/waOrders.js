@@ -16,6 +16,7 @@ import { logRouteError } from '../utils/errorLogger.js';
 import { getUsdToKesRate, FxRateUnavailableError } from '../utils/fx.js';
 import { getWaSettings } from '../utils/waSettings.js';
 import { deliveryFeeFor, resolveMarkupPct, switchDeliveryMethod } from '../utils/waQuote.js';
+import { normalizeProductLinks } from '../utils/productLinks.js';
 import { transition, isValidEdge, sendCustomerStatusMessage } from '../utils/waOrderFlow.js';
 import { sendToContact } from '../utils/waSend.js';
 import { extractTrackingCode, extractCustomerCode, nextTrackingCode } from '../utils/waCodes.js';
@@ -337,9 +338,11 @@ router.post('/', authMiddleware, STAFF, async (req, res) => {
     if (!contact_id || typeof contact_id !== 'string') {
       return res.status(400).json({ success: false, message: 'contact_id is required' });
     }
-    const links = Array.isArray(product_links)
-      ? product_links.filter((l) => typeof l === 'string' && l.length < 2048).slice(0, 20)
-      : [];
+    // Same rules as the edit route (utils/productLinks.js): trimmed,
+    // schemes added, de-duplicated, and junk refused rather than saved
+    // as though it were a product.
+    const { links, error: linkError } = normalizeProductLinks(product_links ?? []);
+    if (linkError) return res.status(400).json({ success: false, message: linkError });
     const { rows: contactRows } = await req.db.query(
       `SELECT id, phone, full_name FROM wa_contacts WHERE id = $1`, [contact_id]
     );
@@ -903,6 +906,91 @@ router.post('/:id/advance', authMiddleware, STAFF, async (req, res) => {
   } catch (err) {
     logRouteError(req, res, err, 'POST /api/wa/orders/:id/advance');
     res.status(500).json({ success: false, message: 'Failed to advance order' });
+  }
+});
+
+/**
+ * PATCH /api/wa/orders/:id/product-links
+ *   { product_links: string[], product_note?: string|null }
+ *
+ * Add or remove the links on an order. Customers send a second cart ten
+ * minutes after the first, change their mind about an item, or paste a
+ * link that does not open — and until now the list was frozen at
+ * creation, so the operator's only options were quoting from a wrong
+ * list or throwing the order away and starting again.
+ *
+ * The whole list is replaced (the editor sends what the order should
+ * now hold), normalised by utils/productLinks.js. The audit row records
+ * what actually changed, because "why is this quote for three items when
+ * the customer asked for two" is a question asked weeks later.
+ *
+ * Deliberately NOT touching money: links describe what to buy, and
+ * re-pricing is the operator's decision — the response carries
+ * `requote_advised` so the dashboard can say so on an already-quoted
+ * order. Refused once the order is cancelled; a cancelled order is a
+ * record, not a work item.
+ */
+router.patch('/:id/product-links', authMiddleware, STAFF, async (req, res) => {
+  try {
+    const { links, error } = normalizeProductLinks(req.body?.product_links ?? []);
+    if (error) return res.status(400).json({ success: false, message: error });
+
+    const { rows: existing } = await req.db.query(
+      `SELECT id, status, product_links, product_note FROM wa_orders WHERE id = $1`,
+      [req.params.id]
+    );
+    const order = existing[0];
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    if (order.status === 'cancelled') {
+      return res.status(409).json({ success: false, message: 'This order is cancelled — reopen or recreate it to change the links' });
+    }
+
+    // product_note rides along because it is the other half of "what are
+    // we buying" — and when it is set, the receipt prefers it over the
+    // link hostname. Absent means leave it alone; null or '' clears it.
+    const noteGiven = Object.prototype.hasOwnProperty.call(req.body || {}, 'product_note');
+    const note = noteGiven
+      ? (typeof req.body.product_note === 'string' && req.body.product_note.trim()
+        ? req.body.product_note.trim().slice(0, 500) : null)
+      : order.product_note;
+
+    const { rows: updated } = await req.db.query(
+      `UPDATE wa_orders SET product_links = $2::jsonb, product_note = $3, updated_at = NOW()
+        WHERE id = $1 RETURNING *`,
+      [order.id, JSON.stringify(links), note]
+    );
+
+    const before = Array.isArray(order.product_links) ? order.product_links : [];
+    const added = links.filter((l) => !before.includes(l));
+    const removed = before.filter((l) => !links.includes(l));
+    const changes = [];
+    if (added.length) changes.push(`added ${added.length}`);
+    if (removed.length) changes.push(`removed ${removed.length}`);
+    if (noteGiven && note !== order.product_note) changes.push(note ? 'note updated' : 'note cleared');
+    if (changes.length) {
+      await req.db.query(
+        `INSERT INTO wa_order_events (id, order_id, from_status, to_status, actor_user_id, note)
+         VALUES ($1, $2, $3, $3, $4, $5)`,
+        [uuidv4(), order.id, order.status, req.user.id,
+         `Product links edited — ${changes.join(', ')} (now ${links.length})`]
+      );
+      pushToStaff('wa_pipeline_update', { order_id: order.id, status: order.status });
+    }
+
+    res.json({
+      success: true,
+      order: updated[0],
+      added: added.length,
+      removed: removed.length,
+      // Changing what we buy after a price was quoted almost always
+      // means the price is wrong now — but only a person can decide
+      // that, so this is advice, not an action.
+      requote_advised: (added.length > 0 || removed.length > 0)
+        && ['quoted', 'confirmed'].includes(order.status),
+    });
+  } catch (err) {
+    logRouteError(req, res, err, 'PATCH /api/wa/orders/:id/product-links');
+    res.status(500).json({ success: false, message: 'Failed to update the product links' });
   }
 });
 
