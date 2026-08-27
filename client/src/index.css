@@ -18,8 +18,34 @@
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     -webkit-tap-highlight-color: transparent;
     /* Kills the 300ms double-tap-to-zoom gesture that left users on a
-       half-zoomed page (pairs with user-scalable=no in the viewport meta). */
+       half-zoomed page. Pinch-zoom itself stays available (WCAG 1.4.4) —
+       the viewport meta no longer sets user-scalable=no. */
     touch-action: manipulation;
+  }
+
+  /* iOS Safari zooms the whole page in when you focus a form control
+     whose font-size is under 16px, and does NOT zoom back out — you end
+     up typing on a magnified, sideways-scrolling page. The old viewport
+     meta suppressed this with user-scalable=no, which also took
+     pinch-zoom away from everyone; restoring pinch-zoom brought the
+     auto-zoom back with it.
+
+     The fix that keeps both: leave zoom enabled and remove the reason
+     the browser wants to zoom, by never rendering a form control below
+     16px on a touch device. Desktop keeps the denser text-xs/text-sm
+     sizing — this only applies where the quirk exists.
+
+     !important because the sizing comes from Tailwind utilities on the
+     elements themselves (text-xs, text-sm); this is a device-behaviour
+     override, not a style preference. Checkboxes and radios are exempt:
+     they have no text to zoom toward, and font-size drives their box
+     size in some browsers. */
+  @media (pointer: coarse) {
+    input:not([type='checkbox']):not([type='radio']),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
   }
 
   /* Subtle ember aura anchored top-centre, fading into the void.
