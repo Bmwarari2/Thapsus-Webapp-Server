@@ -331,6 +331,17 @@ export const waApi = {
   setPickupPoint: (id, pickup_point) =>
     api.patch(`/wa/orders/${id}/pickup-point`, { pickup_point }),
   /**
+   * Replace an order's product links (and optionally the item note).
+   * Send the full list the order should now hold — the server
+   * normalises, de-duplicates and refuses junk. Response carries
+   * `requote_advised` when the change lands on an already-quoted order.
+   */
+  setProductLinks: (id, product_links, product_note = undefined) =>
+    api.patch(`/wa/orders/${id}/product-links`, {
+      product_links,
+      ...(product_note !== undefined ? { product_note } : {}),
+    }),
+  /**
    * Switch an order between delivery and collection so later messages
    * fire on the right branch. Money follows: pre-payment the fee moves
    * in/out of the quote (open payment re-amounted); post-payment a

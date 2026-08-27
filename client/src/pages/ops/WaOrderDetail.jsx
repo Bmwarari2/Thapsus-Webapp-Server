@@ -31,6 +31,13 @@ export function WaOrderDetail() {
   // customer names an area; the assistant is told never to confirm a
   // point, having once invented coverage of one.
   const [pickup, setPickup] = useState('')
+  // Editable copy of the order's product links. Customers send a second
+  // cart minutes after the first, or change their mind about an item —
+  // the list used to be frozen at creation, leaving the operator to quote
+  // from a wrong list or throw the order away and start again.
+  const [linkDraft, setLinkDraft] = useState([])
+  const [newLink, setNewLink] = useState('')
+  const [linksDirty, setLinksDirty] = useState(false)
   const [mpesaRef, setMpesaRef] = useState('')
   // What the reviewer saw on the till statement; blank = the outstanding
   // amount (the common case). A short amount needs an override reason.
@@ -59,6 +66,11 @@ export function WaOrderDetail() {
       setMethod(res.data.order.delivery_method || res.data.order.delivery_preference || 'delivery')
       setPickup(res.data.order.pickup_point || '')
       setSupplierRef(res.data.order.supplier_ref || '')
+      // Don't stomp an in-progress edit when an SSE refresh lands.
+      setLinksDirty((dirty) => {
+        if (!dirty) setLinkDraft(Array.isArray(res.data.order.product_links) ? res.data.order.product_links : [])
+        return dirty
+      })
 
       // Who else went into the same supplier purchase. This is the whole
       // reason for the field: when a box turns up with only SHEIN's
@@ -110,6 +122,29 @@ export function WaOrderDetail() {
   }, 'Quote sent to the customer')
 
   const savePickup = run(() => waApi.setPickupPoint(id, pickup), 'Pickup point saved')
+
+  const addLink = () => {
+    const v = newLink.trim()
+    if (!v) return
+    setLinkDraft((prev) => [...prev, v])
+    setNewLink('')
+    setLinksDirty(true)
+  }
+  const removeLink = (i) => {
+    setLinkDraft((prev) => prev.filter((_, idx) => idx !== i))
+    setLinksDirty(true)
+  }
+  const saveLinks = run(async () => {
+    const res = await waApi.setProductLinks(id, linkDraft)
+    setLinksDirty(false)
+    // Changing what we buy after a price went out usually means the
+    // price is wrong now — but re-quoting is the operator's call.
+    if (res.data?.requote_advised) {
+      toast('Links changed on a quoted order — re-quote if the price has moved.',
+        { icon: '⚠️', duration: 7000 })
+    }
+    return res
+  }, 'Product links saved')
 
   // Switch delivery ↔ collection so every later message (arrival,
   // dispatch, tracking replies) fires on the right branch. The confirm
@@ -263,14 +298,54 @@ export function WaOrderDetail() {
         {/* ── Quote / money ── */}
         <GlassCard className="p-5">
           <h2 className="font-bold text-white mb-4">Quote</h2>
-          {links.length > 0 && (
-            <div className="mb-4 space-y-1">
-              {links.map((l, i) => (
-                <a key={i} href={l} target="_blank" rel="noreferrer"
-                  className="block text-xs text-ember-400 hover:text-ember-300 truncate">{l}</a>
-              ))}
+          {/* Product links — editable. A frozen list meant quoting from a
+              wrong one or recreating the order when a customer sent a
+              second cart or dropped an item. */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <span className="text-xs font-semibold text-mute">
+                Product links{linkDraft.length ? ` (${linkDraft.length})` : ''}
+              </span>
+              {linksDirty && (
+                <button onClick={saveLinks} disabled={busy}
+                  className="px-2.5 py-1 rounded-lg bg-ember-600 hover:bg-ember-500 text-white text-xs font-semibold disabled:opacity-50">
+                  Save links
+                </button>
+              )}
             </div>
-          )}
+            <div className="space-y-1">
+              {linkDraft.map((l, i) => (
+                <div key={`${l}-${i}`} className="flex items-center gap-2 group">
+                  <a href={l} target="_blank" rel="noreferrer"
+                    className="flex-1 min-w-0 text-xs text-ember-400 hover:text-ember-300 truncate">{l}</a>
+                  <button onClick={() => removeLink(i)} disabled={busy}
+                    title="Remove this link"
+                    className="shrink-0 px-1.5 rounded text-mute hover:text-red-300 hover:bg-red-500/10 disabled:opacity-50">
+                    ×
+                  </button>
+                </div>
+              ))}
+              {linkDraft.length === 0 && (
+                <p className="text-xs text-mute/70">No links yet — paste the customer's cart or product link below.</p>
+              )}
+            </div>
+            <div className="flex gap-2 mt-2">
+              <input value={newLink} onChange={(e) => setNewLink(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLink() } }}
+                placeholder="Paste a cart or product link"
+                className="flex-1 min-w-0 px-3 py-1.5 rounded-lg bg-white/5 border border-line text-white placeholder:text-mute text-xs focus:outline-none focus:border-ember-500/50" />
+              <button onClick={addLink} disabled={busy || !newLink.trim()}
+                className="px-3 py-1.5 rounded-lg bg-white/5 border border-line text-white text-xs font-semibold hover:bg-white/10 disabled:opacity-50">
+                Add
+              </button>
+            </div>
+            {linksDirty && (
+              <p className="text-xs text-amber-300/80 mt-1.5">
+                Unsaved changes — tap Save links.
+                {['quoted', 'confirmed'].includes(order.status) && ' This order is already quoted, so re-quote if the price has moved.'}
+              </p>
+            )}
+          </div>
           {['quoting', 'quoted'].includes(order.status) ? (
             <>
               <div className="flex gap-2">
