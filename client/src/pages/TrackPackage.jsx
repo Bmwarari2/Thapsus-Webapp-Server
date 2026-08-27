@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import {
   Search, Package, Check, Clock, AlertCircle,
-  ArrowRight, Box, MapPin, Truck, Globe, LogIn,
+  ArrowRight, Box, MapPin, Truck, Globe,
 } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
-import { useAuth } from '../context/AuthContext'
 import { useAppConfig } from '../hooks/useAppConfig'
 import { ordersApi } from '../api'
 import { useOrderUpdates } from '../hooks/useRealtimeUpdates'
@@ -146,7 +145,6 @@ const WaFlowResult = ({ tracking, mpesaTill }) => {
 
 export const TrackPackage = () => {
   const { t } = useLanguage()
-  const { isAuthenticated } = useAuth()
   const { support_whatsapp, mpesa_till } = useAppConfig()
   const [searchParams] = useSearchParams()
   const { tn } = useParams()
@@ -154,8 +152,6 @@ export const TrackPackage = () => {
   const [loading, setLoading] = useState(false)
   const [package_, setPackage] = useState(null)
   const [error, setError] = useState(null)
-  const [myOrders, setMyOrders] = useState([])
-  const [loadingOrders, setLoadingOrders] = useState(false)
 
   const statusTimeline = [
     { status: 'pending',               label: 'Order Placed',          icon: Package },
@@ -179,28 +175,16 @@ export const TrackPackage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useEffect(() => { if (isAuthenticated) fetchMyOrders() }, [isAuthenticated])
-
   // Live tracking: when a parcel status changes, refresh the open package and
   // the user's order list without a manual re-track.
   useOrderUpdates((payload) => {
     if (payload?.action !== 'status_changed') return
-    if (isAuthenticated) fetchMyOrders()
     const tnNow = (trackingNumber || '').trim()
     const changed = payload.tracking_number || payload.order?.tracking_number
     if (tnNow && changed && tnNow === changed) {
       ordersApi.track(tnNow).then((res) => setPackage(res.data.tracking)).catch(() => {})
     }
   })
-
-  const fetchMyOrders = async () => {
-    try {
-      setLoadingOrders(true)
-      const res = await ordersApi.list({ limit: 20 })
-      setMyOrders(res.data.orders || [])
-    } catch (err) { console.error('Failed to load orders:', err) }
-    finally { setLoadingOrders(false) }
-  }
 
   const handleTrack = async (e) => {
     e.preventDefault()
@@ -370,76 +354,9 @@ export const TrackPackage = () => {
           </div>
         )}
 
-        {/* My packages / sign-in prompt */}
-        {isAuthenticated ? (
-          <div className="mt-2">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white">My packages</h2>
-                <p className="text-sm text-mute mt-1">All your active and past shipments</p>
-              </div>
-              {loadingOrders && <div className="spinner w-5 h-5" />}
-            </div>
-
-            {!loadingOrders && myOrders.length === 0 && (
-              <div className="card empty-state">
-                <Package size={44} className="text-white/15 mb-4" />
-                <p className="empty-state-title">You don't have any packages yet.</p>
-                <a href={`https://wa.me/${support_whatsapp}`} target="_blank" rel="noopener noreferrer"
-                  className="btn-primary glass-sheen mt-4">Order on WhatsApp</a>
-              </div>
-            )}
-
-            {!loadingOrders && myOrders.length > 0 && (
-              <div className="space-y-3">
-                {myOrders.map((order) => {
-                  const delivery = estimateDelivery(order)
-                  const isActive = !['delivered', 'cancelled'].includes(order.status)
-                  return (
-                    <div key={order.id} onClick={() => handleQuickTrack(order.tracking_number)}
-                      className="card cursor-pointer group p-5">
-                      <div className="flex items-center justify-between gap-4 flex-wrap">
-                        <div className="flex items-center gap-4">
-                          <span className={`w-12 h-12 rounded-2xl grid place-items-center shrink-0 ${isActive ? 'bg-ember-500/10 text-ember-400 border border-ember-500/20' : 'bg-white/[0.04] text-mute border border-line'}`}>
-                            <Package size={22} />
-                          </span>
-                          <div>
-                            <p className="font-bold text-white">{order.tracking_number}</p>
-                            <p className="text-xs text-mute mt-0.5">{order.retailer} · {order.market} Hub</p>
-                          </div>
-                        </div>
-                        <div className="hidden md:block flex-1 min-w-0 px-4">
-                          <p className="text-sm text-white/70 truncate">{order.description}</p>
-                          {order.weight_kg && <p className="text-xs text-mute mt-0.5">{order.weight_kg} kg</p>}
-                        </div>
-                        <div className="flex items-center gap-3 flex-wrap justify-end">
-                          <span className={STATUS_BADGE[order.status] || 'badge-gray'}>{STATUS_LABELS[order.status] || order.status?.replace(/_/g, ' ')}</span>
-                          {(order.actual_cost || order.estimated_cost) && (
-                            <span className="text-sm font-bold text-white">KES {(order.actual_cost || order.estimated_cost)?.toLocaleString()}{!order.actual_cost && <span className="text-[10px] text-mute ml-1">est.</span>}</span>
-                          )}
-                          <span className="w-8 h-8 rounded-xl bg-white/[0.06] grid place-items-center text-mute group-hover:bg-ember-gradient group-hover:text-white transition-all"><ArrowRight size={14} /></span>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        ) : (
-          !package_ && (
-            <div className="mt-2">
-              <div className="glow-card p-8 flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
-                <span className="ember-badge w-16 h-16 rounded-3xl"><LogIn size={28} /></span>
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold text-white mb-1.5">See all your packages</h3>
-                  <p className="text-mute text-sm">Sign in to view all your active and past shipments, their statuses, and delivery estimates in one place.</p>
-                </div>
-                <Link to="/login" className="btn-primary glass-sheen shrink-0">Sign in</Link>
-              </div>
-            </div>
-          )
-        )}
+        {/* The customer-account concept was retired with the WhatsApp-first
+            rebuild — there is no "My packages" list or customer sign-in any
+            more. Customers track by code, or ask on WhatsApp. */}
       </div>
     </div>
   )

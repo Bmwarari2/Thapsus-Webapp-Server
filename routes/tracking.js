@@ -1,6 +1,6 @@
 import express from 'express';
 import { authMiddleware, isAdmin, optionalAuth } from '../middleware/auth.js';
-import { sendInAppNotification } from '../utils/notifications.js';
+import { notifyParcelStatus } from '../utils/parcelStatusNotify.js';
 import { isValidPackageStatus } from '../utils/orderStatuses.js';
 
 const router = express.Router();
@@ -143,8 +143,11 @@ router.put('/:id/status', authMiddleware, isAdmin, async (req, res) => {
     params.push(id);
     await db.query(`UPDATE packages SET ${setClauses.join(', ')} WHERE id = $${params.length}`, params);
 
-    const orderRes = await db.query('SELECT * FROM orders WHERE id = $1', [pkgRes.rows[0].order_id]);
-    sendInAppNotification(pkgRes.rows[0].user_id, `Package status updated to ${status}. Tracking: ${orderRes.rows[0].tracking_number}`);
+    // Full customer fan-out (in-app row + email + SSE) — the module was
+    // written for exactly this call site but was never wired in, so every
+    // legacy package status flip was silent to the customer.
+    notifyParcelStatus(db, pkgRes.rows[0].order_id, status)
+      .catch((e) => console.warn('[tracking] parcel notify failed (non-fatal):', e?.message));
 
     const updated = await db.query('SELECT * FROM packages WHERE id = $1', [id]);
     res.json({ success: true, message: 'Package status updated successfully', package: updated.rows[0] });

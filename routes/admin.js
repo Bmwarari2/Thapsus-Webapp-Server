@@ -1285,7 +1285,7 @@ router.post('/orders/create-for-client', authMiddleware, isAdmin, idempotency, a
       await client.query('COMMIT');
     } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
 
-    sendInAppNotification(customer.id, `A new order (${trackingNumber}) has been created for you by Thapsus Cargo.`);
+    sendInAppNotification(db, customer.id, `A new order (${trackingNumber}) has been created for you by Thapsus Cargo.`);
 
     const elecCfg = electronics_item ? ELECTRONICS_HANDLING[electronics_item] : null;
     let handlingFeeNote = '';
@@ -1341,7 +1341,7 @@ router.delete('/orders/:id', authMiddleware, isAdmin, async (req, res) => {
       await db.query('INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)', [uuidv4(), adminId, 'delete_order', JSON.stringify({ order_id: id, tracking_number: order.tracking_number, user_id: order.user_id })]);
       await db.query('COMMIT');
     } catch (e) { await db.query('ROLLBACK'); throw e; }
-    sendInAppNotification(order.user_id, `Order ${order.tracking_number} has been deleted by an administrator.`);
+    sendInAppNotification(db, order.user_id, `Order ${order.tracking_number} has been deleted by an administrator.`);
     res.json({ success: true, message: `Order ${order.tracking_number} deleted successfully` });
   } catch (error) {
     console.error('Delete order error:', error);
@@ -1370,7 +1370,7 @@ router.post('/orders/:id/cancel', authMiddleware, isAdmin, async (req, res) => {
       await db.query('INSERT INTO admin_logs (id, admin_id, action, details) VALUES ($1,$2,$3,$4)', [uuidv4(), adminId, 'cancel_order', JSON.stringify({ order_id: id, tracking_number: order.tracking_number, reason: reason || 'No reason provided' })]);
       await db.query('COMMIT');
     } catch (e) { await db.query('ROLLBACK'); throw e; }
-    sendInAppNotification(order.user_id, `Order ${order.tracking_number} has been cancelled.${reason ? ` Reason: ${reason}` : ''}`);
+    sendInAppNotification(db, order.user_id, `Order ${order.tracking_number} has been cancelled.${reason ? ` Reason: ${reason}` : ''}`);
     const updated = await db.query('SELECT * FROM orders WHERE id = $1', [id]);
     res.json({ success: true, message: `Order ${order.tracking_number} cancelled successfully`, order: updated.rows[0] });
   } catch (error) {
@@ -1399,6 +1399,7 @@ router.post('/orders/:id/request-payment', authMiddleware, isAdmin, async (req, 
 
     // Send in-app notification first (always works, no external dependency)
     sendInAppNotification(
+      db,
       order.user_id,
       `Payment of KES ${paymentAmount.toLocaleString()} requested for order ${order.tracking_number}.${notes ? ` Note: ${notes}` : ''}`
     );
@@ -1617,6 +1618,7 @@ router.post('/orders/:id/send-reminder', authMiddleware, isAdmin, async (req, re
 
     // Send in-app notification first (always works, no external dependency)
     sendInAppNotification(
+      db,
       order.user_id,
       `Reminder: Payment of KES ${reminderAmount.toLocaleString()} is due for order ${order.tracking_number}.${notes ? ` Note: ${notes}` : ''}`
     );
