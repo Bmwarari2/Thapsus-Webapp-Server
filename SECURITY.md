@@ -172,6 +172,25 @@ tracking rate limiter and returns an identical 404 for a bad signature,
 an unknown code and a missing receipt, so it confirms nothing about
 which codes exist.
 
+### Media links
+
+`GET /m/:token` is the same pattern for attachments, and needs more care.
+A receipt token names a tracking code and the route resolves which file
+that order owns; a **media token carries the storage path itself**, so
+the HMAC is the only thing between a well-formed token and any object the
+service key can read — receipts included.
+
+Three things follow from that, and none is optional:
+
+- the bucket is pinned inside `utils/mediaLink.js` rather than passed in,
+  so a token cannot name its own bucket
+- traversal, absolute paths and anything outside a conservative character
+  set are rejected **before** the HMAC is consulted
+- the comparison is constant-time, like the receipt one
+
+Tests cover a forged token, a signature lifted from a different path, and
+`../` escapes. Rotating `JWT_SECRET` revokes every outstanding link.
+
 ### AI boundary
 
 The Gemini assistant (`utils/waAi.js`) is treated as untrusted output.
@@ -261,14 +280,40 @@ for removal with the rest of the legacy schema.
 ### 10.2 WhatsApp conversation data
 
 Full message transcripts are stored in `wa_messages`, including anything
-a customer volunteers. Contact rows hold name and delivery address, plus
-an M-Pesa number for the contacts collected before signup stopped asking
-for one. Recent transcript excerpts and a rolling AI summary are
-sent to Google's Gemini API when the assistant is enabled; the operator
+a customer volunteers and any attachment they send — a payment screenshot
+is the common one. Contact rows hold name and delivery address, plus an
+M-Pesa number for the contacts collected before signup stopped asking for
+one. Recent transcript excerpts and a rolling AI summary are sent to
+Google's Gemini API when the assistant is enabled; the operator
 kill-switch in `/ops/settings` stops that immediately, and the
 per-conversation toggle stops it for one customer. Nothing else leaves
-the system: receipts sit in a private bucket and are reachable only
+the system: receipts and media sit in private buckets, reachable only
 through a signed, expiring URL.
+
+### 10.3 Erasing a customer
+
+Deleting the `users` row or the `wa_contacts` row is **not** enough, and
+the foreign keys will not tell you so:
+
+- `payments.wa_contact_id` is `SET NULL` and `payments.target_id` carries
+  no foreign key at all, so a cascade leaves the payment row behind,
+  unlinked and pointing at an order that no longer exists.
+- `email_logs.user_id` is `SET NULL`, so the rows survive with the
+  address still in `email_to` — including any written before the account
+  existed.
+- `admin_logs.details` stores the email in plaintext on password resets.
+  Redact rather than delete: the record that an admin reset a password is
+  worth keeping, the address in it is not.
+- Receipts and media in Supabase Storage are **not** reachable from SQL.
+  Supabase blocks direct deletion from `storage.objects`; use the Storage
+  API or the dashboard.
+- `notifications.message` and `request_idempotency.path` quote names and
+  order ids.
+
+The reliable check is a sweep of every text column against every
+identifier — email, phone, name, customer code, tracking code, order id,
+user id — rather than trusting the schema. Two erasures have been done
+this way; both turned up rows no cascade would have touched.
 
 ---
 

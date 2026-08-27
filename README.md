@@ -29,8 +29,10 @@ work the pipeline behind it.
 WhatsApp ──▶ POST /api/wa/webhook ──▶ persist + SSE ──▶ waStateMachine.handleInbound
                                                               │
       ┌───────────────────────────────────────────────────────┤
+      │  0. empty message?    → leave it in the inbox, answer nothing
       │  1. human takeover?   → stay quiet, operator has it
       │  1b. a product link?  → page staff: only a person can quote it
+      │  1c. SHEIN, no cart?  → ask for the cart, with the how-to
       │  2. onboarding        → rates first, then name + address → TC-####
       │  3. TRK-#### in text  → live status reply
       │  4. "yes" to a quote  → confirm + open payment + till details
@@ -41,8 +43,16 @@ WhatsApp ──▶ POST /api/wa/webhook ──▶ persist + SSE ──▶ waStat
 
 Money and state run **before** the assistant is ever consulted, and stay
 fully deterministic. The pipeline is `quoting → quoted → confirmed → paid
-→ purchased → in_kenya → (delivery_fee_pending) → dispatched →
-delivered`, with `cancelled` reachable from the early stages.
+→ purchased → in_kenya → dispatched → delivered`, with `collected` as the
+terminal state for a customer picking up at the CBD office, `cancelled`
+reachable from the early stages, and `delivery_fee_pending` reached only
+by orders quoted before the last-mile fee moved into the quote.
+
+The last-mile fee is charged **with the order**, not on arrival:
+`wa_settings.default_delivery_fee_kes` (KSh 300 out of the box) for
+delivery or a Pickup Mtaani point, nothing for collection. Which
+Mtaani agent a parcel goes to is the team's decision — the assistant is
+forbidden from naming or confirming one.
 
 Customer codes (`TC-1042`) and tracking codes (`TRK-8821`) come from
 Postgres sequences and are the customer's identity on parcels and in
@@ -147,6 +157,7 @@ POST /api/wa/webhook              — inbound WhatsApp (raw body, HMAC-verified,
      /api/events                  — SSE fanout to the dashboard
      /api/exchange, /api/app-config
 GET  /r/:token                    — short receipt link → signed PDF redirect
+GET  /m/:token                    — short media link → signed attachment redirect
      /sitemap.xml, /robots.txt, /health
 
      /api/orders, /api/parcels, /api/admin             — legacy drain, operator-only
@@ -168,21 +179,30 @@ is authoritative.
 | `/ops/settings` | admin | Markup, promo, AI knowledge base, templates, webhook doctor |
 | `/ops/team` | admin | Staff accounts + recent server errors |
 
+Adding a teammate sends **no email**. You set a temporary password (or
+leave it blank for a generated one); it is shown once, next to their
+email, to hand over in person. Only the hash is stored, so a password
+dismissed uncopied means resetting the account instead.
+
 ## Testing & CI
 
 ```bash
 npm test                  # vitest; integration suites self-skip without TEST_DATABASE_URL
 npm run test:coverage
+npm run test:e2e          # playwright over the ops screens; needs a built client
 npm run check:drift -- --snapshot
 npm run build             # client build + article prerender
 npm run smoke             # deployed smoke checks
 ```
 
 Unit suites: `waStateMachine`, `waAiClassify`, `waOrderFlow`, `waCodes`,
-`sentdm`, `receiptPdf`, `receiptLink`, `markPaymentPaidRecovery`,
-`lipanaWebhook`, `pricing`, `fxRefresh`, `logRetention`, `sanitize`,
-`idempotency`, `outboxShouldQueue`, `schemaDrift`. Integration (gated on
-`TEST_DATABASE_URL`): `appBoot`, `auth`, `roleMatrix`.
+`waQuote`, `waDeliveryFeeSettle`, `waTemplateVars`, `waText`, `sentdm`,
+`sentdmMedia`, `receiptPdf`, `receiptLink`, `mediaLink`,
+`markPaymentPaidRecovery`, `lipanaWebhook`, `pricing`, `fxRefresh`,
+`logRetention`, `sanitize`, `idempotency`, `sseEvents`,
+`outboxShouldQueue`, `schemaDrift`. Integration (gated on
+`TEST_DATABASE_URL`): `appBoot`, `auth`, `roleMatrix`, `waCreate`,
+`adminCreateUser`.
 
 GitHub Actions (`.github/workflows/ci.yml`) runs unit + client build,
 Postgres-backed integration (which also gates migrations and schema

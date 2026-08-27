@@ -80,6 +80,11 @@ never make the provider think delivery failed and retry.
 Money and state resolve **before** the assistant is consulted, so no
 model output can move an order or quote a price:
 
+0. **Empty message** — no text and no recognised attachment. Returns
+   immediately. A sticker or unsupported attachment arrives with no body,
+   and one was read as a customer's delivery address, failed validation
+   and earned them the same question twice. The row is in the inbox with
+   its badge raised; a person decides whether it meant anything.
 1. **Human takeover** — if `human_takeover_at` is set and the chat hasn't
    been quiet for `ai_resume_after_minutes`, the assistant stays silent.
    Runs first so it covers onboarding too.
@@ -87,6 +92,14 @@ model output can move an order or quote a price:
    WhatsApp and over SSE, then falls through to whatever branch would
    have handled it. Nothing downstream is automatic: the assistant says a
    quote is coming, and a person has to send it.
+1c. **SHEIN without a cart** — a `shein.com` link with no `shc=` share
+   parameter among them. A product page frequently will not open on our
+   side and never says which size or colour was picked, so the customer
+   gets the three-dot cart instructions immediately rather than after an
+   operator has tried and failed. Deterministic for the same reason money
+   is: it is a fact about what we can open, not a judgement call. Silent
+   while an operator holds the thread, and said once per burst — three
+   pasted product links should not earn three identical corrections.
 2. **Onboarding** — contact isn't `active` yet.
 3. **Tracking auto-reply** — a `TRK-####` anywhere in the text.
 4. **Quote confirmation** — a yes-like reply *and exactly one* order in
@@ -159,7 +172,8 @@ text can contain newlines, only the *variables* can't.
 
 ## 3. Data model
 
-WhatsApp tables (migration `0004`, extended by `0005`):
+WhatsApp tables (migration `0004`, extended by `0005`, `0007`, `0008`,
+`0010`, `0011` and `0012`):
 
 ```
 wa_contacts ──1:N──▶ wa_messages
@@ -174,6 +188,8 @@ wa_settings   key/value, operator-editable
 - `wa_orders.tracking_code` — `TRK-####` from `wa_tracking_code_seq`, minted **inside the payment transaction**, so the code exists the instant money lands.
 - `wa_messages.provider_message_id` — unique; the inbound dedupe key and the handle delivery-status callbacks update.
 - `wa_orders` snapshots `usd_price`, `fx_rate`, `markup_pct` and `quote_kes` at quote time. Never recompute a historical quote from today's rate.
+- `wa_orders.delivery_method` — `delivery` or `collection`, and `delivery_fee_in_quote` records that `quote_kes` already contains the fee. Watch `Number(null) === 0` around the fee columns: a NULL fee means "not yet decided, still owed", and reading it as zero grants a free delivery to every order quoted before `0010`.
+- `wa_orders.pickup_point` — the Pickup Mtaani agent, set by staff. The customer names an area; the assistant is forbidden from confirming a point, having once invented coverage of one and been right only by luck.
 
 `payments` was extended rather than duplicated: `user_id` is nullable,
 `wa_contact_id` was added, `target_kind` accepts `'wa_order'`, and a
@@ -184,7 +200,7 @@ WhatsApp flow reuses `utils/markPaymentPaid.js` unchanged.
 
 ```
 quoting ─▶ quoted ─▶ confirmed ─▶ paid ─▶ purchased ─▶ in_kenya ─┬─▶ dispatched ─▶ delivered
-   │          │          │                                       │
+   │          │          │                                       ├─▶ collected (terminal)
    └──────────┴──────────┴─▶ cancelled          delivery_fee_pending ─┘
 ```
 
@@ -195,9 +211,17 @@ Board columns collapse this to five: Quoting `{quoting, quoted,
 confirmed}`, Paid, Purchased, In Kenya `{in_kenya,
 delivery_fee_pending}`, Delivered `{dispatched, delivered}`.
 
-The **promo toggle** decides the `in_kenya` branch: `promo_active` +
-`promo_type=waive_fee` waives the last-mile fee and goes straight to
-dispatchable; otherwise the order lands in `delivery_fee_pending`.
+Arrival branches on whether anything is still owed. Since `0010` the
+last-mile fee is charged **with the quote**, so almost nothing reaches
+`delivery_fee_pending` any more — only an order quoted before that
+change, or one an operator priced without a method. A settled or waived
+fee returns the order to `in_kenya`: that status is a claim about a debt,
+and an order that owes nothing must not sit in it.
+
+The **promo toggle** still waives the fee on arrival, but it now waives
+something already paid, so it should stay off while last-mile is charged
+on every order. Its arrival template is MARKETING-classified and can be
+refused for anyone opted out of marketing.
 
 ---
 
@@ -247,11 +271,46 @@ revocation mechanism.
 `/r` is mounted **above** the SPA fallback and behind the public tracking
 rate limiter. `tests/integration/appBoot.test.js` pins that ordering.
 
+`/m/:token` (`utils/mediaLink.js`, `routes/mediaRedirect.js`) does the
+same for outbound attachments, with one difference that matters. A
+receipt token names a tracking code and the route looks up which file
+that order owns. A **media token carries the storage path itself**, so
+without the signature a well-formed token would reach any object the
+service key can — receipts included. Hence the bucket is pinned inside
+the helper rather than passed in, traversal and absolute paths are
+rejected before the HMAC is consulted, and the comparison is
+constant-time.
+
+### Inbound media
+
+Attachments a customer sends are stored on the message
+(`wa_messages.media_url` / `media_type`). This was missing until
+2026-08-25: the ingest INSERT never named those columns, so a payment
+screenshot arrived as an empty row and the operator saw a blank bubble.
+
+sent.dm's hydrated message carries no media at all — a real photo came
+back as `{"header":null,"content":"","footer":null,"buttons":null}` — so
+`extractInboundMedia()` searches the webhook envelope as well, over a set
+of plausible keys plus a depth-capped sweep for anything that looks like
+a file. **When it finds nothing, the webhook logs both envelopes.** That
+log is the diagnostic: the provider's inbound shape is undocumented, and
+the next blank message either names its key or proves one is never sent.
+
 ---
 
 ## 6. Authentication
 
 Only staff have accounts. Customer self-registration is 410-stubbed.
+
+Staff accounts are created from `/ops/team` and **send no email**. The
+admin sets a temporary password (or leaves it blank for a generated one)
+and hands it over; it is returned once and only the hash is stored.
+`email_verified_at` is stamped at creation — login refuses an unverified
+account with "activate your account from the link we emailed you", so
+without that stamp every account created this way could be made and then
+never signed into. No setup token is minted either: nothing emails one,
+and an unused 24-hour credential is a liability rather than a
+convenience.
 
 ### Token model
 
@@ -372,6 +431,11 @@ best-effort and never blocks or fails a mutation.
 - **`inbound_number` is the *sender*** in sent.dm's webhook payload, and `outbound_number` is our own line. The names read backwards. The sender is resolved authoritatively via `GET /v3/messages/{id}` with the payload as fallback.
 - **The receipt is A5.** Every one is opened on a phone; A4 left a third of the page empty.
 - **`apple-app-site-association`** is served by an explicit handler above the SPA wildcard because Apple's validator is strict about content type and redirects. Keep it above the fallback if you touch routing.
+- **`delivery_fee_pending` should be rare.** Since `0010` the last-mile fee rides on the quote, so only pre-`0010` orders and ones priced without a method land there. An order in that status with `delivery_fee_paid_at` set is a bug — the status is a claim about a debt.
+- **`Number(null)` is `0`, and that has bitten this codebase three times** — on `markup_pct`, on `default_delivery_fee_kes`, and on `delivery_fee_kes`. Each would have quietly given money away. Absence is checked explicitly, never by falsiness, anywhere a number can be missing.
+- **`looksLikeName()` is strict on purpose.** It refuses questions, digits, anything past five words and phrases opening the way requests do. A customer once replied "Can I first get the pricing and quotation ndio tujue details" and it became their name; they were addressed as "Can". A rejected real name costs one repeated question, an accepted sentence corrupts the record.
+- **The assistant never names a Pickup Mtaani point.** It once told a customer we cover Hurlingham. That happened to be true, and nothing had checked. Which agent serves an area is the team's call, made against a list only they can see.
+- **Every `template_map` slot is mapped, and a test enforces it.** An unmapped slot falls back to free text, which is refused outside the 24-hour window — silently, and precisely for arrival and dispatch, which land weeks after a customer last wrote in. That failure mode cost real customers their notifications twice before it was understood.
 
 ---
 
@@ -384,12 +448,17 @@ npm run build
 ```
 
 The WhatsApp layer's behaviour lives in `tests/unit/waStateMachine.test.js`
-(61 cases) — onboarding edges and validation gates, tracking-code
-formats, confirmation ambiguity, payment-claim matching and its
-deliberate non-matches, takeover and auto-resume, both AI sentinels, and
-that the reply survives flattening. `waAiClassify` covers the sentinel
-boundary, `waOrderFlow` the transition edges, `sentdm` signature
-verification, `receiptPdf` and `receiptLink` the customer artefacts.
+(79 cases) — onboarding edges and validation gates, empty messages,
+tracking-code formats for delivery and collection, confirmation
+ambiguity, payment-claim matching and its deliberate non-matches, SHEIN
+cart requests, takeover and auto-resume, both AI sentinels, and that the
+reply survives flattening. `waAiClassify` covers the sentinel boundary,
+`waOrderFlow` the transition edges, `waQuote` and `waDeliveryFeeSettle`
+the arithmetic (both exist because `Number(null) === 0` quietly produced
+a zero markup and a zero fee), `waTemplateVars` the positional variable
+orderings, `sentdm` and `sentdmMedia` signature verification and inbound
+media extraction, `receiptPdf`, `receiptLink` and `mediaLink` the
+customer artefacts.
 
 CI (`.github/workflows/ci.yml`) runs four jobs on every PR: unit +
 client build, a Postgres-backed integration job that also gates
