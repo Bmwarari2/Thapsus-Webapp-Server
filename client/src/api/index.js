@@ -141,6 +141,8 @@ export const paymentsApi = {
       ...(amountReceived != null ? { amount_received_kes: amountReceived } : {}),
     }),
   reject: (id, reason) => api.post(`/admin/payments/${id}/reject`, { reason }),
+  /** Silence the waiting-for-review reminder for one payment. */
+  dismissReminder: (id) => api.post(`/admin/payments/${id}/dismiss-reminder`),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -293,6 +295,8 @@ export const waApi = {
   sendMessage: (contactId, payload) =>
     api.post(`/wa/conversations/${contactId}/messages`, payload),
   markRead: (contactId) => api.post(`/wa/conversations/${contactId}/read`),
+  /** Silence the unanswered-conversation reminder for the current message. */
+  dismissReminder: (contactId) => api.post(`/wa/conversations/${contactId}/dismiss-reminder`),
   setAi: (contactId, enabled) => api.post(`/wa/conversations/${contactId}/ai`, { enabled }),
   updateContact: (contactId, data) => api.put(`/wa/contacts/${contactId}`, data),
   uploadUrl: (filename, content_type) =>

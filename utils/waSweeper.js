@@ -9,17 +9,24 @@
 // with nothing anywhere saying so. This sweeper re-checks, on a timer,
 // the states that mean somebody is waiting:
 //
-//   1. Payments sitting in awaiting_review        → re-page staff hourly
-//   2. Inbound messages nothing has answered      → re-page staff hourly
-//   3. Orders stalled in 'paid' or 'dispatched'   → page staff daily
+//   1. Payments sitting in awaiting_review        → page staff once, 15m in
+//   2. Inbound messages nothing has answered      → page staff once, 15m in
+//   3. Orders stalled in 'paid' or 'dispatched'   → page staff once, at 48h
 //   4. Failed free-text sends                     → retry once, in-window
 //   5. Paid orders missing their receipt          → re-fire the post-paid
 //      hook (crash-between-commit-and-hook recovery)
 //
 // All best-effort: a sweep failure is logged and the next tick tries
-// again. Dedupe uses time-bucketed keys through notifyStaff's own
-// in-process dedupe, so a persistent condition nags on a human cadence
-// (hourly / daily) instead of every five minutes.
+// again. Reminder discipline (staff asked for this explicitly): every
+// staff page fires ONCE per condition — the eligibility is excluded in
+// SQL by a durable claim (payments.review_alerted_at,
+// wa_contacts.unanswered_alerted_at, or a wa_order_events note), written
+// BEFORE the page goes out so a crash pages zero times rather than
+// twice. The claims double as the mute mechanism: the payments queue and
+// the inbox each have a bell-off button that writes the same stamp, so a
+// page that needs no action can be silenced before it fires. A condition
+// that recurs (a new customer message, a new payment row) re-arms its
+// reminder naturally.
 //
 // Started from server.js next to log retention and FX refresh; returns
 // a stop function for tests/shutdown.
@@ -39,8 +46,6 @@ function minutes(envKey, fallback) {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-const hourBucket = () => Math.floor(Date.now() / (60 * MIN));
-const dayBucket = () => Math.floor(Date.now() / (24 * 60 * MIN));
 
 // Post-paid re-fires attempted this process, so a receipt that keeps
 // failing is retried hourly, not every sweep.
@@ -153,29 +158,42 @@ async function remindUnpaidConfirmed(pool) {
 
 // ── 7. Expired quotes: staff decide, once ───────────────────────────────────
 // Nothing auto-cancels — the customer may still want it at a fresh
-// price. Staff get one page per order per day while it sits expired.
+// price. ONE page per order (claimed in the audit trail before paging);
+// this used to repeat daily while the quote sat expired.
 async function flagExpiredQuotes(pool) {
   const { rows } = await pool.query(
     `SELECT o.id, o.quote_kes, o.quote_expires_at, c.full_name, c.phone, c.customer_code
        FROM wa_orders o JOIN wa_contacts c ON c.id = o.contact_id
       WHERE o.status = 'quoted' AND o.quote_expires_at < NOW()
         AND o.quote_expires_at > NOW() - interval '7 days'
+        AND NOT EXISTS (SELECT 1 FROM wa_order_events e
+                         WHERE e.order_id = o.id AND e.note = 'Expired-quote staff page sent')
       ORDER BY o.quote_expires_at ASC
       LIMIT 10`
   );
   for (const o of rows) {
+    await pool.query(
+      `INSERT INTO wa_order_events (id, order_id, from_status, to_status, note)
+       VALUES (gen_random_uuid()::text, $1, 'quoted', 'quoted', 'Expired-quote staff page sent')`,
+      [o.id]
+    );
     await notifyStaff(pool, {
       title: 'Quote expired without an answer',
       detail: `${o.full_name || o.phone} (${o.customer_code || 'no code'}) — KSh ${Number(o.quote_kes).toLocaleString('en-KE')} `
-        + `quote expired. Re-quote at today's rate, or cancel the order.`,
-      dedupeKey: `quote-expired:${o.id}:${dayBucket()}`,
+        + `quote expired. Re-quote at today's rate, or cancel the order. This reminder won't repeat.`,
+      dedupeKey: `quote-expired:${o.id}`,
     });
   }
 }
 
 // ── 1. Payments waiting on a reviewer ───────────────────────────────────────
-// The customer was told "usually within a few minutes"; the reviewer got
-// exactly one page. Re-page hourly while a row sits unreviewed.
+// The customer was told "usually within a few minutes". ONE page, 15
+// minutes in — this used to re-page hourly for as long as the row sat
+// unreviewed, which staff found more annoying than useful. Same rule as
+// the conversation reminder: payments.review_alerted_at records that the
+// page went out (or was silenced from the queue's mute button), the
+// sweep only picks rows where it is NULL, and the stamp is claimed
+// before paging so a crash pages zero times rather than twice.
 async function sweepStalePayments(pool) {
   const staleMin = minutes('WA_SLA_PAYMENT_MINUTES', 15);
   const { rows } = await pool.query(
@@ -186,17 +204,23 @@ async function sweepStalePayments(pool) {
        LEFT JOIN wa_orders wo ON p.target_kind = 'wa_order' AND wo.id = p.target_id
       WHERE p.status = 'awaiting_review' AND p.method = 'mpesa'
         AND p.created_at < NOW() - ($1 || ' minutes')::interval
+        AND p.review_alerted_at IS NULL
       ORDER BY p.created_at ASC
       LIMIT 20`,
     [String(staleMin)]
   );
   for (const p of rows) {
+    await pool.query(
+      `UPDATE payments SET review_alerted_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [p.id]
+    );
     const ageMin = Math.round((Date.now() - new Date(p.created_at).getTime()) / MIN);
     await notifyStaff(pool, {
-      title: 'Payment still waiting for review',
+      title: 'Payment waiting for review',
       detail: `${p.full_name || p.phone || 'Customer'} (${p.customer_code || 'no code'}${p.tracking_code ? ` · ${p.tracking_code}` : ''}) — `
-        + `KSh ${Number(p.amount_due_kes).toLocaleString('en-KE')} has been awaiting review for ${ageMin} minutes. Open /ops/payments.`,
-      dedupeKey: `sla-payment:${p.id}:${hourBucket()}`,
+        + `KSh ${Number(p.amount_due_kes).toLocaleString('en-KE')} has been awaiting review for ${ageMin} minutes. `
+        + `Open /ops/payments. This reminder won't repeat.`,
+      dedupeKey: `sla-payment:${p.id}`,
     });
   }
 }
@@ -206,8 +230,15 @@ async function sweepStalePayments(pool) {
 // whose LAST message is still the customer's — a handoff nobody picked
 // up, an AI outage, a link waiting on a quote. Capped at 24h back so a
 // restart doesn't replay ancient history.
+//
+// ONE reminder per unanswered stretch, 15 minutes in — this used to
+// re-page hourly for as long as the conversation sat unanswered, which
+// staff found more annoying than useful. wa_contacts.unanswered_alerted_at
+// records the stretch already alerted (or silenced via the inbox's
+// "No reply needed" button); a fresh customer message after a reply
+// re-arms it because the stamp is then older than the latest inbound.
 async function sweepUnansweredInbound(pool) {
-  const staleMin = minutes('WA_SLA_UNANSWERED_MINUTES', 30);
+  const staleMin = minutes('WA_SLA_UNANSWERED_MINUTES', 15);
   const { rows } = await pool.query(
     `SELECT c.id, c.full_name, c.phone, c.customer_code,
             c.last_message_at, c.last_message_preview
@@ -218,17 +249,25 @@ async function sweepUnansweredInbound(pool) {
         AND (SELECT m.direction FROM wa_messages m
               WHERE m.contact_id = c.id
               ORDER BY m.created_at DESC LIMIT 1) = 'in'
+        AND (c.unanswered_alerted_at IS NULL
+             OR c.unanswered_alerted_at < c.last_message_at)
       ORDER BY c.last_message_at ASC
       LIMIT 20`,
     [String(staleMin)]
   );
   for (const c of rows) {
+    // Claim before paging — a crash mid-loop reminds zero times, not two.
+    await pool.query(
+      `UPDATE wa_contacts SET unanswered_alerted_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [c.id]
+    );
     const ageMin = Math.round((Date.now() - new Date(c.last_message_at).getTime()) / MIN);
     await notifyStaff(pool, {
       title: 'Customer message unanswered',
       detail: `${c.full_name || c.phone} (${c.customer_code || 'no code'}) has been waiting ${ageMin} minutes: `
-        + `"${String(c.last_message_preview || '').slice(0, 120)}"`,
-      dedupeKey: `sla-unanswered:${c.id}:${hourBucket()}`,
+        + `"${String(c.last_message_preview || '').slice(0, 120)}". `
+        + `Reply from the inbox, or tap "No reply needed" there if nothing is required. This reminder won't repeat.`,
+      dedupeKey: `sla-unanswered:${c.id}:${c.last_message_at}`,
     });
   }
 }
@@ -236,18 +275,28 @@ async function sweepUnansweredInbound(pool) {
 // ── 3. Orders stalled where money already moved ─────────────────────────────
 // 'paid' means we hold the customer's money and have bought nothing;
 // 'dispatched' promised delivery within 24 hours. Neither should sit for
-// days without a person at least knowing.
+// days without a person at least knowing. ONE page per order per stage
+// (claimed in the audit trail before paging) — these used to repeat
+// daily.
 async function sweepStalledOrders(pool) {
   const { rows } = await pool.query(
     `SELECT o.id, o.tracking_code, o.status, o.paid_at, o.dispatched_at,
             c.full_name, c.phone, c.customer_code
        FROM wa_orders o JOIN wa_contacts c ON c.id = o.contact_id
-      WHERE (o.status = 'paid' AND o.paid_at < NOW() - interval '48 hours')
-         OR (o.status = 'dispatched' AND o.dispatched_at < NOW() - interval '48 hours')
+      WHERE ((o.status = 'paid' AND o.paid_at < NOW() - interval '48 hours')
+         OR (o.status = 'dispatched' AND o.dispatched_at < NOW() - interval '48 hours'))
+        AND NOT EXISTS (SELECT 1 FROM wa_order_events e
+                         WHERE e.order_id = o.id
+                           AND e.note = 'Stalled-order staff page sent: ' || o.status)
       ORDER BY o.updated_at ASC
       LIMIT 20`
   );
   for (const o of rows) {
+    await pool.query(
+      `INSERT INTO wa_order_events (id, order_id, from_status, to_status, note)
+       VALUES (gen_random_uuid()::text, $1, $2, $2, 'Stalled-order staff page sent: ' || $2)`,
+      [o.id, o.status]
+    );
     const stalledSince = o.status === 'paid' ? o.paid_at : o.dispatched_at;
     const days = Math.round((Date.now() - new Date(stalledSince).getTime()) / (24 * 60 * MIN));
     await notifyStaff(pool, {
@@ -255,8 +304,8 @@ async function sweepStalledOrders(pool) {
         ? 'Paid order not yet purchased'
         : 'Dispatched parcel not yet delivered',
       detail: `${o.tracking_code || o.id} — ${o.full_name || o.phone} (${o.customer_code || 'no code'}) has been `
-        + `'${o.status}' for ${days} day(s).`,
-      dedupeKey: `sla-stalled:${o.id}:${o.status}:${dayBucket()}`,
+        + `'${o.status}' for ${days} day(s). This reminder won't repeat.`,
+      dedupeKey: `sla-stalled:${o.id}:${o.status}`,
     });
   }
 }
@@ -337,11 +386,27 @@ async function reconcilePostPaidHooks(pool) {
         [p.wa_contact_id, p.paid_at]
       );
       if (announced.length > 0) {
-        await notifyStaff(pool, {
-          title: 'Paid order has no receipt',
-          detail: `Payment ${p.id} announced but its receipt never generated — use "Re-send to customer" on the order screen.`,
-          dedupeKey: `receipt-missing:${p.id}:${dayBucket()}`,
-        });
+        // One page per payment (claimed in the audit trail first) —
+        // repeating daily was noise; the order screen's "Re-send to
+        // customer" is the fix either way.
+        const { rows: paged } = await pool.query(
+          `SELECT 1 FROM wa_order_events
+            WHERE order_id = $1 AND note = 'Receipt-missing staff page sent: ' || $2
+            LIMIT 1`,
+          [p.target_id, p.id]
+        );
+        if (paged.length === 0) {
+          await pool.query(
+            `INSERT INTO wa_order_events (id, order_id, from_status, to_status, note)
+             VALUES (gen_random_uuid()::text, $1, 'paid', 'paid', 'Receipt-missing staff page sent: ' || $2)`,
+            [p.target_id, p.id]
+          );
+          await notifyStaff(pool, {
+            title: 'Paid order has no receipt',
+            detail: `Payment ${p.id} announced but its receipt never generated — use "Re-send to customer" on the order screen. This reminder won't repeat.`,
+            dedupeKey: `receipt-missing:${p.id}`,
+          });
+        }
         continue;
       }
       console.info(`[wa-sweeper] re-firing post-paid hook for ${p.id}`);

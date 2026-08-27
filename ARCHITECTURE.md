@@ -420,7 +420,56 @@ best-effort and never blocks or fails a mutation.
 
 ---
 
-## 11. Things that look weird but are intentional
+## 11. Background jobs and reminders
+
+Three timers start in `server.js` and stop on SIGTERM/SIGINT: daily FX
+refresh (`utils/fxRefresh.js`), daily log retention
+(`utils/logRetention.js`), and the WhatsApp sweeper
+(`utils/waSweeper.js`, every `WA_SWEEP_INTERVAL_MINUTES`, default 5).
+
+The sweeper is the safety net for everything that fires once and can be
+missed. Each tick it: retries failed free-text sends once inside the
+24-hour window (`wa_messages.retry_count`), re-fires the post-payment
+hook for paid orders whose receipt never generated, sends the one-day
+payment reminder for confirmed-but-unpaid orders, runs the revenue
+nudges (`utils/waNudges.js` — quote follow-up, browse-abandon, repeat
+purchase; kill switch `wa_settings.nudges_enabled`), and pages staff for
+the states below.
+
+### Reminder discipline
+
+Staff asked for this explicitly: **every staff reminder fires ONCE per
+condition**, and the money-facing ones can be muted before they fire.
+The mechanics are uniform — eligibility is excluded in SQL by a durable
+claim, and the claim is written *before* the page goes out, so a crash
+pages zero times rather than twice, and restarts or multiple instances
+cannot re-page.
+
+| Reminder | Fires | Claim |
+| --- | --- | --- |
+| Customer message unanswered | once, 15m after the inbound (`WA_SLA_UNANSWERED_MINUTES`) | `wa_contacts.unanswered_alerted_at` |
+| Payment awaiting review | once, 15m after the row opens (`WA_SLA_PAYMENT_MINUTES`) | `payments.review_alerted_at` |
+| Quote unanswered 48h / quote expired | once per quote | `wa_order_events` note |
+| Order stalled in paid/dispatched 48h | once per order per stage | `wa_order_events` note |
+| Paid order missing its receipt | once per payment | `wa_order_events` note |
+
+**Muting.** The same stamps are the mute mechanism: the inbox thread
+header's bell-off button ("No reply needed" —
+`POST /api/wa/conversations/:id/dismiss-reminder`) and the payments
+queue's bell-off button
+(`POST /api/admin/payments/:id/dismiss-reminder`) write the claim
+directly, so a page that needs no action never fires. Muting is never
+permanent: a condition that recurs — a new customer message after a
+reply, a new payment row — re-arms its reminder, because the claim is
+compared against the condition's own timestamp (or belongs to the old
+row entirely).
+
+Muting a payment reminder does not touch the payment: the row still
+sits in the queue until it is approved or rejected.
+
+---
+
+## 12. Things that look weird but are intentional
 
 - **Retired tables were never dropped.** Renaming or dropping breaks the drift checker for no gain, and legacy orders still read them. A later `0006_legacy_readonly.sql` may revoke writes; actual DROPs stay owner-triggered.
 - **`routes/orders.js` and `parcels.js` are still mounted.** Two pre-WhatsApp orders are still open, and public tracking falls back to them. `POST /api/orders` is 410-stubbed so no *new* legacy orders can be created while the read surface stays alive. `routes/ops.js` went with the console it served.
@@ -439,7 +488,7 @@ best-effort and never blocks or fails a mutation.
 
 ---
 
-## 12. Tests
+## 13. Tests
 
 ```bash
 npm test                      # vitest; integration self-skips without TEST_DATABASE_URL
@@ -474,7 +523,7 @@ off again.
 
 ---
 
-## 13. Where to look next
+## 14. Where to look next
 
 - [`REBUILD.md`](./REBUILD.md) — what changed in the rebuild and why.
 - [`API_REFERENCE.md`](./API_REFERENCE.md) — endpoint contracts (`routes/*.js` is authoritative).

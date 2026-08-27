@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { HandCoins, CheckCircle2, XCircle, RefreshCw, ExternalLink } from 'lucide-react'
+import { HandCoins, CheckCircle2, XCircle, RefreshCw, ExternalLink, BellOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { paymentsApi } from '../../api'
 import { GlassStyles, GlassCard, PageHeading, StatusBadge } from '../../components/GlassUI'
@@ -75,6 +75,21 @@ export function WaPayments() {
       } else {
         toast.error(data?.message || 'Approval failed')
       }
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  // Mute the waiting-for-review page for a payment someone has already
+  // seen and will handle — the payment still has to be approved or
+  // rejected; this only stops the 15-minute reminder firing.
+  const muteReminder = async (p) => {
+    setBusy(p.id)
+    try {
+      await paymentsApi.dismissReminder(p.id)
+      toast.success('Reminder silenced — the payment still needs review')
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to silence the reminder')
     } finally {
       setBusy(null)
     }
@@ -170,6 +185,11 @@ export function WaPayments() {
               </div>
               <div className="flex items-center gap-2">
                 <StatusBadge status={p.status} />
+                <button onClick={() => muteReminder(p)} disabled={busy === p.id}
+                  title="Silence the waiting-for-review reminder — the payment still needs review"
+                  className="p-2 rounded-lg bg-white/5 border border-line text-mute hover:text-white hover:bg-white/10 disabled:opacity-50">
+                  <BellOff size={15} />
+                </button>
                 <button onClick={() => approve(p)} disabled={busy === p.id}
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold disabled:opacity-50">
                   <CheckCircle2 size={15} /> Approve

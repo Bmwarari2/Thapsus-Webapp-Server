@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   MessageSquareText, Search, Send, Paperclip, PackagePlus,
-  Phone, MapPin, Wallet, Pencil, RefreshCw, Bot, BotOff,
+  Phone, MapPin, Wallet, Pencil, RefreshCw, Bot, BotOff, BellOff,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { waApi } from '../../api'
@@ -263,6 +263,20 @@ export function Inbox() {
     }
   }
 
+  // Some messages need no reply — a "thank you", an emoji, a screenshot.
+  // Without this the sweeper pages staff 15 minutes later anyway. A new
+  // customer message re-arms the reminder automatically, so this never
+  // mutes a conversation for good.
+  const dismissReminder = async () => {
+    if (!selected) return
+    try {
+      await waApi.dismissReminder(selected.id)
+      toast.success('Reminder silenced — no page for this message')
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to silence the reminder')
+    }
+  }
+
   const editContact = async () => {
     if (!selected) return
     const full_name = window.prompt('Full name', selected.full_name || '')
@@ -377,6 +391,11 @@ export function Inbox() {
                       : 'Stop the assistant answering so you can reply yourself'}
                     className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-line bg-white/5 text-white text-xs font-semibold hover:bg-white/10 transition-colors">
                     {selected.human_takeover_at ? 'Hand back to assistant' : 'Take over'}
+                  </button>
+                  <button onClick={dismissReminder}
+                    title="No reply needed — silence the unanswered reminder for this message"
+                    className="p-2 rounded-lg bg-white/5 border border-line text-white hover:bg-white/10">
+                    <BellOff size={16} />
                   </button>
                   <button onClick={editContact} title="Edit contact"
                     className="p-2 rounded-lg bg-white/5 border border-line text-white hover:bg-white/10">

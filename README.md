@@ -94,11 +94,23 @@ sent.dm webhook registration, Gmail OAuth for operator password reset.
 | `CORS_ORIGIN` | Express | Comma-separated allowlist in production; `'*'` is rejected outside development. |
 | `RUN_MIGRATIONS_ON_BOOT` | `database/init.js` | **`true` in production.** Deploys land automatically on merge; migrations have to land with them. |
 | `TEST_DATABASE_URL` | CI | Integration suites self-skip without it. |
+| `WA_SWEEP_INTERVAL_MINUTES` | `utils/waSweeper.js` | Sweeper cadence, default 5. |
+| `WA_SLA_PAYMENT_MINUTES` / `WA_SLA_UNANSWERED_MINUTES` | `utils/waSweeper.js` | Minutes before the one-shot staff reminder fires, default 15 each. |
 
 FX (`utils/fxRefresh.js`) refreshes `USD_KES` daily from frankfurter.dev —
 quoting reads it directly. Log retention prunes `error_logs` /
-`admin_logs` / `email_logs` daily. Both start in `server.js` and stop on
-SIGTERM/SIGINT.
+`admin_logs` / `email_logs` daily. The sweeper (`utils/waSweeper.js`,
+every 5 minutes) is the safety net for anything that fires once and can
+be missed — it retries failed sends, re-fires lost post-payment hooks,
+sends the revenue nudges (`utils/waNudges.js`, kill switch in
+/ops/settings), and pages staff for payments awaiting review, unanswered
+messages, and stalled or expired orders. **Every staff reminder fires
+once per condition** — 15 minutes in for payments and conversations —
+and each has a mute: bell-off buttons in the inbox ("No reply needed")
+and the payments queue write the same claim stamp the sweeper checks. A
+recurring condition (a new customer message, a new payment row) re-arms
+its reminder naturally; see ARCHITECTURE.md §11. All of these start in
+`server.js` and stop on SIGTERM/SIGINT.
 
 Railway only injects new env on container restart, so **redeploy after
 changing a variable**.

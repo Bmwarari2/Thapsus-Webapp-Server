@@ -22,7 +22,7 @@
 //                          flight, gets one "anything else on your list?".
 //   4. Stalled-quote staff page — a quote unanswered for 48h is a
 //                          person's job now: a personal touch closes what
-//                          a bot can't. Paged daily until it moves.
+//                          a bot can't. Paged once, audit-trail claimed.
 //
 // Rules every nudge obeys:
 //   - One send each, claimed BEFORE sending (audit event / transcript
@@ -40,7 +40,6 @@ import { getWaSettings } from './waSettings.js';
 import { notifyStaff } from './waStaffAlert.js';
 
 const MIN = 60_000;
-const dayBucket = () => Math.floor(Date.now() / (24 * 60 * MIN));
 
 const QUOTE_NUDGE_NOTE = 'Quote follow-up sent';
 const REPEAT_NUDGE_NOTE = 'Repeat-purchase nudge sent';
@@ -204,9 +203,9 @@ async function repeatPurchaseNudges(pool, settings) {
 
 // ── 4. Stalled quotes are a person's job on day 2 ───────────────────────────
 // The bot's follow-up went on day 1. A quote still unanswered after 48
-// hours needs a human's "anything holding you back?" — paged daily until
-// it converts, gets re-quoted, or is cancelled. (Expiry itself is paged
-// separately by the sweeper.)
+// hours needs a human's "anything holding you back?" — ONE page per
+// quote, claimed in the audit trail first. (Expiry itself is paged
+// separately by the sweeper, also once.)
 async function stalledQuoteStaffPage(pool) {
   const { rows } = await pool.query(
     `SELECT o.id, o.quote_kes, o.quoted_at, c.full_name, c.phone, c.customer_code
@@ -214,16 +213,24 @@ async function stalledQuoteStaffPage(pool) {
       WHERE o.status = 'quoted'
         AND o.quoted_at < NOW() - interval '48 hours'
         AND (o.quote_expires_at IS NULL OR o.quote_expires_at > NOW())
+        AND NOT EXISTS (SELECT 1 FROM wa_order_events e
+                         WHERE e.order_id = o.id AND e.note = 'Stalled-quote staff page sent')
       ORDER BY o.quoted_at ASC
       LIMIT 10`
   );
   for (const o of rows) {
+    await pool.query(
+      `INSERT INTO wa_order_events (id, order_id, from_status, to_status, note)
+       VALUES (gen_random_uuid()::text, $1, 'quoted', 'quoted', 'Stalled-quote staff page sent')`,
+      [o.id]
+    );
     const days = Math.round((Date.now() - new Date(o.quoted_at).getTime()) / (24 * 60 * MIN));
     await notifyStaff(pool, {
       title: 'Quote needs a personal follow-up',
       detail: `${o.full_name || o.phone} (${o.customer_code || 'no code'}) has had a KSh ${kes(o.quote_kes)} quote `
-        + `for ${days} day(s) with no answer. A personal "anything holding you back?" closes what the bot can't.`,
-      dedupeKey: `quote-stalled:${o.id}:${dayBucket()}`,
+        + `for ${days} day(s) with no answer. A personal "anything holding you back?" closes what the bot can't. `
+        + `This reminder won't repeat.`,
+      dedupeKey: `quote-stalled:${o.id}`,
     });
   }
 }
