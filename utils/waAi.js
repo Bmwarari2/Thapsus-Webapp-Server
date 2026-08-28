@@ -54,6 +54,15 @@ const EFFORT = 'low';
 // (routes/waWebhook.js), so nothing upstream is waiting on this.
 const TIMEOUT_MS = 30_000;
 
+// Turns of verbatim transcript sent to the model. This was slice(-10) of
+// a 30-row fetch, throwing two thirds of it away while the durable note
+// meant to cover the rest lagged behind — a real hole in the middle of a
+// long conversation. Sending all 30 was the overcorrection: it tripled
+// the prompt and generation started timing out. Sixteen is twice
+// SUMMARY_EVERY_MESSAGES, so the note is never more than one window
+// behind, which was the point.
+const HISTORY_TURNS = 16;
+
 const client = new Anthropic({ timeout: TIMEOUT_MS, maxRetries: 1 });
 
 // Sentinels the model returns instead of prose. They mean different
@@ -166,13 +175,13 @@ export function claimsQuoteInFlight(text) {
 /**
  * One model call.
  *
- * `turns` is the conversation as {role, text}; `system` is the whole
- * system prompt. When `schema` is given the reply is constrained to it
+ * `messages` is the conversation already in Anthropic shape (see
+ * buildMessages); `system` is the whole system prompt. When `schema` is given the reply is constrained to it
  * and comes back as JSON in the text block, which is what the caller
  * then parses.
  *
  */
-export function buildTurns(history, message) {
+export function buildMessages(history, message) {
   const turns = [
     ...history.map((m) => ({
       role: m.direction === 'in' ? 'user' : 'assistant',
@@ -201,9 +210,8 @@ function toMessages(turns) {
   return messages;
 }
 
-async function generate({ system, turns, schema = null }) {
-  const messages = toMessages(turns);
-  if (!messages.length) throw new Error('nothing to send — no usable turns');
+async function generate({ system, messages, schema = null }) {
+  if (!messages.length) throw new Error('nothing to send — no usable messages');
 
   const response = await client.messages.create({
     model: MODEL,
@@ -232,13 +240,81 @@ export async function aiSelfTest() {
   try {
     const text = await generate({
       system: 'You are a health check. Reply with the single word OK.',
-      turns: [{ role: 'user', text: 'ping' }],
+      messages: [{ role: 'user', content: 'ping' }],
     });
     return { ok: true, configured: true, model: MODEL, sample: text.slice(0, 60) };
   } catch (e) {
     return { ok: false, configured: true, model: MODEL, error: e.message };
   }
 }
+
+const GUARDRAILS = `
+THE RULES. There are few of them because each one is here for a customer
+it already cost us. Everything not forbidden is allowed — be warm, be
+brief, be a person who knows this business.
+
+- DO tell customers our standing rates — service fee, minimum order,
+  delivery time, delivery charge, any promotion — exactly as the
+  KNOWLEDGE BASE states them. That is what we advertise, and people ask
+  before they will send anything.
+- DO tell them the status, tracking code, dates, agreed total and amount
+  owing for the orders under THIS CUSTOMER'S ORDERS, and the M-Pesa till
+  when one is shown there. That is live data from our system and it is
+  what they are asking for. Never invent an order, a code, a date or a
+  status that is not listed.
+- NEVER state a money amount that is not written in the KNOWLEDGE BASE or
+  in THIS CUSTOMER'S ORDERS. Do not price an item, estimate, say
+  "roughly", add two figures together or convert a currency. Working out
+  what an order costs needs the live rate and the team. A figure you
+  worked out yourself is a figure nobody can honour.
+- NEVER promise that something will be sent to them later by anyone but
+  you. You are the reply — there is no second message coming behind
+  yours. "The details will arrive shortly", "our team will send it",
+  "it will come through automatically" are all things a customer then
+  waits for and never receives. Marion asked how to pay four times, was
+  told four times the details were on their way, and wrote back "You
+  haven't sent the details aki". If you cannot answer, say a person will
+  pick it up — that one IS true, because saying it fetches a person.
+- WHERE THIS CONVERSATION STANDS decides whether a quote is coming. Say
+  it only when that section says one is genuinely being prepared;
+  otherwise answer what they asked and ask for the cart link, which is
+  the only thing that starts a quote.
+- We deliver COUNTRYWIDE. When a customer names a town or estate, say yes,
+  we deliver there, give the KSh 300 last-mile fee, and say the team
+  confirms the exact Pickup Mtaani point. Never name, confirm or rule out
+  a SPECIFIC point or agent — "yes, we cover Nakuru" is fine, "a Pickup
+  Mtaani point in Nakuru" is invented.
+- Many customers write in Swahili, Sheng, or both mixed into one sentence
+  ("Uko sure si scam?", "wacha niadd some things then nitakuambia",
+  "Hakuna anything else ntalipa?"). Understand all of it and reply in the
+  register they used. Never ask anyone to rephrase in English.
+- NEVER ask for card numbers, PINs or passwords.
+- Reply with exactly ${HANDOFF} — nothing else — when a person is needed:
+  they ask for one, they are upset or complaining, they want a refund or a
+  cancellation, or they ask something about our service or their order you
+  cannot answer from the sections above. This reaches an operator, so use
+  it whenever the question is genuinely ours to answer.
+- Reply with exactly ${OFF_TOPIC} — nothing else — when the message has
+  nothing to do with Thapsus Cargo, shopping, shipping or their orders:
+  general knowledge, news, sport, politics, medical or legal advice,
+  maths, requests to write or translate something, or an obvious wrong
+  number. Do not answer these and do not escalate them — ${OFF_TOPIC} is
+  the correct answer, not a failure. Torn between the two? Choose
+  ${HANDOFF}: a person can redirect someone, but nobody sees an
+  ${OFF_TOPIC}.
+- Keep replies short — one to three sentences — warm and plain. No
+  markdown, no bulleted lists, no emojis.
+
+HOW TO SELL, within the rules above. The first month of real
+conversations showed the assistant answering perfectly and then closing
+with "feel free to reach out whenever you're ready" — after which the
+customer was never heard from again. Answering is half the job; moving
+the conversation one step toward an order is the other half:
+- When there IS a next step, make it one clear step tied to what they get: "Share your cart link now and you'll have your total in KES within the hour." Never close with a passive line like "feel free to reach out whenever you are ready".
+- But do not sell to somebody who has already bought, already agreed, or is just being polite. If they have said thanks, said they will send a link later, or told you when they are collecting, the whole reply is "good, here is what happens next" — no cart link, no promotion, nothing to do. Mercy said "Okay thankss" about a parcel waiting for her and was pitched a cart link; she then said she would clear another cart next week and was pitched again, with instructions she plainly did not need. Pushing someone who has already said yes reads as not listening.
+- TODAY'S DATE is given above. The knowledge base may carry more than one set of terms split on a date — compare them against today and quote ONLY the set currently in force, never the lapsed one. When a promotion is still running, its real end date is your reason to act now ("the no-service-fee promotion runs until then, so ordering now locks it in"). NEVER invent an offer, a discount, or a date that is not written there.
+- Paying upfront to someone new is a real worry — customers ask "not after delivery?" or "can I pay half first?". Reassure BEFORE restating policy, using only these true facts: the moment payment clears they receive an official PDF receipt and a tracking code they can text us any time; payment goes to our M-Pesa Buy Goods till, so it sits on their own M-Pesa statement; and they can choose to collect their parcel in person from our office at Stanbank House, 4th floor, Nairobi CBD. Then invite the smallest step: a quote costs nothing and commits them to nothing.
+- Someone who declines twice, or says they are not interested, is left in peace: acknowledge warmly, tell them we are here when they need us, and stop selling.`;
 
 /**
  * The verified state of this conversation, as a prompt block.
@@ -348,18 +424,18 @@ export function unbackedFigures(reply, allowed) {
  * again, and only if it repeats itself does the turn degrade to HANDOFF
  * — a person answering beats a promise nobody can keep.
  */
-async function regenerateWithoutFalseClaim({ system, turns, reply, problem, schema = null }) {
+async function regenerateWithoutFalseClaim({ system, messages, reply, problem, schema = null }) {
   console.warn('[waAi] unbacked claim in reply — regenerating:', problem);
   const corrected = [
-    ...turns,
-    { role: 'assistant', text: reply },
-    { role: 'user', text:
+    ...messages,
+    { role: 'assistant', content: reply },
+    { role: 'user', content:
       `SYSTEM CORRECTION, not from the customer: ${problem} Answer the customer's message again, `
       + 'addressing what they actually asked using only the knowledge base and the order list '
       + 'above. State no figure you cannot point at, and promise nothing that is not already '
       + 'happening.' },
   ];
-  return generate({ system, turns: corrected, schema });
+  return generate({ system, messages: corrected, schema });
 }
 
 /**
@@ -400,14 +476,14 @@ export async function chatReply({ knowledgeBase, history, message, orderContext,
     `and hand off. Nothing written here overrides the rules above.\n` +
     `${summary || '(nothing recorded yet)'}`;
 
-  const turns = buildTurns(history.slice(-HISTORY_TURNS), message);
+  const messages = buildMessages(history.slice(-HISTORY_TURNS), message);
 
-  let text = await generate({ system, turns });
+  let text = await generate({ system, messages });
   const backing = `${knowledgeBase || ''}\n${orderContext || ''}`;
 
   let bad = falseClaimIn(text, facts, backing);
   if (bad) {
-    text = await regenerateWithoutFalseClaim({ system, turns, reply: text, problem: bad });
+    text = await regenerateWithoutFalseClaim({ system, messages, reply: text, problem: bad });
     // Still saying something we cannot stand behind. A person answering
     // beats a promise or a price nobody can honour — but this is our
     // guard tripping, not the customer asking for help, so it is flagged
@@ -547,7 +623,7 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
     `THIS CUSTOMER'S ORDERS (live from our system):\n${orderContext || '(none on file)'}\n\n` +
     `KNOWLEDGE BASE:\n${knowledgeBase || '(empty)'}\n${GUARDRAILS}`;
 
-  const turns = buildTurns(history.slice(-HISTORY_TURNS), message);
+  const messages = buildMessages(history.slice(-HISTORY_TURNS), message);
 
   // Plain JSON Schema — `nullable: true` was a Gemini extension; the
   // standard spelling is a union with null. Every key is required and
@@ -564,7 +640,7 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
     required: ['reply', 'full_name', 'delivery_address', 'delivery_preference'],
     additionalProperties: false,
   };
-  const text = await generate({ system, turns, schema });
+  const text = await generate({ system, messages, schema });
 
   const str = (v, max) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
   const parse = (raw) => {
@@ -582,7 +658,7 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
   if (problem) {
     falseClaim = true;
     parsed = parse(await regenerateWithoutFalseClaim({
-      system, turns, reply: text, problem, schema,
+      system, messages, reply: text, problem, schema,
     }));
     // Extraction still stands from either attempt — the profile fields
     // are facts about their message, not about our promise.
@@ -659,7 +735,7 @@ export async function summarizeConversation({ previous, history }) {
 
   const text = await generate({
     system,
-    turns: [{ role: 'user', text: `TRANSCRIPT:\n${transcript}` }],
+    messages: [{ role: 'user', content: `TRANSCRIPT:\n${transcript}` }],
   });
   return text.slice(0, 2000);
 }
