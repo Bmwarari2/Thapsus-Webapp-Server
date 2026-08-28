@@ -78,6 +78,19 @@ context cannot account for. "Never price a specific item" was in the
 prompt three times and in code zero times, and the assistant sent a real
 customer a payment instruction with an amount and the till number.
 
+**A rule that forbids the right answer is worse than no rule.** A
+guardrail written to stop the assistant inventing payment instructions
+also stopped it giving real ones, and told it to say the details were
+coming instead — so a customer with KSh 17,746 confirmed asked how to pay
+four times and waited for a message nothing was going to send. If the
+customer is owed an answer we hold, answer it in code and hand the model
+the fact, rather than forbidding the subject.
+
+**Never let a reply promise a message behind it.** There is no second
+message. "Our team will send it", "the details will arrive shortly" —
+each is a customer left waiting. HANDOFF is the one exception, because
+saying it actually fetches a person.
+
 **A guard that fires wrongly is worse than no guard.** `claimsQuoteInFlight()`
 once matched "your quote is ready" — a true statement about a quote that
 already exists — and escalated the customers closest to paying. Separate

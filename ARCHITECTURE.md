@@ -208,6 +208,24 @@ Same reasoning as `looksLikeName()`: a promise that leaves a customer
 waiting for a message nobody will send, or a price nobody can honour, is
 too expensive to depend on the model having a good day.
 
+**Money answers before the AI, including "how do I pay?".**
+`asksHowToPay()` + `replyWithPaymentDetails()` answer from the order row
+when exactly one thing is owing — the agreed total and the real till for
+a `confirmed` order, the fee for one awaiting last-mile payment, and for
+a quote not yet accepted the figure plus an invitation to reply YES,
+without moving the money state. Several things owing at once falls
+through to a person. `loadOrderContext()` also carries the till on an
+order awaiting payment, so the phrasings the predicate misses are still
+answerable rather than deflected.
+
+This exists because the opposite was tried: a guardrail forbidding the
+assistant from giving payment instructions at all. It stopped the
+invented ones and the real ones alike, and instructed the model to
+promise the details were coming — so a customer with KSh 17,746
+confirmed asked four times, was reassured four times, and wrote "You
+haven't sent the details aki". The rule now is narrower and the answer is
+deterministic.
+
 **The memory note sits below the guardrails and is labelled unverified.**
 `ai_summary` is model-written prose distilled from what the customer
 said, and it used to be injected above both the knowledge base and the
