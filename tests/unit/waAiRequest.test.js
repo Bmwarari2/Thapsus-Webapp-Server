@@ -17,6 +17,10 @@ import http from 'node:http';
 
 let server;
 let sent;
+// When set, the stub answers the way the real API does once thinking has
+// eaten the whole ceiling: a thinking block (empty, because display
+// defaults to omitted on this model), no text, stop_reason max_tokens.
+let spendsCeilingThinking = false;
 
 beforeAll(async () => {
   server = http.createServer((req, res) => {
@@ -25,6 +29,19 @@ beforeAll(async () => {
     req.on('end', () => {
       const parsed = JSON.parse(body);
       sent.push(parsed);
+      if (spendsCeilingThinking) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({
+          id: 'msg_test', type: 'message', role: 'assistant', model: 'claude-opus-5',
+          content: [{ type: 'thinking', thinking: '', signature: 'sig' }],
+          stop_reason: 'max_tokens',
+          usage: {
+            input_tokens: 1200,
+            output_tokens: parsed.max_tokens,
+            output_tokens_details: { thinking_tokens: parsed.max_tokens },
+          },
+        }));
+      }
       const wantsJson = Boolean(parsed.output_config?.format);
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({
@@ -33,7 +50,11 @@ beforeAll(async () => {
           ? JSON.stringify({ reply: 'Karibu! What name should the parcel carry?',
               full_name: null, delivery_address: null, delivery_preference: null })
           : 'Yes, we deliver to Nakuru. Delivery is KSh 300, or free collection at our CBD office.' }],
-        stop_reason: 'end_turn', usage: { input_tokens: 10, output_tokens: 10 },
+        stop_reason: 'end_turn',
+        usage: {
+          input_tokens: 10, output_tokens: 90,
+          output_tokens_details: { thinking_tokens: 64 },
+        },
       }));
     });
   });
@@ -43,7 +64,7 @@ beforeAll(async () => {
 });
 
 afterAll(() => server?.close());
-beforeEach(() => { sent = []; });
+beforeEach(() => { sent = []; spendsCeilingThinking = false; });
 
 const KB = 'Last-mile delivery is KSh 300.';
 const ORDERS = '- Tracking TRK-8837; status: Paid; agreed total KSh 12,495';
@@ -77,8 +98,18 @@ describe('the request chatReply builds', () => {
     const { chatReply } = await import('../../utils/waAi.js');
     await chatReply({ knowledgeBase: KB, history: HISTORY, message: 'hi', orderContext: ORDERS, facts: await facts() });
     expect(sent[0].model).toBe('claude-opus-5');
-    expect(sent[0].max_tokens).toBe(1024);
     expect(sent[0].output_config.effort).toBe('low');
+    // The ceiling covers thinking as well as the reply. It was still the
+    // Gemini number (1024, output only) after the provider swap, so
+    // low-effort reasoning over a 4KB system prompt spent the lot before
+    // writing a word and every turn fell through to the scripted
+    // questionnaire. A reply is capped at 1200 characters downstream, so
+    // anything at this ceiling is thinking, and headroom is not billed.
+    expect(sent[0].max_tokens).toBeGreaterThanOrEqual(4096);
+    // Thinking is asked for rather than inherited: it is on by default on
+    // claude-opus-5 and off by default on claude-opus-4-8, and MODEL is
+    // an environment variable.
+    expect(sent[0].thinking).toEqual({ type: 'adaptive' });
   });
 
   // The system prompt is the whole point of this module. An empty one
@@ -134,6 +165,35 @@ describe('the request onboardingTurn builds', () => {
     // nullable: true was a Gemini extension; the standard spelling is a union
     expect(format.schema.properties.full_name.type).toEqual(['string', 'null']);
     expect(format.schema.additionalProperties).toBe(false);
+  });
+});
+
+// The outage the ceiling caused, and the diagnosis of it.
+//
+// Nothing here asserts the assistant recovers — it cannot, the model
+// really did send no words. What it asserts is that the failure says what
+// it was, because from the caller's side every version of this looked
+// like one indistinguishable "AI onboarding failed" line in the logs
+// while the scripted questionnaire talked to customers for a day.
+describe('when thinking spends the whole ceiling', () => {
+  it('says so, rather than reporting an unexplained empty reply', async () => {
+    const { chatReply } = await import('../../utils/waAi.js');
+    spendsCeilingThinking = true;
+    await expect(chatReply({
+      knowledgeBase: KB, history: HISTORY, message: 'Is there an offer?',
+      orderContext: ORDERS, facts: await facts(),
+    })).rejects.toThrow(/tokens before writing a reply.*thinking/s);
+  });
+
+  it('reports the spend from the self-test instead of a bare green tick', async () => {
+    const { aiSelfTest } = await import('../../utils/waAi.js');
+    // A one-word health check passes at any ceiling — it barely thinks —
+    // which is exactly why it stayed green through the outage. The
+    // numbers are what makes the headroom visible to an operator.
+    const health = await aiSelfTest();
+    expect(health.ok).toBe(true);
+    expect(health.maxTokens).toBeGreaterThanOrEqual(4096);
+    expect(health.thinkingTokens).toBeTypeOf('number');
   });
 });
 

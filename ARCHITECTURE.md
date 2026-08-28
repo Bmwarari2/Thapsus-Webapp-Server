@@ -262,11 +262,22 @@ commercial terms, instructions addressed to the assistant, and
 volunteered contact details.
 
 **The model is pinned, and the turn is cheap.** `claude-opus-5`
-(`ANTHROPIC_MODEL` overrides), `effort: low`, `max_tokens: 1024`, a
-30-second client timeout and one retry. A WhatsApp reply is one to three
-sentences; deep thinking buys nothing here and latency is what the
-customer feels — Diane asked where to send her parcel, the call ran past
-the abort, and she got nothing at all.
+(`ANTHROPIC_MODEL` overrides), adaptive thinking at `effort: low`,
+`max_tokens: 4096`, a 30-second client timeout and one retry. A WhatsApp
+reply is one to three sentences; deep thinking buys nothing here and
+latency is what the customer feels — Diane asked where to send her
+parcel, the call ran past the abort, and she got nothing at all.
+
+The ceiling covers **thinking as well as the reply**, which is the one
+number the provider swap got wrong. 1024 came across from Gemini, where
+it bought output only; here low-effort reasoning over a 4KB system prompt
+spends the lot before writing a character, so the response arrives with a
+thinking block, no text and `stop_reason: max_tokens`. Every turn threw,
+every turn degraded to the scripted questionnaire, and the assistant was
+effectively off for a day while looking configured. Thinking is asked for
+explicitly rather than inherited for the same reason: it is on by default
+on `claude-opus-5` and off by default on `claude-opus-4-8`, and the model
+is an environment variable.
 
 Until 28 August this ran on Gemini, where the model name had to be
 discovered from ListModels at runtime and re-resolved on a 404 because
