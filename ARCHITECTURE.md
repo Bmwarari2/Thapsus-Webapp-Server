@@ -343,15 +343,29 @@ and a caption-less image (Marion has one) are dropped rather than sent.
 
 sent.dm delivers free text through a system template, and WhatsApp
 forbids newlines, tabs and 4+ space runs inside template variables. A
-multi-line body is rejected with `VALIDATION_008` and retried flattened
-(`\n\n` → ` — `, `\n` → ` · `). After the first rejection the client
+multi-line body is rejected with `VALIDATION_008` — in sent.dm's own
+words, "param text cannot have new-line/tab characters or more than 4
+consecutive spaces", *because WhatsApp does not accept them in a
+parameter* — and retried flattened. After the first rejection the client
 flattens up front instead of paying a wasted round-trip every time.
 
 **Consequence: all customer copy must read correctly as one line.** The
 tracking reply is a plain sentence or two for exactly this reason — an
 earlier version used a labelled block with a progress bar, and flattening
-turned it into a run-on smear. Approved templates are exempt: their body
-text can contain newlines, only the *variables* can't.
+turned it into a run-on smear.
+
+What flattening preserves is structure carried by *characters*, which is
+the only kind that survives: a bulleted line becomes ` • ` (the break is
+the bullet — keeping both gave `· - Send your cart link`), a numbered
+step keeps its number and gets a two-space gap, a paragraph break becomes
+` — ` and any other break ` · `. The assistant's prompt says the same
+thing in its own terms: number a sequence inline, three steps at most,
+and never rely on a layout the customer will not see.
+
+Approved templates are exempt: their body text can contain newlines (up
+to two consecutive, never at the start or end), only the *variables*
+can't. So a fixed-copy notification could be laid out over several lines
+— at the price of a new Meta review.
 
 ---
 
@@ -690,6 +704,8 @@ sits in the queue until it is approved or rejected.
 - **Accepting a quote is a judgement, not a prefix match.** `isUnqualifiedConfirm()` requires a short, unqualified message — no question, no conjunction, at most three words — before a "yes" moves money state and fires a payment demand. The bare digit `1` used to match, so `"1.24kg"` accepted a live quote; `"okay confirm the price then I'll get back to you when i am ready"` did too.
 - **The assistant says we deliver countrywide, but never names a Pickup Mtaani point.** The old rule forbade both, so the model filled the gap itself and told a customer about "a Pickup Mtaani point in Nakuru". The knowledge base now carries the true answer.
 - **The assistant never names a Pickup Mtaani point.** It once told a customer we cover Hurlingham. That happened to be true, and nothing had checked. Which agent serves an area is the team's call, made against a list only they can see.
+- **A 202 from sent.dm is not a delivery.** Three terminal statuses arrive only later, over the webhook: `FAILED`, `BLOCKED` (a precondition — unapproved template, no open conversation, account gate) and `FILTERED` (suppressed before any provider call — the contact is opted out, or routing denied the send). The send-time `ERR_*` code behind the last two is documented as absent from both the API response and the activity log, so `terminalStatusReason()` writes what the status can mean instead of leaving an operator with a bare "failed". A `FILTERED` row is never retried: it would be filtered again, and the retry's own 202 would erase the only line saying why the customer went quiet.
+- **A customer who types only "CANCEL" is not cancelling an order — they are leaving.** `STOP`, `CANCEL`, `UNSUBSCRIBE`, `QUIT` and `END` are sent.dm's compliance keywords, matched on the whole trimmed body, and its consent engine flips `opt_out` on the contact — across every channel — before the event reaches us. Nothing we send afterwards is delivered until they reply `START`. Those messages are stored and then left unanswered: a bot reply would be filtered on the way out and sit in the transcript looking sent. Staff are paged instead, because a live order going silent is the actual event.
 - **Every `template_map` slot is mapped, and a test enforces it.** An unmapped slot falls back to free text, which is refused outside the 24-hour window — silently, and precisely for arrival and dispatch, which land weeks after a customer last wrote in. That failure mode cost real customers their notifications twice before it was understood.
 
 ---

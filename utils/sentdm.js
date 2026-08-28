@@ -5,7 +5,10 @@
 // endpoint or payload shape, this is the only file that should need to
 // move. Shapes verified against the official SDK (@sentdm/sentdm 0.33.0,
 // generated from their OpenAPI spec) and the @sentdm/n8n-nodes-sent
-// webhook verifier:
+// webhook verifier, then re-checked line by line against the published
+// v3 reference (docs.sent.dm, August 2026) — which is where the
+// FILTERED/SCHEDULED statuses, the retry contract and the compliance
+// keywords below come from:
 //
 //   • Auth: `x-api-key: sk_live_*` header, base https://api.sent.dm
 //   • Send: POST /v3/messages
@@ -19,6 +22,12 @@
 //   • Read:  GET /v3/messages/{id} → { data: { phone, direction, status,
 //       message_body: { content, … }, … } } — used to hydrate inbound
 //       messages, since webhook payloads only carry ids reliably.
+//   • Statuses: QUEUED / ROUTED / SENT / DELIVERED / READ / FAILED plus
+//       SCHEDULED (quiet-hours hold, releases itself), FILTERED (opted
+//       out or route denied — never dispatched) and BLOCKED (precondition
+//       — unapproved template, no open conversation, account gate). The
+//       last three arrive ONLY as a status: a send that is going to be
+//       suppressed still answers 202, so an HTTP 2xx is not delivery.
 //   • Webhook: headers x-webhook-id / x-webhook-timestamp /
 //       x-webhook-signature; signature = "v1," + base64(HMAC-SHA256(
 //       base64decode(secret minus "whsec_"), `${id}.${ts}.` + rawBody));
@@ -63,12 +72,13 @@ const WEBHOOK_LATE_SECONDS = 300;
 
 /** Custom error so route layers can map sent.dm failures to clean 502s. */
 export class SentDmError extends Error {
-  constructor(message, { status = 502, code = 'sentdm_error', body = null } = {}) {
+  constructor(message, { status = 502, code = 'sentdm_error', body = null, requestId = null } = {}) {
     super(message);
     this.name = 'SentDmError';
     this.status = status;
     this.code = code;
     this.body = body;
+    this.requestId = requestId;
   }
 }
 
@@ -103,6 +113,51 @@ export function fromE164(phone) {
   return String(phone || '').replace(/[^\d]/g, '');
 }
 
+/**
+ * How many times one call may be attempted, and the longest we will wait
+ * between attempts. Every call in this file runs on a path somebody is
+ * waiting on — a customer mid-conversation, an operator hitting send, a
+ * webhook ACK the provider times out after 30s — so a 60-second
+ * `Retry-After` is not something to sleep through here. Past the cap we
+ * fail fast with the provider's code intact; waSweeper retries failed
+ * sends within five minutes, which is where a wait that long belongs.
+ */
+const RETRY_MAX_ATTEMPTS = 3;
+const RETRY_MAX_WAIT_MS = 2_000;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Which failures are worth repeating, from the documented v3 contract.
+ *
+ *   429 BUSINESS_002 — rate limit (200/min), or the lockout that follows
+ *                      10 failed auth attempts.
+ *   409 CONFLICT_001 — a request with the same Idempotency-Key is still
+ *                      in flight; retrying once it lands returns its
+ *                      cached response.
+ *   503 SERVICE_001  — the idempotency cache is down and the API refused
+ *                      rather than risk executing twice.
+ *
+ * None of those three ran, so repeating one cannot duplicate a message
+ * whatever the method. A 5xx or a dropped connection IS ambiguous — the
+ * send may already be queued — so those repeat only when the caller gave
+ * us an Idempotency-Key, which turns a duplicate into a replay of the
+ * cached 202 rather than a second WhatsApp message to a real person.
+ * The webhook-management calls carry no key, so they never repeat on a
+ * 5xx: two registered webhooks would double every inbound event.
+ */
+function retryableStatus(status, idempotent) {
+  if (status === 429 || status === 409 || status === 503) return true;
+  return status >= 500 && idempotent;
+}
+
+/** `Retry-After` when the provider names one, else 300ms doubling. */
+function retryDelayMs(res, attempt) {
+  const advised = Number(res?.headers?.get?.('retry-after'));
+  if (Number.isFinite(advised) && advised > 0) return advised * 1000;
+  return 300 * 2 ** (attempt - 1);
+}
+
 async function api(method, path, { body, idempotencyKey } = {}) {
   const headers = {
     'x-api-key': readApiKey(),
@@ -111,29 +166,52 @@ async function api(method, path, { body, idempotencyKey } = {}) {
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
 
-  let res;
-  try {
-    res = await fetch(`${readBaseUrl()}${path}`, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-  } catch (e) {
-    throw new SentDmError(`sent.dm unreachable: ${e.message}`, { code: 'sentdm_unreachable' });
-  }
+  // A GET changes nothing, and a keyed mutation replays instead of
+  // executing twice. Anything else is repeated only when the provider
+  // has told us it did not run. See retryableStatus().
+  const idempotent = method === 'GET' || Boolean(idempotencyKey);
 
-  let json = null;
-  try { json = await res.json(); } catch { /* non-JSON error body */ }
+  for (let attempt = 1; ; attempt++) {
+    let res;
+    try {
+      res = await fetch(`${readBaseUrl()}${path}`, {
+        method,
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+    } catch (e) {
+      const err = new SentDmError(`sent.dm unreachable: ${e.message}`, { code: 'sentdm_unreachable' });
+      if (!idempotent || attempt >= RETRY_MAX_ATTEMPTS) throw err;
+      await sleep(300 * 2 ** (attempt - 1));
+      continue;
+    }
 
-  if (!res.ok || json?.success === false) {
-    const msg = json?.error?.message || `sent.dm ${method} ${path} → HTTP ${res.status}`;
-    throw new SentDmError(msg, {
-      status: res.status >= 400 && res.status < 600 ? res.status : 502,
-      code: json?.error?.code || 'sentdm_error',
-      body: json,
-    });
+    let json = null;
+    try { json = await res.json(); } catch { /* non-JSON error body */ }
+
+    if (res.ok && json?.success !== false) return json?.data ?? json;
+
+    // meta.request_id is the only handle sent.dm support can trace, and
+    // the ERR_* code behind a suppressed send is only retrievable by
+    // quoting it. Keep it on the error rather than in a log line nobody
+    // will still have by the time somebody asks.
+    const requestId = json?.meta?.request_id || res.headers?.get?.('x-request-id') || null;
+    const err = new SentDmError(
+      json?.error?.message || `sent.dm ${method} ${path} → HTTP ${res.status}`,
+      {
+        status: res.status >= 400 && res.status < 600 ? res.status : 502,
+        code: json?.error?.code || 'sentdm_error',
+        body: json,
+        requestId,
+      }
+    );
+
+    if (attempt >= RETRY_MAX_ATTEMPTS || !retryableStatus(res.status, idempotent)) throw err;
+    const delay = retryDelayMs(res, attempt);
+    if (delay > RETRY_MAX_WAIT_MS) throw err;
+    console.warn(`[sentdm] ${method} ${path} → ${res.status} ${err.code}; retrying in ${delay}ms`);
+    await sleep(delay);
   }
-  return json?.data ?? json;
 }
 
 /**
@@ -141,12 +219,28 @@ async function api(method, path, { body, idempotencyKey } = {}) {
  * (FREE_TEXT_SYS_TEMPLATE) with the text as the template variable, and
  * WhatsApp forbids newlines/tabs/4+ consecutive spaces inside template
  * variables — a multi-line body is rejected at request time with
- * VALIDATION_008 (observed in production). Flatten line structure into
- * inline separators: blank-line paragraph breaks become " — ", single
- * newlines become " · ".
+ * VALIDATION_008 (observed in production, and since confirmed word for
+ * word in the error catalog: "param text cannot have new-line/tab
+ * characters or more than 4 consecutive spaces", rejected because
+ * WhatsApp does not accept them in a parameter). There is no way to send
+ * a line break in a free-text reply; every one of them arrives as one
+ * paragraph.
+ *
+ * So the structure has to be carried by characters instead. A list keeps
+ * its shape rather than being flattened into a run of separators: a
+ * bullet becomes "•", a numbered step keeps its number and gets a wider
+ * gap in front of it, a paragraph break becomes " — " and any other line
+ * break becomes " · ". Before this, a three-step answer arrived as
+ * "How it works: · - Send your cart link · - Pay on the till", which
+ * reads worse than the paragraph it replaced.
  */
 export function flattenForFreeText(text) {
   return String(text)
+    // The break IS the bullet — don't keep both.
+    .replace(/\s*\n+\s*[-*•]\s+/g, ' • ')
+    // A numbered step already carries its marker; it needs a gap, not a
+    // second one. Two spaces, well inside WhatsApp's limit of four.
+    .replace(/\s*\n+\s*(?=\d+[.)]\s)/g, '  ')
     .replace(/\s*\n{2,}\s*/g, '  —  ')
     .replace(/\s*\n\s*/g, ' · ')
     .replace(/\t/g, ' ')
@@ -183,7 +277,10 @@ export async function sendText(phoneDigits, text, { idempotencyKey } = {}) {
     if (!validationReject || flattened === body) throw e;
     freeTextRejectsNewlines = true;
     console.warn('[sentdm] free text rejected newlines — flattening from here on');
-    // Fresh idempotency key — the original is cached with the rejection.
+    // Fresh idempotency key. Only 2xx responses are cached, so reusing
+    // the original would in fact re-execute — but the flattened body is a
+    // different operation from the one that was rejected, and a key is
+    // documented as never being reused for a different operation.
     const data = await api('POST', '/v3/messages', {
       idempotencyKey: idempotencyKey ? `${idempotencyKey}-flat` : undefined,
       body: { to: [toE164(phoneDigits)], channel: ['whatsapp'], text: flattened },
@@ -483,14 +580,125 @@ function classifyMedia(declared, url) {
   return from(declared) || from(url.split('?')[0].toLowerCase()) || 'document';
 }
 
-/** Map sent.dm delivery statuses onto wa_messages.status values. */
+/**
+ * Map sent.dm delivery statuses onto wa_messages.status values.
+ *
+ * The full v3 set is QUEUED, ROUTED, SENT, DELIVERED, READ, FAILED,
+ * SCHEDULED, FILTERED and BLOCKED (PROCESSED shows up in the activity
+ * log). FILTERED and SCHEDULED used to fall through to `null`, which
+ * left the row on 'queued' and told nobody:
+ *
+ *   • FILTERED is a message that was never dispatched — the contact is
+ *     opted out or suppressed, or routing denied every route. A customer
+ *     who types nothing but CANCEL, END or STOP is opted out by sent.dm's
+ *     own compliance engine, contact-level and across every channel, and
+ *     from that moment everything we send them is filtered. Reading it as
+ *     "queued" is the difference between an operator seeing that a
+ *     customer went dark and an operator seeing nothing at all.
+ *   • SCHEDULED is a quiet-hours hold, released automatically, so it is
+ *     genuinely still in flight — 'queued' rather than a failure.
+ */
 export function mapProviderStatus(providerStatus) {
   switch (String(providerStatus || '').toUpperCase()) {
-    case 'QUEUED': case 'PROCESSED': case 'ROUTED': return 'queued';
+    case 'QUEUED': case 'PROCESSED': case 'ROUTED': case 'SCHEDULED': return 'queued';
     case 'SENT':      return 'sent';
     case 'DELIVERED': return 'delivered';
     case 'READ':      return 'read';
-    case 'FAILED': case 'BLOCKED': return 'failed';
+    case 'FAILED': case 'BLOCKED': case 'FILTERED': return 'failed';
     default: return null; // unknown — leave the row as-is
   }
+}
+
+/**
+ * What a terminal status means, for the two that never carry a reason.
+ *
+ * The send-time ERR_* codes (ERR_CONSENT_BLOCKED, ERR_ROUTE_DENIED,
+ * CONVERSATION_TEMPLATE_REQUIRED …) are recorded inside sent.dm and are
+ * documented as absent from both the API response and the webhook
+ * payload, and the matching activity description is generic ("Message
+ * updated to FILTERED"). So there is nothing to fetch: the status itself
+ * is the whole signal, and an operator reading "failed — no reason
+ * given" is worse served than one told what the status can mean.
+ *
+ * The leading token is load-bearing: waSweeper reads it to keep a
+ * suppressed message out of the retry queue, because a consent-blocked
+ * send is filtered again every time, forever.
+ */
+export function terminalStatusReason(providerStatus) {
+  switch (String(providerStatus || '').toUpperCase()) {
+    case 'FILTERED':
+      return 'FILTERED: suppressed before dispatch — the contact is opted out '
+        + '(they sent STOP/CANCEL/UNSUBSCRIBE/QUIT/END, or opt_out is set on '
+        + 'their sent.dm contact) or routing denied the send. Not retryable: '
+        + 'they must send START to be reachable again.';
+    case 'BLOCKED':
+      return 'BLOCKED: gated before dispatch — an account precondition '
+        + '(balance or onboarding quota), a template not approved for sending, '
+        + 'or a free-form send with no open conversation.';
+    default:
+      return null;
+  }
+}
+
+/**
+ * Pull a failure description out of a hydrated message.
+ *
+ * The first version of this guessed at top-level keys — `error`,
+ * `failure_reason` — that GET /v3/messages/{id} does not have, so it
+ * returned null every time and every asynchronous failure reached staff
+ * as "no reason given". The documented shape carries the history in
+ * `events[]` ({ status, timestamp, description }), newest last, and the
+ * same descriptions are served by GET /v3/messages/{id}/activities. The
+ * old key guesses stay as a tail: production rows in the archived
+ * platform did carry a bare WhatsApp error array (131026, "Message
+ * undeliverable"), and dropping the Meta code would throw away the only
+ * thing that identifies the failure.
+ */
+export function failureReasonFromMessage(msg) {
+  const m = msg?.data ?? msg ?? {};
+  const events = Array.isArray(m.events) ? m.events
+    : (Array.isArray(m.activities) ? m.activities : []);
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i] || {};
+    if (!/^(FAILED|FILTERED|BLOCKED)$/i.test(String(e.status || ''))) continue;
+    const description = typeof e.description === 'string' ? e.description.trim() : '';
+    // Generic descriptions ("Message updated to FILTERED") say nothing the
+    // status did not; let terminalStatusReason() answer those instead.
+    if (description && !/^message updated to/i.test(description)) {
+      return description.slice(0, 2000);
+    }
+    return terminalStatusReason(e.status);
+  }
+  for (const key of ['error', 'errors', 'error_message', 'failure_reason']) {
+    const v = m[key];
+    if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 2000);
+    if (v && typeof v === 'object') return JSON.stringify(v).slice(0, 2000);
+  }
+  return null;
+}
+
+/**
+ * sent.dm's compliance keywords, matched the way its consent engine
+ * matches them: the ENTIRE trimmed body, case-insensitive. "Please stop
+ * messaging me" is not a keyword; "Cancel" is.
+ *
+ * This matters here more than it would elsewhere. A parcel customer who
+ * types "CANCEL" means their order, and a customer who types "END" or
+ * "INFO" means neither — but sent.dm opts the first two out of every
+ * channel before we ever see the event, and nothing we send afterwards
+ * is delivered. Knowing which keyword arrived is the only way to tell an
+ * operator why a conversation went quiet.
+ */
+const OPT_OUT_KEYWORDS = new Set(['STOP', 'CANCEL', 'UNSUBSCRIBE', 'QUIT', 'END']);
+const OPT_IN_KEYWORDS = new Set(['START', 'UNSTOP', 'SUBSCRIBE']);
+const HELP_KEYWORDS = new Set(['HELP', 'INFO']);
+
+/** @returns {'opt_out'|'opt_in'|'help'|null} */
+export function complianceKeyword(text) {
+  const word = String(text ?? '').trim().toUpperCase();
+  if (!word) return null;
+  if (OPT_OUT_KEYWORDS.has(word)) return 'opt_out';
+  if (OPT_IN_KEYWORDS.has(word)) return 'opt_in';
+  if (HELP_KEYWORDS.has(word)) return 'help';
+  return null;
 }
