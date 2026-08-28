@@ -164,6 +164,29 @@ describe('claimsQuoteInFlight — the shape of the claim, not a phrase list', ()
     'Noted, the team will revert with the price shortly.',
   ])('catches %s', (t) => expect(claimsQuoteInFlight(t)).toBe(true));
 
+  // Marion said "Heey" holding an open quote at KSh 17,746. The
+  // assistant told her it was ready — true, and the right nudge for
+  // someone one word from paying — and this guard matched `ready`,
+  // matched again on the retry, and handed her to a colleague. A quote
+  // that already exists is a fact from the order context, not a promise
+  // of work we have not started. Present tense and future tense are not
+  // the same claim.
+  it.each([
+    'Karibu Marion! Your quote of KSh 17,746 is ready and we are holding it for you.',
+    'Hi Marion, your quote is ready — reply YES to confirm.',
+    'Your quote is still available at KSh 17,746.',
+    'Your quote is ready, shall I send the payment details?',
+    'Your total is KSh 17,746 — reply YES and we will send the M-Pesa details.',
+  ])('does not block a quote that already exists: %s', (t) =>
+    expect(claimsQuoteInFlight(t)).toBe(false));
+
+  it.each([
+    'Your quote will be ready shortly.',
+    'Your quote is on the way.',
+    'Your quote will be sent to you soon.',
+  ])('still blocks the future-tense form: %s', (t) =>
+    expect(claimsQuoteInFlight(t)).toBe(true));
+
   // Judged per sentence, so an invitation sitting next to anything else
   // is still an invitation.
   it.each([
