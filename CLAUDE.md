@@ -24,7 +24,7 @@ WhatsApp message.
 - **Postgres on Supabase** via a raw `pg` pool. No ORM. Migrations under
   `database/migrations/`, applied on boot in production.
 - **React 19 + Vite + Tailwind 3** in `client/`, served as a SPA.
-- **sent.dm** for WhatsApp, **Claude** (`claude-opus-5` via
+- **sent.dm** for WhatsApp, **Claude** (`claude-sonnet-5` via
   `@anthropic-ai/sdk`, `ANTHROPIC_API_KEY`) for the assistant, **M-Pesa**
   manual Buy Goods till (`MPESA_PROVIDER=manual`; Lipana STK is coded but
   off).
@@ -113,9 +113,29 @@ rejected by structured outputs with a 400 before a token is generated —
 so every onboarding turn threw, degraded to the scripted questionnaire,
 and a customer who wrote "I haven't sent a link" was told twice that her
 quote was on its way. Read the request parameter by parameter and ask
-what each one now means. State the ones with per-model defaults —
-`thinking` is on for `claude-opus-5` and off for `claude-opus-4-8`, and
-the model is an environment variable.
+what each one now means. State the ones with per-model defaults rather
+than inheriting them — whether omitting `thinking` means "on" differs by
+model, and the model is an environment variable.
+
+**A cheaper model is not automatically a drop-in.** Moving the assistant
+to `claude-sonnet-5` was an env-var-shaped change because Sonnet 5
+supports everything the request sends. Haiku 4.5 is not: it rejects
+`output_config.effort` and has no adaptive thinking, so pinning it would
+400 every turn and degrade to the scripted flow — the same failure, for
+the same reason, as the schema above. Check the request against the
+model's supported surface before changing the pin, and measure the bill
+before deciding it is worth it: this assistant costs single-digit dollars
+a month, and one customer lost to a worse reply costs more than a year of
+the saving.
+
+**Prompt caching is a prefix match, and it fails silently.** The system
+prompt is deliberately ordered so the half every customer shares — role,
+knowledge base, guardrails — comes first and carries the breakpoint, with
+the per-customer tail after it. Put anything per-request inside that
+prefix, or let it fall under the model's minimum, and there is no error:
+it just quietly costs full price forever. `generateWithUsage()` warns
+when a request that asked to cache comes back having neither read nor
+written, because that is the only visible symptom.
 
 **A stub transport validates nothing, so get one real call through.**
 626 tests passed for the whole of that outage, because every one of them

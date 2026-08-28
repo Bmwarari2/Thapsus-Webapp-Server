@@ -136,7 +136,7 @@ webhook **and** the admin approval routes. Never duplicate it.
 
 ```
 ANTHROPIC_API_KEY=<Anthropic API key>
-# ANTHROPIC_MODEL=...   # optional pin; defaults to claude-opus-5
+# ANTHROPIC_MODEL=...   # optional pin; defaults to claude-sonnet-5
 ```
 
 Turn the assistant on and paste the knowledge base at `/ops/settings`.

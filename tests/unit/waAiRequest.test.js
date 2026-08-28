@@ -97,7 +97,12 @@ describe('the request chatReply builds', () => {
   it('sends the model, ceiling and effort this workload is tuned for', async () => {
     const { chatReply } = await import('../../utils/waAi.js');
     await chatReply({ knowledgeBase: KB, history: HISTORY, message: 'hi', orderContext: ORDERS, facts: await facts() });
-    expect(sent[0].model).toBe('claude-opus-5');
+    // Sonnet 5, not Opus: a third of the price on a workload that is
+    // knowledge-base lookup rather than reasoning. It must stay a model
+    // that supports what this request actually sends — Haiku 4.5 rejects
+    // output_config.effort and has no adaptive thinking, so setting it
+    // here would 400 every turn.
+    expect(sent[0].model).toBe('claude-sonnet-5');
     expect(sent[0].output_config.effort).toBe('low');
     // The ceiling covers thinking as well as the reply, where the Gemini
     // number it inherited (1024) bought output only. No production
@@ -119,7 +124,9 @@ describe('the request chatReply builds', () => {
       knowledgeBase: KB, history: HISTORY, message: 'hi',
       orderContext: ORDERS, facts: await facts(), summary: 'Shops from SHEIN',
     });
-    const system = sent[0].system;
+    // The prompt is two blocks now (cached prefix + per-turn tail), so
+    // the content assertions read the whole thing as the model does.
+    const system = sent[0].system.map((b) => b.text).join('');
     expect(system.length).toBeGreaterThan(3000);
     expect(system).toMatch(/STRICT RULES|THE RULES/);      // the guardrail block
     expect(system).toMatch(/HOW TO SELL/);
@@ -128,6 +135,55 @@ describe('the request chatReply builds', () => {
     expect(system).toMatch(/TODAY IS/);
     // the memory note is below the rules and labelled
     expect(system.indexOf('UNVERIFIED RECOLLECTION')).toBeGreaterThan(system.indexOf('HOW TO SELL'));
+  });
+
+  // Splitting the prompt for the cache moved blocks around, and two of
+  // them were placed where they are because of a specific incident. Both
+  // survive the split, and this is what says so.
+  it('keeps the checked facts and the memory note where they belong', async () => {
+    const { chatReply } = await import('../../utils/waAi.js');
+    await chatReply({
+      knowledgeBase: KB, history: HISTORY, message: 'hi',
+      orderContext: ORDERS, facts: await facts(), summary: 'Shops from SHEIN',
+    });
+    const system = sent[0].system.map((b) => b.text).join('');
+    // The memory note is not one of our records, so it never precedes the
+    // rules that tell the model how much to trust it.
+    expect(system.indexOf('UNVERIFIED RECOLLECTION'))
+      .toBeGreaterThan(system.indexOf('NEVER state a money amount'));
+    // The checked facts beat the model's own reading of the chat, and the
+    // chat is in `messages` — so every byte of the system prompt precedes it.
+    expect(system).toMatch(/WHERE THIS CONVERSATION STANDS/);
+  });
+
+  // Caching is a prefix match and fails silently: too short a prefix, or
+  // anything per-customer inside it, and it just costs full price forever.
+  it('caches the half every customer shares, and nothing else', async () => {
+    const { chatReply } = await import('../../utils/waAi.js');
+    const one = { knowledgeBase: KB, history: HISTORY, message: 'hi', orderContext: ORDERS,
+      facts: await facts(), profile: 'Marion (TC-1060)', summary: 'Shops from SHEIN' };
+    await chatReply(one);
+    await chatReply({ ...one, profile: 'Eunice (TC-1071)', summary: 'Buys for her shop',
+      orderContext: '- Tracking TRK-9001; status: Dispatched' });
+
+    const [a, b] = sent.map((s) => s.system);
+    // Two blocks: the shared prefix carries the breakpoint, the tail does not.
+    expect(a).toHaveLength(2);
+    expect(a[0].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+    expect(a[1].cache_control).toBeUndefined();
+    // Byte-identical across two different customers, or it never hits.
+    expect(a[0].text).toBe(b[0].text);
+    expect(a[1].text).not.toBe(b[1].text);
+    // Nothing about a specific customer may sit inside the cached half.
+    // Matched on identifiers, not first names: the guardrails narrate the
+    // incidents they exist for, so "Marion" is legitimately in the static
+    // text while TC-1060 could only have come from this turn's profile.
+    expect(a[0].text).not.toContain('TC-1060');
+    expect(a[0].text).not.toContain('TRK-8837');
+    expect(a[0].text).not.toContain('Shops from SHEIN');
+    // Sonnet 5 will not cache a prefix under 1024 tokens, and says nothing
+    // when it declines. ~4 chars per token, so keep a real margin.
+    expect(a[0].text.length).toBeGreaterThan(6000);
   });
 
   it('opens on the customer and sends no empty message', async () => {
@@ -189,6 +245,11 @@ describe('the request onboardingTurn builds', () => {
       knowledgeBase: KB, history: HISTORY, message: 'Hi', facts: await facts(),
       profile: { full_name: null, delivery_address: null }, orderContext: '(none on file)',
     });
+    const onboardingSystem = sent[0].system.map((b) => b.text).join('');
+    // The onboarding prompt is split too, and its Eunice rule points at
+    // the order list as being BELOW it — which the split must not break.
+    expect(onboardingSystem.indexOf('IF THE ORDERS SECTION BELOW'))
+      .toBeLessThan(onboardingSystem.indexOf("THIS CUSTOMER'S ORDERS"));
     const pref = sent[0].output_config.format.schema.properties.delivery_preference;
     expect(pref.enum).toBeUndefined();
     expect(pref.anyOf).toEqual([

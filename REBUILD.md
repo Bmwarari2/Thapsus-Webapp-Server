@@ -368,7 +368,7 @@ mid-signup.
 
 ### The assistant — `utils/waAi.js`
 
-Claude (`claude-opus-5` via `@anthropic-ai/sdk`), hard-gated away from
+Claude (`claude-sonnet-5` via `@anthropic-ai/sdk`), hard-gated away from
 money. It answers from
 an operator-maintained knowledge base plus a live summary of that
 customer's own orders, and it drives onboarding conversationally from the
@@ -385,10 +385,29 @@ It has durable memory: a rolling summary of the conversation is
 regenerated in the background every 8 messages, half the verbatim window,
 so nothing falls into the gap between the two.
 
-The model is pinned (`claude-opus-5`, overridable with
+The model is pinned (`claude-sonnet-5`, overridable with
 `ANTHROPIC_MODEL`) and short conversational turns run at `effort: low` —
 this workload does not repay deep thinking, and latency is what customers
 feel.
+
+It ran on Opus 5 for the first day. The bill was measured rather than
+guessed — ~3,000 input and ~450 output tokens across ~35 calls a day,
+about $29 a month — and Sonnet does this job, which is knowledge-base
+lookup rather than reasoning, for a third of that. Haiku 4.5 was
+considered and rejected as a **non-drop-in**: it rejects
+`output_config.effort` and has no adaptive thinking, so pinning it
+without rewriting the request would 400 every turn.
+
+The system prompt is now split so the ~2,700 tokens identical for every
+customer (role, knowledge base, guardrails) form a cacheable prefix with
+one explicit `cache_control` breakpoint at a 1-hour TTL, and the
+per-customer tail follows it uncached. Explicit rather than automatic
+because the prompt ends in per-customer content; 1-hour rather than the
+5-minute default because turns arrive ~20 minutes apart. Only the block
+order changed — the assembled prompt is the same length as before — and
+the two orderings that existed for a reason are pinned by tests: checked
+facts before the transcript, memory note below the guardrails. Together:
+~$29/month → ~$7.
 
 It ran on Gemini until 28 August, where the model name had to be
 **discovered** from the ListModels API at runtime, ranked, cached for six

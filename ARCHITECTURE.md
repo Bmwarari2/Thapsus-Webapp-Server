@@ -57,7 +57,7 @@ behaviour, it is almost certainly in the second one.
 | `utils/waStateMachine.js` | Decides what happens on an inbound message. |
 | `utils/waSend.js` | The single outbound path — persists to `wa_messages`, bumps the conversation head, broadcasts SSE. Bot, templates and operators all go through it, so the transcript is complete. |
 | `utils/waOrderFlow.js` | `transition()` — validates the edge, stamps the timestamp, writes the audit row, sends the customer alert, broadcasts. |
-| `utils/waAi.js` | Claude (`claude-opus-5`). Onboarding turns and knowledge-base answers. Nothing else. |
+| `utils/waAi.js` | Claude (`claude-sonnet-5`). Onboarding turns and knowledge-base answers. Nothing else. |
 | `utils/waPayments.js` | Get-or-create the `awaiting_review` payment row, attach M-Pesa references. |
 
 ### Inbound path
@@ -261,20 +261,58 @@ records a fee concession. The summariser is now barred from recording
 commercial terms, instructions addressed to the assistant, and
 volunteered contact details.
 
-**The model is pinned, and the turn is cheap.** `claude-opus-5`
+**The model is pinned, and the turn is cheap.** `claude-sonnet-5`
 (`ANTHROPIC_MODEL` overrides), adaptive thinking at `effort: low`,
 `max_tokens: 4096`, a 30-second client timeout and one retry. A WhatsApp
 reply is one to three sentences; deep thinking buys nothing here and
 latency is what the customer feels — Diane asked where to send her
 parcel, the call ran past the abort, and she got nothing at all.
 
+Sonnet rather than Opus because this workload is knowledge-base lookup,
+not reasoning: measured at ~3,000 input and ~450 output tokens over ~35
+calls a day, Opus 5 came to about $29 a month against orders worth KSh
+12,000–18,000 each. **Not every cheaper model is a drop-in.** Sonnet 5
+supports everything this request sends; Haiku 4.5 rejects
+`output_config.effort` outright and has no adaptive thinking (it wants
+the retired `{type:'enabled', budget_tokens}`), so pinning it without
+changing the request would 400 every turn and fall through to the
+scripted flow — the same shape as the outage below.
+
 The ceiling covers **thinking as well as the reply**, where the 1024 it
 inherited from Gemini bought output only. No production failure was
 traced to it — that was the schema, below — but a thinking-enabled turn
 needs room to be wrong in. Thinking is asked for explicitly rather than
-inherited for the same class of reason: it is on by default on
-`claude-opus-5` and off by default on `claude-opus-4-8`, and the model is
-an environment variable.
+inherited for the same class of reason: whether omitting it means "on"
+differs per model, and the model is an environment variable.
+
+**The system prompt is split so the half every customer shares can be
+cached.** Caching is a prefix match, so the ~2,700 tokens that are
+identical for everyone — the role, the knowledge base, the guardrails —
+come first and carry one explicit `cache_control` breakpoint; the
+per-customer tail (today's date, profile, checked facts, order list,
+memory note) follows and is never cached. That ordering is the whole
+mechanism: those blocks used to sit *below* the per-customer content, so
+nothing could ever be reused.
+
+Two deliberate choices. An **explicit** breakpoint rather than top-level
+automatic caching, because this prompt ends in per-customer content and
+the automatic breakpoint lands after it — paying the write premium on
+bytes nothing reads back. And a **1-hour TTL** rather than the 5-minute
+default, because turns arrive roughly 20 minutes apart across the whole
+customer base, so 5-minute entries would expire before the next turn and
+every request would pay to write a cache nobody reads.
+
+The reorder moved blocks only — the assembled prompt is byte-identical in
+length to the version before it — and both invariants the old order
+existed for still hold, with tests that say so: the checked facts still
+precede the transcript (which lives in `messages`, after all of this),
+and the memory note still sits below the guardrails that tell the model
+how far to trust it. A prefix under the model's minimum (1024 tokens on
+Sonnet 5) or perturbed by anything per-request does not error, it just
+silently costs full price forever, so `generateWithUsage()` warns when a
+request that asked to cache comes back having neither read nor written.
+
+Measured: ~$29/month on Opus 5, ~$12 on Sonnet 5, ~$7 with the cache.
 
 **What the swap actually broke was the output schema.** `onboardingTurn`
 constrains its reply with `output_config.format`, and spelled the
