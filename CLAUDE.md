@@ -106,23 +106,33 @@ out of payment prompts.
 
 **Porting a prompt is not porting a request.** Moving the assistant from
 Gemini to Claude carried every prompt across byte for byte, which is what
-made it look like a one-variable change. `max_tokens` was the variable
-nobody re-read: it bought output on Gemini and buys *thinking plus*
-output here, so 1024 was spent reasoning before a word was written and
-every turn returned a thinking block, no text, and `stop_reason:
-max_tokens`. Each one threw, degraded to the scripted questionnaire, and
-a customer who wrote "I haven't sent a link" was told twice that her
+made it look like a one-variable change. The prompts did travel; the
+request did not. The onboarding output schema spelled an optional enum as
+`type: ['string','null']` with an `enum` beside it — legal JSON Schema,
+rejected by structured outputs with a 400 before a token is generated —
+so every onboarding turn threw, degraded to the scripted questionnaire,
+and a customer who wrote "I haven't sent a link" was told twice that her
 quote was on its way. Read the request parameter by parameter and ask
 what each one now means. State the ones with per-model defaults —
 `thinking` is on for `claude-opus-5` and off for `claude-opus-4-8`, and
 the model is an environment variable.
 
+**A stub transport validates nothing, so get one real call through.**
+626 tests passed for the whole of that outage, because every one of them
+answers the HTTP call itself: a stub accepts whatever you send it, which
+means the tests could only ever confirm the request we *meant* to make.
+The schema was never once seen by the thing whose job is to reject
+schemas. `unsupportedSchemaBits()` now checks the parts of the subset
+that have actually bitten, in code, on the way out — but the standing
+rule is that a provider change is not done until one real request has
+been made against the real API.
+
 **A health check that a real request would fail must be able to fail.**
-The `/ops/settings` self-test asked the model for the single word "OK" —
-one token, barely any thinking — so it reported a healthy assistant for
-the whole of that outage. It now reports what the turn actually spent
-against the ceiling. Same rule as the guards: check the thing that
-breaks, not a thing shaped like it.
+The `/ops/settings` self-test asks for the single word "OK" and sends no
+schema, so it reported a healthy assistant throughout an outage that only
+affected schema-bearing turns. It now reports what the turn spent against
+the ceiling; it still does not exercise onboarding. Same rule as the
+guards: check the thing that breaks, not a thing shaped like it.
 
 **A recurring job asks the database, not the clock.** The FX refresh ran
 on a 24-hour `setInterval` that never fired once — every deploy replaces
