@@ -22,6 +22,10 @@
 // the cross-rate is `X_KES = rates.KES / rates.X`. routes/exchange.js
 // reads these rows back as-is — keep the schema shape in sync.
 //
+// Freshness is decided by asking the database how old the stored rates
+// are, not by counting elapsed process time — see startFxRefresh for why
+// a 24-hour setInterval was the wrong instrument.
+//
 // Failure mode is deliberately silent for the cron path: if Frankfurter
 // is down or returns a malformed response we log to `error_logs` and
 // leave the existing rows untouched. The admin-set values from
@@ -44,8 +48,40 @@ const FRANKFURTER_URL = 'https://api.frankfurter.dev/v2/rates?base=GBP';
 const REQUIRED_CODES = ['USD', 'EUR', 'CNY', 'KES'];
 const NON_KES_PAIRS = ['USD', 'EUR', 'CNY'];
 const FETCH_TIMEOUT_MS = 10_000;
-const DAY_MS = 24 * 60 * 60 * 1000;
 const WARMUP_MS = 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+
+// How often to CHECK, and how old the stored rates must be before a
+// check turns into a fetch. These are not the same number on purpose —
+// see startFxRefresh.
+const TICK_MS = Math.max(1, Number(process.env.FX_CHECK_INTERVAL_MINUTES) || 30) * 60 * 1000;
+const STALE_AFTER_MS = Math.max(1, Number(process.env.FX_STALE_AFTER_HOURS) || 12) * HOUR_MS;
+
+// The pairs this job owns. A row outside this list (AED_KES, left over
+// from the pre-rebuild schema) is not ours to age-check — otherwise one
+// orphan would keep the whole table looking stale forever.
+const MANAGED_PAIRS = ['GBP_KES', 'USD_KES', 'EUR_KES', 'CNY_KES'];
+
+/**
+ * How old is the freshest rate we manage? Infinity when we have never
+ * written one, so a brand-new database refreshes immediately.
+ *
+ * @param {{ query: Function }} db
+ * @returns {Promise<number>} milliseconds, or Infinity
+ */
+export async function rateAgeMs(db) {
+  const { rows } = await db.query(
+    `SELECT max(updated_at) AS newest FROM exchange_rates WHERE currency_pair = ANY($1)`,
+    [MANAGED_PAIRS]
+  );
+  const newest = rows?.[0]?.newest;
+  if (!newest) return Infinity;
+  const at = new Date(newest).getTime();
+  if (!Number.isFinite(at)) return Infinity;
+  // A clock skew that puts the row in the future must not read as
+  // "infinitely fresh" and wedge the job shut.
+  return Math.max(0, Date.now() - at);
+}
 
 /**
  * Fetch GBP-base rates from Frankfurter and upsert the four
@@ -176,17 +212,31 @@ export async function refreshFxRatesFromFrankfurter(db) {
 }
 
 /**
- * Start the daily FX refresh job. Returns a cancel handle the caller
- * wires into the SIGTERM/SIGINT shutdown path so the timer doesn't
- * keep the event loop alive during graceful shutdown.
+ * Keep the FX rows fresh, whether or not anybody deploys.
  *
- * Gated by FX_REFRESH_ENABLED env (default-on). Set FX_REFRESH_ENABLED=false
- * to disable — useful for dev/staging without outbound, or to silence
- * the job temporarily without redeploying.
+ * This used to be a 60-second warm-up run plus a 24-hour setInterval.
+ * The interval is the part that never earned its keep: Railway replaces
+ * the container on every deploy, and through August that happened every
+ * few hours, so the timer was reset long before it could fire. Every
+ * refresh the service has ever done was the boot-time one. The moment
+ * deploys stop — which is exactly when nobody is watching — the rates
+ * would have been resting on a timer that had never once run to term.
  *
- * First refresh fires after WARMUP_MS (60s) so a fresh Railway deploy
- * doesn't slam Frankfurter at boot. After that, every 24h — Frankfurter
- * itself only updates daily, so faster cadence buys nothing.
+ * So the schedule no longer measures elapsed process time. It ticks
+ * often (default 30 min) and asks the database a question instead: how
+ * old is the newest rate we manage? Only a stale answer costs a network
+ * call. That is self-healing — a restart at any point in the cycle is
+ * picked up within one tick — and it is idempotent, so two instances
+ * racing cost one redundant fetch rather than a wrong number.
+ *
+ * Frankfurter publishes ECB rates once per working day, so a 12-hour
+ * staleness threshold means at most two calls a day. There is no key and
+ * no quota; the cost of checking is a single indexed query.
+ *
+ * Gated by FX_REFRESH_ENABLED (default-on). FX_CHECK_INTERVAL_MINUTES
+ * and FX_STALE_AFTER_HOURS override the two numbers above.
+ *
+ * Returns a cancel handle the caller wires into the SIGTERM/SIGINT path.
  */
 export function startFxRefresh(pool) {
   if (process.env.FX_REFRESH_ENABLED === 'false') {
@@ -198,19 +248,32 @@ export function startFxRefresh(pool) {
     return null;
   }
 
-  const run = async () => {
+  const refresh = async (why) => {
     const result = await refreshFxRatesFromFrankfurter(pool);
     if (result.ok) {
-      console.log(`[fx-refresh] updated 4 pair(s) from Frankfurter (rate date ${result.rateDate || 'unknown'})`);
+      console.log(`[fx-refresh] updated 4 pair(s) from Frankfurter (rate date ${result.rateDate || 'unknown'}, ${why})`);
     } else {
-      console.warn(`[fx-refresh] refresh failed: ${result.error}`);
+      // Left deliberately quiet at warn level: the existing rows stand,
+      // and the next tick retries in TICK_MS rather than tomorrow.
+      console.warn(`[fx-refresh] refresh failed (${why}): ${result.error}`);
     }
   };
 
-  const first = setTimeout(() => { run().catch((e) => console.error('[fx-refresh] crashed:', e?.message)); }, WARMUP_MS);
+  // One tick. Never throws — a bad tick must not kill the timer.
+  const tick = async () => {
+    try {
+      const age = await rateAgeMs(pool);
+      if (age < STALE_AFTER_MS) return;   // silent: this is the common case
+      await refresh(age === Infinity ? 'no rates on file' : `${Math.round(age / HOUR_MS)}h old`);
+    } catch (e) {
+      console.error('[fx-refresh] tick failed:', e?.message);
+    }
+  };
+
+  const first = setTimeout(tick, WARMUP_MS);
   if (typeof first.unref === 'function') first.unref();
 
-  const recurring = setInterval(() => { run().catch((e) => console.error('[fx-refresh] crashed:', e?.message)); }, DAY_MS);
+  const recurring = setInterval(tick, TICK_MS);
   if (typeof recurring.unref === 'function') recurring.unref();
 
   return () => {

@@ -96,8 +96,13 @@ sent.dm webhook registration, Gmail OAuth for operator password reset.
 | `TEST_DATABASE_URL` | CI | Integration suites self-skip without it. |
 | `WA_SWEEP_INTERVAL_MINUTES` | `utils/waSweeper.js` | Sweeper cadence, default 5. |
 | `WA_SLA_PAYMENT_MINUTES` / `WA_SLA_UNANSWERED_MINUTES` | `utils/waSweeper.js` | Minutes before the one-shot staff reminder fires, default 15 each. |
+| `FX_CHECK_INTERVAL_MINUTES` / `FX_STALE_AFTER_HOURS` | `utils/fxRefresh.js` | How often to check the stored rates (default 30) and how old they may get before refetching (default 12). |
 
-FX (`utils/fxRefresh.js`) refreshes `USD_KES` daily from frankfurter.dev.
+FX (`utils/fxRefresh.js`) keeps `USD_KES` current from frankfurter.dev.
+It checks every 30 minutes and only calls out when the stored rates are
+more than 12 hours old, so freshness survives a container that restarts
+constantly *and* one that stays up for a week — the previous 24-hour
+timer managed neither, because every deploy reset it before it fired.
 That is a **mid-market** rate, so quoting does not use it raw:
 `wa_settings.fx_buffer_pct` (default 2.5) lifts it to the rate a quote is
 priced at, covering the KES→GBP spread the business actually pays. The
