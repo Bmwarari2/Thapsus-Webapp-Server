@@ -10,9 +10,13 @@
 // quote carries its full breakdown, the payment prompt carries the till
 // number — so it wins whenever WhatsApp will deliver it: inside the 24-hour
 // customer-service window that every inbound message opens. Outside that
-// window free text is refused outright, so the mapped template (approved
-// for business-initiated delivery) is the only thing that can land, and
-// its poorer copy beats silence. Before this check existed a mapped
+// window free text does not land, so the mapped template (approved for
+// business-initiated delivery) is the only thing that can, and its
+// poorer copy beats silence. Note WHERE that refusal shows up: a send
+// pinned to channel whatsapp with the window shut is still accepted with
+// a 202 and only then finalized FAILED (Meta's WHATSAPP_TEMPLATE_REQUIRED
+// — sent.dm has nowhere to fall back to on a pinned channel). The
+// request looks like it worked; the webhook is where the truth arrives. Before this check existed a mapped
 // template always won, and a customer who said YES seconds earlier was
 // sent the template with no till number in it instead of the composed
 // instructions.
@@ -117,7 +121,12 @@ export async function sendToContact(db, contact, opts = {}) {
       providerMessageId = result.messageId;
     } catch (e) {
       status = 'failed';
-      error = e instanceof SentDmError ? `${e.code}: ${e.message}` : String(e?.message || e);
+      // The request id rides along: it is the only handle sent.dm support
+      // can trace, and the ERR_* code behind a rejected send is not in
+      // the response body.
+      error = e instanceof SentDmError
+        ? `${e.code}: ${e.message}${e.requestId ? ` (${e.requestId})` : ''}`
+        : String(e?.message || e);
       console.error(`[waSend] send to ${contact.phone} failed:`, error);
     }
   }
@@ -153,10 +162,13 @@ export async function sendToContact(db, contact, opts = {}) {
     });
   } catch { /* SSE best-effort */ }
 
-  // A send the provider REJECTS at request time (unapproved template,
-  // window refusal, bad key) produces no provider message id — so no
-  // status webhook ever arrives and the async failed-send alert in
-  // routes/waWebhook.js can never fire. Page staff from here instead:
+  // A send the provider REJECTS at request time (bad key, malformed
+  // recipient, a validation error on the body) produces no provider
+  // message id — so no status webhook ever arrives and the async
+  // failed-send alert in routes/waWebhook.js can never fire. The
+  // suppressed cases (unapproved template, shut window, opted-out
+  // contact) are the other shape: accepted here, failed later, alerted
+  // from the webhook. Page staff from here for this half instead:
   // almost no caller checks the return value, and a customer who was
   // never reached looks exactly like one who was. Dynamic import and
   // fire-and-forget — an alert failure must not fail the send path,

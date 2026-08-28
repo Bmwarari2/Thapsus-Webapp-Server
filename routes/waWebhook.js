@@ -16,6 +16,9 @@
 //        take seconds (several outbound sends); doing them before the ACK
 //        risked tripping sent.dm's delivery timeout, which surfaces as
 //        RETRYING deliveries and duplicate processing.
+//        A body that is exactly one of sent.dm's opt-out keywords is
+//        stored but not answered — the consent engine has already closed
+//        the channel, so the bot would be talking to nobody.
 //   → 'message_status':    map the provider status onto our wa_messages row.
 //
 // Always 200 once the signature checks out — sent.dm retries non-2xx
@@ -27,7 +30,8 @@ import {
   parseInboundEvent,
   fetchMessage,
   fromE164,
-  mapProviderStatus, extractInboundMedia } from '../utils/sentdm.js';
+  mapProviderStatus, extractInboundMedia,
+  terminalStatusReason, failureReasonFromMessage, complianceKeyword } from '../utils/sentdm.js';
 import { handleInbound } from '../utils/waStateMachine.js';
 import { pushToStaff } from './events.js';
 import { logError } from '../utils/errorLogger.js';
@@ -62,6 +66,16 @@ export async function waWebhookHandler(req, res) {
     if (event.kind === 'message_received') {
       const result = await ingestInboundMessage(req.db, event);
       res.json({ received: true, ...(result.ingested ? { ok: true } : result) });
+      // An opt-out keyword is not a message to answer, it is a channel
+      // closing. sent.dm's consent engine has already flipped opt_out on
+      // the contact — across every channel, before this event reached us —
+      // so a bot reply would be filtered on its way out and land in the
+      // transcript as a message the customer never got. Page staff
+      // instead: this is how a live order goes silent.
+      if (result.ingested && result.keyword === 'opt_out') {
+        alertStaffOfOptOut(req.db, result.contact, result.message).catch(() => {});
+        return;
+      }
       // Bot logic runs AFTER the ACK — see the header comment.
       if (result.ingested) {
         handleInbound(req.db, result.contact, result.message).catch((err) => {
@@ -87,8 +101,13 @@ export async function waWebhookHandler(req, res) {
         // bare "failed" with no reason anywhere. The archived platform
         // kept these (that is where "131026 Message undeliverable" in the
         // old rows comes from); this one had quietly stopped.
+        // FILTERED and BLOCKED explain themselves: the ERR_* code behind
+        // them is documented as absent from both the payload and the
+        // activity log, so there is nothing to fetch and the status is
+        // the whole signal. Only a bare FAILED is worth a round-trip.
+        const documented = terminalStatusReason(event.status);
         const reason = mapped === 'failed'
-          ? (event.error || await failureReasonFor(event.messageId))
+          ? (event.error || documented || await failureReasonFor(event.messageId))
           : null;
         await req.db.query(
           `UPDATE wa_messages
@@ -152,6 +171,31 @@ async function alertStaffOfFailedSend(db, providerMessageId, reason) {
 }
 
 /**
+ * Tell staff a customer has opted themselves out.
+ *
+ * The keyword list is sent.dm's, not ours, and it is matched on the whole
+ * trimmed body: STOP, CANCEL, UNSUBSCRIBE, QUIT, END. In a parcel
+ * conversation "CANCEL" and "END" are things a customer types meaning
+ * their order or their sentence, and either one suppresses them on every
+ * channel until they send START. Nothing we send after that is
+ * delivered — not a quote, not a tracking code, not a receipt — and the
+ * only visible symptom is a conversation that stops.
+ *
+ * Best-effort and deduped per message: an alert we cannot send is not a
+ * reason to fail the webhook.
+ */
+async function alertStaffOfOptOut(db, contact, message) {
+  const who = [contact.full_name, contact.customer_code, contact.phone].filter(Boolean).join(' · ');
+  await notifyStaff(db, {
+    title: 'Customer opted out of WhatsApp',
+    detail: `${who} sent "${String(message.body || '').trim().slice(0, 40)}". sent.dm has opted them out, `
+      + 'so nothing we send reaches them until they reply START. '
+      + 'If they meant to cancel an order rather than leave, call them.',
+    dedupeKey: `opt-out:${message.id}`,
+  });
+}
+
+/**
  * Ask the provider why a message failed, when the status event didn't say.
  *
  * Best-effort by design: this runs inside the webhook ACK path, and a
@@ -160,14 +204,7 @@ async function alertStaffOfFailedSend(db, providerMessageId, reason) {
  */
 async function failureReasonFor(messageId) {
   try {
-    const data = await fetchMessage(messageId);
-    const m = data?.data ?? data ?? {};
-    for (const key of ['error', 'errors', 'error_message', 'failure_reason']) {
-      const v = m[key];
-      if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 2000);
-      if (v && typeof v === 'object') return JSON.stringify(v).slice(0, 2000);
-    }
-    return null;
+    return failureReasonFromMessage(await fetchMessage(messageId));
   } catch (e) {
     console.warn(`[wa-webhook] could not fetch failure reason for ${messageId}: ${e?.message}`);
     return null;
@@ -259,9 +296,13 @@ async function ingestInboundMessage(db, event) {
     phone: contact.phone,
   });
 
-  // Caller ACKs, then runs the state machine on this.
+  // Caller ACKs, then runs the state machine on this — unless the body is
+  // one of sent.dm's compliance keywords, which its consent engine has
+  // already acted on. Stored either way: the transcript is the record of
+  // what the customer said, keyword or not.
   return {
     ingested: true, contact,
+    keyword: complianceKeyword(body),
     message: { id: messageId, body, mediaUrl: media?.url ?? null, mediaType: media?.type ?? null },
   };
 }

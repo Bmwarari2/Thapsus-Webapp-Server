@@ -323,6 +323,12 @@ async function retryFailedSends(pool) {
       WHERE m.direction = 'out' AND m.status = 'failed' AND m.retry_count = 0
         AND m.template_key IS NULL AND m.body IS NOT NULL
         AND m.error IS DISTINCT FROM 'sentdm_not_configured'
+        -- A FILTERED send was suppressed by the consent gate before any
+        -- provider call: the contact is opted out or route-denied, so the
+        -- retry is filtered too, and its 202 would flip the row back to
+        -- 'queued' and erase the one line saying why the customer went
+        -- quiet. The opt-out staff alert is what covers these.
+        AND (m.error IS NULL OR m.error NOT LIKE 'FILTERED:%')
         AND m.created_at > NOW() - interval '24 hours'
         AND m.created_at < NOW() - interval '2 minutes'
       ORDER BY m.created_at ASC
