@@ -151,13 +151,13 @@ export function WaSettings() {
         <GlassCard className="p-5 space-y-4">
           <label className="flex items-center justify-between cursor-pointer">
             <div>
-              <span className="text-sm font-semibold text-white">AI assistant (Gemini)</span>
+              <span className="text-sm font-semibold text-white">AI assistant (Claude)</span>
               <p className="text-xs text-mute">
                 Opens by explaining what we do and what we charge — straight from the knowledge
                 base below — then invites a product link and collects the customer's name and
                 address while they wait for your quote. It states the standing rates but never
                 prices a specific item, confirms an order, or touches payments — those stay with
-                you. Requires GEMINI_API_KEY on Railway.
+                you. Requires ANTHROPIC_API_KEY on Railway.
               </p>
             </div>
             <input type="checkbox" checked={form.ai_enabled} onChange={set('ai_enabled')}

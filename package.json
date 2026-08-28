@@ -26,6 +26,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.122.0",
     "@supabase/supabase-js": "^2.105.4",
     "bcryptjs": "^3.0.3",
     "compression": "^1.7.4",

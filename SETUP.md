@@ -9,7 +9,7 @@ Local-dev walkthrough for the Express 5 API + React 19 SPA. For the why-behind-t
 - **Gmail OAuth2 refresh token** — operator password-reset email only. No customer mail is sent any more; customers exist only as WhatsApp contacts, and new staff accounts get a temporary password rather than an invitation. Optional for local dev. One-time consent flow — see the Gmail section.
 - **sent.dm account** with an API key and a WhatsApp sender.
 - **M-Pesa Daraja sandbox credentials** (consumer key/secret, passkey, shortcode) for Lipana STK Push. Optional: production runs `MPESA_PROVIDER=manual` and never calls them.
-- **A Gemini API key** (Google AI Studio) if you want the assistant to answer. Without one, inbound messages queue in the operator inbox.
+- **An Anthropic API key** (`ANTHROPIC_API_KEY`) if you want the assistant to answer. Without one, inbound messages queue in the operator inbox.
 
 ## 1. Install
 
@@ -132,16 +132,12 @@ body, idempotent via `lipana_events_seen`. The shared "money received"
 side effect lives in `utils/markPaymentPaid.js` and is called from the
 webhook **and** the admin approval routes. Never duplicate it.
 
-## 5a. Gemini assistant (optional)
+## 5a. Claude assistant (optional)
 
 ```
-GEMINI_API_KEY=<Google AI Studio key>
-# GEMINI_MODEL=...   # leave unset — see below
+ANTHROPIC_API_KEY=<Anthropic API key>
+# ANTHROPIC_MODEL=...   # optional pin; defaults to claude-opus-5
 ```
-
-Leave `GEMINI_MODEL` unset. The model is discovered from the ListModels
-API and cached for 6 hours, because Google retires model names on a
-rolling basis and a hardcoded default silently takes the assistant down.
 
 Turn the assistant on and paste the knowledge base at `/ops/settings`.
 Without a key, or with the toggle off, inbound messages simply queue in
@@ -291,7 +287,7 @@ Thapsus-Webapp-Server/
 - A SHEIN product link is answered with a request for the cart link — a product link often won't open on our side and never shows the size or colour picked
 - Confirm with "yes", pay the Buy Goods till, get a Tracking Code (`TRK-####`) and a PDF receipt
 - Text the tracking code any time for a live status reply, worded for delivery or collection
-- Gemini assistant for general questions, fenced away from money and prices
+- Claude assistant for general questions, fenced away from money and prices
 
 ### Operator dashboard
 - Unified WhatsApp inbox, live over SSE, with a per-chat AI toggle, media attachments both directions, and WhatsApp markup rendered rather than shown as asterisks
@@ -351,7 +347,7 @@ sent.dm does not put the file on the hydrated message, so
 shape appears, both the message and the envelope are logged.
 
 ### The assistant stops replying
-Read the Railway logs for a Gemini `404 … model is no longer available`. `GEMINI_MODEL` should be unset so discovery picks a live model; if it is pinned to a retired name, clear it. `/ops/settings` runs a self-test that surfaces this.
+Check `ANTHROPIC_API_KEY` is set and the toggle at `/ops/settings` is on. That page runs a live self-test — it reports the model it reached and the error verbatim if it could not.
 
 ### CORS errors in production
 Check `CORS_ORIGIN` is a comma-separated allowlist of origins (e.g. `https://thapsus.uk,https://www.thapsus.uk`). `'*'` is rejected outside development.

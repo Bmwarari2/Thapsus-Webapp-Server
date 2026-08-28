@@ -99,7 +99,7 @@ everything else as a link.
 | Method | Path | Notes |
 | --- | --- | --- |
 | GET | `/wa/settings` | Current settings + `capabilities` (e.g. `stk_available`). |
-| PUT | `/wa/settings` | `markup_pct`, `fx_buffer_pct` (0–25, the cushion over the mid-market rate — cost recovery, not margin, so it stays on when the service fee is waived), `promo_active`, `promo_type`, `promo_message`, `default_delivery_fee_kes`, `welcome_media_urls[]`, `template_map{}`, `ai_enabled`, `ai_knowledge_base`, `ai_resume_after_minutes`, `staff_alert_numbers[]`, `staff_alert_template`. `template_map` ships with every slot mapped to its approved sent.dm name (see `utils/waSettings.js`); a stored map is merged over it key by key, and an empty string switches one off. |
+| PUT | `/wa/settings` | `markup_pct`, `fx_buffer_pct` (0–25, the cushion over the mid-market rate — cost recovery, not margin, so it stays on when the service fee is waived), `promo_active`, `promo_type`, `promo_message`, `default_delivery_fee_kes`, `quote_validity_days` (1–90), `nudges_enabled`, `welcome_media_urls[]`, `template_map{}`, `ai_enabled`, `ai_knowledge_base`, `ai_resume_after_minutes`, `staff_alert_numbers[]`, `staff_alert_template`. `template_map` ships with every slot mapped to its approved sent.dm name (see `utils/waSettings.js`); a stored map is merged over it key by key, and an empty string switches one off. |
 | GET | `/wa/settings/webhook-status` | Webhook doctor — the live sent.dm registration, recent delivery events, AI self-test. |
 | POST | `/wa/settings/webhook-repair` | Re-point and re-activate the registration at this deployment. |
 

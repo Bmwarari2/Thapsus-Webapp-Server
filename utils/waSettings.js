@@ -85,7 +85,7 @@ export const DEFAULTS = {
   },
   // Gemini assistant (utils/waAi.js): answers general questions from the
   // knowledge base and interprets onboarding replies. Requires
-  // GEMINI_API_KEY on the server; this flag is the operator kill-switch.
+  // ANTHROPIC_API_KEY on the server; this flag is the operator kill-switch.
   ai_enabled: false,
   ai_knowledge_base: '',
   // Minutes of silence after a human takes over before the assistant

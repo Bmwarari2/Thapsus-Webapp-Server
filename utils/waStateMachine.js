@@ -38,7 +38,7 @@
 //      opens the awaiting_review payment row, and sends till
 //      instructions. Anything ambiguous falls through to a human.
 //   4. Everything else: when the Gemini layer is enabled (wa_settings
-//      ai_enabled + GEMINI_API_KEY), it answers from the operator's
+//      ai_enabled + ANTHROPIC_API_KEY), it answers from the operator's
 //      knowledge base PLUS a live summary of this customer's own orders
 //      (loadOrderContext), so "where is my parcel?" works without an
 //      exact code. It can also decline in two distinct ways:

@@ -1,8 +1,7 @@
 // utils/waAi.js
 //
-// Gemini-backed conversational layer for the WhatsApp flow (Google AI
-// Studio API key). Deliberately scoped to the two places language
-// understanding helps and nothing else:
+// Claude-backed conversational layer for the WhatsApp flow. Deliberately
+// scoped to the two places language understanding helps and nothing else:
 //
 //   1. AI-first onboarding (onboardingTurn) — from the customer's very
 //      first message, the model runs the conversation: welcomes,
@@ -12,43 +11,50 @@
 //   2. Fall-through chat (chatReply) — active-contact messages the state
 //      machine has nothing for (general questions) get an answer from
 //      the operator-maintained knowledge base instead of sitting
-//      unanswered in the inbox.
+//      unanswered in the operator inbox.
 //
 // Hard guardrails, enforced by prompt AND by where this is called from:
 // the model never quotes prices, never confirms orders or payments, and
-// never advances the pipeline — those paths run before the AI is ever
-// consulted. When a person is needed it returns HANDOFF, and when the
-// message has nothing to do with this business it returns OFF_TOPIC —
-// two different outcomes, because paging an operator for every wrong
-// number is as bad as answering one. Every failure mode degrades to
-// HANDOFF, which is the pre-AI behavior.
+// never advances the pipeline — those paths run before it is consulted.
+// When a person is needed it returns HANDOFF, and when the message has
+// nothing to do with this business it returns OFF_TOPIC — two different
+// outcomes, because paging an operator for every wrong number is as bad
+// as answering one. Every failure mode degrades to HANDOFF, which is the
+// pre-AI behaviour.
 //
-// Config: GEMINI_API_KEY (Google AI Studio). GEMINI_MODEL optionally
-// pins a model; when unset the model is DISCOVERED from the API (see
-// resolveModel) rather than hardcoded — Google retires model names on a
-// rolling basis and a stale default takes the assistant down with
-// "model is no longer available to new users" (this happened in
-// production with gemini-2.5-flash). The on/off switch + knowledge base
+// Config: ANTHROPIC_API_KEY. The on/off switch and the knowledge base
 // live in wa_settings so operators control them from /ops/settings.
-
-const BASE = 'https://generativelanguage.googleapis.com/v1beta';
-// 15s was not enough once the prompt grew: Diane's 36-message thread
-// aborted mid-generation and she got no reply at all, on a question
-// about where to dispatch her parcel. handleInbound runs AFTER the
-// webhook ACK (routes/waWebhook.js), so nothing upstream is waiting on
-// this — a slow answer costs nothing, a missing one costs a customer.
-const TIMEOUT_MS = 30_000;
-const MODEL_CACHE_MS = 6 * 60 * 60 * 1000; // re-discover a few times a day
-
-// Turns of verbatim transcript sent to the model. This used to be
-// slice(-10) of a 30-row fetch, throwing two thirds of it away while the
-// durable note that was meant to cover the rest lagged behind — a real
-// hole in the middle of a long conversation.
 //
-// Sending all 30 was an overcorrection: it tripled the prompt and the
-// generation started timing out. Sixteen is twice SUMMARY_EVERY_MESSAGES,
-// so the note is never more than one window behind, which was the point.
-const HISTORY_TURNS = 16;
+// This ran on Gemini until 28 August. The switch cost nothing in
+// behaviour — every prompt is unchanged, byte for byte, so the provider
+// is the only variable — and removed a whole failure mode with it: the
+// model name no longer has to be DISCOVERED at runtime. Google retires
+// names on a rolling basis and a stale default had already taken the
+// assistant down in production once ("model is no longer available to
+// new users"), which is why resolveModel(), its ranking function and its
+// six-hour cache existed. Anthropic model IDs are stable, so all of that
+// is gone.
+
+import Anthropic from '@anthropic-ai/sdk';
+
+const MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-5';
+
+// A WhatsApp reply is one to three sentences. The ceiling is here to
+// stop a runaway, not to shape the answer.
+const MAX_TOKENS = 1024;
+
+// Short conversational turns do not repay deep thinking, and latency is
+// the thing customers feel: Diane asked where to send her parcel, the
+// previous provider ran past a 15-second abort, and she got nothing at
+// all. Thinking stays ON (disabling it on this model has its own failure
+// modes) — effort is the dial.
+const EFFORT = 'low';
+// The SDK default is ten minutes, which is not a WhatsApp reply — it is
+// an abandoned customer. handleInbound runs after the webhook ACK
+// (routes/waWebhook.js), so nothing upstream is waiting on this.
+const TIMEOUT_MS = 30_000;
+
+const client = new Anthropic({ timeout: TIMEOUT_MS, maxRetries: 1 });
 
 // Sentinels the model returns instead of prose. They mean different
 // things and must not be conflated: HANDOFF is "a person is needed
@@ -79,7 +85,7 @@ export function classifyReply(text) {
 }
 
 export function aiConfigured() {
-  return Boolean(process.env.GEMINI_API_KEY);
+  return Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
 /**
@@ -157,97 +163,64 @@ export function claimsQuoteInFlight(text) {
     .some((sentence) => IN_FLIGHT.some((re) => re.test(sentence)));
 }
 
-let _model = null;      // { name, at }
+/**
+ * One model call.
+ *
+ * `turns` is the conversation as {role, text}; `system` is the whole
+ * system prompt. When `schema` is given the reply is constrained to it
+ * and comes back as JSON in the text block, which is what the caller
+ * then parses.
+ *
+ */
+export function buildTurns(history, message) {
+  const turns = [
+    ...history.map((m) => ({
+      role: m.direction === 'in' ? 'user' : 'assistant',
+      text: String(m.body || '').slice(0, 1000),
+    })),
+    ...(message ? [{ role: 'user', text: String(message).slice(0, 2000) }] : []),
+  ];
+  return toMessages(turns);
+}
 
 /**
- * Rank the models the key can actually use. Prefers, in order: the
- * "flash" tier (fast + cheap, ample for short WhatsApp replies), higher
- * version numbers, and stable releases over preview/experimental builds.
+ * Anthropic requires the first message to be from the user and rejects
+ * an empty content string, neither of which the previous provider
+ * minded. A transcript routinely opens with our own welcome, and a
+ * customer sending only an image lands in wa_messages with an empty
+ * body — Marion has one.
  */
-export function scoreModel(m) {
-  const name = String(m?.name || '').replace(/^models\//, '');
-  const methods = m?.supportedGenerationMethods || m?.supported_generation_methods || [];
-  if (!name.startsWith('gemini')) return -1;
-  if (!methods.includes('generateContent')) return -1;
-  // Non-chat / specialist endpoints.
-  if (/embedding|aqa|imagen|veo|tts|audio|image-generation|native-audio|live/.test(name)) return -1;
-
-  const version = parseFloat((name.match(/gemini-(\d+(?:\.\d+)?)/) || [])[1] || '0');
-  let score = version * 100;
-  if (/flash/.test(name)) score += 50;          // right tier for this workload
-  if (/lite/.test(name)) score -= 10;           // cheaper still, slightly weaker
-  if (/pro/.test(name)) score += 10;            // usable, pricier
-  if (/preview|exp|experimental/.test(name)) score -= 40;
-  if (/\d{2}-\d{2}$/.test(name)) score -= 5;    // dated snapshot; prefer the rolling alias
-  return score;
+function toMessages(turns) {
+  const messages = [];
+  for (const t of turns) {
+    const content = String(t.text || '').trim();
+    if (!content) continue;
+    if (!messages.length && t.role !== 'user') continue;
+    messages.push({ role: t.role, content });
+  }
+  return messages;
 }
 
-/** @returns {Promise<string>} a model name this API key can call today. */
-async function resolveModel({ force = false } = {}) {
-  if (process.env.GEMINI_MODEL) return process.env.GEMINI_MODEL;
-  if (!force && _model && Date.now() - _model.at < MODEL_CACHE_MS) return _model.name;
+async function generate({ system, turns, schema = null }) {
+  const messages = toMessages(turns);
+  if (!messages.length) throw new Error('nothing to send — no usable turns');
 
-  const res = await fetch(`${BASE}/models?key=${process.env.GEMINI_API_KEY}&pageSize=200`, {
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: MAX_TOKENS,
+    output_config: { effort: EFFORT, ...(schema ? { format: { type: 'json_schema', schema } } : {}) },
+    system,
+    messages,
   });
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`Gemini ListModels HTTP ${res.status}: ${errText.slice(0, 200)}`);
-  }
-  const data = await res.json();
-  const ranked = (data?.models || [])
-    .map((m) => ({ name: String(m.name || '').replace(/^models\//, ''), score: scoreModel(m) }))
-    .filter((m) => m.score >= 0)
-    .sort((a, b) => b.score - a.score);
-  if (ranked.length === 0) throw new Error('Gemini ListModels returned no usable chat model');
 
-  _model = { name: ranked[0].name, at: Date.now() };
-  console.info(`[waAi] using Gemini model "${_model.name}" (${ranked.length} candidates)`);
-  return _model.name;
-}
-
-async function callModel(model, body) {
-  const res = await fetch(`${BASE}/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    const err = new Error(`Gemini HTTP ${res.status}: ${errText.slice(0, 200)}`);
-    err.status = res.status;
-    throw err;
-  }
-  return res.json();
-}
-
-async function generate({ system, contents, json = false, schema = null }) {
-  const body = {
-    system_instruction: { parts: [{ text: system }] },
-    contents,
-    generationConfig: {
-      temperature: 0.3,
-      maxOutputTokens: 8192,
-      ...(json ? { responseMimeType: 'application/json' } : {}),
-      ...(json && schema ? { responseSchema: schema } : {}),
-    },
-  };
-
-  let data;
-  try {
-    data = await callModel(await resolveModel(), body);
-  } catch (e) {
-    // A retired/unknown model 404s — re-discover once and retry, so a
-    // Google model retirement self-heals instead of paging anyone.
-    if (e.status !== 404 || process.env.GEMINI_MODEL) throw e;
-    console.warn('[waAi] model 404 — re-resolving:', e.message);
-    data = await callModel(await resolveModel({ force: true }), body);
-  }
-
-  const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
-  if (!text) throw new Error('Gemini returned no text');
-  return text.trim();
+  // content is a discriminated union; a thinking block is not an answer.
+  const text = response.content
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text)
+    .join('')
+    .trim();
+  if (!text) throw new Error(`Claude returned no text (stop_reason: ${response.stop_reason})`);
+  return text;
 }
 
 /**
@@ -255,86 +228,17 @@ async function generate({ system, contents, json = false, schema = null }) {
  * round-trip succeed? Never throws.
  */
 export async function aiSelfTest() {
-  if (!aiConfigured()) return { ok: false, configured: false, error: 'GEMINI_API_KEY is not set on the server' };
+  if (!aiConfigured()) return { ok: false, configured: false, error: 'ANTHROPIC_API_KEY is not set on the server' };
   try {
-    const model = await resolveModel({ force: true });
     const text = await generate({
       system: 'You are a health check. Reply with the single word OK.',
-      contents: [{ role: 'user', parts: [{ text: 'ping' }] }],
+      turns: [{ role: 'user', text: 'ping' }],
     });
-    return { ok: true, configured: true, model, sample: text.slice(0, 60) };
+    return { ok: true, configured: true, model: MODEL, sample: text.slice(0, 60) };
   } catch (e) {
-    return { ok: false, configured: true, model: _model?.name || null, error: e.message };
+    return { ok: false, configured: true, model: MODEL, error: e.message };
   }
 }
-
-const GUARDRAILS = `
-THE RULES. There are few of them because each one is here for a customer
-it already cost us. Everything not forbidden is allowed — be warm, be
-brief, be a person who knows this business.
-
-- DO tell customers our standing rates — service fee, minimum order,
-  delivery time, delivery charge, any promotion — exactly as the
-  KNOWLEDGE BASE states them. That is what we advertise, and people ask
-  before they will send anything.
-- DO tell them the status, tracking code, dates, agreed total and amount
-  owing for the orders under THIS CUSTOMER'S ORDERS, and the M-Pesa till
-  when one is shown there. That is live data from our system and it is
-  what they are asking for. Never invent an order, a code, a date or a
-  status that is not listed.
-- NEVER state a money amount that is not written in the KNOWLEDGE BASE or
-  in THIS CUSTOMER'S ORDERS. Do not price an item, estimate, say
-  "roughly", add two figures together or convert a currency. Working out
-  what an order costs needs the live rate and the team. A figure you
-  worked out yourself is a figure nobody can honour.
-- NEVER promise that something will be sent to them later by anyone but
-  you. You are the reply — there is no second message coming behind
-  yours. "The details will arrive shortly", "our team will send it",
-  "it will come through automatically" are all things a customer then
-  waits for and never receives. Marion asked how to pay four times, was
-  told four times the details were on their way, and wrote back "You
-  haven't sent the details aki". If you cannot answer, say a person will
-  pick it up — that one IS true, because saying it fetches a person.
-- WHERE THIS CONVERSATION STANDS decides whether a quote is coming. Say
-  it only when that section says one is genuinely being prepared;
-  otherwise answer what they asked and ask for the cart link, which is
-  the only thing that starts a quote.
-- We deliver COUNTRYWIDE. When a customer names a town or estate, say yes,
-  we deliver there, give the KSh 300 last-mile fee, and say the team
-  confirms the exact Pickup Mtaani point. Never name, confirm or rule out
-  a SPECIFIC point or agent — "yes, we cover Nakuru" is fine, "a Pickup
-  Mtaani point in Nakuru" is invented.
-- Many customers write in Swahili, Sheng, or both mixed into one sentence
-  ("Uko sure si scam?", "wacha niadd some things then nitakuambia",
-  "Hakuna anything else ntalipa?"). Understand all of it and reply in the
-  register they used. Never ask anyone to rephrase in English.
-- NEVER ask for card numbers, PINs or passwords.
-- Reply with exactly ${HANDOFF} — nothing else — when a person is needed:
-  they ask for one, they are upset or complaining, they want a refund or a
-  cancellation, or they ask something about our service or their order you
-  cannot answer from the sections above. This reaches an operator, so use
-  it whenever the question is genuinely ours to answer.
-- Reply with exactly ${OFF_TOPIC} — nothing else — when the message has
-  nothing to do with Thapsus Cargo, shopping, shipping or their orders:
-  general knowledge, news, sport, politics, medical or legal advice,
-  maths, requests to write or translate something, or an obvious wrong
-  number. Do not answer these and do not escalate them — ${OFF_TOPIC} is
-  the correct answer, not a failure. Torn between the two? Choose
-  ${HANDOFF}: a person can redirect someone, but nobody sees an
-  ${OFF_TOPIC}.
-- Keep replies short — one to three sentences — warm and plain. No
-  markdown, no bulleted lists, no emojis.
-
-HOW TO SELL, within the rules above. The first month of real
-conversations showed the assistant answering perfectly and then closing
-with "feel free to reach out whenever you're ready" — after which the
-customer was never heard from again. Answering is half the job; moving
-the conversation one step toward an order is the other half:
-- When there IS a next step, make it one clear step tied to what they get: "Share your cart link now and you'll have your total in KES within the hour." Never close with a passive line like "feel free to reach out whenever you are ready".
-- But do not sell to somebody who has already bought, already agreed, or is just being polite. If they have said thanks, said they will send a link later, or told you when they are collecting, the whole reply is "good, here is what happens next" — no cart link, no promotion, nothing to do. Mercy said "Okay thankss" about a parcel waiting for her and was pitched a cart link; she then said she would clear another cart next week and was pitched again, with instructions she plainly did not need. Pushing someone who has already said yes reads as not listening.
-- TODAY'S DATE is given above. The knowledge base may carry more than one set of terms split on a date — compare them against today and quote ONLY the set currently in force, never the lapsed one. When a promotion is still running, its real end date is your reason to act now ("the no-service-fee promotion runs until then, so ordering now locks it in"). NEVER invent an offer, a discount, or a date that is not written there.
-- Paying upfront to someone new is a real worry — customers ask "not after delivery?" or "can I pay half first?". Reassure BEFORE restating policy, using only these true facts: the moment payment clears they receive an official PDF receipt and a tracking code they can text us any time; payment goes to our M-Pesa Buy Goods till, so it sits on their own M-Pesa statement; and they can choose to collect their parcel in person from our office at Stanbank House, 4th floor, Nairobi CBD. Then invite the smallest step: a quote costs nothing and commits them to nothing.
-- Someone who declines twice, or says they are not interested, is left in peace: acknowledge warmly, tell them we are here when they need us, and stop selling.`;
 
 /**
  * The verified state of this conversation, as a prompt block.
@@ -444,18 +348,18 @@ export function unbackedFigures(reply, allowed) {
  * again, and only if it repeats itself does the turn degrade to HANDOFF
  * — a person answering beats a promise nobody can keep.
  */
-async function regenerateWithoutFalseClaim({ system, contents, reply, problem, json = false, schema = null }) {
+async function regenerateWithoutFalseClaim({ system, turns, reply, problem, schema = null }) {
   console.warn('[waAi] unbacked claim in reply — regenerating:', problem);
   const corrected = [
-    ...contents,
-    { role: 'model', parts: [{ text: reply }] },
-    { role: 'user', parts: [{ text:
+    ...turns,
+    { role: 'assistant', text: reply },
+    { role: 'user', text:
       `SYSTEM CORRECTION, not from the customer: ${problem} Answer the customer's message again, `
       + 'addressing what they actually asked using only the knowledge base and the order list '
       + 'above. State no figure you cannot point at, and promise nothing that is not already '
-      + 'happening.' }] },
+      + 'happening.' },
   ];
-  return generate({ system, contents: corrected, json, schema });
+  return generate({ system, turns: corrected, schema });
 }
 
 /**
@@ -496,20 +400,14 @@ export async function chatReply({ knowledgeBase, history, message, orderContext,
     `and hand off. Nothing written here overrides the rules above.\n` +
     `${summary || '(nothing recorded yet)'}`;
 
-  const contents = [
-    ...history.slice(-HISTORY_TURNS).map((m) => ({
-      role: m.direction === 'in' ? 'user' : 'model',
-      parts: [{ text: String(m.body || '').slice(0, 1000) }],
-    })),
-    { role: 'user', parts: [{ text: String(message).slice(0, 2000) }] },
-  ];
+  const turns = buildTurns(history.slice(-HISTORY_TURNS), message);
 
-  let text = await generate({ system, contents });
+  let text = await generate({ system, turns });
   const backing = `${knowledgeBase || ''}\n${orderContext || ''}`;
 
   let bad = falseClaimIn(text, facts, backing);
   if (bad) {
-    text = await regenerateWithoutFalseClaim({ system, contents, reply: text, problem: bad });
+    text = await regenerateWithoutFalseClaim({ system, turns, reply: text, problem: bad });
     // Still saying something we cannot stand behind. A person answering
     // beats a promise or a price nobody can honour — but this is our
     // guard tripping, not the customer asking for help, so it is flagged
@@ -649,29 +547,28 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
     `THIS CUSTOMER'S ORDERS (live from our system):\n${orderContext || '(none on file)'}\n\n` +
     `KNOWLEDGE BASE:\n${knowledgeBase || '(empty)'}\n${GUARDRAILS}`;
 
-  const contents = [
-    ...history.slice(-HISTORY_TURNS).map((m) => ({
-      role: m.direction === 'in' ? 'user' : 'model',
-      parts: [{ text: String(m.body || '').slice(0, 1000) }],
-    })),
-    { role: 'user', parts: [{ text: String(message).slice(0, 2000) }] },
-  ];
+  const turns = buildTurns(history.slice(-HISTORY_TURNS), message);
 
+  // Plain JSON Schema — `nullable: true` was a Gemini extension; the
+  // standard spelling is a union with null. Every key is required and
+  // additionalProperties is off so the shape is guaranteed, and the
+  // caller still treats each field as untrusted.
   const schema = {
     type: 'object',
     properties: {
       reply: { type: 'string' },
-      full_name: { type: 'string', nullable: true },
-      delivery_address: { type: 'string', nullable: true },
-      delivery_preference: { type: 'string', nullable: true, enum: ['delivery', 'collection'] },
+      full_name: { type: ['string', 'null'] },
+      delivery_address: { type: ['string', 'null'] },
+      delivery_preference: { type: ['string', 'null'], enum: ['delivery', 'collection', null] },
     },
-    required: ['reply'],
+    required: ['reply', 'full_name', 'delivery_address', 'delivery_preference'],
+    additionalProperties: false,
   };
-  const text = await generate({ system, contents, json: true, schema });
+  const text = await generate({ system, turns, schema });
 
   const str = (v, max) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
   const parse = (raw) => {
-    try { return JSON.parse(raw); } catch { throw new Error('Gemini returned invalid JSON'); }
+    try { return JSON.parse(raw); } catch { throw new Error('model returned invalid JSON'); }
   };
   let parsed = parse(text);
 
@@ -685,7 +582,7 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
   if (problem) {
     falseClaim = true;
     parsed = parse(await regenerateWithoutFalseClaim({
-      system, contents, reply: text, problem, json: true, schema,
+      system, turns, reply: text, problem, schema,
     }));
     // Extraction still stands from either attempt — the profile fields
     // are facts about their message, not about our promise.
@@ -762,7 +659,7 @@ export async function summarizeConversation({ previous, history }) {
 
   const text = await generate({
     system,
-    contents: [{ role: 'user', parts: [{ text: `TRANSCRIPT:\n${transcript}` }] }],
+    turns: [{ role: 'user', text: `TRANSCRIPT:\n${transcript}` }],
   });
   return text.slice(0, 2000);
 }
