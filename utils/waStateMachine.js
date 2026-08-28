@@ -1187,9 +1187,10 @@ async function aiOnboarding(db, contact, message, body, settings) {
  * exact sentence claimsQuoteInFlight() exists to stop the model sending,
  * hard-coded, and said with no link, no order and nothing behind it. When
  * the Claude swap left the assistant throwing on every turn this script
- * was what customers actually got: 254…19 sent "Hi", asked "Is there an
- * offer?", was told the quote was coming, wrote back "I haven't sent a
- * link", and was told the same thing again word for word.
+ * was what customers actually got. The chat that surfaced it (28 August,
+ * 16:17–16:19) opened "Hi", asked "Is there an offer?", was told the
+ * quote was coming, wrote back "I haven't sent a link", and was told the
+ * same thing again word for word.
  *
  * So the claim is made only when a link really did arrive — the same
  * lookup conversationFacts hands the model, because the script has no

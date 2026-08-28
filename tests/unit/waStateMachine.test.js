@@ -393,11 +393,12 @@ describe('what counts as a name', () => {
 
 // The scripted flow runs whenever the AI is off, unconfigured, or
 // throwing — and when the Claude swap left it throwing on every turn,
-// this is what customers actually got. 254…19 sent "Hi", asked "Is there
-// an offer?", was told "your quote is being worked out now and will come
-// through here shortly", replied "I haven't sent a link", and was told
-// the same thing again word for word. The script was hard-coding the
-// exact sentence claimsQuoteInFlight() exists to stop the model sending.
+// this is what customers actually got. The chat that surfaced it (28
+// August, 16:17–16:19) opened "Hi", asked "Is there an offer?", was told
+// "your quote is being worked out now and will come through here
+// shortly", replied "I haven't sent a link", and was told the same thing
+// again word for word. The script was hard-coding the exact sentence
+// claimsQuoteInFlight() exists to stop the model sending.
 //
 // Both directions matter here: don't re-ask a customer who is still
 // deciding whether to buy, and don't tell them work is underway that

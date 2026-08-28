@@ -56,11 +56,12 @@ const MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-5';
 // with it: low-effort reasoning over a 4KB system prompt spends the whole
 // budget before writing a character, so the response comes back with a
 // thinking block, no text, and stop_reason max_tokens. generate() throws,
-// every caller degrades to the scripted questionnaire, and 254…19 — who
-// asked "Is there an offer?" and then said "I haven't sent a link" — was
-// told twice, word for word, that a quote nobody was preparing was on its
-// way. Sized for reasoning plus a short reply; tokens not generated are
-// not billed, so the headroom is free.
+// every caller degrades to the scripted questionnaire. The chat that
+// surfaced it (28 August, 16:17–16:19) asked "Is there an offer?", then
+// said "I haven't sent a link", and was told twice, word for word, that a
+// quote nobody was preparing was on its way. Sized for reasoning plus a
+// short reply; tokens not generated are not billed, so the headroom is
+// free.
 const MAX_TOKENS = 4096;
 
 // Short conversational turns do not repay deep thinking, and latency is
