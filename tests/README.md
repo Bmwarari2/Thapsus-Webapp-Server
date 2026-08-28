@@ -47,15 +47,17 @@ suites do not need to be rewritten.
 
 ## What's tested
 
-482 unit + smoke tests, plus integration suites that self-skip without
+616 unit + smoke tests, plus integration suites that self-skip without
 `TEST_DATABASE_URL`. `ARCHITECTURE.md` §13 has the full map; the shape of
 it:
 
-- **The conversation** — `waStateMachine` (the dispatcher, 113 cases:
-  onboarding edges, tracking formats, confirmation ambiguity, payment
-  claims, SHEIN cart requests, takeover and resume, and the facts block
-  that tells the assistant whether a link ever arrived), `waAiClassify`
-  (the sentinel boundary and the quote-in-flight guard), `waNudges`,
+- **The conversation** — `waStateMachine` (the dispatcher: onboarding
+  edges, tracking formats, what counts as accepting a quote and what
+  counts as saying you have paid, SHEIN cart requests, takeover and
+  resume, the facts block, and answering "how do I pay?" from the order
+  row), `waAiClassify` (the sentinel boundary, the quote-in-flight guard
+  in both directions, unbacked money figures, and the turn builder that
+  keeps an assistant-first or empty message off the wire), `waNudges`,
   `waSweeper`, `waText`.
 - **The money** — `waQuote` (margin, delivery fee, the FX buffer and its
   2dp rounding), `waDeliveryFeeSettle`, `waPayments`,

@@ -151,9 +151,35 @@ nobody discounts a cost back out believing it was margin.
 
 ### Phase 3 — Payment and procurement
 
-The customer replies `YES` (or `sawa`, `ndio`, `ok`, `poa`, `1`, …). That
-flips the order to `confirmed`, **opens an `awaiting_review` payment
-row**, and sends Buy Goods till instructions.
+The customer replies `YES` (or `sawa`, `ndio`, `ok`, `haya`, `nimekubali`,
+`sure`, …). That flips the order to `confirmed`, **opens an
+`awaiting_review` payment row**, and sends Buy Goods till instructions.
+
+Acceptance is a judgement, not a prefix match: `isUnqualifiedConfirm()`
+wants a short message carrying no question and no conjunction. The
+original rule matched the start of the message and included the bare
+digit `1`, so `"1.24kg"` accepted a live quote and fired a payment
+demand, and so did `"okay confirm the price then I'll get back to you
+when i am ready"`. Erring toward a person costs one exchange; erring the
+other way bills someone who was still deciding.
+
+**Asking how to pay is also answered here, not by the assistant.**
+`asksHowToPay()` plus `replyWithPaymentDetails()` reply from the order
+row when exactly one thing is owing — the agreed total and the real till
+for a `confirmed` order, the fee for one awaiting last-mile payment, and
+for a quote not yet accepted the figure plus an invitation to reply YES,
+without moving the money state. Several things owing at once goes to a
+person, since one till figure would invite paying the wrong amount.
+
+That path exists because the opposite was tried. A guardrail forbidding
+the assistant from giving payment instructions at all stopped the
+invented ones and the real ones together, and told it to say the details
+were coming instead — so Marion, with KSh 17,746 confirmed, asked four
+times, was reassured four times, and wrote "You haven't sent the details
+aki". Nothing was going to send them: the till goes out when the customer
+accepts a quote or an operator presses the button, and hers had been
+confirmed by an operator hours earlier. A rule that forbids the right
+answer is worse than no rule.
 
 M-Pesa STK Push is not available: Lipana withdrew the service for
 regulatory reasons, so production runs `MPESA_PROVIDER=manual`. Every
@@ -348,11 +374,16 @@ an operator-maintained knowledge base plus a live summary of that
 customer's own orders, and it drives onboarding conversationally from the
 very first message.
 
-It is never allowed to quote a price, confirm an order or a payment,
+It is never allowed to work out a price, confirm an order or a payment,
 promise a delivery date, or claim an action was taken — those paths run
-before it. It has durable memory: a rolling summary of the conversation
-is regenerated in the background every 20 messages so it still recalls
-what was said after the verbatim window scrolls past.
+before it. It may state what our own records already say: the status,
+tracking code, agreed total and, when money is owing, the amount and the
+till. The line is between reciting a figure from the order row and
+inventing one, and `unbackedFigures()` holds it in code.
+
+It has durable memory: a rolling summary of the conversation is
+regenerated in the background every 8 messages, half the verbatim window,
+so nothing falls into the gap between the two.
 
 The model is pinned (`claude-opus-5`, overridable with
 `ANTHROPIC_MODEL`) and short conversational turns run at `effort: low` —
@@ -384,11 +415,21 @@ tagged `{kind, text}` through a shared `classifyReply()`, so a control
 sentinel can never be mistaken for a message and sent to a customer.
 
 **It is told where the conversation stands; it does not infer it.**
-`conversationFacts()` in the state machine looks up three things per
-turn — has this customer ever sent a product or cart link, is any order
-on file, is one actually sitting in `quoting` — and `renderFacts()` puts
-them into both prompts above the transcript, marked as outranking the
-model's own reading of the chat.
+`conversationFacts()` in the state machine looks it up per turn and
+`renderFacts()` puts it into both prompts above the transcript, marked as
+outranking the model's own reading of the chat — as a **single** line
+about the quote, because the first version rendered "link received: YES"
+directly above "NO quote is being prepared" and told the model to ask for
+the link the customer had just sent.
+
+A quote is in flight when **a link has arrived and nothing has been
+quoted since** — not when an order sits at `quoting`. That first version
+measured the wrong interval: 13 of 24 priced orders never occupied that
+status at all, because the operator creates the order already priced, and
+20 spent two minutes or less in it. TRK-8834 sent a cart link at 19:38
+and was not opened until 19:43; for those five minutes the customer was
+genuinely waiting and no row proved it. The customer's wait starts at the
+link, which is the event they can see.
 
 That gap cost a real conversation. A customer opened with "Hi", asked
 how long delivery takes, then asked **"How do I pay?"** — no link sent,
@@ -407,9 +448,22 @@ while leaving the invitation the funnel depends on — "send your cart
 link and we'll quote you" — alone. When the facts say nothing is in
 flight, the turn is regenerated once with the false claim named; a
 second offence degrades to `HANDOFF` so a person answers, and pages
-staff either way. Same reasoning as `looksLikeName()`: a promise that
-leaves a customer waiting for a message nobody will send is too
-expensive to depend on the model having a good day.
+staff either way — flagged `guardTripped`, so it pages **without** muting
+the assistant for two hours, because that mute is for a customer who
+asked for a human and not for our own output check failing.
+
+The guard judges per sentence, and separates present from future.
+Both lessons were paid for. Judging the whole reply at once flagged
+"send us the link and we'll quote you within the hour" — the sales line
+the funnel depends on. And grouping "is ready" with "is on its way"
+meant Marion, holding an open quote at KSh 17,746, said "Heey", was
+correctly told her quote was ready, and was handed to a colleague for it:
+the guard fired on the customers closest to paying. A guard that fires
+wrongly is worse than no guard.
+
+Same reasoning as `looksLikeName()`: a promise that leaves a customer
+waiting for a message nobody will send is too expensive to depend on the
+model having a good day.
 
 ### Human takeover
 

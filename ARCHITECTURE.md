@@ -130,11 +130,21 @@ us people at the door.
 
 ### The AI boundary
 
-The assistant is deliberately fenced. It may read the knowledge base and
-a rendered summary of that customer's own orders; it may state a status,
-tracking code, date or agreed total from that summary. It may not quote a
-price, confirm anything, promise a date, or claim an action was taken —
-those paths ran before it.
+The assistant is deliberately fenced, and the fence is deliberately
+short. It may read the knowledge base and a rendered summary of that
+customer's own orders, and it may state anything they contain: a status,
+a tracking code, a date, the agreed total, and — when money is owing —
+the amount and the till. It may not work out a price, confirm anything,
+promise a date, or claim an action was taken. Those paths ran before it.
+
+The prompt carries **three** prohibitions, not fifteen. It had fifteen,
+including two that duplicated each other and a blanket "only state facts
+found in the knowledge base" that forbade ordinary warmth, and the effect
+was an assistant that stalled rather than answered. The three that
+remain — no invented money figure, no invented order or tracking code, no
+named Pickup Mtaani point — are the three that have actually gone wrong,
+and each is written with the customer it cost us. A rule that forbids the
+right answer is worse than no rule.
 
 It has three possible outcomes, tagged rather than stringly-typed so a
 control token can't reach a customer:
@@ -142,18 +152,33 @@ control token can't reach a customer:
 | Outcome | Meaning | Effect |
 | --- | --- | --- |
 | `reply` | It answered | Send the text |
-| `HANDOFF` | A person is needed | Acknowledge, set takeover, page staff |
+| `HANDOFF` | A person is needed | Acknowledge, page staff, and set takeover — unless our own output guard tripped (`guardTripped`), which pages without muting the assistant |
 | `OFF_TOPIC` | Nothing to do with us | Say what we do handle (max once/hour), no alert, no takeover |
 
 `classifyReply()` in `utils/waAi.js` is the boundary. An empty generation
 classifies as `handoff`, so every failure mode degrades to the pre-AI
-behaviour: a human picks it up.
+behaviour: a human picks it up. The sentinel must BE the whole reply, not
+appear in it — a substring test once discarded "Our HANDOFF process takes
+a minute." and handed that customer to a person.
+
+**A gap in the knowledge base is where inventions come from.**
+`wa_settings.ai_knowledge_base` is operator-owned prose, edited at
+`/ops/settings` with no deploy, and it is the assistant's entire factual
+surface for anything outside a customer's own orders. When a question
+customers actually ask has no answer in it, the model fills the gap
+rather than declining: asked about Nakuru, with a rule forbidding it to
+name any area and nothing telling it we deliver countrywide, it invented
+a Pickup Mtaani point there. It now covers where we deliver, why we can
+be trusted (registration, office, receipt and M-Pesa trail), which stores
+we do not yet buy from, and the ship-my-own-parcel case — every one added
+after a real customer asked and got nothing. Read the inbox for the
+questions it still cannot answer; that list is the backlog.
 
 **It is told where the conversation stands, not left to infer it.**
 `conversationFacts()` in `utils/waStateMachine.js` looks it up per turn
 and `renderFacts()` puts it in both prompts above the transcript, as a
 **single** line about the quote. The model had been inferring it from
-ten messages of chat and getting it wrong: +447428777090 asked "How do I
+the transcript alone and getting it wrong: +447428777090 asked "How do I
 pay?" three messages in, having sent nothing, and was told "your quote
 is being worked out now and will come through here shortly." A
 transcript shows what was said; only the system knows what is true.
@@ -610,29 +635,45 @@ sits in the queue until it is approved or rejected.
 
 ```bash
 npm test                      # vitest; integration self-skips without TEST_DATABASE_URL
-npm run check:drift -- --snapshot
+npm run check:drift:snapshot
 npm run build
 ```
 
-The WhatsApp layer's behaviour lives in `tests/unit/waStateMachine.test.js`
-(79 cases) — onboarding edges and validation gates, empty messages,
-tracking-code formats for delivery and collection, confirmation
-ambiguity, payment-claim matching and its deliberate non-matches, SHEIN
-cart requests, takeover and auto-resume, both AI sentinels, and that the
-reply survives flattening. `waAiClassify` covers the sentinel boundary, the
-quote-in-flight guard and the facts block,
-`waOrderFlow` the transition edges, `waQuote` and `waDeliveryFeeSettle`
+616 unit + smoke tests. The WhatsApp layer's behaviour lives in
+`tests/unit/waStateMachine.test.js` (211 cases) — onboarding edges and
+validation gates, empty messages, tracking-code formats for delivery and
+collection, what counts as accepting a quote and what counts as saying
+you have paid (each with the real customer message that got it wrong),
+SHEIN cart requests, takeover and auto-resume, both AI sentinels,
+answering "how do I pay?" from the order row, and that the reply survives
+flattening. `waAiClassify` covers the sentinel boundary, the
+quote-in-flight guard in both directions, unbacked money figures, the
+facts block, and the turn builder that keeps an assistant-first or empty
+message off the wire. `waOrderFlow` the transition edges, `orderStages`
+the buttons the order screen offers, `waQuote` and `waDeliveryFeeSettle`
 the arithmetic (both exist because `Number(null) === 0` quietly produced
 a zero markup and a zero fee), `waTemplateVars` the positional variable
 orderings, `sentdm` and `sentdmMedia` signature verification and inbound
-media extraction, `receiptPdf`, `receiptLink` and `mediaLink` the
-customer artefacts.
+media extraction, `fxRefresh` the staleness schedule, `receiptPdf`,
+`receiptLink` and `mediaLink` the customer artefacts.
+
+Nearly every case here pins a specific incident, and the comment above it
+names the customer. Read that before changing what it asserts.
 
 CI (`.github/workflows/ci.yml`) runs four jobs on every PR: unit +
 client build, a Postgres-backed integration job that also gates
 migrations and schema drift, a Playwright e2e pass over the operator
 screens, and a Lighthouse accessibility assertion. `security.yml` runs
-CodeQL `security-extended` weekly.
+CodeQL `security-extended` on every code PR — and weekly, to catch
+newly-disclosed CVEs in code nobody has touched. Together that is the
+five checks a PR waits on.
+
+**No test exercises a real model turn.** Every one of them stubs the
+assistant, which is why two audits in a row have had to reason about its
+behaviour from the outside, and why 576 green tests still shipped a guard
+that escalated the customers closest to paying. A fixture suite of real
+scenarios scored against the guardrails is the thing this repo is missing
+most.
 
 Both workflows were **disabled manually in May 2026** and only came back
 on 2026-08-12. GitHub keys that state to the workflow's file path, which
