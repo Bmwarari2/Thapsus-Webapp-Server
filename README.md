@@ -17,7 +17,7 @@ work the pipeline behind it.
 - **API:** Node **22.x**, Express **5**, ES modules, deployed to Railway.
 - **DB:** Postgres on Supabase, accessed through a raw `pg` pool. Schema is migration-driven.
 - **Messaging:** [sent.dm](https://sent.dm) v3 for WhatsApp — inbound webhook + outbound text/template.
-- **Assistant:** Gemini via Google AI Studio, scoped to onboarding and knowledge-base answers. Opens with what we do and what we charge, then collects name and address while the customer waits on a quote. Never touches money.
+- **Assistant:** Claude (`claude-opus-5`), scoped to onboarding and knowledge-base answers. Opens with what we do and what we charge, then collects name and address while the customer waits on a quote. Never touches money.
 - **Payments:** M-Pesa. STK Push (Lipana) is coded but disabled — production runs manual Buy Goods till payments with admin approval.
 - **Frontend:** React **19** + Vite under `client/`, Tailwind 3, react-router 7. Served by the same Express process.
 - **Realtime:** Server-Sent Events to the operator dashboard.
@@ -37,7 +37,7 @@ WhatsApp ──▶ POST /api/wa/webhook ──▶ persist + SSE ──▶ waStat
       │  3. TRK-#### in text  → live status reply
       │  4. "yes" to a quote  → confirm + open payment + till details
       │  5. "I have paid"     → verifying reply + staff alert
-      │  6. anything else     → Gemini (knowledge base + their orders)
+      │  6. anything else     → Claude (knowledge base + their orders)
       └───────────────────────────────────────────────────────┘
 ```
 
@@ -63,7 +63,7 @@ conversation.
 ```bash
 nvm use                # Node 22 (see .nvmrc)
 npm install
-cp .env.example .env   # fill in JWT_SECRET, DATABASE_URL, ADMIN_*, SENTDM_*, GEMINI_API_KEY
+cp .env.example .env   # fill in JWT_SECRET, DATABASE_URL, ADMIN_*, SENTDM_*, ANTHROPIC_API_KEY
 npm start              # API + built SPA on :5000
 
 cd client && npm install && npm run dev   # SPA dev server on :5173
@@ -82,8 +82,8 @@ sent.dm webhook registration, Gmail OAuth for operator password reset.
 | `SENTDM_API_KEY` | `utils/sentdm.js` | `x-api-key` for the sent.dm v3 API. |
 | `SENTDM_WEBHOOK_SECRET` | `routes/waWebhook.js` | `whsec_…`; Svix-style HMAC verification. |
 | `SENTDM_BASE_URL` | `utils/sentdm.js` | Optional, defaults to `https://api.sent.dm`. |
-| `GEMINI_API_KEY` | `utils/waAi.js` | Google AI Studio key. Without it the assistant is off and messages queue in the inbox. |
-| `GEMINI_MODEL` | `utils/waAi.js` | Optional pin. **Leave unset** — the model is discovered from ListModels, because Google retires names on a rolling basis. |
+| `ANTHROPIC_API_KEY` | `utils/waAi.js` | Without it the assistant is off and messages queue in the inbox. |
+| `ANTHROPIC_MODEL` | `utils/waAi.js` | Optional pin; defaults to `claude-opus-5`. |
 | `MPESA_PROVIDER` | payments | `manual` in production. `lipana` re-enables STK Push. |
 | `MPESA_TILL_NUMBER` | payments | Buy Goods till quoted to customers. |
 | `LIPANA_API_KEY` / `LIPANA_BASE_URL` / `LIPANA_WEBHOOK_SECRET` | `utils/lipanaClient.js` | Only needed when `MPESA_PROVIDER=lipana`. |

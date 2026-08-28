@@ -197,3 +197,43 @@ describe('claimsQuoteInFlight — the shape of the claim, not a phrase list', ()
     'Yes, we deliver to Nakuru. Delivery is KSh 300. Share your cart link and we will send your total.',
   ])('leaves the invitation alone: %s', (t) => expect(claimsQuoteInFlight(t)).toBe(false));
 });
+
+// The provider swap kept every prompt byte-identical, so the message
+// plumbing is the only thing that could have changed behaviour — and it
+// is the part with two rules the previous provider did not have.
+describe('what gets sent to the model', () => {
+  it('drops our own opening line so the first message is the customer', async () => {
+    // A transcript routinely starts with the scripted welcome. Anthropic
+    // rejects a conversation that opens on the assistant.
+    const { buildTurns } = await import('../../utils/waAi.js');
+    const turns = buildTurns([
+      { direction: 'out', body: 'Karibu Thapsus Cargo.' },
+      { direction: 'in', body: 'Hi' },
+      { direction: 'out', body: 'How can we help?' },
+    ], 'How do I pay?');
+    expect(turns[0]).toEqual({ role: 'user', content: 'Hi' });
+    expect(turns.at(-1)).toEqual({ role: 'user', content: 'How do I pay?' });
+  });
+
+  // Marion sent an image with no caption; it is in wa_messages with an
+  // empty body, and an empty content string is a 400.
+  it('drops empty bodies rather than sending a blank turn', async () => {
+    const { buildTurns } = await import('../../utils/waAi.js');
+    const turns = buildTurns([
+      { direction: 'in', body: 'So i checked this link' },
+      { direction: 'in', body: '' },
+      { direction: 'in', body: '   ' },
+      { direction: 'out', body: null },
+    ], 'Ama sijaiona vizuri');
+    expect(turns.map((t) => t.content)).toEqual(['So i checked this link', 'Ama sijaiona vizuri']);
+  });
+
+  it('maps our side to assistant and theirs to user', async () => {
+    const { buildTurns } = await import('../../utils/waAi.js');
+    const turns = buildTurns([
+      { direction: 'in', body: 'Heey' },
+      { direction: 'out', body: 'Karibu!' },
+    ], 'Send me the till');
+    expect(turns.map((t) => t.role)).toEqual(['user', 'assistant', 'user']);
+  });
+});

@@ -342,7 +342,8 @@ mid-signup.
 
 ### The assistant — `utils/waAi.js`
 
-Gemini via Google AI Studio, hard-gated away from money. It answers from
+Claude (`claude-opus-5` via `@anthropic-ai/sdk`), hard-gated away from
+money. It answers from
 an operator-maintained knowledge base plus a live summary of that
 customer's own orders, and it drives onboarding conversationally from the
 very first message.
@@ -353,10 +354,18 @@ before it. It has durable memory: a rolling summary of the conversation
 is regenerated in the background every 20 messages so it still recalls
 what was said after the verbatim window scrolls past.
 
-The model is **discovered** from the ListModels API rather than
-hardcoded, with a 6-hour cache and 404 self-healing. Google retires model
-names on a rolling basis and a stale default takes the assistant down —
-this happened in production with `gemini-2.5-flash`.
+The model is pinned (`claude-opus-5`, overridable with
+`ANTHROPIC_MODEL`) and short conversational turns run at `effort: low` —
+this workload does not repay deep thinking, and latency is what customers
+feel.
+
+It ran on Gemini until 28 August, where the model name had to be
+**discovered** from the ListModels API at runtime, ranked, cached for six
+hours and re-resolved on a 404, because Google retires names on a rolling
+basis and a stale default had already taken the assistant down in
+production (`gemini-2.5-flash`). Anthropic model IDs are stable, so that
+machinery went with the switch. Every prompt crossed over byte for byte,
+so the provider was the only variable.
 
 The assistant declines in two distinct ways, which matters more than it
 sounds:
@@ -506,7 +515,7 @@ confirmation. Zero or several, and it goes to a human.
 **Last-mile delivery is 24 hours**, not "1–2 business days".
 
 **Payment claims never reach the AI.** "I have paid" used to fall through
-to Gemini, which read it as a complaint and replied "let me get a
+to the assistant, which read it as a complaint and replied "let me get a
 colleague" — the worst possible answer to someone who has just sent
 money. It's now handled deterministically, with the reassurance sent at
 most once per 30 minutes so a two-message burst doesn't double-reply.
@@ -523,7 +532,7 @@ silences the assistant.
 ### Environment
 
 New variables: `SENTDM_API_KEY`, `SENTDM_WEBHOOK_SECRET`,
-`SENTDM_BASE_URL` (optional), `GEMINI_API_KEY`, `GEMINI_MODEL`
+`SENTDM_BASE_URL` (optional), `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`
 (optional — leave unset to let discovery run), `MPESA_PROVIDER=manual`,
 `MPESA_TILL_NUMBER`.
 
@@ -604,7 +613,7 @@ Commits are on `claude/thapsus-cargo-simplify-jl983m`, oldest first.
 | D | `7432dd8` | WhatsApp-first operator dashboard + public site rework |
 | E | `db35326`, `ccba36a` | Cutover: retire self-registration, close legacy intake, webhook registrar + runbook |
 | Live fixes | `fa92b8c`, `a2a51d7`, `a86cee8`, `32cf058`, `b178efc`, `26f7fc4`, `57cfcc0` | Inbound ingestion, sender resolution, webhook doctor, free-text template rules, template pack |
-| AI | `0eeb0d0`, `d337ac1`, `f131e20`, `59ac2ed` | Gemini assistant; AI-first onboarding; model discovery; live order context |
+| AI | `0eeb0d0`, `d337ac1`, `f131e20`, `59ac2ed` | The assistant; AI-first onboarding; live order context. Ran on Gemini until 28 August, then moved to Claude — prompts unchanged, and the runtime model discovery Google's rolling retirements forced was deleted with it |
 | Ops reality | `b45cf55`, `862dd9b` | Manual payments + staff alerts; handoff acknowledgement, takeover, AI memory |
 | Polish | `624cc3a`, `006a590`, `7888a8c`, `a1ef0e3` | Payment verification reply + approval path; no emojis, short receipt links, 24h delivery; structured tracking reply, label and receipt redesign; OFF_TOPIC vs HANDOFF |
 

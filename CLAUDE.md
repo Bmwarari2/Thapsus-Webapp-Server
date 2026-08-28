@@ -24,9 +24,10 @@ WhatsApp message.
 - **Postgres on Supabase** via a raw `pg` pool. No ORM. Migrations under
   `database/migrations/`, applied on boot in production.
 - **React 19 + Vite + Tailwind 3** in `client/`, served as a SPA.
-- **sent.dm** for WhatsApp, **Gemini** (Google AI Studio) for the
-  assistant, **M-Pesa** manual Buy Goods till (`MPESA_PROVIDER=manual`;
-  Lipana STK is coded but off).
+- **sent.dm** for WhatsApp, **Claude** (`claude-opus-5` via
+  `@anthropic-ai/sdk`, `ANTHROPIC_API_KEY`) for the assistant, **M-Pesa**
+  manual Buy Goods till (`MPESA_PROVIDER=manual`; Lipana STK is coded but
+  off).
 - **Vitest** for tests, Playwright for the browser money paths.
 
 ## Commands

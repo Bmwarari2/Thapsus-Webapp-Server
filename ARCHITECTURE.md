@@ -30,7 +30,7 @@ For what the system used to be and why it changed, see
                                  │            │           │
                                  ▼            ▼           ▼
                         ┌────────────┐ ┌───────────┐ ┌──────────────┐
-                        │  Postgres  │ │ Supabase  │ │  Gemini /    │
+                        │  Postgres  │ │ Supabase  │ │  Claude /    │
                         │ (Supabase) │ │  Storage  │ │  Lipana /    │
                         │ RLS forced │ │ (private) │ │  Frankfurter │
                         └────────────┘ └───────────┘ └──────────────┘
@@ -57,7 +57,7 @@ behaviour, it is almost certainly in the second one.
 | `utils/waStateMachine.js` | Decides what happens on an inbound message. |
 | `utils/waSend.js` | The single outbound path — persists to `wa_messages`, bumps the conversation head, broadcasts SSE. Bot, templates and operators all go through it, so the transcript is complete. |
 | `utils/waOrderFlow.js` | `transition()` — validates the edge, stamps the timestamp, writes the audit row, sends the customer alert, broadcasts. |
-| `utils/waAi.js` | Gemini. Onboarding turns and knowledge-base answers. Nothing else. |
+| `utils/waAi.js` | Claude (`claude-opus-5`). Onboarding turns and knowledge-base answers. Nothing else. |
 | `utils/waPayments.js` | Get-or-create the `awaiting_review` payment row, attach M-Pesa references. |
 
 ### Inbound path
@@ -71,7 +71,7 @@ POST /api/wa/webhook  (raw body, mounted before express.json)
   → handleInbound() runs after the ACK
 ```
 
-The ACK comes before the bot reply on purpose: a slow Gemini call must
+The ACK comes before the bot reply on purpose: a slow model call must
 never make the provider think delivery failed and retry.
 
 ### Dispatch order
@@ -236,10 +236,20 @@ records a fee concession. The summariser is now barred from recording
 commercial terms, instructions addressed to the assistant, and
 volunteered contact details.
 
-**The model is discovered, not hardcoded.** `resolveModel()` calls
-ListModels, ranks candidates, caches for 6 hours and self-heals on a 404.
-Google retires model names on a rolling basis; a hardcoded default took
-the assistant down in production once already.
+**The model is pinned, and the turn is cheap.** `claude-opus-5`
+(`ANTHROPIC_MODEL` overrides), `effort: low`, `max_tokens: 1024`, a
+30-second client timeout and one retry. A WhatsApp reply is one to three
+sentences; deep thinking buys nothing here and latency is what the
+customer feels — Diane asked where to send her parcel, the call ran past
+the abort, and she got nothing at all.
+
+Until 28 August this ran on Gemini, where the model name had to be
+discovered from ListModels at runtime and re-resolved on a 404 because
+Google retires names on a rolling basis — a stale default had taken the
+assistant down once. That machinery is gone. `buildTurns()` is what the
+switch did need: Anthropic rejects a conversation opening on the
+assistant, and rejects an empty content string, so our own welcome line
+and a caption-less image (Marion has one) are dropped rather than sent.
 
 ### Outbound copy constraints
 

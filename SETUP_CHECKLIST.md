@@ -60,7 +60,7 @@ these are what make it do anything:
 | `SITE_URL` | The **apex** domain (`https://thapsus.uk`) | `/r/` receipt and `/m/` media links are built from it |
 | `MPESA_PROVIDER` | `manual` | Buy Goods payments with admin approval |
 | `MPESA_TILL_NUMBER` | Your till | The payment instructions sent to customers |
-| `GEMINI_API_KEY` | Google AI Studio key | The assistant. Leave `GEMINI_MODEL` unset — the model is discovered |
+| `ANTHROPIC_API_KEY` | Anthropic API key | The assistant. `ANTHROPIC_MODEL` is an optional pin; the default is `claude-opus-5` |
 | `GMAIL_*` | OAuth2 client + refresh token | Operator password-reset email only |
 
 Without `SENTDM_*` the app runs and records sends as `failed` in the

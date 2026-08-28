@@ -225,38 +225,3 @@ describe('flattenForFreeText', () => {
     expect(flattenForFreeText('Test')).toBe('Test');
   });
 });
-
-describe('Gemini model discovery (scoreModel)', () => {
-  it('prefers the newest stable flash model the key can call', async () => {
-    const { scoreModel } = await import('../../utils/waAi.js');
-    const models = [
-      { name: 'models/gemini-2.0-flash', supportedGenerationMethods: ['generateContent'] },
-      { name: 'models/gemini-3.0-flash', supportedGenerationMethods: ['generateContent'] },
-      { name: 'models/gemini-3.0-pro', supportedGenerationMethods: ['generateContent'] },
-      { name: 'models/gemini-3.0-flash-preview', supportedGenerationMethods: ['generateContent'] },
-      { name: 'models/embedding-001', supportedGenerationMethods: ['embedContent'] },
-      { name: 'models/gemini-embedding-001', supportedGenerationMethods: ['embedContent'] },
-      { name: 'models/imagen-4.0', supportedGenerationMethods: ['generateContent'] },
-    ];
-    const best = models
-      .map((m) => ({ name: m.name.replace(/^models\//, ''), score: scoreModel(m) }))
-      .filter((m) => m.score >= 0)
-      .sort((a, b) => b.score - a.score)[0];
-    expect(best.name).toBe('gemini-3.0-flash');
-  });
-
-  it('rejects non-chat and non-gemini entries', async () => {
-    const { scoreModel } = await import('../../utils/waAi.js');
-    expect(scoreModel({ name: 'models/embedding-001', supportedGenerationMethods: ['embedContent'] })).toBe(-1);
-    expect(scoreModel({ name: 'models/gemma-3', supportedGenerationMethods: ['generateContent'] })).toBe(-1);
-    expect(scoreModel({ name: 'models/gemini-2.0-flash', supportedGenerationMethods: ['countTokens'] })).toBe(-1);
-    expect(scoreModel({ name: 'models/gemini-2.5-flash-tts', supportedGenerationMethods: ['generateContent'] })).toBe(-1);
-  });
-
-  it('prefers a rolling alias over a dated snapshot of the same model', async () => {
-    const { scoreModel } = await import('../../utils/waAi.js');
-    const alias = scoreModel({ name: 'models/gemini-3.0-flash', supportedGenerationMethods: ['generateContent'] });
-    const dated = scoreModel({ name: 'models/gemini-3.0-flash-09-25', supportedGenerationMethods: ['generateContent'] });
-    expect(alias).toBeGreaterThan(dated);
-  });
-});

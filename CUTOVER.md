@@ -176,7 +176,7 @@ staff accounts are created with a temporary password rather than an
 invitation), `JWT_SECRET`, `LIPANA_*`, `MPESA_PROVIDER`,
 `MPESA_TILL_NUMBER`, `NODE_ENV`, `SITE_URL` (apex domain — receipt and
 media links are built from it), `FRONTEND_URL`/`APP_URL`, `SUPABASE_*`,
-`SENTDM_*`, `GEMINI_API_KEY` (leave `GEMINI_MODEL` unset — the model is
+`SENTDM_*`, `ANTHROPIC_API_KEY` (`ANTHROPIC_MODEL` is an optional pin — the default is
 discovered).
 
 ## Draining the legacy pipeline
