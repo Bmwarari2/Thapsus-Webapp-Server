@@ -205,35 +205,35 @@ describe('what gets sent to the model', () => {
   it('drops our own opening line so the first message is the customer', async () => {
     // A transcript routinely starts with the scripted welcome. Anthropic
     // rejects a conversation that opens on the assistant.
-    const { buildTurns } = await import('../../utils/waAi.js');
-    const turns = buildTurns([
+    const { buildMessages } = await import('../../utils/waAi.js');
+    const messages = buildMessages([
       { direction: 'out', body: 'Karibu Thapsus Cargo.' },
       { direction: 'in', body: 'Hi' },
       { direction: 'out', body: 'How can we help?' },
     ], 'How do I pay?');
-    expect(turns[0]).toEqual({ role: 'user', content: 'Hi' });
-    expect(turns.at(-1)).toEqual({ role: 'user', content: 'How do I pay?' });
+    expect(messages[0]).toEqual({ role: 'user', content: 'Hi' });
+    expect(messages.at(-1)).toEqual({ role: 'user', content: 'How do I pay?' });
   });
 
   // Marion sent an image with no caption; it is in wa_messages with an
   // empty body, and an empty content string is a 400.
   it('drops empty bodies rather than sending a blank turn', async () => {
-    const { buildTurns } = await import('../../utils/waAi.js');
-    const turns = buildTurns([
+    const { buildMessages } = await import('../../utils/waAi.js');
+    const messages = buildMessages([
       { direction: 'in', body: 'So i checked this link' },
       { direction: 'in', body: '' },
       { direction: 'in', body: '   ' },
       { direction: 'out', body: null },
     ], 'Ama sijaiona vizuri');
-    expect(turns.map((t) => t.content)).toEqual(['So i checked this link', 'Ama sijaiona vizuri']);
+    expect(messages.map((t) => t.content)).toEqual(['So i checked this link', 'Ama sijaiona vizuri']);
   });
 
   it('maps our side to assistant and theirs to user', async () => {
-    const { buildTurns } = await import('../../utils/waAi.js');
-    const turns = buildTurns([
+    const { buildMessages } = await import('../../utils/waAi.js');
+    const messages = buildMessages([
       { direction: 'in', body: 'Heey' },
       { direction: 'out', body: 'Karibu!' },
     ], 'Send me the till');
-    expect(turns.map((t) => t.role)).toEqual(['user', 'assistant', 'user']);
+    expect(messages.map((t) => t.role)).toEqual(['user', 'assistant', 'user']);
   });
 });
