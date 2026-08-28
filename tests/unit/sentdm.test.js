@@ -225,12 +225,43 @@ describe('flattenForFreeText', () => {
     const out = flattenForFreeText(input);
     expect(out).not.toMatch(/\n/);
     expect(out).not.toMatch(/ {4,}/);
-    expect(out).toContain('1. Send a link · 2. Pay via M-Pesa');
+    // Numbered steps used to be joined with ' · ', which put a second
+    // marker in front of a number. They now get a plain gap instead.
+    expect(out).toContain('1. Send a link  2. Pay via M-Pesa');
     expect(out).toContain('Karibu!  —  How it works');
   });
   it('leaves single-line text untouched', async () => {
     const { flattenForFreeText } = await import('../../utils/sentdm.js');
     expect(flattenForFreeText('Test')).toBe('Test');
+  });
+
+  // A line break cannot reach the customer — WhatsApp rejects a newline
+  // inside a message parameter (VALIDATION_008, "param text cannot have
+  // new-line/tab characters"). So a list has to survive as characters or
+  // not at all. It used to arrive as "· - Send your cart link", which
+  // reads worse than the paragraph it was trying to improve on.
+  it('keeps a bulleted list readable without line breaks', async () => {
+    const { flattenForFreeText } = await import('../../utils/sentdm.js');
+    const out = flattenForFreeText(
+      'How it works:\n- Send your SHEIN cart link\n- We quote in KES\n- Pay on our M-Pesa till'
+    );
+    expect(out).toBe('How it works: • Send your SHEIN cart link • We quote in KES • Pay on our M-Pesa till');
+    expect(out).not.toMatch(/\n/);
+    expect(out).not.toMatch(/· -/);
+  });
+
+  it('gives a numbered step a gap, not a second marker', async () => {
+    const { flattenForFreeText } = await import('../../utils/sentdm.js');
+    const out = flattenForFreeText(
+      'How payment works.\n1. Send your cart link.\n2) Pay on our Buy Goods till.'
+    );
+    expect(out).toBe('How payment works.  1. Send your cart link.  2) Pay on our Buy Goods till.');
+    expect(out).not.toMatch(/ {4,}/);
+  });
+
+  it('handles the same list written with asterisks or real bullets', async () => {
+    const { flattenForFreeText } = await import('../../utils/sentdm.js');
+    expect(flattenForFreeText('Steps:\n* One\n• Two')).toBe('Steps: • One • Two');
   });
 });
 

@@ -343,15 +343,29 @@ and a caption-less image (Marion has one) are dropped rather than sent.
 
 sent.dm delivers free text through a system template, and WhatsApp
 forbids newlines, tabs and 4+ space runs inside template variables. A
-multi-line body is rejected with `VALIDATION_008` and retried flattened
-(`\n\n` → ` — `, `\n` → ` · `). After the first rejection the client
+multi-line body is rejected with `VALIDATION_008` — in sent.dm's own
+words, "param text cannot have new-line/tab characters or more than 4
+consecutive spaces", *because WhatsApp does not accept them in a
+parameter* — and retried flattened. After the first rejection the client
 flattens up front instead of paying a wasted round-trip every time.
 
 **Consequence: all customer copy must read correctly as one line.** The
 tracking reply is a plain sentence or two for exactly this reason — an
 earlier version used a labelled block with a progress bar, and flattening
-turned it into a run-on smear. Approved templates are exempt: their body
-text can contain newlines, only the *variables* can't.
+turned it into a run-on smear.
+
+What flattening preserves is structure carried by *characters*, which is
+the only kind that survives: a bulleted line becomes ` • ` (the break is
+the bullet — keeping both gave `· - Send your cart link`), a numbered
+step keeps its number and gets a two-space gap, a paragraph break becomes
+` — ` and any other break ` · `. The assistant's prompt says the same
+thing in its own terms: number a sequence inline, three steps at most,
+and never rely on a layout the customer will not see.
+
+Approved templates are exempt: their body text can contain newlines (up
+to two consecutive, never at the start or end), only the *variables*
+can't. So a fixed-copy notification could be laid out over several lines
+— at the price of a new Meta review.
 
 ---
 

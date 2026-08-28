@@ -219,12 +219,28 @@ async function api(method, path, { body, idempotencyKey } = {}) {
  * (FREE_TEXT_SYS_TEMPLATE) with the text as the template variable, and
  * WhatsApp forbids newlines/tabs/4+ consecutive spaces inside template
  * variables — a multi-line body is rejected at request time with
- * VALIDATION_008 (observed in production). Flatten line structure into
- * inline separators: blank-line paragraph breaks become " — ", single
- * newlines become " · ".
+ * VALIDATION_008 (observed in production, and since confirmed word for
+ * word in the error catalog: "param text cannot have new-line/tab
+ * characters or more than 4 consecutive spaces", rejected because
+ * WhatsApp does not accept them in a parameter). There is no way to send
+ * a line break in a free-text reply; every one of them arrives as one
+ * paragraph.
+ *
+ * So the structure has to be carried by characters instead. A list keeps
+ * its shape rather than being flattened into a run of separators: a
+ * bullet becomes "•", a numbered step keeps its number and gets a wider
+ * gap in front of it, a paragraph break becomes " — " and any other line
+ * break becomes " · ". Before this, a three-step answer arrived as
+ * "How it works: · - Send your cart link · - Pay on the till", which
+ * reads worse than the paragraph it replaced.
  */
 export function flattenForFreeText(text) {
   return String(text)
+    // The break IS the bullet — don't keep both.
+    .replace(/\s*\n+\s*[-*•]\s+/g, ' • ')
+    // A numbered step already carries its marker; it needs a gap, not a
+    // second one. Two spaces, well inside WhatsApp's limit of four.
+    .replace(/\s*\n+\s*(?=\d+[.)]\s)/g, '  ')
     .replace(/\s*\n{2,}\s*/g, '  —  ')
     .replace(/\s*\n\s*/g, ' · ')
     .replace(/\t/g, ' ')
