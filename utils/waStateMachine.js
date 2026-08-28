@@ -407,6 +407,27 @@ export async function handleInbound(db, contact, message) {
     return;
   }
 
+  // 3c. "How do I pay?" / "send me the till", with money actually due.
+  //
+  // Marion had an order confirmed at KSh 17,746 and asked four times —
+  // "How do i make payment??", "Send me the till" — and was told four
+  // times that the details would arrive automatically. Nothing was going
+  // to send them: the till goes out when the CUSTOMER accepts a quote or
+  // an operator presses the button, and hers had been confirmed by an
+  // operator hours earlier. She waited nine minutes and wrote "You
+  // haven't sent the details aki🤦‍♀️".
+  //
+  // The assistant was doing as it was told — a guardrail written to stop
+  // it inventing payment instructions also stopped it giving real ones,
+  // and told it to promise they were coming. Answering this is money, so
+  // it resolves here, before the AI, from the order row.
+  if (body && asksHowToPay(body)) {
+    const handled = await replyWithPaymentDetails(db, contact);
+    if (handled) return;
+    // Nothing owing — fall through and let the assistant answer the
+    // general "how does paying work" question from the knowledge base.
+  }
+
   // 3b. Quote confirmation.
   if (isUnqualifiedConfirm(body)) {
     const { rows } = await db.query(
@@ -757,9 +778,18 @@ async function loadOrderContext(db, contactId) {
       `status: ${STATUS_LABEL[o.status] || o.status}`,
     ];
     if (o.quote_kes) bits.push(`agreed total KSh ${Number(o.quote_kes).toLocaleString('en-KE')}`);
+    // Money is owing on this one, so the assistant is given the figure AND
+    // the till rather than being left to say "the details are coming".
+    // The deterministic branch answers the common phrasings first; this
+    // covers the ones it does not catch.
+    if (o.status === 'confirmed' && o.quote_kes) {
+      bits.push(`AWAITING PAYMENT: KSh ${Number(o.quote_kes).toLocaleString('en-KE')} to `
+        + `M-Pesa Buy Goods Till ${mpesaTill() || '(till not configured)'}`);
+    }
     if (steps.length) bits.push(`history: ${steps.join(', ')}`);
     if (o.status === 'delivery_fee_pending' && !o.delivery_fee_waived && !o.delivery_fee_paid_at) {
-      bits.push(`delivery fee outstanding: KSh ${Number(o.delivery_fee_kes || 0).toLocaleString('en-KE')}`);
+      bits.push(`delivery fee outstanding: KSh ${Number(o.delivery_fee_kes || 0).toLocaleString('en-KE')} `
+        + `to M-Pesa Buy Goods Till ${mpesaTill() || '(till not configured)'}`);
     }
     if (o.delivery_fee_waived) bits.push('delivery fee waived');
     return `- ${bits.join('; ')}`;
@@ -898,6 +928,99 @@ export function looksLikeName(value) {
   if (words.length > 1 && SENTENCE_OPENER.test(name)) return false;
   // A name has letters in it; "0700092005" and "..." do not.
   return /\p{L}{2,}/u.test(name);
+}
+
+/**
+ * Are they asking how to pay, or asking for the till?
+ *
+ * Deliberately narrow — it only decides whether we answer from the order
+ * row instead of the knowledge base, and a false positive on someone with
+ * nothing owing falls through to the assistant anyway.
+ */
+export function asksHowToPay(value) {
+  const v = String(value || '').trim();
+  if (!v) return false;
+  return /\b(till|paybill|buy ?goods)\b/i.test(v)
+    // "How do i make payment??" was Marion's opener, and a pattern that
+    // wanted the bare verb "pay" missed it.
+    || /\bhow\b[^.?!]{0,40}\b(pay|paying|payment)\b/i.test(v)
+    || /\b(payment|pay)\b[^.?!]{0,25}\b(details|number|instructions|info)\b/i.test(v)
+    || /\b(where|how)\b[^.?!]{0,25}\bsend\b[^.?!]{0,20}\b(money|payment|cash|pesa)\b/i.test(v)
+    || /\bnilipe\b|\bnitalipaje\b|\bnalipaje\b|\blipa\b[^.?!]{0,15}\bwapi\b/i.test(v);
+}
+
+/**
+ * Send the real amount and the real till when something is genuinely
+ * owing. Returns false when nothing is, so the caller can fall through.
+ *
+ * Every figure comes from the order row — this never computes a total.
+ */
+async function replyWithPaymentDetails(db, contact) {
+  const { rows } = await db.query(
+    `SELECT id, status, quote_kes, tracking_code, delivery_fee_kes,
+            delivery_fee_waived, delivery_fee_paid_at, delivery_fee_in_quote
+       FROM wa_orders
+      WHERE contact_id = $1 AND status IN ('confirmed', 'quoted', 'in_kenya', 'delivery_fee_pending')
+      ORDER BY updated_at DESC`,
+    [contact.id]
+  );
+  // Several things owing at once is a conversation for a person: sending
+  // one till figure would invite paying the wrong amount.
+  const owing = rows.filter((o) =>
+    o.status === 'confirmed'
+    || o.status === 'quoted'
+    || (!o.delivery_fee_in_quote && !o.delivery_fee_waived && !o.delivery_fee_paid_at
+        && Number(o.delivery_fee_kes) > 0));
+  if (owing.length !== 1) return false;
+
+  const order = owing[0];
+  const till = mpesaTill();
+  const ref = order.tracking_code ? ` (${order.tracking_code})` : '';
+
+  // A quote they have not accepted yet. Give them the number and the
+  // till — that is what they asked for — but leave the money state alone;
+  // accepting is still their word, not our inference.
+  if (order.status === 'quoted') {
+    await sendToContact(db, contact, {
+      text:
+        `Your quote${ref} is KSh ${Number(order.quote_kes).toLocaleString('en-KE')}.\n\n`
+        + `To pay: Lipa na M-Pesa → Buy Goods${till ? ` → Till *${till}*` : ''} → `
+        + `KSh ${Number(order.quote_kes).toLocaleString('en-KE')}.\n\n`
+        + `Reply *YES* here to lock it in, or just pay and tell us — either way we'll `
+        + `confirm it and send your tracking code.`,
+    });
+    return true;
+  }
+
+  const amount = order.status === 'confirmed'
+    ? Number(order.quote_kes)
+    : Number(order.delivery_fee_kes);
+  if (!Number.isFinite(amount) || amount <= 0) return false;
+
+  // The payment row is what the operator's "Approve payment" acts on.
+  try {
+    await ensureManualPayment(db, {
+      orderId: order.id,
+      contactId: contact.id,
+      amountKes: amount,
+      phone: contact.mpesa_number || contact.phone || null,
+    });
+  } catch (e) {
+    console.warn('[waStateMachine] could not open payment row:', e?.message);
+  }
+
+  await sendToContact(db, contact, {
+    text: order.status === 'confirmed'
+      ? `Your order${ref} is KSh ${amount.toLocaleString('en-KE')}.\n\n`
+        + `To pay: Lipa na M-Pesa → Buy Goods${till ? ` → Till *${till}*` : ''} → `
+        + `KSh ${amount.toLocaleString('en-KE')}.\n\n`
+        + `Reply here once you've paid and we'll confirm it and send your tracking code.`
+      : `The last-mile delivery fee${ref} is KSh ${amount.toLocaleString('en-KE')}.\n\n`
+        + `To pay: Lipa na M-Pesa → Buy Goods${till ? ` → Till *${till}*` : ''} → `
+        + `KSh ${amount.toLocaleString('en-KE')}.\n\n`
+        + `Reply here once you've paid and we'll get it on its way.`,
+  });
+  return true;
 }
 
 /**

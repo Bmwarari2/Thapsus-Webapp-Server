@@ -20,7 +20,7 @@ vi.mock('../../utils/waSettings.js', () => ({
   })),
 }));
 
-import { handleInbound, isUnqualifiedConfirm, claimsPaid, looksLikeDestination } from '../../utils/waStateMachine.js';
+import { handleInbound, isUnqualifiedConfirm, claimsPaid, looksLikeDestination, asksHowToPay } from '../../utils/waStateMachine.js';
 import { sendToContact } from '../../utils/waSend.js';
 import { pushToStaff } from '../../routes/events.js';
 import { getWaSettings } from '../../utils/waSettings.js';
@@ -1564,5 +1564,95 @@ describe('when the assistant cannot answer safely', () => {
     expect(sendToContact).not.toHaveBeenCalled();
     expect(notifyStaff).toHaveBeenCalledWith(expect.anything(),
       expect.objectContaining({ title: expect.stringMatching(/failed to answer/i) }));
+  });
+});
+
+
+// Marion had an order confirmed at KSh 17,746 and asked four times how to
+// pay — "How do i make payment??", "Send me the till". Each time she was
+// told the details would arrive shortly. Nothing was going to send them:
+// the till goes out when the CUSTOMER accepts a quote or an operator
+// presses the button, and hers had been confirmed by an operator hours
+// earlier. Nine minutes later: "You haven't sent the details aki🤦‍♀️".
+//
+// A guardrail written to stop the assistant inventing payment
+// instructions had also stopped it giving real ones. Answering this is
+// money, so it now resolves in code, before the AI, off the order row.
+describe('asking how to pay, with money actually owing', () => {
+  it.each([
+    'How do i make payment??', 'Send me the till', 'how do I pay?',
+    'What is your till number', 'payment details please',
+    'How can I make the payment', 'where do I send the money', 'Nitalipaje?',
+  ])('recognises %j', (t) => expect(asksHowToPay(t)).toBe(true));
+
+  it.each([
+    'How long will the package take??', 'Please remind me the name of your business',
+    'Okay', 'Can I pick up today?', 'I have paid', 'How are you',
+  ])('leaves %j alone', (t) => expect(asksHowToPay(t)).toBe(false));
+
+  const CONFIRMED = {
+    id: 'o1', status: 'confirmed', quote_kes: '17746', tracking_code: null,
+    delivery_fee_kes: null, delivery_fee_waived: false, delivery_fee_paid_at: null,
+    delivery_fee_in_quote: true,
+  };
+  const ordersDb = (rows) => makeDb(async (sql) => {
+    if (sql.includes("status IN ('confirmed'")) return { rows };
+    if (sql.includes('INSERT INTO payments')) return { rows: [], rowCount: 1 };
+    return { rows: [], rowCount: 1 };
+  });
+
+  it('sends the real amount and the real till, without the AI', async () => {
+    const waAi = await import('../../utils/waAi.js');
+    waAi.chatReply.mockReset();
+    await handleInbound(ordersDb([CONFIRMED]), contact(), { id: 'm', body: 'How do i make payment??' });
+
+    const said = sendToContact.mock.calls[0][2].text;
+    expect(said).toContain('17,746');
+    expect(said).toMatch(/till/i);
+    expect(said).not.toMatch(/will (arrive|be sent)|shortly|our team will send/i);
+    expect(waAi.chatReply).not.toHaveBeenCalled();
+  });
+
+  it('opens the payment row so there is something to approve', async () => {
+    const db = ordersDb([CONFIRMED]);
+    await handleInbound(db, contact(), { id: 'm', body: 'Send me the till' });
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO payments'))).toBe(true);
+  });
+
+  // A quote they have not accepted is still their decision to make. Give
+  // them the number they asked for; do not move the money state for them.
+  it('gives the figure on an unaccepted quote but does not confirm it', async () => {
+    const db = ordersDb([{ ...CONFIRMED, status: 'quoted' }]);
+    await handleInbound(db, contact(), { id: 'm', body: 'Send me the till' });
+
+    const said = sendToContact.mock.calls[0][2].text;
+    expect(said).toContain('17,746');
+    expect(said).toMatch(/YES/);
+    expect(db.query.mock.calls.some(([sql]) => sql.includes("SET status = 'confirmed'"))).toBe(false);
+  });
+
+  // Two things owing at once would invite paying the wrong one.
+  it('hands an ambiguous case to the assistant rather than guessing', async () => {
+    const waAi = await import('../../utils/waAi.js');
+    waAi.chatReply.mockReset();
+    waAi.chatReply.mockResolvedValueOnce(says('answer'));
+    waAi.aiConfigured.mockReturnValue(true);
+    getWaSettings.mockResolvedValue({
+      markup_pct: 10, promo_active: false, promo_type: 'waive_fee', promo_message: '',
+      default_delivery_fee_kes: 300, welcome_media_urls: [], template_map: {},
+      ai_enabled: true, ai_knowledge_base: 'kb',
+    });
+    await handleInbound(ordersDb([CONFIRMED, { ...CONFIRMED, id: 'o2' }]), contact(),
+      { id: 'm', body: 'How do i make payment??' });
+    expect(waAi.chatReply).toHaveBeenCalled();
+  });
+
+  it('says nothing about a till when nothing is owing', async () => {
+    const waAi = await import('../../utils/waAi.js');
+    waAi.chatReply.mockReset();
+    waAi.chatReply.mockResolvedValueOnce(says('We take payment by M-Pesa once you have a quote.'));
+    waAi.aiConfigured.mockReturnValue(true);
+    await handleInbound(ordersDb([]), contact(), { id: 'm', body: 'how do I pay?' });
+    expect(waAi.chatReply).toHaveBeenCalled();
   });
 });
