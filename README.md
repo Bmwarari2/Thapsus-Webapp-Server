@@ -17,7 +17,7 @@ work the pipeline behind it.
 - **API:** Node **22.x**, Express **5**, ES modules, deployed to Railway.
 - **DB:** Postgres on Supabase, accessed through a raw `pg` pool. Schema is migration-driven.
 - **Messaging:** [sent.dm](https://sent.dm) v3 for WhatsApp — inbound webhook + outbound text/template.
-- **Assistant:** Claude (`claude-opus-5`), scoped to onboarding and knowledge-base answers. Opens with what we do and what we charge, then collects name and address while the customer waits on a quote. Never touches money.
+- **Assistant:** Claude (`claude-sonnet-5`), scoped to onboarding and knowledge-base answers. Opens with what we do and what we charge, then collects name and address while the customer waits on a quote. Never touches money.
 - **Payments:** M-Pesa. STK Push (Lipana) is coded but disabled — production runs manual Buy Goods till payments with admin approval.
 - **Frontend:** React **19** + Vite under `client/`, Tailwind 3, react-router 7. Served by the same Express process.
 - **Realtime:** Server-Sent Events to the operator dashboard.
@@ -83,7 +83,7 @@ sent.dm webhook registration, Gmail OAuth for operator password reset.
 | `SENTDM_WEBHOOK_SECRET` | `routes/waWebhook.js` | `whsec_…`; Svix-style HMAC verification. |
 | `SENTDM_BASE_URL` | `utils/sentdm.js` | Optional, defaults to `https://api.sent.dm`. |
 | `ANTHROPIC_API_KEY` | `utils/waAi.js` | Without it the assistant is off and messages queue in the inbox. |
-| `ANTHROPIC_MODEL` | `utils/waAi.js` | Optional pin; defaults to `claude-opus-5`. |
+| `ANTHROPIC_MODEL` | `utils/waAi.js` | Optional pin; defaults to `claude-sonnet-5`. Haiku 4.5 is not a drop-in — it rejects `output_config.effort` and has no adaptive thinking. |
 | `MPESA_PROVIDER` | payments | `manual` in production. `lipana` re-enables STK Push. |
 | `MPESA_TILL_NUMBER` | payments | Buy Goods till quoted to customers. |
 | `LIPANA_API_KEY` / `LIPANA_BASE_URL` / `LIPANA_WEBHOOK_SECRET` | `utils/lipanaClient.js` | Only needed when `MPESA_PROVIDER=lipana`. |
