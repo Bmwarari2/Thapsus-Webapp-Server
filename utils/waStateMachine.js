@@ -521,7 +521,7 @@ export async function handleInbound(db, contact, message) {
         // stray text.
         await replyOffTopic(db, contact);
       } else {
-        await handOffToHuman(db, contact, body);
+        await handOffToHuman(db, contact, body, { silenceBot: !answer.guardTripped });
       }
 
       // Refresh durable memory in the background every so often, so the
@@ -684,16 +684,32 @@ async function replyOffTopic(db, contact, followUp = '') {
  * the customer isn't left in silence, hand the thread over (the AI goes
  * quiet until it times out or an operator re-enables it), and page staff.
  */
-async function handOffToHuman(db, contact, body) {
+/**
+ * @param {object} opts
+ * @param {boolean} [opts.silenceBot=true]  set human_takeover_at, muting
+ *   the assistant on this thread until an operator has had their turn.
+ *
+ * A customer who asks for a person wants a person, and the assistant
+ * talking over them is the thing takeover exists to stop. But our own
+ * output guard tripping is not that: Marion tripped it on "Heey", was
+ * told to wait for a colleague, and then sent five more messages —
+ * including "there's a pair of boots missing" — into a thread the
+ * assistant had been muted on for two hours. Pass silenceBot: false
+ * there, so the page goes out and the next message still gets answered.
+ * The operator's own reply sets takeover anyway when they arrive.
+ */
+async function handOffToHuman(db, contact, body, { silenceBot = true } = {}) {
   await sendToContact(db, contact, {
     text: `Let me get a colleague for you — someone from our team will reply here shortly.`,
   });
-  await db.query(
-    `UPDATE wa_contacts SET human_takeover_at = NOW(), updated_at = NOW() WHERE id = $1`,
-    [contact.id]
-  );
+  if (silenceBot) {
+    await db.query(
+      `UPDATE wa_contacts SET human_takeover_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [contact.id]
+    );
+  }
   notifyStaff(db, {
-    title: 'Customer needs a human',
+    title: silenceBot ? 'Customer needs a human' : 'Assistant could not answer safely — needs a human',
     detail: `${contact.full_name || contact.phone} (${contact.customer_code || 'no code'}): "${body.slice(0, 200)}"`,
     dedupeKey: `handoff:${contact.id}:${body.slice(0, 40)}`,
   });
@@ -981,7 +997,7 @@ async function aiOnboarding(db, contact, message, body, settings) {
     // nothing back at all.)
     await replyOffTopic(db, contact, complete ? '' : `${MISSING_FIELD_PROMPT[nextState]}`);
   } else if (turn.kind === 'handoff') {
-    await handOffToHuman(db, contact, body);
+    await handOffToHuman(db, contact, body, { silenceBot: !turn.guardTripped });
     return; // a person has the thread now — don't also run the welcome media
   }
 

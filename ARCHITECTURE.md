@@ -181,7 +181,20 @@ the turn once with the problem named; a second offence degrades to
 
 `claimsQuoteInFlight()` judges **per sentence**, skipping sentences that
 ask for a link — otherwise it flags "send your cart and we'll quote you
-in KES within the hour", which is the reply the funnel depends on.
+in KES within the hour", which is the reply the funnel depends on. It
+also splits present tense from future: "your quote **is** ready" is a
+fact about a quote that exists and must go out, while "your quote **will
+be** ready" is a promise about work nobody has started. The first
+version conflated them and escalated a customer sitting on an open quote
+at KSh 17,746 who had said nothing but "Heey".
+
+When the guard trips twice the turn degrades to `HANDOFF`, but it is
+flagged `guardTripped` so the caller pages a person **without** muting
+the assistant for two hours — that mute is for a customer who asked for
+a human, not for our own output check failing. The generation timeout is
+30s, and the transcript window is 16 turns (twice the summary cadence):
+sending all 30 tripled the prompt and started aborting mid-generation,
+which cost a customer a reply entirely.
 
 `unbackedFigures()` exists because "never price a specific item" was in
 the prompt three times and in code zero times, while the assistant had

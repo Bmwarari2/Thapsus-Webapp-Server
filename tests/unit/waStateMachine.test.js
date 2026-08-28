@@ -1503,3 +1503,66 @@ describe('what counts as somewhere to send a parcel', () => {
   it.each(['', 'Hi', 'ok', 'yes'])(
     'refuses %j', (t) => expect(looksLikeDestination(t)).toBe(false));
 });
+
+
+// Two live failures on the first two AI turns after the guard shipped.
+describe('when the assistant cannot answer safely', () => {
+  const aiSettings = {
+    markup_pct: 10, promo_active: false, promo_type: 'waive_fee',
+    promo_message: '', default_delivery_fee_kes: 300,
+    welcome_media_urls: [], template_map: {},
+    ai_enabled: true, ai_knowledge_base: 'Delivery takes 2 to 3 weeks.',
+  };
+  async function ai() {
+    const waAi = await import('../../utils/waAi.js');
+    // A queued `…Once` from an earlier suite that its branch never
+    // consumed would be handed to us instead of our own stub.
+    waAi.chatReply.mockReset();
+    waAi.onboardingTurn.mockReset();
+    waAi.aiConfigured.mockReturnValue(true);
+    getWaSettings.mockResolvedValue(aiSettings);
+    return waAi;
+  }
+
+  // Marion tripped the guard on "Heey", was told to wait for a
+  // colleague, and then sent five more messages — including "there's a
+  // pair of boots missing" — into a thread the assistant had been muted
+  // on for two hours. A guard trip is our problem, not a request for a
+  // person: page someone and stay available.
+  it('pages a person but stays live when our own guard rejected the reply', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce({ kind: 'handoff', text: null, guardTripped: true });
+    const db = makeDb();
+    await handleInbound(db, contact(), { id: 'm1', body: 'Heey' });
+
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/colleague/i);
+    expect(notifyStaff).toHaveBeenCalledWith(expect.anything(),
+      expect.objectContaining({ title: expect.stringMatching(/could not answer safely/i) }));
+    // the assistant is NOT muted
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('human_takeover_at = NOW()'))).toBe(false);
+  });
+
+  it('still mutes itself when the customer actually asked for a person', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce({ kind: 'handoff', text: null });
+    const db = makeDb();
+    await handleInbound(db, contact(), { id: 'm1', body: 'I want to speak to someone' });
+
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('human_takeover_at = NOW()'))).toBe(true);
+    expect(notifyStaff).toHaveBeenCalledWith(expect.anything(),
+      expect.objectContaining({ title: 'Customer needs a human' }));
+  });
+
+  // Diane asked where to dispatch her parcel, the Gemini call aborted at
+  // 15s, the exception was swallowed and she got nothing for seven hours.
+  it('pages a person when the model call fails outright', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockRejectedValueOnce(new Error('The operation was aborted due to timeout'));
+    await handleInbound(makeDb(), contact(),
+      { id: 'm1', body: 'Can it be dispatched to this address: Safari Park View estate, house 47' });
+
+    expect(sendToContact).not.toHaveBeenCalled();
+    expect(notifyStaff).toHaveBeenCalledWith(expect.anything(),
+      expect.objectContaining({ title: expect.stringMatching(/failed to answer/i) }));
+  });
+});

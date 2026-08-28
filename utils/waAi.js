@@ -32,17 +32,23 @@
 // live in wa_settings so operators control them from /ops/settings.
 
 const BASE = 'https://generativelanguage.googleapis.com/v1beta';
-const TIMEOUT_MS = 15_000;
+// 15s was not enough once the prompt grew: Diane's 36-message thread
+// aborted mid-generation and she got no reply at all, on a question
+// about where to dispatch her parcel. handleInbound runs AFTER the
+// webhook ACK (routes/waWebhook.js), so nothing upstream is waiting on
+// this — a slow answer costs nothing, a missing one costs a customer.
+const TIMEOUT_MS = 30_000;
 const MODEL_CACHE_MS = 6 * 60 * 60 * 1000; // re-discover a few times a day
 
-// Turns of verbatim transcript sent to the model. The caller fetches
-// waStateMachine's HISTORY_WINDOW rows and this used to throw two thirds
-// of them away at slice(-10) — about five exchanges — while the durable
-// summary that was meant to cover everything older is only rebuilt every
-// few messages. Between the two sat a hole that the longest real
-// conversations (42 and 43 inbound messages) lived in. The rows are
-// already fetched and paid for; send them.
-const HISTORY_TURNS = 30;
+// Turns of verbatim transcript sent to the model. This used to be
+// slice(-10) of a 30-row fetch, throwing two thirds of it away while the
+// durable note that was meant to cover the rest lagged behind — a real
+// hole in the middle of a long conversation.
+//
+// Sending all 30 was an overcorrection: it tripled the prompt and the
+// generation started timing out. Sixteen is twice SUMMARY_EVERY_MESSAGES,
+// so the note is never more than one window behind, which was the point.
+const HISTORY_TURNS = 16;
 
 // Sentinels the model returns instead of prose. They mean different
 // things and must not be conflated: HANDOFF is "a person is needed
@@ -105,8 +111,17 @@ const TEAM = "(team|we|i|us|our (team|side)|tuko|tunaa?)";
 const IN_FLIGHT = [
   // "your quote is being worked out / prepared / put together"
   new RegExp(`\\b${QUOTE_NOUN}\\b[^.!?]{0,40}\\bis\\b[^.!?]{0,20}\\bbeing\\b`, 'i'),
-  // "your quote is on the way / is coming / will come through shortly"
-  new RegExp(`\\b${QUOTE_NOUN}\\b[^.!?]{0,40}\\b(is|will be|'ll be|is being)\\b[^.!?]{0,25}\\b(on (its|the) way|coming|ready|through|sent|with you)\\b`, 'i'),
+  // "your quote is on the way / is coming"
+  //
+  // Present tense and future tense are split deliberately. "Your quote
+  // IS ready" is a true statement about a quote that already exists, and
+  // it is exactly what you say to a customer sitting on one — Marion
+  // said "Heey" holding an open quote at KSh 17,746, the assistant
+  // answered that it was ready, this rule matched `ready`, the retry
+  // matched too, and she was told to wait for a colleague. The customers
+  // closest to paying were the ones it escalated.
+  new RegExp(`\\b${QUOTE_NOUN}\\b[^.!?]{0,40}\\bis\\b[^.!?]{0,25}\\b(on (its|the) way|coming)\\b`, 'i'),
+  new RegExp(`\\b${QUOTE_NOUN}\\b[^.!?]{0,40}\\b(will be|'ll be|shall be)\\b[^.!?]{0,25}\\b(ready|sent|through|with you|coming|on (its|the) way)\\b`, 'i'),
   new RegExp(`\\b${QUOTE_NOUN}\\b[^.!?]{0,40}\\bwill\\b[^.!?]{0,25}\\b(come|arrive|follow|reach you|be sent)\\b`, 'i'),
   // "the team is working on / pricing / preparing your order"
   new RegExp(`\\b${TEAM}\\b[^.!?]{0,20}\\b(are|is|'re|'m|am)\\b[^.!?]{0,20}\\b(working (it|on)|looking at|pricing|preparing|putting together|calculating|sorting)\\b`, 'i'),
@@ -117,7 +132,9 @@ const IN_FLIGHT = [
   // "the team will revert with the price", "we will come back with the
   // KES figure", "give us a few minutes and we will send the amount".
   new RegExp(`\\b(will|'ll|shall|tuta\\w*)\\b[^.!?]{0,30}\\b(send|share|revert|come back|get back|give you|forward|tumia)\\b[^.!?]{0,40}\\b${QUOTE_NOUN}\\b`, 'i'),
-  new RegExp(`\\b${QUOTE_NOUN}\\b[^.!?]{0,30}\\b(shortly|soon|hivi punde|in a (few|moment)|within the hour)\\b`, 'i'),
+  // "…your total shortly" — but not "your quote is ready, reply YES",
+  // which carries no promise of future work at all.
+  new RegExp(`\\b${QUOTE_NOUN}\\b(?![^.!?]{0,30}\\bis (ready|available|waiting)\\b)[^.!?]{0,30}\\b(shortly|soon|hivi punde|in a (few|moment)|within the hour)\\b`, 'i'),
   // "your cart is with the pricing team"
   /\b(cart|link|order|items?)\b[^.!?]{0,25}\b(is|are)\b[^.!?]{0,15}\bwith\b[^.!?]{0,20}\b(team|pricing|us)\b/i,
   /\b(shared|sent|passed|given)\b[^.!?]{0,25}\b(cart|link|order|items?)\b[^.!?]{0,25}\b(with|to)\b[^.!?]{0,15}\bteam\b/i,
@@ -455,8 +472,12 @@ export async function chatReply({ knowledgeBase, history, message, orderContext,
   if (bad) {
     text = await regenerateWithoutFalseClaim({ system, contents, reply: text, problem: bad });
     // Still saying something we cannot stand behind. A person answering
-    // beats a promise or a price nobody can honour.
-    if (falseClaimIn(text, facts, backing)) return { kind: 'handoff', text: null };
+    // beats a promise or a price nobody can honour — but this is our
+    // guard tripping, not the customer asking for help, so it is flagged
+    // as such: the caller pages a human without muting the assistant for
+    // the next two hours. Marion sent five more messages after one of
+    // these, including a real problem with her order, and heard nothing.
+    if (falseClaimIn(text, facts, backing)) return { kind: 'handoff', text: null, guardTripped: true };
   }
   return classifyReply(text);
 }
@@ -632,6 +653,7 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
     if (falseClaimIn(str(parsed?.reply, 1200), facts, backing)) {
       return {
         kind: 'handoff',
+        guardTripped: true,
         reply: null,
         falseClaim,
         full_name: str(parsed?.full_name, 120),

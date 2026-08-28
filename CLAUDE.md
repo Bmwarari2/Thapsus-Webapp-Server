@@ -78,6 +78,12 @@ context cannot account for. "Never price a specific item" was in the
 prompt three times and in code zero times, and the assistant sent a real
 customer a payment instruction with an amount and the till number.
 
+**A guard that fires wrongly is worse than no guard.** `claimsQuoteInFlight()`
+once matched "your quote is ready" — a true statement about a quote that
+already exists — and escalated the customers closest to paying. Separate
+what is happening now from what is promised later, and test both
+directions: the must-catch list and the must-not-catch list.
+
 **Free text beats templates inside the 24-hour window, and only inside
 it.** WhatsApp refuses free text outside the window, so every logical
 message key must map to an approved template — a test enforces that every
