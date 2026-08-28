@@ -492,10 +492,27 @@ best-effort and never blocks or fails a mutation.
 
 ## 11. Background jobs and reminders
 
-Three timers start in `server.js` and stop on SIGTERM/SIGINT: daily FX
+Three timers start in `server.js` and stop on SIGTERM/SIGINT: the FX
 refresh (`utils/fxRefresh.js`), daily log retention
 (`utils/logRetention.js`), and the WhatsApp sweeper
 (`utils/waSweeper.js`, every `WA_SWEEP_INTERVAL_MINUTES`, default 5).
+
+**A recurring job must not measure elapsed process time.** The FX
+refresh was a 60-second warm-up plus a 24-hour `setInterval`, and the
+interval never once fired in production: Railway replaces the container
+on every deploy, which through August happened every few hours, so the
+timer was reset long before it came due. Every refresh the service had
+ever done was the boot-time one — fine while deploys were constant, and
+about to become a silent staleness bug the moment they stopped, which is
+exactly when nobody is looking.
+
+It now ticks every `FX_CHECK_INTERVAL_MINUTES` (default 30) and asks the
+database how old the newest rate it owns is, refreshing only past
+`FX_STALE_AFTER_HOURS` (default 12). Restart-proof in both directions: a
+container that dies hourly is covered, and one that stays up for a week
+is too. `rateAgeMs()` scopes the question to the four pairs this job
+writes — `AED_KES` is a pre-rebuild leftover nothing reads, and
+age-checking it would make the table look permanently stale.
 
 The sweeper is the safety net for everything that fires once and can be
 missed. Each tick it: retries failed free-text sends once inside the

@@ -90,6 +90,12 @@ message key must map to an approved template — a test enforces that every
 slot is mapped. Getting this backwards silently stripped the till number
 out of payment prompts.
 
+**A recurring job asks the database, not the clock.** The FX refresh ran
+on a 24-hour `setInterval` that never fired once — every deploy replaces
+the container and resets the timer. It now ticks every 30 minutes and
+refreshes only when the stored rates are actually stale. Any timer longer
+than the gap between deploys is a timer that does not exist.
+
 **Staff reminders fire once per condition, with a mute.** Repeating
 alerts got ignored, which is worse than none. Claim before you page.
 
