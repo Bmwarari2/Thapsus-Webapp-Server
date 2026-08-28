@@ -35,12 +35,17 @@
 //
 // What the swap was written to believe — that every prompt is unchanged
 // byte for byte, so the provider is the only variable — was the thing
-// that hurt. The prompts did carry over; the REQUEST did not. max_tokens
-// bought output on Gemini and buys thinking plus output here, and the
-// number came across untouched, so the assistant answered nothing at all
-// for a day while the scripted questionnaire talked to customers in its
-// place. When the provider changes, read the request parameter by
-// parameter and ask what each one now means.
+// that hurt. The prompts did carry over; the REQUEST did not, and every
+// part of it that Gemini had accepted was assumed to travel. The
+// onboarding schema was rejected outright with a 400, so onboarding
+// answered nobody for a day while the scripted questionnaire talked to
+// customers in its place, and it took reading the deploy logs to find
+// out, because 626 green tests all stub the transport.
+//
+// When the provider changes, read the request parameter by parameter and
+// ask what each one now means — and get one real call through before
+// calling it done. A stub proves the shape you meant to send; only the
+// API says whether it accepts it.
 
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -52,16 +57,14 @@ const MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-5';
 // as well as the words the customer reads, and 1024 was the Gemini
 // number, where it bought output only.
 //
-// It survived the provider swap unchanged and took the assistant down
-// with it: low-effort reasoning over a 4KB system prompt spends the whole
-// budget before writing a character, so the response comes back with a
-// thinking block, no text, and stop_reason max_tokens. generate() throws,
-// every caller degrades to the scripted questionnaire. The chat that
-// surfaced it (28 August, 16:17–16:19) asked "Is there an offer?", then
-// said "I haven't sent a link", and was told twice, word for word, that a
-// quote nobody was preparing was on its way. Sized for reasoning plus a
-// short reply; tokens not generated are not billed, so the headroom is
-// free.
+// Headroom, not a diagnosis. Nothing in production was ever traced to
+// this ceiling — the outage that prompted the change was the onboarding
+// schema being rejected with a 400 (see the schema in onboardingTurn),
+// which happens before a token is generated. But 1024 leaves a
+// thinking-enabled turn no room to be wrong in, and a truncated reply
+// shows up as the same "no text" as everything else. Sized for reasoning
+// plus a short reply; tokens not generated are not billed, so the
+// headroom is free.
 const MAX_TOKENS = 4096;
 
 // Short conversational turns do not repay deep thinking, and latency is
@@ -238,6 +241,50 @@ function toMessages(turns) {
   return messages;
 }
 
+/**
+ * The JSON Schema subset structured outputs actually accepts, checked
+ * before we spend a round trip finding out.
+ *
+ * The onboarding schema shipped with `type: ['string','null']` carrying
+ * an `enum`, which the API rejects outright. Every onboarding turn was a
+ * 400 before a token was generated, from the Claude swap until it was
+ * read out of the production logs — and no test caught it, because every
+ * test stubs the transport and a stub validates nothing. This is the
+ * check that stub cannot do: it runs against the schema itself, so a
+ * unit test and the running service enforce the same rule.
+ *
+ * Only the constraints that have bitten or that the docs state plainly.
+ * It is not a JSON Schema implementation and should not grow into one.
+ *
+ * @returns {string[]} problems, empty when the schema is acceptable
+ */
+export function unsupportedSchemaBits(node, path = 'schema') {
+  if (!node || typeof node !== 'object') return [];
+  const bad = [];
+  // The one that cost us: an enum beside a union type. Fine apart, 400
+  // together, and the message names the enum rather than the union.
+  if (node.enum && Array.isArray(node.type)) {
+    bad.push(`${path}: enum cannot sit beside a union type (${JSON.stringify(node.type)}) `
+      + '— spell it anyOf: [{type, enum}, {type: "null"}]');
+  }
+  // Documented as unsupported, and silently dropped by some SDKs rather
+  // than reported, which is worse than a 400.
+  for (const key of ['minimum', 'maximum', 'multipleOf', 'minLength', 'maxLength', 'minItems', 'maxItems']) {
+    if (key in node) bad.push(`${path}.${key}: numeric and string constraints are not supported`);
+  }
+  if (node.type === 'object' && node.additionalProperties !== false) {
+    bad.push(`${path}: objects must set additionalProperties: false`);
+  }
+  for (const [key, child] of Object.entries(node.properties || {})) {
+    bad.push(...unsupportedSchemaBits(child, `${path}.${key}`));
+  }
+  for (const [i, child] of (node.anyOf || node.allOf || []).entries()) {
+    bad.push(...unsupportedSchemaBits(child, `${path}[${i}]`));
+  }
+  if (node.items) bad.push(...unsupportedSchemaBits(node.items, `${path}.items`));
+  return bad;
+}
+
 async function generate(params) {
   return (await generateWithUsage(params)).text;
 }
@@ -245,6 +292,10 @@ async function generate(params) {
 /** As generate(), plus what the turn spent — see aiSelfTest. */
 async function generateWithUsage({ system, messages, schema = null }) {
   if (!messages.length) throw new Error('nothing to send — no usable messages');
+  // Cheaper than the round trip, and it names the field rather than
+  // leaving a 400 to be read out of the deploy logs.
+  const schemaProblems = schema ? unsupportedSchemaBits(schema) : [];
+  if (schemaProblems.length) throw new Error(`output schema is invalid — ${schemaProblems.join('; ')}`);
 
   const response = await client.messages.create({
     model: MODEL,
@@ -688,13 +739,27 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
   // standard spelling is a union with null. Every key is required and
   // additionalProperties is off so the shape is guaranteed, and the
   // caller still treats each field as untrusted.
+  //
+  // delivery_preference is spelled with anyOf, not `type: ['string',
+  // 'null']` alongside an enum. Structured outputs rejected that pairing
+  // outright — "Enum value 'delivery' does not match declared type
+  // '['string', 'null']'" — a 400 before a token was generated, on every
+  // onboarding turn from the Claude swap until this was found. Nothing
+  // caught it because every test stubs the transport, so the schema was
+  // never once validated by the thing that validates schemas. A union
+  // type on its own is fine; a union type carrying an enum is not.
   const schema = {
     type: 'object',
     properties: {
       reply: { type: 'string' },
       full_name: { type: ['string', 'null'] },
       delivery_address: { type: ['string', 'null'] },
-      delivery_preference: { type: ['string', 'null'], enum: ['delivery', 'collection', null] },
+      delivery_preference: {
+        anyOf: [
+          { type: 'string', enum: ['delivery', 'collection'] },
+          { type: 'null' },
+        ],
+      },
     },
     required: ['reply', 'full_name', 'delivery_address', 'delivery_preference'],
     additionalProperties: false,

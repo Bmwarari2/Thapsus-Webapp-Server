@@ -99,12 +99,11 @@ describe('the request chatReply builds', () => {
     await chatReply({ knowledgeBase: KB, history: HISTORY, message: 'hi', orderContext: ORDERS, facts: await facts() });
     expect(sent[0].model).toBe('claude-opus-5');
     expect(sent[0].output_config.effort).toBe('low');
-    // The ceiling covers thinking as well as the reply. It was still the
-    // Gemini number (1024, output only) after the provider swap, so
-    // low-effort reasoning over a 4KB system prompt spent the lot before
-    // writing a word and every turn fell through to the scripted
-    // questionnaire. A reply is capped at 1200 characters downstream, so
-    // anything at this ceiling is thinking, and headroom is not billed.
+    // The ceiling covers thinking as well as the reply, where the Gemini
+    // number it inherited (1024) bought output only. No production
+    // failure was ever traced to it — the outage was the schema below —
+    // but a reply is capped at 1200 characters downstream, so anything at
+    // this ceiling is thinking, and headroom is not billed.
     expect(sent[0].max_tokens).toBeGreaterThanOrEqual(4096);
     // Thinking is asked for rather than inherited: it is on by default on
     // claude-opus-5 and off by default on claude-opus-4-8, and MODEL is
@@ -165,6 +164,76 @@ describe('the request onboardingTurn builds', () => {
     // nullable: true was a Gemini extension; the standard spelling is a union
     expect(format.schema.properties.full_name.type).toEqual(['string', 'null']);
     expect(format.schema.additionalProperties).toBe(false);
+  });
+
+  // The schema this test used to pin was the one the API rejected. It
+  // asserted the shape we happened to send rather than the shape
+  // structured outputs accepts, so it passed for as long as the feature
+  // was broken — a stub transport validates nothing, which is exactly
+  // the gap unsupportedSchemaBits() exists to close.
+  it('sends a schema structured outputs will actually accept', async () => {
+    const { onboardingTurn, unsupportedSchemaBits } = await import('../../utils/waAi.js');
+    await onboardingTurn({
+      knowledgeBase: KB, history: HISTORY, message: 'Hi', facts: await facts(),
+      profile: { full_name: null, delivery_address: null }, orderContext: '(none on file)',
+    });
+    expect(unsupportedSchemaBits(sent[0].output_config.format.schema)).toEqual([]);
+  });
+
+  // "Enum value 'delivery' does not match declared type '['string',
+  // 'null']'" — a 400 on every onboarding turn from the Claude swap
+  // until it was read out of the deploy logs.
+  it('spells the optional enum as anyOf, not a union type carrying an enum', async () => {
+    const { onboardingTurn } = await import('../../utils/waAi.js');
+    await onboardingTurn({
+      knowledgeBase: KB, history: HISTORY, message: 'Hi', facts: await facts(),
+      profile: { full_name: null, delivery_address: null }, orderContext: '(none on file)',
+    });
+    const pref = sent[0].output_config.format.schema.properties.delivery_preference;
+    expect(pref.enum).toBeUndefined();
+    expect(pref.anyOf).toEqual([
+      { type: 'string', enum: ['delivery', 'collection'] },
+      { type: 'null' },
+    ]);
+  });
+});
+
+describe('the schema check that the stub transport cannot do', () => {
+  it('catches the exact construct the API rejected', async () => {
+    const { unsupportedSchemaBits } = await import('../../utils/waAi.js');
+    const problems = unsupportedSchemaBits({
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        delivery_preference: { type: ['string', 'null'], enum: ['delivery', 'collection', null] },
+      },
+    });
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toMatch(/delivery_preference.*enum cannot sit beside a union type/);
+  });
+
+  it('passes a schema that only uses the supported subset', async () => {
+    const { unsupportedSchemaBits } = await import('../../utils/waAi.js');
+    expect(unsupportedSchemaBits({
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        reply: { type: 'string' },
+        full_name: { type: ['string', 'null'] },
+        pref: { anyOf: [{ type: 'string', enum: ['a', 'b'] }, { type: 'null' }] },
+      },
+    })).toEqual([]);
+  });
+
+  it('does not let a bad schema reach the API at all', async () => {
+    const { onboardingTurn } = await import('../../utils/waAi.js');
+    // Sanity: a turn with a valid schema still goes out, so the guard is
+    // not simply refusing everything.
+    await onboardingTurn({
+      knowledgeBase: KB, history: HISTORY, message: 'Hi', facts: await facts(),
+      profile: { full_name: null, delivery_address: null }, orderContext: '(none on file)',
+    });
+    expect(sent).toHaveLength(1);
   });
 });
 

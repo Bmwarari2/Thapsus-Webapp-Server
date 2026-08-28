@@ -268,16 +268,30 @@ reply is one to three sentences; deep thinking buys nothing here and
 latency is what the customer feels — Diane asked where to send her
 parcel, the call ran past the abort, and she got nothing at all.
 
-The ceiling covers **thinking as well as the reply**, which is the one
-number the provider swap got wrong. 1024 came across from Gemini, where
-it bought output only; here low-effort reasoning over a 4KB system prompt
-spends the lot before writing a character, so the response arrives with a
-thinking block, no text and `stop_reason: max_tokens`. Every turn threw,
-every turn degraded to the scripted questionnaire, and the assistant was
-effectively off for a day while looking configured. Thinking is asked for
-explicitly rather than inherited for the same reason: it is on by default
-on `claude-opus-5` and off by default on `claude-opus-4-8`, and the model
-is an environment variable.
+The ceiling covers **thinking as well as the reply**, where the 1024 it
+inherited from Gemini bought output only. No production failure was
+traced to it — that was the schema, below — but a thinking-enabled turn
+needs room to be wrong in. Thinking is asked for explicitly rather than
+inherited for the same class of reason: it is on by default on
+`claude-opus-5` and off by default on `claude-opus-4-8`, and the model is
+an environment variable.
+
+**What the swap actually broke was the output schema.** `onboardingTurn`
+constrains its reply with `output_config.format`, and spelled the
+optional `delivery_preference` as `type: ['string','null']` with an
+`enum` beside it. Structured outputs rejects that pairing with a 400 —
+*"Enum value 'delivery' does not match declared type '['string',
+'null']'"* — before a token is generated, so **every onboarding turn
+failed from the swap until it was read out of the deploy logs**, and
+customers got the scripted questionnaire. The supported spelling is
+`anyOf: [{type: 'string', enum: [...]}, {type: 'null'}]`.
+
+No test caught it and none could have: every AI test answers the HTTP
+call with a stub, and a stub validates nothing. `unsupportedSchemaBits()`
+closes the specific gap — it checks the schema against the documented
+subset in code, before the request goes out — but the general lesson is
+in CLAUDE.md: a provider change is not finished until one real call has
+been made against the real API.
 
 Until 28 August this ran on Gemini, where the model name had to be
 discovered from ListModels at runtime and re-resolved on a 404 because

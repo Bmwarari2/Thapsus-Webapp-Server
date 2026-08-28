@@ -398,20 +398,42 @@ production (`gemini-2.5-flash`). Anthropic model IDs are stable, so that
 machinery went with the switch.
 
 Every prompt crossed over byte for byte — which is what made the switch
-look like a one-variable change, and is why the one variable that did
-change went unnoticed. `max_tokens` bought output on Gemini and buys
-thinking *plus* output here, and 1024 came across untouched: low-effort
-reasoning over a 4KB system prompt spent the whole ceiling before writing
-a character, so every turn came back with a thinking block, no text and
-`stop_reason: max_tokens`, threw, and fell through to the scripted
-questionnaire. The assistant was off for a day while reporting healthy,
-because the `/ops/settings` self-test asks for the single word "OK" and
-that is short enough to fit. The ceiling is now 4096, the self-test
-reports what the turn actually spent, and `thinking` is stated in the
-request rather than inherited from a default that differs per model.
+look like a one-variable change, and is why the part that did not travel
+went unnoticed. The prompts were never the risk; the **request** was.
+
+`onboardingTurn` constrains its reply with a JSON Schema, and spelled the
+optional `delivery_preference` as `type: ['string','null']` with an
+`enum` beside it — legal JSON Schema, and what Gemini's `responseSchema`
+had taken. Structured outputs rejects it with a 400 before a token is
+generated:
+
+```
+output_config.format.schema: Invalid schema:
+Enum value 'delivery' does not match declared type '['string', 'null']'
+```
+
+So **every onboarding turn failed from the swap until it was read out of
+the Railway deploy logs**, and every new customer got the scripted
+questionnaire instead. The supported spelling is `anyOf: [{type:
+'string', enum: [...]}, {type: 'null'}]`.
+
+626 tests were green throughout, and none of them could have caught it:
+every AI test answers the HTTP call with a stub, so the schema was never
+seen by the thing whose job is to reject schemas. `unsupportedSchemaBits()`
+now checks it in code on the way out. The `/ops/settings` self-test also
+reported healthy the whole time — it asks for the single word "OK" and
+sends no schema at all.
+
+Fixed alongside, as headroom rather than diagnosis: `max_tokens` bought
+output on Gemini and buys thinking *plus* output here, and 1024 came
+across untouched, which leaves a thinking-enabled turn no room to be
+wrong in. It is now 4096, the self-test reports what the turn spent, and
+`thinking` is stated in the request rather than inherited from a default
+that differs per model.
+
 **When the provider changes, re-read the request parameter by parameter
-and ask what each one now means** — the prompts are the part that
-travels.
+and ask what each one now means — then get one real call through before
+calling it done.**
 
 The assistant declines in two distinct ways, which matters more than it
 sounds:
