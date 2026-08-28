@@ -391,24 +391,57 @@ describe('what counts as a name', () => {
   });
 });
 
-describe('a customer who asks to see the price first', () => {
-  it('is told the quote is coming, not asked again', async () => {
-    const db = makeDb();
+// The scripted flow runs whenever the AI is off, unconfigured, or
+// throwing — and when the Claude swap left it throwing on every turn,
+// this is what customers actually got. 254…19 sent "Hi", asked "Is there
+// an offer?", was told "your quote is being worked out now and will come
+// through here shortly", replied "I haven't sent a link", and was told
+// the same thing again word for word. The script was hard-coding the
+// exact sentence claimsQuoteInFlight() exists to stop the model sending.
+//
+// Both directions matter here: don't re-ask a customer who is still
+// deciding whether to buy, and don't tell them work is underway that
+// isn't. A link on file is what separates the two.
+describe('a customer who asks a question during signup', () => {
+  // The customer's own messages, newest first, as the lookup returns them.
+  const AGO = (mins) => new Date(Date.now() - mins * 60_000).toISOString();
+  const withInbound = (inbound) => makeDb(async (sql) =>
+    (sql.includes("direction = 'in'") ? { rows: inbound } : { rows: [] }));
+
+  it('does not promise a quote to somebody who has sent no link', async () => {
+    const db = withInbound([{ body: 'Is there an offer?', created_at: AGO(0) }]);
     await handleInbound(db, contact({ state: 'awaiting_name', full_name: null, customer_code: null }),
-      { id: 'm', body: 'Can I first get the pricing and quotation ndio tujue details' });
+      { id: 'm', body: 'Is there an offer?' });
     const said = sendToContact.mock.calls[0][2].text;
-    expect(said).toMatch(/quote/i);
+    expect(said).not.toMatch(/being worked out|on its way|will come through/i);
+    // It asks for the one thing that actually starts a quote.
+    expect(said).toMatch(/send the link/i);
+    // 254794282582 pushed back with "Can I first get the pricing and
+    // quotation ndio tujue details" and was answered "Thanks Can!". The
+    // name can wait until they have accepted; asking again cannot help.
     expect(said).not.toMatch(/reply with your full name/i);
-    // and nothing was stored from it
     expect(db.query.mock.calls.some(([sql]) => sql.includes('full_name'))).toBe(false);
   });
 
-  it('does the same when we are waiting on the address', async () => {
-    const db = makeDb();
+  // Saying it fetches a person, which is the only reason it may be said.
+  it('puts the question in front of a person, once', async () => {
+    await handleInbound(withInbound([]), contact({ state: 'awaiting_name', full_name: null, customer_code: null }),
+      { id: 'm', body: 'Is there an offer?' });
+    expect(notifyStaff).toHaveBeenCalledWith(expect.anything(),
+      expect.objectContaining({ dedupeKey: 'scriptedquestion:c1' }));
+  });
+
+  // The claim is true here, so it is still made: TRK-8834 sent a cart
+  // link at 19:38 and the operator opened the order at 19:43.
+  it('still says the quote is coming when a link really did arrive', async () => {
+    const db = withInbound([
+      { body: 'How much is delivery?', created_at: AGO(1) },
+      { body: 'https://onelink.shein.com/49/5zw?shc=2_Rw', created_at: AGO(4) },
+    ]);
     await handleInbound(db, contact({ state: 'awaiting_address', full_name: 'Brian Mwarari', customer_code: null }),
       { id: 'm', body: 'How much is delivery?' });
     const said = sendToContact.mock.calls[0][2].text;
-    expect(said).toMatch(/quote/i);
+    expect(said).toMatch(/being worked out/i);
     expect(db.query.mock.calls.some(([sql]) => sql.includes('delivery_address'))).toBe(false);
   });
 

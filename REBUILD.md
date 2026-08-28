@@ -395,8 +395,23 @@ It ran on Gemini until 28 August, where the model name had to be
 hours and re-resolved on a 404, because Google retires names on a rolling
 basis and a stale default had already taken the assistant down in
 production (`gemini-2.5-flash`). Anthropic model IDs are stable, so that
-machinery went with the switch. Every prompt crossed over byte for byte,
-so the provider was the only variable.
+machinery went with the switch.
+
+Every prompt crossed over byte for byte — which is what made the switch
+look like a one-variable change, and is why the one variable that did
+change went unnoticed. `max_tokens` bought output on Gemini and buys
+thinking *plus* output here, and 1024 came across untouched: low-effort
+reasoning over a 4KB system prompt spent the whole ceiling before writing
+a character, so every turn came back with a thinking block, no text and
+`stop_reason: max_tokens`, threw, and fell through to the scripted
+questionnaire. The assistant was off for a day while reporting healthy,
+because the `/ops/settings` self-test asks for the single word "OK" and
+that is short enough to fit. The ceiling is now 4096, the self-test
+reports what the turn actually spent, and `thinking` is stated in the
+request rather than inherited from a default that differs per model.
+**When the provider changes, re-read the request parameter by parameter
+and ask what each one now means** — the prompts are the part that
+travels.
 
 The assistant declines in two distinct ways, which matters more than it
 sounds:

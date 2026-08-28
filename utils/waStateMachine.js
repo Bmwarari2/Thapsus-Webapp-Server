@@ -797,6 +797,30 @@ async function loadOrderContext(db, contactId) {
 }
 
 /**
+ * The most recent product link this contact sent us, and how many
+ * messages they have sent at all.
+ *
+ * Shared by conversationFacts and the scripted onboarding flow, because
+ * both have to answer the same question — is anything actually being
+ * priced for this person — and only one of them was asking it.
+ */
+async function inboundLinkHistory(db, contactId) {
+  const { rows } = await db.query(
+    `SELECT body, created_at FROM wa_messages
+      WHERE contact_id = $1 AND direction = 'in' AND body IS NOT NULL
+        AND created_at > NOW() - ($2 || ' days')::interval
+      ORDER BY created_at DESC LIMIT 60`,
+    [contactId, String(LINK_MEMORY_DAYS)]
+  );
+  // The most recent link they sent, not merely whether they ever sent one.
+  const lastLink = rows.find((m) => PRODUCT_LINK.test(m.body || ''));
+  return {
+    lastLinkAt: lastLink ? new Date(lastLink.created_at).getTime() : null,
+    inboundCount: rows.length,
+  };
+}
+
+/**
  * What is actually true of this conversation, for the AI prompt.
  *
  * +447428777090 asked "How do I pay?" three messages into a chat with no
@@ -812,28 +836,19 @@ async function loadOrderContext(db, contactId) {
  * indexed, and it runs once per AI turn.
  */
 async function conversationFacts(db, contact) {
-  const [orders, inbound] = await Promise.all([
+  const [orders, { lastLinkAt, inboundCount }] = await Promise.all([
     db.query(
       `SELECT status, quoted_at FROM wa_orders
         WHERE contact_id = $1 AND status <> 'cancelled'`,
       [contact.id]
     ),
-    db.query(
-      `SELECT body, created_at FROM wa_messages
-        WHERE contact_id = $1 AND direction = 'in' AND body IS NOT NULL
-          AND created_at > NOW() - ($2 || ' days')::interval
-        ORDER BY created_at DESC LIMIT 60`,
-      [contact.id, String(LINK_MEMORY_DAYS)]
-    ),
+    inboundLinkHistory(db, contact.id),
   ]);
 
   const missing = [];
   if (!contact.full_name) missing.push('full name');
   if (!contact.delivery_address) missing.push('delivery address or pickup point');
 
-  // The most recent link they sent, not merely whether they ever sent one.
-  const lastLink = inbound.rows.find((m) => PRODUCT_LINK.test(m.body || ''));
-  const lastLinkAt = lastLink ? new Date(lastLink.created_at).getTime() : null;
   // The most recent quote we sent them.
   const lastQuotedAt = orders.rows
     .map((o) => (o.quoted_at ? new Date(o.quoted_at).getTime() : 0))
@@ -855,7 +870,7 @@ async function conversationFacts(db, contact) {
     // stall.
     quoteInFlight: Boolean(lastLinkAt) && lastLinkAt > lastQuotedAt,
     missing,
-    inboundCount: inbound.rows.length,
+    inboundCount,
   });
 }
 
@@ -1164,6 +1179,51 @@ async function aiOnboarding(db, contact, message, body, settings) {
   }
 }
 
+/**
+ * A question the scripted flow has no knowledge base to answer.
+ *
+ * Both onboarding states used to reply "your quote is being worked out
+ * now and will come through here shortly" to any question at all — the
+ * exact sentence claimsQuoteInFlight() exists to stop the model sending,
+ * hard-coded, and said with no link, no order and nothing behind it. When
+ * the Claude swap left the assistant throwing on every turn this script
+ * was what customers actually got: 254…19 sent "Hi", asked "Is there an
+ * offer?", was told the quote was coming, wrote back "I haven't sent a
+ * link", and was told the same thing again word for word.
+ *
+ * So the claim is made only when a link really did arrive — the same
+ * lookup conversationFacts hands the model, because the script has no
+ * more right to guess than the model does. Otherwise it asks for the
+ * link, which is the only thing that starts a quote.
+ *
+ * Either way a person gets the question, because this path only runs when
+ * the assistant is off or broken and nobody else is going to answer it.
+ * Once per customer: a repeated alert is an ignored one.
+ */
+async function answerScriptedQuestion(db, contact, body, detailLine) {
+  const { lastLinkAt } = await inboundLinkHistory(db, contact.id);
+  if (lastLinkAt) {
+    return sendToContact(db, contact, {
+      text:
+        `Of course — your quote is being worked out now and will come through here shortly. ` +
+        `There's nothing to pay or decide until you've seen it.\n\n${detailLine}`,
+    });
+  }
+  notifyStaff(db, {
+    title: 'Question during signup the script cannot answer',
+    detail: `${contact.full_name || contact.phone}: "${body.slice(0, 200)}" — no link on file.`,
+    dedupeKey: `scriptedquestion:${contact.id}`,
+  });
+  return sendToContact(db, contact, {
+    // No promise of a second message except the one that is true: a link
+    // pages staff (see handleInbound) and an operator prices it.
+    text:
+      `Good question — one of our team is picking that up for you now.\n\n` +
+      `Whenever you're ready, send the link to what you'd like and we'll come back with the ` +
+      `price in KES. A quote is free and commits you to nothing.`,
+  });
+}
+
 // The deterministic onboarding script — the fallback whenever the AI is
 // disabled, unconfigured, or errored on a turn.
 async function handleOnboarding(db, contact, body, { settings = null } = {}) {
@@ -1210,12 +1270,8 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
       // whether to buy at all — and the detail is only needed once they
       // accept, so there is nothing to lose by waiting.
       if (looksLikeQuestion(body)) {
-        return sendToContact(db, contact, {
-          text:
-            `Of course — your quote is being worked out now and will come through here shortly. ` +
-            `There's nothing to pay or decide until you've seen it.\n\n` +
-            `We'll only need your name and where to send the parcel once you're happy to go ahead.`,
-        });
+        return answerScriptedQuestion(db, contact, body,
+          `We'll only need your name and where to send the parcel once you're happy to go ahead.`);
       }
       if (!looksLikeName(body)) {
         return sendToContact(db, contact, {
@@ -1237,11 +1293,8 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
         });
       }
       if (looksLikeQuestion(body)) {
-        return sendToContact(db, contact, {
-          text:
-            `Of course — your quote is on its way and there's nothing to decide until you've seen it.\n\n` +
-            `We'll only need to know where to send the parcel once you're happy to go ahead.`,
-        });
+        return answerScriptedQuestion(db, contact, body,
+          `We'll only need to know where to send the parcel once you're happy to go ahead.`);
       }
       if (!looksLikeDestination(body)) {
         return sendToContact(db, contact, {

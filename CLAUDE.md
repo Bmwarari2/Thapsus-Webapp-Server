@@ -104,6 +104,26 @@ message key must map to an approved template — a test enforces that every
 slot is mapped. Getting this backwards silently stripped the till number
 out of payment prompts.
 
+**Porting a prompt is not porting a request.** Moving the assistant from
+Gemini to Claude carried every prompt across byte for byte, which is what
+made it look like a one-variable change. `max_tokens` was the variable
+nobody re-read: it bought output on Gemini and buys *thinking plus*
+output here, so 1024 was spent reasoning before a word was written and
+every turn returned a thinking block, no text, and `stop_reason:
+max_tokens`. Each one threw, degraded to the scripted questionnaire, and
+a customer who wrote "I haven't sent a link" was told twice that her
+quote was on its way. Read the request parameter by parameter and ask
+what each one now means. State the ones with per-model defaults —
+`thinking` is on for `claude-opus-5` and off for `claude-opus-4-8`, and
+the model is an environment variable.
+
+**A health check that a real request would fail must be able to fail.**
+The `/ops/settings` self-test asked the model for the single word "OK" —
+one token, barely any thinking — so it reported a healthy assistant for
+the whole of that outage. It now reports what the turn actually spent
+against the ceiling. Same rule as the guards: check the thing that
+breaks, not a thing shaped like it.
+
 **A recurring job asks the database, not the clock.** The FX refresh ran
 on a 24-hour `setInterval` that never fired once — every deploy replaces
 the container and resets the timer. It now ticks every 30 minutes and

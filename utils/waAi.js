@@ -25,29 +25,56 @@
 // Config: ANTHROPIC_API_KEY. The on/off switch and the knowledge base
 // live in wa_settings so operators control them from /ops/settings.
 //
-// This ran on Gemini until 28 August. The switch cost nothing in
-// behaviour — every prompt is unchanged, byte for byte, so the provider
-// is the only variable — and removed a whole failure mode with it: the
-// model name no longer has to be DISCOVERED at runtime. Google retires
-// names on a rolling basis and a stale default had already taken the
-// assistant down in production once ("model is no longer available to
+// This ran on Gemini until 28 August. Moving it removed a whole failure
+// mode: the model name no longer has to be DISCOVERED at runtime. Google
+// retires names on a rolling basis and a stale default had already taken
+// the assistant down in production once ("model is no longer available to
 // new users"), which is why resolveModel(), its ranking function and its
 // six-hour cache existed. Anthropic model IDs are stable, so all of that
 // is gone.
+//
+// What the swap was written to believe — that every prompt is unchanged
+// byte for byte, so the provider is the only variable — was the thing
+// that hurt. The prompts did carry over; the REQUEST did not. max_tokens
+// bought output on Gemini and buys thinking plus output here, and the
+// number came across untouched, so the assistant answered nothing at all
+// for a day while the scripted questionnaire talked to customers in its
+// place. When the provider changes, read the request parameter by
+// parameter and ask what each one now means.
 
 import Anthropic from '@anthropic-ai/sdk';
 
 const MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-5';
 
-// A WhatsApp reply is one to three sentences. The ceiling is here to
-// stop a runaway, not to shape the answer.
-const MAX_TOKENS = 1024;
+// A WhatsApp reply is one to three sentences, and classifyReply cuts it
+// at 1200 characters regardless. The ceiling is here to stop a runaway,
+// not to shape the answer — but on Claude it covers the model's THINKING
+// as well as the words the customer reads, and 1024 was the Gemini
+// number, where it bought output only.
+//
+// It survived the provider swap unchanged and took the assistant down
+// with it: low-effort reasoning over a 4KB system prompt spends the whole
+// budget before writing a character, so the response comes back with a
+// thinking block, no text, and stop_reason max_tokens. generate() throws,
+// every caller degrades to the scripted questionnaire, and 254…19 — who
+// asked "Is there an offer?" and then said "I haven't sent a link" — was
+// told twice, word for word, that a quote nobody was preparing was on its
+// way. Sized for reasoning plus a short reply; tokens not generated are
+// not billed, so the headroom is free.
+const MAX_TOKENS = 4096;
 
 // Short conversational turns do not repay deep thinking, and latency is
 // the thing customers feel: Diane asked where to send her parcel, the
 // previous provider ran past a 15-second abort, and she got nothing at
 // all. Thinking stays ON (disabling it on this model has its own failure
 // modes) — effort is the dial.
+//
+// Stated in the request rather than left to the default, because "on" is
+// a per-model default and MODEL is an environment variable: thinking is
+// on by default for claude-opus-5 and OFF by default for claude-opus-4-8
+// and 4-7, so an operator pinning an older model would silently get a
+// different assistant from the one this file is written for.
+const THINKING = { type: 'adaptive' };
 const EFFORT = 'low';
 // The SDK default is ten minutes, which is not a WhatsApp reply — it is
 // an abandoned customer. handleInbound runs after the webhook ACK
@@ -210,12 +237,18 @@ function toMessages(turns) {
   return messages;
 }
 
-async function generate({ system, messages, schema = null }) {
+async function generate(params) {
+  return (await generateWithUsage(params)).text;
+}
+
+/** As generate(), plus what the turn spent — see aiSelfTest. */
+async function generateWithUsage({ system, messages, schema = null }) {
   if (!messages.length) throw new Error('nothing to send — no usable messages');
 
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: MAX_TOKENS,
+    thinking: THINKING,
     output_config: { effort: EFFORT, ...(schema ? { format: { type: 'json_schema', schema } } : {}) },
     system,
     messages,
@@ -227,22 +260,47 @@ async function generate({ system, messages, schema = null }) {
     .map((b) => b.text)
     .join('')
     .trim();
-  if (!text) throw new Error(`Claude returned no text (stop_reason: ${response.stop_reason})`);
-  return text;
+  if (!text) {
+    // Name the cause rather than leave it to be re-diagnosed. Thinking is
+    // billed and capped out of max_tokens, so the whole outage looks from
+    // here like one indistinguishable "no text" — it cost a day once.
+    const thought = response.usage?.output_tokens_details?.thinking_tokens;
+    throw new Error(response.stop_reason === 'max_tokens'
+      ? `Claude used all ${MAX_TOKENS} tokens before writing a reply`
+        + `${thought ? ` (${thought} of them thinking)` : ''} — MAX_TOKENS must cover thinking too`
+      : `Claude returned no text (stop_reason: ${response.stop_reason})`);
+  }
+  return { text, usage: response.usage, stopReason: response.stop_reason };
 }
 
 /**
- * Diagnostics for /ops/settings: which model resolved, and does a real
- * round-trip succeed? Never throws.
+ * Diagnostics for /ops/settings: which model resolved, does a real
+ * round-trip succeed, and how much of the token ceiling did it need?
+ *
+ * The spend is reported because the check itself cannot fail the way
+ * production did. It asks for the single word OK, which reasons for a
+ * moment and answers in one token, so it went on showing a healthy
+ * assistant through an outage in which every real turn exhausted
+ * max_tokens on thinking and sent nothing. A green tick that a real
+ * prompt would not have earned is the guard firing wrongly; the numbers
+ * are there so an operator can see the headroom instead. Never throws.
  */
 export async function aiSelfTest() {
   if (!aiConfigured()) return { ok: false, configured: false, error: 'ANTHROPIC_API_KEY is not set on the server' };
   try {
-    const text = await generate({
+    const { text, usage } = await generateWithUsage({
       system: 'You are a health check. Reply with the single word OK.',
       messages: [{ role: 'user', content: 'ping' }],
     });
-    return { ok: true, configured: true, model: MODEL, sample: text.slice(0, 60) };
+    return {
+      ok: true,
+      configured: true,
+      model: MODEL,
+      sample: text.slice(0, 60),
+      maxTokens: MAX_TOKENS,
+      outputTokens: usage?.output_tokens ?? null,
+      thinkingTokens: usage?.output_tokens_details?.thinking_tokens ?? null,
+    };
   } catch (e) {
     return { ok: false, configured: true, model: MODEL, error: e.message };
   }
