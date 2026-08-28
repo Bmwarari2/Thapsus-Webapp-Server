@@ -207,6 +207,30 @@ describe('the request onboardingTurn builds', () => {
     expect(turn.reply).toMatch(/Karibu/);
   });
 
+  // Brian answered "CBD collection" and the signup stayed open, because
+  // the missing-fields line only ever looked at delivery_address. A
+  // collector has no street to give: the parcel comes to our counter.
+  it('stops asking for an address once they have said they will collect', async () => {
+    const { onboardingTurn } = await import('../../utils/waAi.js');
+    await onboardingTurn({
+      knowledgeBase: KB, history: HISTORY, message: 'CBD collection', facts: await facts(),
+      profile: { full_name: 'Brian Mwarari', delivery_address: null, delivery_preference: 'collection' },
+      orderContext: '(none on file)',
+    });
+    const system = JSON.stringify(sent[0].system);
+    expect(system).toMatch(/Still needed from them: nothing/);
+  });
+
+  it('still asks when they have said neither', async () => {
+    const { onboardingTurn } = await import('../../utils/waAi.js');
+    await onboardingTurn({
+      knowledgeBase: KB, history: HISTORY, message: 'Hi', facts: await facts(),
+      profile: { full_name: 'Brian Mwarari', delivery_address: null, delivery_preference: null },
+      orderContext: '(none on file)',
+    });
+    expect(JSON.stringify(sent[0].system)).toMatch(/where the parcel should go/);
+  });
+
   it('constrains the output to the schema the caller then parses', async () => {
     const { onboardingTurn } = await import('../../utils/waAi.js');
     await onboardingTurn({

@@ -442,6 +442,15 @@ brief, be a person who knows this business.
   confirms the exact Pickup Mtaani point. Never name, confirm or rule out
   a SPECIFIC point or agent — "yes, we cover Nakuru" is fine, "a Pickup
   Mtaani point in Nakuru" is invented.
+- SWITCHING BETWEEN DELIVERY AND COLLECTION AFTER A QUOTE CHANGES THE
+  PRICE, and the new price is not yours to work out. Say yes, they can
+  switch, say the total changes because delivery carries the last-mile
+  fee and collection does not, and say the team is updating the quote and
+  will send it here. NEVER add the fee to the quoted total yourself,
+  never state the new total, and never invite them to pay the old one.
+  Brian switched to delivery on a KSh 107,679 collection quote and was
+  told "107,679 plus KSh 300"; he then paid 107,679, and the fee was
+  never charged.
 - Many customers write in Swahili, Sheng, or both mixed into one sentence
   ("Uko sure si scam?", "wacha niadd some things then nitakuambia",
   "Hakuna anything else ntalipa?"). Understand all of it and reply in the
@@ -726,8 +735,14 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
   if (!profile.full_name) missing.push('full name (as written on parcels)');
   // Not everyone wants a delivery. Collection is a first-class answer —
   // our CBD office or a Pickup Mtaani point — and asking a collector
-  // three times for their estate and street is how we lose them.
-  if (!profile.delivery_address) {
+  // three times for their estate and street is how we lose them. Saying
+  // they will collect ANSWERS this: the parcel comes to our counter, so
+  // there is no address to hold their signup open for. Brian said "CBD
+  // collection" and was asked anyway, because this line only ever looked
+  // at delivery_address.
+  const destinationGiven = Boolean(profile.delivery_address)
+    || profile.delivery_preference === 'collection';
+  if (!destinationGiven) {
     missing.push('where the parcel should go — either a delivery address in Kenya '
       + '(estate/building, street, town) or the pickup point they would rather collect from. '
       + 'Offer both; take whichever they give');
@@ -800,7 +815,9 @@ export async function onboardingTurn({ knowledgeBase, history, message, profile,
     `- Set delivery_preference to "delivery" when they give a street address or ask to be ` +
     `delivered to, and "collection" when they say they will collect or pick up themselves. ` +
     `Leave it null if they have not said. Do NOT ask about it separately — the question ` +
-    `about where the parcel should go already offers both.\n` +
+    `about where the parcel should go already offers both. Once they have said they will ` +
+    `collect, that IS where the parcel goes: never ask a collector for a street address as ` +
+    `well, and never treat their signup as unfinished for the want of one.\n` +
     `- NEVER ask for an M-Pesa number. We read payments off the M-Pesa statement; asking for ` +
     `it wastes the customer's time.\n` +
     `- A greeting is not a name. "Hi", "Hello", "Hey", "Habari", "Niaje", "Sasa", "Karibu", ` +
