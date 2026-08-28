@@ -309,6 +309,22 @@ export async function handleInbound(db, contact, message) {
     return;
   }
 
+  // 1d. A change of delivery method after a quote is a change of PRICE.
+  // Collection is free and delivery carries the last-mile fee, and
+  // whichever was chosen is baked into quote_kes when the operator
+  // prices the order — so the old number is simply wrong once they
+  // switch. Brian asked to switch to delivery at 21:54 against a KSh
+  // 107,679 collection quote; the assistant answered "plus KSh 300", the
+  // confirm branch below then took quote_kes at face value, and he paid
+  // 107,679 with the fee never charged and the parcel headed to
+  // Hurlingham. Money, so it resolves here rather than in a prompt —
+  // and BEFORE the onboarding split, because he was still being
+  // onboarded when he asked.
+  const wantedMethod = body ? saysDeliveryMethod(body) : null;
+  if (wantedMethod && await handleDeliveryMethodSwitch(db, contact, wantedMethod, { aiPaused })) {
+    return;
+  }
+
   if (contact.state !== 'active') {
     // AI-first: when enabled, Gemini drives onboarding from the very
     // first message — greeting, explaining, answering questions, and
@@ -431,7 +447,7 @@ export async function handleInbound(db, contact, message) {
   // 3b. Quote confirmation.
   if (isUnqualifiedConfirm(body)) {
     const { rows } = await db.query(
-      `SELECT id, quote_kes, tracking_code, quote_expires_at FROM wa_orders
+      `SELECT id, quote_kes, tracking_code, quote_expires_at, delivery_method FROM wa_orders
         WHERE contact_id = $1 AND status = 'quoted'
         ORDER BY quoted_at DESC`,
       [contact.id]
@@ -455,6 +471,31 @@ export async function handleInbound(db, contact, message) {
           text:
             `Thanks for confirming! Your quote has expired, so we're just re-checking the price ` +
             `with today's exchange rate. We'll send the confirmed amount and payment details here shortly.`,
+        });
+        return;
+      }
+      // The quote was priced for one delivery method and the customer
+      // now wants the other. quote_kes carries the fee (or the absence
+      // of one), so confirming it charges the wrong amount — the same
+      // shape as the expired quote above, and the failure that let
+      // Brian pay a collection price for a Hurlingham delivery. The
+      // switch branch pages staff when it sees the request; this
+      // catches the case where the preference changed some other way.
+      if (order.delivery_method && contact.delivery_preference
+          && order.delivery_method !== contact.delivery_preference) {
+        notifyStaff(db, {
+          title: 'Quote confirmed at the wrong delivery method — re-quote needed',
+          detail: `${contact.full_name || contact.phone} (${contact.customer_code || 'no code'}) said yes to `
+            + `${order.tracking_code || 'their order'}, quoted for ${order.delivery_method} at `
+            + `KSh ${Number(order.quote_kes || 0).toLocaleString('en-KE')}, but they now want `
+            + `${contact.delivery_preference}. Re-quote before taking payment.`,
+          dedupeKey: `method-mismatch:${order.id}:${contact.delivery_preference}`,
+        });
+        await sendToContact(db, contact, {
+          text:
+            `Thanks for confirming! Because you've switched to ${contact.delivery_preference === 'delivery'
+              ? 'delivery' : 'collection'}, your total changes, so we're updating the quote now. ` +
+            `We'll send the new amount and the payment details here.`,
         });
         return;
       }
@@ -901,6 +942,53 @@ export function looksLikeDestination(value) {
 }
 
 /**
+ * Which way does this message say the parcel should reach them —
+ * 'delivery', 'collection', or neither?
+ *
+ * Used for two different jobs, both of which turn on the same fact.
+ * During signup it is how "CBD collection" is recognised as a complete
+ * answer to where the parcel goes (there is no address to wait for when
+ * the parcel comes to our counter). After a quote it is a change of
+ * PRICE, because collection is free and delivery carries the last-mile
+ * fee — see the branch in handleInbound.
+ *
+ * Deliberately narrow. A question opening with where/when/how is asking
+ * about a method, not choosing one ("How long does it take for items to
+ * be delivered?" is not a request for delivery), and a longer sentence
+ * has to carry an actual intent word before it counts.
+ */
+const WANTS_DELIVERY = /\b(deliver|delivers|delivery|delivered|delivering|dropped off)\b/i;
+const WANTS_COLLECTION = /\b(collect|collects|collection|collecting|pick\s?-?\s?up|picking (it|them|my parcel) up|self\s?-?collect)\b/i;
+const SWITCH_INTENT = /\b(change|switch|instead|rather|prefer|can i|could i|may i|i want|i'?d like|i would like|i will|we will|let me|make it|i'?ll|we'?ll)\b/i;
+const INFO_QUESTION = /^(where|when|what|how|why|who)\b/i;
+
+/** @returns {'delivery'|'collection'|null} */
+export function saysDeliveryMethod(text) {
+  const v = String(text || '').trim();
+  if (!v || INFO_QUESTION.test(v)) return null;
+
+  let wantsDelivery = WANTS_DELIVERY.test(v);
+  let wantsCollection = WANTS_COLLECTION.test(v);
+
+  // "Can I pick up my parcel instead of delivery?" names BOTH. What
+  // follows "instead of" is the one being dropped, so the other one is
+  // the answer — Brian's message, which a both-match test would have
+  // thrown away.
+  const dropped = v.match(/instead of\s+([a-z]+)/i)?.[1];
+  if (dropped) {
+    if (WANTS_DELIVERY.test(dropped)) wantsDelivery = false;
+    else if (WANTS_COLLECTION.test(dropped)) wantsCollection = false;
+  }
+
+  if (wantsDelivery === wantsCollection) return null; // neither, or still both
+  // A bare answer to "delivered, or collect?" is the whole message
+  // ("collection", "CBD collection"). Anything longer has to say it
+  // means it.
+  if (!SWITCH_INTENT.test(v) && v.split(/\s+/).length > 3) return null;
+  return wantsDelivery ? 'delivery' : 'collection';
+}
+
+/**
  * Greetings and pleasantries people open with, which are not names.
  *
  * Eunice said "Hi" while we were waiting on her name and was answered
@@ -1080,6 +1168,10 @@ async function aiOnboarding(db, contact, message, body, settings) {
     profile: {
       full_name: contact.full_name || null,
       delivery_address: contact.delivery_address || null,
+      // Without this the model was told the destination was still
+      // missing after the customer had already said they would collect,
+      // so it kept asking for a street address it was never going to get.
+      delivery_preference: contact.delivery_preference || null,
     },
   });
 
@@ -1110,10 +1202,20 @@ async function aiOnboarding(db, contact, message, body, settings) {
   // are read off the M-Pesa statement, so knowing the number in advance
   // never once told us anything we could not see afterwards.
   const merged = { ...contact, ...fields };
-  const complete = merged.full_name && merged.delivery_address;
+  // Collection IS the answer to where the parcel goes: it comes to our
+  // counter, so there is no address to wait for. Brian said "CBD
+  // collection" at 21:51 and stayed unregistered — no code, no
+  // confirmation — until he gave a street in Hurlingham four minutes and
+  // one quote later, because this asked for an address he had already
+  // told us he did not need.
+  const destinationKnown = Boolean(merged.delivery_address)
+    || merged.delivery_preference === 'collection';
+  const complete = Boolean(merged.full_name) && destinationKnown;
   const nextState = complete ? 'active'
     : !merged.full_name ? 'awaiting_name'
     : 'awaiting_address';
+
+  const collecting = destinationKnown && !merged.delivery_address;
 
   let customerCode = contact.customer_code;
   if (complete && !customerCode) {
@@ -1174,9 +1276,82 @@ async function aiOnboarding(db, contact, message, body, settings) {
       templateParams: { customer_code: customerCode },
       text:
         `You're all set. Your customer code is *${customerCode}* — keep it handy, it goes on all your parcels.\n\n` +
+        // Confirm the choice back to them. Somebody who has just said
+        // they will collect should hear that we heard it — and it is the
+        // half of the quote they can check without knowing our fees.
+        (collecting ? `You're collecting, so there's no delivery fee — we'll message you the moment your parcel is ready.\n\n` : '') +
         `${await signOffLine(db, contact.id)}`,
     });
   }
+}
+
+/**
+ * They want the other delivery method, and a quote already exists for
+ * this one.
+ *
+ * Nothing here re-prices anything: the fee, the FX rate and the margin
+ * are the operator's to set, and a quote this code invented would be a
+ * second source of truth for the only number that matters. What it does
+ * is make the change visible before it becomes money — page the team to
+ * re-quote, record the customer's choice so the re-quote defaults to it,
+ * and tell the customer plainly that the total moves and a new quote is
+ * coming. The confirm branch refuses the stale quote in the meantime.
+ *
+ * @returns {Promise<boolean>} true when this was handled and the rest of
+ *   the pipeline (assistant included) should stay out of it.
+ */
+async function handleDeliveryMethodSwitch(db, contact, wanted, { aiPaused } = {}) {
+  const { rows } = await db.query(
+    `SELECT id, tracking_code, quote_kes, delivery_method, status
+       FROM wa_orders
+      WHERE contact_id = $1 AND status IN ('quoted', 'confirmed') AND paid_at IS NULL
+      ORDER BY quoted_at DESC NULLS LAST, created_at DESC`,
+    [contact.id]
+  );
+  // Only a priced order can be mis-priced. Somebody choosing a method
+  // before any quote exists is answering a question, not changing a
+  // price — that belongs to onboarding and the assistant.
+  const order = rows.find((o) => o.delivery_method && o.delivery_method !== wanted);
+  if (!order) return false;
+
+  if (contact.delivery_preference !== wanted) {
+    await db.query(
+      `UPDATE wa_contacts SET delivery_preference = $2, updated_at = NOW() WHERE id = $1`,
+      [contact.id, wanted]
+    );
+    contact.delivery_preference = wanted;
+  }
+  await db.query(
+    `INSERT INTO wa_order_events (id, order_id, from_status, to_status, note)
+     VALUES (gen_random_uuid()::text, $1, $2, $2, $3)`,
+    [order.id, order.status, `Customer switched to ${wanted} after quoting — re-quote needed`]
+  );
+
+  const ref = order.tracking_code || 'their order';
+  notifyStaff(db, {
+    title: 'Delivery method changed after quoting — re-quote needed',
+    detail: `${contact.full_name || contact.phone} (${contact.customer_code || 'no code'}) wants `
+      + `${wanted} instead of ${order.delivery_method} on ${ref}, quoted at `
+      + `KSh ${Number(order.quote_kes || 0).toLocaleString('en-KE')}. That price is for `
+      + `${order.delivery_method}, so it needs re-quoting before they pay.`,
+    dedupeKey: `method-switch:${order.id}:${wanted}`,
+  });
+
+  // A human on the thread can see the switch and may already be pricing
+  // it; two voices answering is worse than one.
+  if (aiPaused) return true;
+
+  const needsAddress = wanted === 'delivery' && !contact.delivery_address;
+  await sendToContact(db, contact, {
+    text: wanted === 'delivery'
+      ? `Yes, we can deliver instead. That changes your total — delivery carries the `
+        + `last-mile fee, which collection doesn't — so we're updating your quote now and `
+        + `will send the new one here.`
+        + (needsAddress ? ` Meanwhile, what's the delivery address (estate/building, street, town)?` : '')
+      : `Yes, you can collect instead. That changes your total — collection has no `
+        + `last-mile fee — so we're updating your quote now and will send the new one here.`,
+  });
+  return true;
 }
 
 /**
@@ -1293,11 +1468,19 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
             `While you wait: where should the parcel go? A delivery address (estate/building, street, town), or the area you'd like to collect in — we'll confirm the nearest Pickup Mtaani point.`,
         });
       }
-      if (looksLikeQuestion(body)) {
+      // "CBD collection" is an answer, not an address: it names a method,
+      // and the parcel comes to our counter. Storing it in
+      // delivery_address made the ops screens read as though a rider had
+      // somewhere to go, and told the quote nothing about the fee — the
+      // one thing the answer actually decides. Read first, too, because
+      // "I will collect it myself" was being taken for a question and
+      // handed to a person while the customer waited for a code.
+      const collecting = saysDeliveryMethod(body) === 'collection';
+      if (!collecting && looksLikeQuestion(body)) {
         return answerScriptedQuestion(db, contact, body,
           `We'll only need to know where to send the parcel once you're happy to go ahead.`);
       }
-      if (!looksLikeDestination(body)) {
+      if (!collecting && !looksLikeDestination(body)) {
         return sendToContact(db, contact, {
           text: `Please tell us where the parcel should go — a delivery address (estate/building, street and town), or the area you'd like to collect in.`,
         });
@@ -1306,7 +1489,9 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
       // never needed: payments are read off the M-Pesa statement.
       const customerCode = await nextCustomerCode(db);
       await setState(db, contact.id, 'active', {
-        delivery_address: body.slice(0, 400),
+        ...(collecting
+          ? { delivery_preference: 'collection' }
+          : { delivery_address: body.slice(0, 400) }),
         customer_code: customerCode,
       });
       pushToStaff('wa_new_customer', {
@@ -1325,6 +1510,7 @@ async function handleOnboarding(db, contact, body, { settings = null } = {}) {
         templateParams: { customer_code: customerCode },
         text:
           `You're all set. Your customer code is *${customerCode}* — keep it handy, it goes on all your parcels.\n\n` +
+          (collecting ? `You're collecting, so there's no delivery fee — we'll message you the moment your parcel is ready.\n\n` : '') +
           `${await signOffLine(db, contact.id)}`,
       });
     }

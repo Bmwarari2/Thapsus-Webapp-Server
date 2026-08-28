@@ -20,7 +20,8 @@ vi.mock('../../utils/waSettings.js', () => ({
   })),
 }));
 
-import { handleInbound, isUnqualifiedConfirm, claimsPaid, looksLikeDestination, asksHowToPay } from '../../utils/waStateMachine.js';
+import { handleInbound, isUnqualifiedConfirm, claimsPaid, looksLikeDestination, asksHowToPay,
+  saysDeliveryMethod } from '../../utils/waStateMachine.js';
 import { sendToContact } from '../../utils/waSend.js';
 import { pushToStaff } from '../../routes/events.js';
 import { getWaSettings } from '../../utils/waSettings.js';
@@ -1688,5 +1689,156 @@ describe('asking how to pay, with money actually owing', () => {
     waAi.aiConfigured.mockReturnValue(true);
     await handleInbound(ordersDb([]), contact(), { id: 'm', body: 'how do I pay?' });
     expect(waAi.chatReply).toHaveBeenCalled();
+  });
+});
+
+// ── Delivery method, after a price exists ────────────────────────────────────
+// Brian's conversation, 28 August. He was quoted KSh 107,679 for
+// collection, asked "Can I change to delivery?", was told "107,679 plus
+// KSh 300" by the assistant, said yes, and paid 107,679. The KSh 300 was
+// never charged and the parcel was routed to Hurlingham. Collection is
+// free and delivery is not, so the method IS part of the price.
+describe('saysDeliveryMethod', () => {
+  it.each([
+    ['Can I change to delivery?', 'delivery'],
+    ['I want it delivered to Nakuru', 'delivery'],
+    ['delivery', 'delivery'],
+    ['Can I pick up my parcel instead of delivery?', 'collection'],
+    ['CBD collection', 'collection'],
+    ['I will collect it myself', 'collection'],
+    ['collection', 'collection'],
+  ])('reads %j as %s', (body, expected) => {
+    expect(saysDeliveryMethod(body)).toBe(expected);
+  });
+
+  // The must-not-catch list. Each of these fired a re-quote page and a
+  // "your total is changing" reply if the rule were any looser, and none
+  // of them is a customer changing their mind.
+  it.each([
+    'How long does it take for items to be delivered?',
+    'Where do I collect from?',
+    'Can I come to your office?',
+    'Hurlingham',
+    'House Jembe 1',
+    'Yes',
+    'How do I pay?',
+    'Is that the only amount I have to pay?',
+    'I will send my cart later',
+    '',
+  ])('reads %j as neither', (body) => {
+    expect(saysDeliveryMethod(body)).toBe(null);
+  });
+});
+
+describe('switching delivery method after a quote', () => {
+  function switchDb(orderRows) {
+    return makeDb(async (sql) => {
+      if (sql.includes("status IN ('quoted', 'confirmed')")) return { rows: orderRows };
+      return { rows: [], rowCount: 1 };
+    });
+  }
+  const collectionQuote = {
+    id: 'o1', tracking_code: 'TRK-8839', quote_kes: '107679',
+    delivery_method: 'collection', status: 'quoted',
+  };
+
+  it('pages staff to re-quote and promises a new quote, with no figure of its own', async () => {
+    const db = switchDb([collectionQuote]);
+    await handleInbound(db, contact(), { id: 'm', body: 'Can I change to delivery?' });
+
+    expect(notifyStaff).toHaveBeenCalledWith(db, expect.objectContaining({
+      title: 'Delivery method changed after quoting — re-quote needed',
+    }));
+    const reply = sendToContact.mock.calls[0][2].text;
+    expect(reply).toMatch(/updating your quote/i);
+    // The old total, the fee, any total at all: not this code's to state,
+    // and stating one is exactly what went wrong.
+    expect(reply).not.toMatch(/107,?679|300/);
+  });
+
+  it('records the choice so the re-quote defaults to it', async () => {
+    const db = switchDb([collectionQuote]);
+    await handleInbound(db, contact(), { id: 'm', body: 'Can I change to delivery?' });
+    const update = db.query.mock.calls.find(([sql]) =>
+      sql.includes('UPDATE wa_contacts') && sql.includes('delivery_preference'));
+    expect(update[1]).toContain('delivery');
+  });
+
+  it('asks for the address when switching to delivery and we have none', async () => {
+    const db = switchDb([collectionQuote]);
+    await handleInbound(db, contact({ delivery_address: null }), { id: 'm', body: 'Can I change to delivery?' });
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/delivery address/i);
+  });
+
+  // Nothing is mis-priced until something is priced. Choosing a method
+  // during signup is an answer to a question, not a change to a total.
+  it('stays out of it when no quote exists', async () => {
+    const db = switchDb([]);
+    await handleInbound(db, contact(), { id: 'm', body: 'Can I change to delivery?' });
+    expect(notifyStaff).not.toHaveBeenCalledWith(db, expect.objectContaining({
+      title: 'Delivery method changed after quoting — re-quote needed',
+    }));
+  });
+
+  it('stays out of it when the quote already used that method', async () => {
+    const db = switchDb([{ ...collectionQuote, delivery_method: 'delivery' }]);
+    await handleInbound(db, contact(), { id: 'm', body: 'Can I change to delivery?' });
+    expect(notifyStaff).not.toHaveBeenCalledWith(db, expect.objectContaining({
+      title: 'Delivery method changed after quoting — re-quote needed',
+    }));
+  });
+});
+
+describe('confirming a quote priced for the other delivery method', () => {
+  it('refuses to bill the stale total and pages staff instead', async () => {
+    const db = makeDb(async (sql) => {
+      if (sql.includes("status = 'quoted'") && sql.startsWith('SELECT')) {
+        return { rows: [{ id: 'o1', quote_kes: '107679', tracking_code: 'TRK-8839',
+                          quote_expires_at: null, delivery_method: 'collection' }] };
+      }
+      if (sql.includes("status IN ('quoted', 'confirmed')")) return { rows: [] };
+      return { rows: [], rowCount: 1 };
+    });
+    await handleInbound(db, contact({ delivery_preference: 'delivery' }), { id: 'm', body: 'yes' });
+
+    expect(db.query.mock.calls.find(([sql]) => sql.includes("SET status = 'confirmed'"))).toBeUndefined();
+    expect(db.query.mock.calls.find(([sql]) => sql.includes('INSERT INTO payments'))).toBeUndefined();
+    expect(notifyStaff).toHaveBeenCalledWith(db, expect.objectContaining({
+      title: 'Quote confirmed at the wrong delivery method — re-quote needed',
+    }));
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/updating the quote/i);
+  });
+
+  it('confirms normally when the method still matches', async () => {
+    const db = makeDb(async (sql) => {
+      if (sql.includes("status = 'quoted'") && sql.startsWith('SELECT')) {
+        return { rows: [{ id: 'o1', quote_kes: '14500', tracking_code: 'TRK-1',
+                          quote_expires_at: null, delivery_method: 'delivery' }] };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    await handleInbound(db, contact({ delivery_preference: 'delivery' }), { id: 'm', body: 'yes' });
+    expect(db.query.mock.calls.find(([sql]) => sql.includes("SET status = 'confirmed'"))).toBeTruthy();
+  });
+});
+
+describe('a collector finishes signup on the scripted path', () => {
+  it('takes "I will collect it myself" as the destination and issues the code', async () => {
+    const db = makeDb(async (sql) => {
+      if (sql.includes('nextval')) return { rows: [{ n: '1050' }] };
+      return { rows: [], rowCount: 1 };
+    });
+    await handleInbound(db, contact({ state: 'awaiting_address', full_name: 'Jane Doe', customer_code: null }),
+      { id: 'm', body: 'I will collect it myself' });
+
+    const update = db.query.mock.calls.find(([sql]) => sql.includes('UPDATE wa_contacts'));
+    // The method decides the fee; the sentence is not an address and
+    // storing it as one told the ops screens a rider had somewhere to go.
+    expect(update[0]).toContain('delivery_preference');
+    expect(update[0]).not.toContain('delivery_address');
+    expect(update[1]).toContain('active');
+    const said = sendToContact.mock.calls.map(([, , o]) => o.text || '').join(' ');
+    expect(said).toMatch(/customer code/i);
+    expect(said).toMatch(/no delivery fee/i);
   });
 });
