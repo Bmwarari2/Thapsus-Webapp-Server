@@ -35,7 +35,7 @@ import {
 import { handleInbound } from '../utils/waStateMachine.js';
 import { pushToStaff } from './events.js';
 import { logError } from '../utils/errorLogger.js';
-import { notifyStaff } from '../utils/waStaffAlert.js';
+import { notifyStaff, recordStaffAlertStatus } from '../utils/waStaffAlert.js';
 
 const PREVIEW_LEN = 120;
 
@@ -109,14 +109,22 @@ export async function waWebhookHandler(req, res) {
         const reason = mapped === 'failed'
           ? (event.error || documented || await failureReasonFor(event.messageId))
           : null;
-        await req.db.query(
+        const { rowCount } = await req.db.query(
           `UPDATE wa_messages
               SET status = $2,
                   error = COALESCE($3, error)
             WHERE provider_message_id = $1`,
           [event.messageId, mapped, reason]
         );
-        if (mapped === 'failed') {
+        // A status for a provider id that is not a customer message is
+        // almost always a staff alert — those go out through
+        // sendTemplate() and live in wa_staff_alerts, not wa_messages.
+        // This lookup is the whole reason a dead alerting channel used to
+        // be invisible: the miss above was the end of the road, so seven
+        // consecutive failed pages logged one line each and told nobody.
+        const wasStaffAlert = rowCount === 0
+          && await recordStaffAlertStatus(req.db, event.messageId, mapped, reason);
+        if (mapped === 'failed' && !wasStaffAlert) {
           console.warn(`[wa-webhook] delivery failed for ${event.messageId}: ${reason || 'no reason given'}`);
           // A customer who was never reached looks exactly like a customer
           // who was, unless somebody opens the inbox and reads the small

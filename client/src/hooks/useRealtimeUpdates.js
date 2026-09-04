@@ -28,6 +28,7 @@ export const SSE_EVENTS = [
   'order_update', 'ticket_update', 'notification', 'credit_update', 'admin_stats',
   'package_update', 'buy_for_me_update', 'invoice_update',
   'wa_inbox_update', 'wa_pipeline_update', 'wa_new_customer', 'wa_quote_request',
+  'wa_human_requested',
 ];
 
 
@@ -89,6 +90,11 @@ function fireBrowserNotification(order) {
  * messaged. A quote request always notifies (a person has to price it);
  * a plain inbound message notifies only when the tab is hidden — when
  * it's visible, the inbox badge and toast already have their attention.
+ *
+ * A customer asking for a person always notifies, hidden tab or not. The
+ * WhatsApp page for that event is the one that was silently failing to
+ * deliver for a week; this path does not touch WhatsApp at all, which is
+ * the point of having it.
  */
 function fireWaStaffNotification(type, data) {
   if (typeof window === 'undefined') return;
@@ -96,7 +102,10 @@ function fireWaStaffNotification(type, data) {
 
   let title = null;
   let body = '';
-  if (type === 'wa_quote_request') {
+  if (type === 'wa_human_requested') {
+    title = 'Customer asked for a person';
+    body = `${data?.full_name || data?.phone || 'Customer'}:\n${data?.preview || ''}`;
+  } else if (type === 'wa_quote_request') {
     title = 'Quote needed';
     body = `${data?.full_name || data?.phone || 'Customer'} sent a product link:\n${data?.preview || ''}`;
   } else if (type === 'wa_inbox_update' && data?.direction === 'in' && document.visibilityState !== 'visible') {
@@ -205,7 +214,7 @@ function connectSSE(token) {
           if (type === 'order_update' && data?.action === 'status_changed' && data?.order) {
             fireBrowserNotification(data.order);
           }
-          if (type === 'wa_quote_request' || type === 'wa_inbox_update') {
+          if (type === 'wa_quote_request' || type === 'wa_inbox_update' || type === 'wa_human_requested') {
             fireWaStaffNotification(type, data);
           }
         } catch (_) { /* ignore */ }

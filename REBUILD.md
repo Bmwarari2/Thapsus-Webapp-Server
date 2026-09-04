@@ -287,6 +287,7 @@ All additive only, all applied to production.
 | `wa_orders` | The order: product links, quote snapshot (`usd_price`, `fx_rate` — the buffered rate — `markup_pct`, `fx_buffer_pct`, `quote_kes`), `tracking_code`, status, delivery fee, receipt path, per-status timestamps |
 | `wa_order_events` | Append-only audit trail of every status move and who made it |
 | `wa_settings` | Operator-editable key/value: markup, FX buffer, promo, default fee, quote validity, nudge switch, welcome media, template map, AI toggle + knowledge base, staff alert numbers |
+| `wa_staff_alerts` | One row per staff page: phone, what it said, provider id, delivery status. Added because an unrecorded page cannot be seen failing |
 
 Sequences `wa_customer_code_seq` (from 1042) and `wa_tracking_code_seq`
 (from 8821) mint the public codes. `payments` was extended rather than

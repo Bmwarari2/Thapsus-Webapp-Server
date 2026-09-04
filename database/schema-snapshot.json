@@ -3663,6 +3663,58 @@
     "t": "text"
    }
   },
+  "wa_staff_alerts": {
+   "created_at": {
+    "hd": true,
+    "nn": true,
+    "t": "timestamptz"
+   },
+   "dedupe_key": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "detail": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "error": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "id": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "phone": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   },
+   "provider_message_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "status": {
+    "hd": true,
+    "nn": true,
+    "t": "text"
+   },
+   "template": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
+   "title": {
+    "hd": false,
+    "nn": true,
+    "t": "text"
+   }
+  },
   "whatsapp_messages": {
    "created_at": {
     "hd": true,

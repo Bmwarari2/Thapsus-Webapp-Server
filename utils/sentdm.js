@@ -114,6 +114,20 @@ export function fromE164(phone) {
 }
 
 /**
+ * Our own WhatsApp line, in stored digit form.
+ *
+ * Needed because a message from the business number to the business
+ * number is the one send WhatsApp will never deliver, and it fails the
+ * way that is hardest to see: the API accepts it, and the failure
+ * arrives minutes later as a status webhook with no reason on it.
+ * utils/waStaffAlert.js refuses to page that number for exactly that
+ * reason. Override with WA_BUSINESS_NUMBER if the line ever moves.
+ */
+export function businessWhatsAppNumber() {
+  return fromE164(process.env.WA_BUSINESS_NUMBER || '254740825215');
+}
+
+/**
  * How many times one call may be attempted, and the longest we will wait
  * between attempts. Every call in this file runs on a path somebody is
  * waiting on — a customer mid-conversation, an operator hitting send, a

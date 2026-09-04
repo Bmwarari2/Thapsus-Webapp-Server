@@ -21,7 +21,7 @@ vi.mock('../../utils/waSettings.js', () => ({
 }));
 
 import { handleInbound, isUnqualifiedConfirm, claimsPaid, looksLikeDestination, asksHowToPay,
-  saysDeliveryMethod } from '../../utils/waStateMachine.js';
+  saysDeliveryMethod, wantsHuman } from '../../utils/waStateMachine.js';
 import { sendToContact } from '../../utils/waSend.js';
 import { pushToStaff } from '../../routes/events.js';
 import { getWaSettings } from '../../utils/waSettings.js';
@@ -1840,5 +1840,125 @@ describe('a collector finishes signup on the scripted path', () => {
     const said = sendToContact.mock.calls.map(([, , o]) => o.text || '').join(' ');
     expect(said).toMatch(/customer code/i);
     expect(said).toMatch(/no delivery fee/i);
+  });
+});
+
+describe('an explicit request for a person', () => {
+  const aiSettings = {
+    markup_pct: 10, promo_active: false, promo_type: 'waive_fee',
+    promo_message: '', default_delivery_fee_kes: 300,
+    welcome_media_urls: [], template_map: {},
+    ai_enabled: true, ai_knowledge_base: 'kb', ai_resume_after_minutes: 120,
+  };
+  async function ai() {
+    const waAi = await import('../../utils/waAi.js');
+    waAi.chatReply.mockReset();
+    waAi.onboardingTurn.mockReset();
+    waAi.aiConfigured.mockReturnValue(true);
+    getWaSettings.mockResolvedValue(aiSettings);
+    return waAi;
+  }
+
+  // Must catch. The first of these is what Diane Mworia actually sent at
+  // 10:15 on 4 September, into a thread the 09:31 handoff had muted the
+  // assistant on — it reached nobody at all.
+  it.each([
+    'Requesting human support please',
+    'Talk to a person',
+    'Can I talk to a human?',
+    'I want to speak to someone',
+    'please connect me with an agent',
+    'I need to talk to a real person about my order',
+    'Naweza ongea na mtu?',
+    'nataka kuongea na mtu',
+    'agent',
+    'customer care',
+  ])('escalates "%s"', (msg) => {
+    expect(wantsHuman(msg)).toBe(true);
+  });
+
+  // Must NOT catch. A guard that fires wrongly here hands the customers
+  // closest to paying to a person and mutes the assistant on them.
+  it.each([
+    'someone told me about you guys',
+    "I'll talk to my husband first",
+    'Let me talk to my agent in Dubai',
+    'Can I speak to you about the sizes?',
+    'I sent someone the link already',
+    'Is the leather real?',
+    'yes',
+    'I have paid',
+  ])('leaves "%s" alone', (msg) => {
+    expect(wantsHuman(msg)).toBe(false);
+  });
+
+  it('pages staff without consulting the assistant', async () => {
+    const waAi = await ai();
+    await handleInbound(makeDb(async () => ({ rows: [] })), contact(),
+      { id: 'm1', body: 'Requesting human support please' });
+
+    expect(waAi.chatReply).not.toHaveBeenCalled();
+    expect(notifyStaff).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      title: expect.stringMatching(/needs a human/i),
+    }));
+    expect(sendToContact.mock.calls[0][2].text).toMatch(/team will reply/i);
+  });
+
+  // The whole point. The AI branch is skipped while a human holds the
+  // thread, which is exactly when a customer asks again — and until this
+  // branch existed, asking again did nothing whatsoever.
+  it('pages again while the assistant is muted by an earlier handoff', async () => {
+    await ai();
+    const db = makeDb(async (sql) => {
+      // aiOnHold: the last message was 10 minutes ago, well inside the
+      // 120-minute resume window, so the assistant stays muted.
+      if (sql.includes('MAX(created_at)')) {
+        return { rows: [{ at: new Date(Date.now() - 10 * 60_000).toISOString() }] };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    await handleInbound(db, contact({ human_takeover_at: new Date().toISOString() }),
+      { id: 'm2', body: 'Requesting human support please' });
+
+    expect(notifyStaff).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      title: expect.stringMatching(/asked for a person again/i),
+      detail: expect.stringContaining('waiting on a person'),
+    }));
+    expect(pushToStaff).toHaveBeenCalledWith('wa_human_requested', expect.objectContaining({
+      contact_id: 'c1',
+    }));
+    // Takeover is already set; it must not be re-stamped, and the
+    // acknowledgement must not promise a second time within the hour.
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('human_takeover_at = NOW()'))).toBe(false);
+  });
+
+  it('does not repeat the acknowledgement it already sent this hour', async () => {
+    await ai();
+    const db = makeDb(async (sql) => {
+      if (sql.includes('MAX(created_at)')) {
+        return { rows: [{ at: new Date(Date.now() - 10 * 60_000).toISOString() }] };
+      }
+      // sentRecently: we said "get a colleague for you" already.
+      if (sql.includes("direction = 'out'")) return { rows: [{ '?column?': 1 }] };
+      return { rows: [], rowCount: 0 };
+    });
+    await handleInbound(db, contact({ human_takeover_at: new Date().toISOString() }),
+      { id: 'm3', body: 'Talk to a person' });
+
+    expect(sendToContact).not.toHaveBeenCalled();
+    expect(notifyStaff).toHaveBeenCalled(); // but a person is still paged
+  });
+
+  // Money and state resolve first where they run: this message pages a
+  // person either way, and only the payment branch stamps the reference.
+  it('lets a payment claim keep its own branch', async () => {
+    const waAi = await ai();
+    await handleInbound(makeDb(async () => ({ rows: [] })), contact(),
+      { id: 'm4', body: 'I have paid, can I speak to someone?' });
+
+    expect(notifyStaff).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      title: expect.stringMatching(/payment claimed/i),
+    }));
+    expect(waAi.chatReply).not.toHaveBeenCalled();
   });
 });
