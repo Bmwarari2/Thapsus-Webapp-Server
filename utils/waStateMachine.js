@@ -209,6 +209,49 @@ export function needsSheinCart(body) {
 // free text, so the transcript body is what we have to match on).
 const VERIFYING_MARKER = 'verifying it with M-Pesa';
 const OFF_TOPIC_MARKER = 'only help with Thapsus Cargo';
+const HANDOFF_MARKER = 'get a colleague for you';
+const HANDOFF_REPLY = `Let me ${HANDOFF_MARKER} — someone from our team will reply here shortly.`;
+
+// Asking for a person, in the shapes customers actually type. The person
+// words are listed explicitly: "can I speak to you about sizes?" is a
+// question for the assistant, not an escalation.
+const ASKS_FOR_HUMAN =
+  /\b(?:talk|speak|chat|connect|transfer|put|get|link|refer|ongea|kuongea|niunganishe|unganisha)\b[^?!.]{0,24}?\b(?:to|with|from|na)\s+(?:a|an|the|any|some)?\s*(?:real\s+|actual\s+|live\s+|proper\s+)?(?:human|person|people|someone|somebody|agent|representative|operator|staff|mtu|admin|manager)\b/i;
+// The escalation said as a noun rather than a request — "human support",
+// "customer care" — which is how Diane wrote it.
+const NAMES_HUMAN_SUPPORT =
+  /\b(?:human|live|real)\s+(?:support|agent|help|assistance|person|being)\b|\bcustomer\s+(?:care|service)\b|\b(?:is|are)\s+there\s+(?:a|an|any)\s+(?:real\s+)?(?:human|person|agent)\b/i;
+// The whole message is the word. Common enough to be worth catching, and
+// only safe as an exact match: "agent" appears inside plenty of sentences
+// that are not asking for one.
+const BARE_HUMAN_REQUEST = /^\s*(?:human|agent|operator|customer\s+care|mtu)\s*[!.?]*$/i;
+// Someone else's person. "Let me talk to my agent in Dubai" matches the
+// first pattern and is not a request for us.
+const SOMEONE_ELSES_PERSON =
+  /\b(?:my|your|his|her|their|our|the\s+seller'?s?)\s+(?:agent|person|manager|admin|staff|mtu)\b/i;
+
+/**
+ * Did the customer ask for a human being?
+ *
+ * This is a rule cheap enough to enforce in code, and until now it lived
+ * only in the assistant's prompt — which meant it was not enforced at all
+ * whenever the assistant was not consulted. Diane Mworia wrote
+ * "Requesting human support please" at 10:15 on 4 September into a thread
+ * a handoff had muted the assistant on 44 minutes earlier. The AI branch
+ * is skipped while a human holds the thread, so nothing ran: no reply, no
+ * page, no takeover — the clearest possible request for a person was the
+ * quietest event in the system, and the only thing that would ever have
+ * noticed was the 15-minute unanswered sweeper.
+ *
+ * Both directions are tested. A guard that fires wrongly here escalates
+ * customers who were talking about somebody else entirely.
+ */
+export function wantsHuman(value) {
+  const v = String(value || '').trim();
+  if (!v) return false;
+  if (SOMEONE_ELSES_PERSON.test(v)) return false;
+  return BARE_HUMAN_REQUEST.test(v) || NAMES_HUMAN_SUPPORT.test(v) || ASKS_FOR_HUMAN.test(v);
+}
 
 // How much verbatim transcript rides in the prompt, and how often the
 // durable memory note behind it gets refreshed.
@@ -322,6 +365,23 @@ export async function handleInbound(db, contact, message) {
   // onboarded when he asked.
   const wantedMethod = body ? saysDeliveryMethod(body) : null;
   if (wantedMethod && await handleDeliveryMethodSwitch(db, contact, wantedMethod, { aiPaused })) {
+    return;
+  }
+
+  // 1e. Asking for a person is not a judgement call, so it does not wait
+  // on the model — and above all it does not wait on the model being
+  // consulted at all. See wantsHuman(): the request that reached nobody
+  // arrived while the assistant was muted, which is precisely when a
+  // customer is most likely to ask again. The page fires either way;
+  // that is the whole point of moving this out of the prompt.
+  //
+  // The deterministic money paths still win where they run, because they
+  // page a person too AND stamp the reference or answer the code: "I have
+  // paid, can I speak to someone" must not lose the M-Pesa reference.
+  const moneyPathAnswers = contact.state === 'active' && body
+    && (Boolean(extractTrackingCode(body)) || claimsPaid(body, extractMpesaReference(body)));
+  if (body && !moneyPathAnswers && wantsHuman(body)) {
+    await escalateHumanRequest(db, contact, body, { aiPaused });
     return;
   }
 
@@ -671,6 +731,43 @@ async function maybeRefreshSummary(db, contact) {
 }
 
 /**
+ * A customer asked for a person, in so many words.
+ *
+ * Not yet handed over: the ordinary handoff — acknowledge, mute the
+ * assistant, page. Already handed over: page anyway, because a second
+ * ask means the first one has not been answered yet and the operator
+ * needs to know that, not the same silence again. The acknowledgement is
+ * repeated at most hourly — a thread a person already holds does not need
+ * "someone will reply shortly" on every message, and saying it twice in
+ * five minutes promises a message behind it.
+ */
+async function escalateHumanRequest(db, contact, body, { aiPaused }) {
+  pushToStaff('wa_human_requested', {
+    contact_id: contact.id,
+    customer_code: contact.customer_code || null,
+    full_name: contact.full_name || null,
+    phone: contact.phone,
+    preview: body.slice(0, 200),
+  });
+
+  if (!aiPaused) {
+    // handOffToHuman pages on its way through, so this path pages once.
+    await handOffToHuman(db, contact, body);
+    return;
+  }
+
+  notifyStaff(db, {
+    title: 'Customer asked for a person again',
+    detail: `${contact.full_name || contact.phone} (${contact.customer_code || 'no code'}): "${body.slice(0, 200)}" `
+      + `— the thread is already handed over and the assistant is muted, so they are waiting on a person.`,
+    dedupeKey: `wants-human:${contact.id}:${body.slice(0, 40)}`,
+  });
+  if (!await sentRecently(db, contact.id, HANDOFF_MARKER, 60)) {
+    await sendToContact(db, contact, { text: HANDOFF_REPLY });
+  }
+}
+
+/**
  * Is the assistant paused on this conversation? True while a human has
  * it (an operator replied, or the AI handed off). Clears itself once the
  * chat has been silent for ai_resume_after_minutes, so a customer who
@@ -761,9 +858,7 @@ async function replyOffTopic(db, contact, followUp = '') {
  * The operator's own reply sets takeover anyway when they arrive.
  */
 async function handOffToHuman(db, contact, body, { silenceBot = true } = {}) {
-  await sendToContact(db, contact, {
-    text: `Let me get a colleague for you — someone from our team will reply here shortly.`,
-  });
+  await sendToContact(db, contact, { text: HANDOFF_REPLY });
   if (silenceBot) {
     await db.query(
       `UPDATE wa_contacts SET human_takeover_at = NOW(), updated_at = NOW() WHERE id = $1`,

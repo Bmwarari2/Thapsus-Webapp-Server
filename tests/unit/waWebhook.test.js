@@ -21,13 +21,16 @@ vi.mock('../../utils/sentdm.js', async (importOriginal) => ({
   })),
 }));
 vi.mock('../../utils/waStateMachine.js', () => ({ handleInbound: vi.fn(async () => {}) }));
-vi.mock('../../utils/waStaffAlert.js', () => ({ notifyStaff: vi.fn(async () => {}) }));
+vi.mock('../../utils/waStaffAlert.js', () => ({
+  notifyStaff: vi.fn(async () => {}),
+  recordStaffAlertStatus: vi.fn(async () => false),
+}));
 vi.mock('../../routes/events.js', () => ({ pushToStaff: vi.fn() }));
 vi.mock('../../utils/errorLogger.js', () => ({ logError: vi.fn() }));
 
 import { waWebhookHandler } from '../../routes/waWebhook.js';
 import { handleInbound } from '../../utils/waStateMachine.js';
-import { notifyStaff } from '../../utils/waStaffAlert.js';
+import { notifyStaff, recordStaffAlertStatus } from '../../utils/waStaffAlert.js';
 
 function dbStub() {
   return {
@@ -115,5 +118,31 @@ describe('waWebhookHandler — suppressed sends', () => {
     // the payload — so the row has to carry what FILTERED means.
     expect(update[1][2]).toMatch(/^FILTERED: /);
     expect(res.json).toHaveBeenCalledWith({ received: true, status: 'failed' });
+  });
+
+  // A status for an id that is in no wa_messages row used to be the end
+  // of the road: alertStaffOfFailedSend looked it up, missed, returned.
+  // Staff alerts are sent outside wa_messages, so every failed page took
+  // that exit — seven in a row, in silence.
+  it('recognises a failed staff alert instead of dropping the event', async () => {
+    recordStaffAlertStatus.mockResolvedValueOnce(true);
+    const req = {
+      headers: {},
+      db: dbStub(),
+      body: Buffer.from(JSON.stringify({
+        field: 'message',
+        event: 'message.failed',
+        payload: { message_id: 'pm-staff-1', message_status: 'FAILED' },
+      })),
+    };
+    const res = { json: vi.fn(), status: vi.fn(() => res), send: vi.fn() };
+    await waWebhookHandler(req, res);
+    await settle();
+
+    // A bare FAILED carries no reason anywhere — which is exactly how
+    // these read in the log for a week.
+    expect(recordStaffAlertStatus).toHaveBeenCalledWith(req.db, 'pm-staff-1', 'failed', null);
+    // and it must not then try to page staff about the page.
+    expect(notifyStaff).not.toHaveBeenCalled();
   });
 });

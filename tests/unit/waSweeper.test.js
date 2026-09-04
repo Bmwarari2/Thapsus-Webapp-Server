@@ -5,6 +5,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../utils/waStaffAlert.js', () => ({
   notifyStaff: vi.fn(async () => {}),
+  // The boot check reads these. Stubbing only notifyStaff made
+  // assertAlertConfig throw into its own catch, which is exactly the
+  // shape of silence this file exists to prevent.
+  usableStaffNumbers: vi.fn((raw) => ({ numbers: raw || [], rejected: [] })),
+  staffAlertHealth: vi.fn(async () => []),
 }));
 vi.mock('../../utils/sentdm.js', () => ({
   sentDmConfigured: vi.fn(() => true),

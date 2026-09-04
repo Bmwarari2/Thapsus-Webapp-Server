@@ -163,6 +163,26 @@ than the gap between deploys is a timer that does not exist.
 **Staff reminders fire once per condition, with a mute.** Repeating
 alerts got ignored, which is worse than none. Claim before you page.
 
+**A page nobody can see failing is not a page.** Staff alerts were the
+one outbound message we never recorded, so when sent.dm accepted the send
+and WhatsApp failed the delivery minutes later, the status webhook looked
+the id up in `wa_messages`, missed, and returned — and the
+"customer did not receive a message" alert could never fire for an alert.
+Seven consecutive pages failed that way between 30 August and 4 September,
+one log line each. The boot check reported healthy throughout, because it
+asked whether a number was configured rather than whether anything
+reached it. Every send this system makes now lands in a table, and health
+checks ask what happened to the last one.
+
+**A rule the assistant enforces is not enforced when the assistant is not
+consulted.** "Ask for a person and you get one" lived only in the prompt.
+The AI branch is skipped while a human holds the thread, so Diane
+Mworia's "Requesting human support please" — sent into a thread muted by
+her own earlier handoff — ran no code at all: no reply, no page, no
+takeover. `wantsHuman()` is deterministic and sits ahead of the model,
+and it pages whether or not the assistant is paused. Check where a rule
+runs, not just that it is written down.
+
 **Never advance an order or send a customer message to test something.**
 Status moves fire real WhatsApp messages to real people.
 

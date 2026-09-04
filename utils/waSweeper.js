@@ -31,7 +31,7 @@
 // Started from server.js next to log retention and FX refresh; returns
 // a stop function for tests/shutdown.
 
-import { notifyStaff } from './waStaffAlert.js';
+import { notifyStaff, staffAlertHealth, usableStaffNumbers } from './waStaffAlert.js';
 import { getWaSettings } from './waSettings.js';
 import { sentDmConfigured, sendText } from './sentdm.js';
 import { sessionWindowOpen } from './waSend.js';
@@ -74,6 +74,12 @@ export function startWaSweeper(pool) {
  * Boot-time loud check: a fresh or misconfigured install pages nobody
  * and says nothing — notifyStaff returns silently on an empty number
  * list, so every alert in this file would be a no-op.
+ *
+ * "Is a number set?" was the wrong question and it passed for a week.
+ * A number was set, every page to it was accepted by sent.dm and then
+ * failed at delivery, and this check reported a healthy channel
+ * throughout. It now asks what actually happened to the last few pages —
+ * the thing that breaks, not a thing shaped like it.
  */
 async function assertAlertConfig(pool) {
   if (!sentDmConfigured()) {
@@ -81,8 +87,21 @@ async function assertAlertConfig(pool) {
   }
   try {
     const settings = await getWaSettings(pool);
-    if (!Array.isArray(settings.staff_alert_numbers) || settings.staff_alert_numbers.length === 0) {
+    const { numbers, rejected } = usableStaffNumbers(settings.staff_alert_numbers);
+    for (const bad of rejected) {
+      console.error(`[wa-sweeper] ⚠ staff_alert_numbers contains the business's own WhatsApp number (${bad}) — WhatsApp cannot deliver to its own sender, so that entry pages nobody.`);
+    }
+    if (numbers.length === 0) {
       console.error('[wa-sweeper] ⚠ wa_settings.staff_alert_numbers is empty — staff alerts (quote requests, payment claims, SLA pages) go nowhere. Set it in /ops/settings.');
+      return;
+    }
+    for (const h of await staffAlertHealth(pool)) {
+      if (h.own_number || h.total === 0) continue;
+      if (h.failed === h.total) {
+        console.error(`[wa-sweeper] ⚠ every staff alert to ${h.phone} in the last 7 days failed to deliver (${h.total}, last: ${h.last_error || 'no reason given'}). That number is not receiving pages.`);
+      } else if (h.last_status === 'failed') {
+        console.warn(`[wa-sweeper] last staff alert to ${h.phone} failed to deliver (${h.last_error || 'no reason given'}).`);
+      }
     }
   } catch (e) {
     console.warn('[wa-sweeper] could not read wa_settings at boot:', e?.message);

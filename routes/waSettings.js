@@ -11,9 +11,10 @@ import { getWaSettings, invalidateWaSettings } from '../utils/waSettings.js';
 import {
   sentDmConfigured, SentDmError,
   listWebhooks, listWebhookEvents, createWebhook,
-  updateWebhookUrl, activateWebhook, fetchMessageActivities,
+  updateWebhookUrl, activateWebhook, fetchMessageActivities, businessWhatsAppNumber,
 } from '../utils/sentdm.js';
 import { aiSelfTest } from '../utils/waAi.js';
+import { staffAlertHealth } from '../utils/waStaffAlert.js';
 
 const router = express.Router();
 
@@ -136,6 +137,17 @@ router.put('/', authMiddleware, isAdmin, async (req, res) => {
       const cleaned = body.staff_alert_numbers
         .map((n) => n.replace(/[^\d]/g, ''))
         .filter((n) => n.length >= 9);
+      // WhatsApp will not deliver from the business number to itself, and
+      // it fails silently: the API accepts the send and the failure
+      // arrives later as a status nobody reads. Refuse it at the point
+      // where somebody can still fix it.
+      const own = businessWhatsAppNumber();
+      if (own && cleaned.includes(own)) {
+        return res.status(400).json({
+          success: false,
+          message: `${own} is this business's own WhatsApp number — WhatsApp cannot deliver a message to its own sender, so alerts to it reach nobody. Use a personal number.`,
+        });
+      }
       updates.push(['staff_alert_numbers', JSON.stringify(cleaned)]);
     }
     if (body.staff_alert_template !== undefined) {
@@ -241,12 +253,40 @@ router.get('/webhook-status', authMiddleware, isAdmin, async (req, res) => {
       }));
     } catch { /* table empty / best-effort */ }
 
+    // Are the staff pages themselves landing? This panel exists because
+    // "a number is configured" was the only thing anybody could check,
+    // and it stayed true through a week in which every single alert
+    // failed to deliver. Same activity-log lookup as above — a page that
+    // WhatsApp refused says why here.
+    let staffAlerts = [];
+    try {
+      staffAlerts = await Promise.all((await staffAlertHealth(req.db)).map(async (h) => {
+        let activities = [];
+        if (h.last_status === 'failed') {
+          const { rows } = await req.db.query(
+            `SELECT provider_message_id FROM wa_staff_alerts
+              WHERE phone = $1 AND status = 'failed' AND provider_message_id IS NOT NULL
+              ORDER BY created_at DESC LIMIT 1`,
+            [h.phone]
+          );
+          if (rows[0]?.provider_message_id) {
+            try {
+              activities = (await fetchMessageActivities(rows[0].provider_message_id))
+                .map((a) => ({ status: a.status, description: a.description, at: a.timestamp }));
+            } catch { /* best-effort */ }
+          }
+        }
+        return { ...h, activities };
+      }));
+    } catch { /* table missing / best-effort */ }
+
     res.json({
       success: true,
       expected_url: expected,
       secret_configured: Boolean(process.env.SENTDM_WEBHOOK_SECRET),
       webhooks: detailed,
       outbound_failures: outboundFailures,
+      staff_alerts: staffAlerts,
       ai,
     });
   } catch (err) {

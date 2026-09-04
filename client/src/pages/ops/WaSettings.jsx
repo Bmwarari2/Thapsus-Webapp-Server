@@ -363,6 +363,52 @@ function WebhookDoctor() {
         </div>
       )}
 
+      {status?.staff_alerts?.length > 0 && (
+        <div className="space-y-2">
+          {/* "A number is configured" was the only thing anybody could
+              check, and it stayed true through a week in which every
+              staff alert failed to deliver. This says what reached the
+              phone. */}
+          <p className="text-sm font-semibold text-white">Staff alerts — are they landing?</p>
+          {status.staff_alerts.map((h) => {
+            const dead = h.own_number || (h.total > 0 && h.failed === h.total);
+            return (
+              <div key={h.phone} className={`rounded-xl border p-3 space-y-1 ${
+                dead ? 'bg-red-500/5 border-red-500/20'
+                     : h.last_status === 'failed' ? 'bg-amber-500/5 border-amber-500/25'
+                     : 'bg-white/[0.04] border-line'
+              }`}>
+                <p className="flex items-center gap-2 text-white text-xs">
+                  {dead || h.last_status === 'failed'
+                    ? <XCircle size={14} className="text-red-400 shrink-0" />
+                    : <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />}
+                  <span className="font-mono">{h.phone}</span>
+                </p>
+                {h.own_number ? (
+                  <p className="text-[11px] text-red-300">
+                    This is the business's own WhatsApp number — WhatsApp cannot deliver to its own
+                    sender, so nothing sent here is ever received. Use a personal number.
+                  </p>
+                ) : h.total === 0 ? (
+                  <p className="text-[11px] text-mute">No alerts sent in the last 7 days.</p>
+                ) : (
+                  <p className="text-[11px] text-mute">
+                    {h.total} alert{h.total === 1 ? '' : 's'} in 7 days · {h.failed} failed ·
+                    last {h.last_status}{h.last_at ? ` at ${new Date(h.last_at).toLocaleString()}` : ''}
+                    {h.last_error ? ` — ${h.last_error}` : ''}
+                  </p>
+                )}
+                {h.activities?.map((a, j) => (
+                  <p key={j} className="text-[11px] font-mono text-mute">
+                    {a.status}{a.description ? ` — ${a.description}` : ''}
+                  </p>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {status?.outbound_failures?.length > 0 && (
         <div className="space-y-2">
           <p className="text-sm font-semibold text-white">Recent failed sends</p>
