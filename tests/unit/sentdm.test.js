@@ -387,6 +387,59 @@ describe('api() retry policy', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  // 5 September: three customer sends and two sweeper retries all died
+  // on SERVICE_001 — eighteen keyed attempts, every one refused, while
+  // the keyless staff alert about each failure went out in the same
+  // second and was read. The third took a customer's quote with it.
+  // Repeating with the key just asks the same dead cache again.
+  it('drops the idempotency key on SERVICE_001 rather than re-asking the dead cache', async () => {
+    const { sendText } = await import('../../utils/sentdm.js');
+    // The header object is reused across attempts, so what matters is
+    // what each call SENT — snapshot it rather than reading it back.
+    const keys = [];
+    const responses = [
+      reply(503, {
+        success: false,
+        error: { code: 'SERVICE_001', message: 'Cache service temporarily unavailable.' },
+      }),
+      reply(202, { success: true, data: { recipients: [{ message_id: 'pm-9' }] } }),
+    ];
+    const fetchMock = vi.fn(async (_url, init) => {
+      keys.push(init.headers['Idempotency-Key']);
+      return responses[keys.length - 1];
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(sendText('254712345678', 'Your quote is ready', { idempotencyKey: 'k9' }))
+      .resolves.toEqual({ messageId: 'pm-9' });
+
+    // Keyed first — dropping it up front would give up double-send
+    // protection on every send, which is not the trade being made.
+    // Unkeyed second, because sent.dm refused rather than executed:
+    // there is nothing to replay, so the repeat cannot double-send.
+    expect(keys).toEqual(['k9', undefined]);
+  });
+
+  it('keeps the key on a 503 that is not the cache refusing', async () => {
+    const { sendText } = await import('../../utils/sentdm.js');
+    // Any other 503 is ambiguous — the send may have run — so the key is
+    // what stops the repeat becoming a second message to a real person.
+    const keys = [];
+    const responses = [
+      reply(503, { success: false, error: { code: 'INTERNAL_002' } }),
+      reply(202, { success: true, data: { recipients: [{ message_id: 'pm-10' }] } }),
+    ];
+    const fetchMock = vi.fn(async (_url, init) => {
+      keys.push(init.headers['Idempotency-Key']);
+      return responses[keys.length - 1];
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(sendText('254712345678', 'Hi', { idempotencyKey: 'k10' }))
+      .resolves.toEqual({ messageId: 'pm-10' });
+    expect(keys).toEqual(['k10', 'k10']);
+  });
+
   it('does not sleep through a 60-second Retry-After on the request path', async () => {
     const { sendText, SentDmError } = await import('../../utils/sentdm.js');
     // The rate limit and the failed-auth lockout both answer 429 with
