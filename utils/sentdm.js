@@ -183,7 +183,10 @@ async function api(method, path, { body, idempotencyKey } = {}) {
   // A GET changes nothing, and a keyed mutation replays instead of
   // executing twice. Anything else is repeated only when the provider
   // has told us it did not run. See retryableStatus().
-  const idempotent = method === 'GET' || Boolean(idempotencyKey);
+  //
+  // `let`, because SERVICE_001 makes us drop the key mid-flight and the
+  // remaining attempts are then unkeyed. See the branch below.
+  let idempotent = method === 'GET' || Boolean(idempotencyKey);
 
   for (let attempt = 1; ; attempt++) {
     let res;
@@ -221,6 +224,27 @@ async function api(method, path, { body, idempotencyKey } = {}) {
     );
 
     if (attempt >= RETRY_MAX_ATTEMPTS || !retryableStatus(res.status, idempotent)) throw err;
+
+    // SERVICE_001 is the idempotency cache being unavailable, and the key
+    // is the only reason this request needs it: sent.dm refused rather
+    // than risk executing twice, so by their own contract NOTHING RAN and
+    // an unkeyed repeat cannot double-send. Repeating WITH the key just
+    // asks the same dead cache again — which is exactly what happened on
+    // 5 September: three sends and two sweeper retries, eighteen attempts
+    // in all, every one keyed and every one refused, while the keyless
+    // staff alert about each failure went out in the same second and was
+    // read. The third one lost a customer's quote.
+    //
+    // The key is dropped for good on this call rather than for one
+    // attempt: the cache is down for as long as it is down, and a request
+    // that has never executed has nothing to replay.
+    if (err.code === 'SERVICE_001' && headers['Idempotency-Key']) {
+      delete headers['Idempotency-Key'];
+      idempotent = method === 'GET';
+      console.warn(`[sentdm] ${method} ${path} → ${res.status} SERVICE_001; the idempotency cache is down, repeating WITHOUT the key (the request never ran)`);
+      continue;
+    }
+
     const delay = retryDelayMs(res, attempt);
     if (delay > RETRY_MAX_WAIT_MS) throw err;
     console.warn(`[sentdm] ${method} ${path} → ${res.status} ${err.code}; retrying in ${delay}ms`);

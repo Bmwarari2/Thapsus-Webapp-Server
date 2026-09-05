@@ -183,6 +183,17 @@ takeover. `wantsHuman()` is deterministic and sits ahead of the model,
 and it pages whether or not the assistant is paused. Check where a rule
 runs, not just that it is written down.
 
+**Repeating a request the provider refused is not a retry.** sent.dm
+answers SERVICE_001 when its idempotency cache is down: it declined to
+run the request rather than risk running it twice. Our client repeated it
+with the same `Idempotency-Key` — asking the same dead cache again — so
+on 5 September three customer sends and two sweeper retries died across
+eighteen keyed attempts, while the keyless staff alert about each failure
+went out in the same second and was read. The third was a customer's
+quote. The key is now dropped on SERVICE_001, which cannot double-send
+precisely because nothing ran. Read what an error code says the provider
+DID, not just that it failed.
+
 **Never advance an order or send a customer message to test something.**
 Status moves fire real WhatsApp messages to real people.
 
