@@ -371,7 +371,13 @@ function WebhookDoctor() {
               phone. */}
           <p className="text-sm font-semibold text-white">Staff alerts — are they landing?</p>
           {status.staff_alerts.map((h) => {
-            const dead = h.own_number || (h.total > 0 && h.failed === h.total);
+            // "Failed since the last one it confirmed" rather than "all of
+            // the last 7 days", because +447346813917 was added on 6
+            // September and failed both pages it had ever been sent — two
+            // out of two, in a week whose totals were dominated by another
+            // number's eleven successes. The run is what tells you a phone
+            // has stopped receiving; the weekly ratio hides it.
+            const dead = h.own_number || h.failed_since_ok >= 2;
             return (
               <div key={h.phone} className={`rounded-xl border p-3 space-y-1 ${
                 dead ? 'bg-red-500/5 border-red-500/20'
@@ -389,14 +395,27 @@ function WebhookDoctor() {
                     This is the business's own WhatsApp number — WhatsApp cannot deliver to its own
                     sender, so nothing sent here is ever received. Use a personal number.
                   </p>
-                ) : h.total === 0 ? (
-                  <p className="text-[11px] text-mute">No alerts sent in the last 7 days.</p>
-                ) : (
-                  <p className="text-[11px] text-mute">
-                    {h.total} alert{h.total === 1 ? '' : 's'} in 7 days · {h.failed} failed ·
-                    last {h.last_status}{h.last_at ? ` at ${new Date(h.last_at).toLocaleString()}` : ''}
-                    {h.last_error ? ` — ${h.last_error}` : ''}
+                ) : h.total === 0 && !h.last_at ? (
+                  <p className="text-[11px] text-amber-300">
+                    Nothing has ever been sent to this number, so nothing has proved it can receive
+                    a page. Add it and wait for the next alert, or send yourself a test.
                   </p>
+                ) : (
+                  <>
+                    <p className="text-[11px] text-mute">
+                      {h.total} alert{h.total === 1 ? '' : 's'} in 7 days · {h.failed} failed ·
+                      last {h.last_status}{h.last_at ? ` at ${new Date(h.last_at).toLocaleString()}` : ''}
+                      {h.last_error ? ` — ${h.last_error}` : ''}
+                    </p>
+                    {h.failed_since_ok > 0 && (
+                      <p className="text-[11px] text-red-300">
+                        {h.failed_since_ok} page{h.failed_since_ok === 1 ? '' : 's'} failed in a row.{' '}
+                        {h.last_ok_at
+                          ? `Last one confirmed ${new Date(h.last_ok_at).toLocaleString()}.`
+                          : 'This number has never confirmed a page.'}
+                      </p>
+                    )}
+                  </>
                 )}
                 {h.activities?.map((a, j) => (
                   <p key={j} className="text-[11px] font-mono text-mute">

@@ -3664,6 +3664,11 @@
    }
   },
   "wa_staff_alerts": {
+   "batch_id": {
+    "hd": false,
+    "nn": false,
+    "t": "text"
+   },
    "created_at": {
     "hd": true,
     "nn": true,
@@ -3698,6 +3703,11 @@
     "hd": false,
     "nn": false,
     "t": "text"
+   },
+   "rescued_at": {
+    "hd": false,
+    "nn": false,
+    "t": "timestamptz"
    },
    "status": {
     "hd": true,

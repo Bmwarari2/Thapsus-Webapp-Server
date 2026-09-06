@@ -19,6 +19,9 @@ vi.mock('../../utils/sentdm.js', async (importOriginal) => ({
     phone: '+254712345678',
     message_body: { content: null },
   })),
+  // The message record carries no history — the shape production actually
+  // returns, and the reason every failure read "no reason given".
+  fetchMessageActivities: vi.fn(async () => []),
 }));
 vi.mock('../../utils/waStateMachine.js', () => ({ handleInbound: vi.fn(async () => {}) }));
 vi.mock('../../utils/waStaffAlert.js', () => ({
@@ -31,6 +34,7 @@ vi.mock('../../utils/errorLogger.js', () => ({ logError: vi.fn() }));
 import { waWebhookHandler } from '../../routes/waWebhook.js';
 import { handleInbound } from '../../utils/waStateMachine.js';
 import { notifyStaff, recordStaffAlertStatus } from '../../utils/waStaffAlert.js';
+import { fetchMessageActivities } from '../../utils/sentdm.js';
 
 function dbStub() {
   return {
@@ -139,10 +143,42 @@ describe('waWebhookHandler — suppressed sends', () => {
     await waWebhookHandler(req, res);
     await settle();
 
-    // A bare FAILED carries no reason anywhere — which is exactly how
-    // these read in the log for a week.
+    // A bare FAILED carries no reason on the event, so both provider
+    // lookups are spent before giving up — and with neither answering,
+    // the row records the honest null rather than a guess.
+    expect(fetchMessageActivities).toHaveBeenCalledWith('pm-staff-1');
     expect(recordStaffAlertStatus).toHaveBeenCalledWith(req.db, 'pm-staff-1', 'failed', null);
     // and it must not then try to page staff about the page.
     expect(notifyStaff).not.toHaveBeenCalled();
+  });
+
+  // The gap that made every failure unexplainable. GET /v3/messages/{id}
+  // has no events[]; the descriptions live in /activities, which
+  // /ops/settings had been reading since 0019 while the webhook — the only
+  // thing that can record the reason at the moment it is known — asked the
+  // endpoint that does not have it. Eighteen failures, eighteen "no reason
+  // given", and three different faults that need three different fixes all
+  // looking identical.
+  it('falls back to the activity log for a reason the message record lacks', async () => {
+    fetchMessageActivities.mockResolvedValueOnce([
+      { status: 'SENT', description: 'Message sent via WhatsApp' },
+      { status: 'FAILED', description: '131026 Message undeliverable' },
+    ]);
+    recordStaffAlertStatus.mockResolvedValueOnce(true);
+    const req = {
+      headers: {},
+      db: dbStub(),
+      body: Buffer.from(JSON.stringify({
+        field: 'message',
+        event: 'message.failed',
+        payload: { message_id: 'pm-staff-2', message_status: 'FAILED' },
+      })),
+    };
+    const res = { json: vi.fn(), status: vi.fn(() => res), send: vi.fn() };
+    await waWebhookHandler(req, res);
+    await settle();
+
+    expect(recordStaffAlertStatus)
+      .toHaveBeenCalledWith(req.db, 'pm-staff-2', 'failed', '131026 Message undeliverable');
   });
 });

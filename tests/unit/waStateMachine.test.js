@@ -1051,6 +1051,51 @@ describe('what the assistant is told about the state of a conversation', () => {
     expect(waAi.chatReply.mock.calls[0][0].facts).toMatch(/quote IS genuinely being prepared/);
   });
 
+  // The promise had no deadline on it, so it never stopped being made.
+  // +254790325255 sent a cart at 21:02 on 5 September 2026; the staff page
+  // about it failed delivery and nobody knew; the assistant, reading a
+  // fact that was still technically true, told her the quote was coming
+  // at 21:02, 21:06, 10:02 and 13:09 before it finally went out at 15:22
+  // — eighteen hours. In between she wrote "No you're not getting my
+  // question, I'm still waiting on the quote so that I pay".
+  //
+  // The unanswered-inbound sweep never fired for her either: the
+  // assistant answered every message, so the conversation's last message
+  // was always ours. Nothing in the system was measuring the one interval
+  // she could see.
+  it('stops promising a quote once the wait has outrun the promise window', async () => {
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce(says('reply'));
+    await handleInbound(
+      db({
+        orders: [],
+        inbound: [{ body: 'https://onelink.shein.com/51/614cv6o2fsip', created_at: AGO(18 * 60) }],
+      }),
+      contact(), { id: 'm1', body: 'how long is this supposed to take?' }
+    );
+    const facts = waAi.chatReply.mock.calls[0][0].facts;
+    expect(facts).toMatch(/This is LATE/);
+    expect(facts).toMatch(/18 hours ago/);
+    expect(facts).not.toMatch(/quote IS genuinely being prepared/);
+  });
+
+  it('still promises inside the window — a page nobody has had time to act on is not late', async () => {
+    // The window is deliberately much longer than the sweeper's page, so
+    // the assistant goes quiet on the subject only after a person has had
+    // real time to act, not the moment the page fires. Getting this
+    // backwards would hand off the warmest lead in the business over a
+    // ten-minute wait.
+    const waAi = await ai();
+    waAi.chatReply.mockResolvedValueOnce(says('reply'));
+    await handleInbound(
+      db({ orders: [], inbound: [{ body: 'https://www.next.co.uk/p/123', created_at: AGO(45) }] }),
+      contact(), { id: 'm1', body: 'any update?' }
+    );
+    const facts = waAi.chatReply.mock.calls[0][0].facts;
+    expect(facts).toMatch(/quote IS genuinely being prepared/);
+    expect(facts).not.toMatch(/This is LATE/);
+  });
+
   // Once we have answered, the wait is over. Saying "your quote is
   // coming" to someone holding their quote is as wrong as inventing one.
   it('stops claiming a quote is coming once one has been sent', async () => {

@@ -694,8 +694,38 @@ export function terminalStatusReason(providerStatus) {
  */
 export function failureReasonFromMessage(msg) {
   const m = msg?.data ?? msg ?? {};
-  const events = Array.isArray(m.events) ? m.events
-    : (Array.isArray(m.activities) ? m.activities : []);
+  const fromHistory = failureReasonFromActivities(
+    Array.isArray(m.events) ? m.events : (Array.isArray(m.activities) ? m.activities : [])
+  );
+  if (fromHistory) return fromHistory;
+  for (const key of ['error', 'errors', 'error_message', 'failure_reason']) {
+    const v = m[key];
+    if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 2000);
+    if (v && typeof v === 'object') return JSON.stringify(v).slice(0, 2000);
+  }
+  return null;
+}
+
+/**
+ * The same scan, over the list GET /v3/messages/{id}/activities returns.
+ *
+ * Split out because the message record and the activity log are two
+ * different endpoints and only one of them actually answers. Every one
+ * of the eighteen delivery failures between 4 and 6 September 2026 was
+ * recorded "no reason given", with no `could not fetch failure reason`
+ * warning beside any of them: the hydrate call succeeded and carried no
+ * events[] at all. GET /v3/messages/{id} is a message, not its history.
+ * /activities is where the descriptions live — /ops/settings has been
+ * reading them there since 0019 to explain a failure an operator is
+ * already looking at, while the webhook, which is the only thing that
+ * can record the reason at the moment it is known, asked the endpoint
+ * that does not have it.
+ *
+ * Sharing the scan is the point: two readers of the same descriptions
+ * must not disagree about what counts as a reason.
+ */
+export function failureReasonFromActivities(activities) {
+  const events = Array.isArray(activities) ? activities : [];
   for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i] || {};
     if (!/^(FAILED|FILTERED|BLOCKED)$/i.test(String(e.status || ''))) continue;
@@ -706,11 +736,6 @@ export function failureReasonFromMessage(msg) {
       return description.slice(0, 2000);
     }
     return terminalStatusReason(e.status);
-  }
-  for (const key of ['error', 'errors', 'error_message', 'failure_reason']) {
-    const v = m[key];
-    if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 2000);
-    if (v && typeof v === 'object') return JSON.stringify(v).slice(0, 2000);
   }
   return null;
 }

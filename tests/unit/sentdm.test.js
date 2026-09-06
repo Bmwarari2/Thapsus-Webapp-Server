@@ -320,6 +320,47 @@ describe('failureReasonFromMessage', () => {
       .toBe('131026 Message undeliverable');
     expect(failureReasonFromMessage({ status: 'DELIVERED', events: [] })).toBe(null);
   });
+
+  it('returns null for the shape production actually sends — a message with no history', async () => {
+    // This is the whole reason the /activities fallback exists. Every one
+    // of the eighteen delivery failures between 4 and 6 September 2026 was
+    // recorded "no reason given", and none of them logged a fetch error:
+    // the hydrate call worked and simply had no events[] on it. GET
+    // /v3/messages/{id} is a message, not its history.
+    const { failureReasonFromMessage } = await import('../../utils/sentdm.js');
+    expect(failureReasonFromMessage({
+      id: 'bf53b433', status: 'FAILED', direction: 'OUTBOUND',
+      message_body: { content: '', header: null },
+    })).toBe(null);
+  });
+});
+
+describe('failureReasonFromActivities', () => {
+  it('reads the reason out of the endpoint that actually carries it', async () => {
+    const { failureReasonFromActivities } = await import('../../utils/sentdm.js');
+    expect(failureReasonFromActivities([
+      { status: 'QUEUED', description: 'Message accepted and queued for processing' },
+      { status: 'FAILED', description: '131026 Message undeliverable' },
+    ])).toBe('131026 Message undeliverable');
+  });
+
+  it('agrees with failureReasonFromMessage about a generic description', async () => {
+    // Two readers of the same descriptions must not disagree about what
+    // counts as a reason — /ops/settings reads the activity log to explain
+    // a failure to an operator, and the webhook reads it to record one.
+    const { failureReasonFromActivities, failureReasonFromMessage } =
+      await import('../../utils/sentdm.js');
+    const activities = [{ status: 'BLOCKED', description: 'Message updated to BLOCKED' }];
+    expect(failureReasonFromActivities(activities))
+      .toBe(failureReasonFromMessage({ activities }));
+    expect(failureReasonFromActivities(activities)).toMatch(/^BLOCKED: /);
+  });
+
+  it('is safe on an empty or missing list', async () => {
+    const { failureReasonFromActivities } = await import('../../utils/sentdm.js');
+    expect(failureReasonFromActivities([])).toBe(null);
+    expect(failureReasonFromActivities(undefined)).toBe(null);
+  });
 });
 
 describe('complianceKeyword', () => {

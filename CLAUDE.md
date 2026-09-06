@@ -183,6 +183,47 @@ takeover. `wantsHuman()` is deterministic and sits ahead of the model,
 and it pages whether or not the assistant is paused. Check where a rule
 runs, not just that it is written down.
 
+**Recording a failure is not responding to one.** Every page is a
+WhatsApp template to a staff number, which makes the alerting channel and
+the thing most likely to be broken the same channel. `wa_staff_alerts`
+made a failed page visible; it did not make one reach anybody. Seven
+pages died between 5 and 6 September for a console line each — five
+because one number stopped receiving for three hours, two because a
+newly added number has never received anything at all — and one of them
+was a customer's cart waiting to be quoted. "A failed page cannot page
+about itself" is true of a *number*, not of the channel: the other staff
+phone is usually working, and email shares nothing with WhatsApp. Ask
+what the failure means and spend a different route on it, or you have
+built a very careful record of nobody being told.
+
+**A health check that runs at boot runs once per deploy.** The check that
+would have caught the dead number existed and reported it correctly — in
+`assertAlertConfig`, at startup, and the last deploy was the day before
+the number was added. Same lesson as the FX refresh on a 24-hour
+`setInterval`: any check whose interval is longer than the gap between
+deploys is a check that does not run. It goes in the sweep.
+
+**A promise needs a deadline or it stops being true without telling
+you.** `conversationFacts()` called a quote "genuinely being prepared"
+whenever a link had arrived and nothing had been quoted since — with no
+time bound at all, so it stayed true for exactly as long as nobody did
+the work. The staff page for +254790325255's cart failed at 21:02 on 5
+September; the assistant then told her the quote was coming four times
+over eighteen hours, and every one of those replies was correct by the
+only facts the system had. She wrote "No you're not getting my question,
+I'm still waiting on the quote so that I pay". A model saying something
+untrue is not always a model problem — check what it was told, and
+whether anything was measuring the interval the customer could see.
+
+**Every guard needs the sweep behind it.** The unanswered-inbound page
+never fired for her either: the assistant answered every message, so the
+conversation's last message was always ours. Every stalled-quote sweep in
+this repo keys on `status = 'quoted'` — an order that already HAS a
+quote — so a link whose one page was lost had nothing watching it at all.
+When a condition is paged once, at the moment it arises, ask what
+re-checks it, and answer with a query rather than the assumption that the
+page landed.
+
 **Repeating a request the provider refused is not a retry.** sent.dm
 answers SERVICE_001 when its idempotency cache is down: it declined to
 run the request rather than risk running it twice. Our client repeated it
