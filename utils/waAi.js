@@ -515,7 +515,23 @@ export function renderFacts(f = {}) {
   // did not open the order until 19:43. For those five minutes the model
   // was told both that its link had arrived and that nothing was being
   // priced, and told to ask for the link it had just been sent.
-  if (f.quoteInFlight) {
+  if (f.quoteOverdue) {
+    // The fourth state, and the one that cost eighteen hours. "A quote is
+    // being prepared" was keyed on nothing but "a link arrived and has not
+    // been quoted", with no time bound at all — so it stayed true for as
+    // long as nobody priced it, and the assistant went on saying the quote
+    // was coming "shortly" to a customer who had been waiting since the
+    // night before. She wrote "No you're not getting my question, I'm
+    // still waiting on the quote so that I pay". The system was not lying
+    // to her deliberately; it simply had no way to notice that the thing
+    // it kept promising had stopped being true. A promise with no deadline
+    // on it is not a fact, and the customer is the one who pays for the
+    // difference.
+    lines.push(`- They sent us a link ${f.quoteWaitedLabel || 'a long time ago'} and NOTHING has `
+      + 'been quoted. This is LATE — do NOT say it is coming shortly, soon, or on its way, and do '
+      + 'NOT give them a time. A person has been paged about it. Acknowledge that it has taken too '
+      + 'long, apologise plainly, and get them a human.');
+  } else if (f.quoteInFlight) {
     lines.push('- They have sent us a link and a quote IS genuinely being prepared for them. '
       + 'Saying so is true, and reassuring them it is coming is the right thing to do. '
       + 'Do NOT ask for a link again — we have it.');

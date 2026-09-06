@@ -170,7 +170,7 @@ export function claimsPaid(value, ref) {
 // A scheme, a www., or a bare host WITH A PATH — "next.co.uk/p/123" is a
 // link a customer really does paste; "gmail.com" on its own never is.
 // The lookbehind kills the local-part-then-@ case outright.
-const PRODUCT_LINK = new RegExp(
+export const PRODUCT_LINK = new RegExp(
   '(?<![\\w@.])(?:'
   + 'https?:\\/\\/\\S+'
   + '|www\\.[a-z0-9-]+(?:\\.[a-z0-9-]+)+\\S*'
@@ -990,9 +990,19 @@ async function conversationFacts(db, contact) {
     .map((o) => (o.quoted_at ? new Date(o.quoted_at).getTime() : 0))
     .reduce((a, b) => Math.max(a, b), 0);
 
+  // How long they have been waiting on the quote, if they are.
+  const waitedMs = lastLinkAt && lastLinkAt > lastQuotedAt ? Date.now() - lastLinkAt : 0;
+  const overdue = waitedMs > QUOTE_PROMISE_MS;
+
   return renderFacts({
     linkReceived: Boolean(lastLinkAt),
     orderCount: orders.rows.length,
+    // Past the promise window the quote is not "in flight", it is late —
+    // see renderFacts. The window is generous on purpose: the sweeper
+    // pages a person at WA_SLA_QUOTE_MINUTES, and this only stops the
+    // assistant promising once that page has had hours to be acted on.
+    quoteOverdue: overdue,
+    quoteWaitedLabel: overdue ? waitedLabel(waitedMs) : null,
     // A quote is in flight when the customer can see why it would be:
     // they sent a link and nothing has been quoted since. Keying this on
     // an order sitting at 'quoting' was wrong in the only way that
@@ -1004,10 +1014,30 @@ async function conversationFacts(db, contact) {
     // the old rule called a true "your quote is coming" a hallucination,
     // suppressed it, and handed the warmest lead in the business to a
     // stall.
-    quoteInFlight: Boolean(lastLinkAt) && lastLinkAt > lastQuotedAt,
+    quoteInFlight: Boolean(lastLinkAt) && lastLinkAt > lastQuotedAt && !overdue,
     missing,
     inboundCount,
   });
+}
+
+// How long a "your quote is coming" stays true. Nothing bounded it, so it
+// stayed true for as long as nobody priced the link — eighteen hours, in
+// +254790325255's case, across four reassurances. The sweeper pages a
+// person at WA_SLA_QUOTE_MINUTES (an hour); this is deliberately much
+// longer, because the assistant should go quiet on the subject only once
+// that page has had a working day's worth of chances to be acted on, not
+// the moment it fires.
+const QUOTE_PROMISE_MS = (() => {
+  const n = parseInt(process.env.WA_QUOTE_PROMISE_MINUTES ?? '', 10);
+  return (Number.isFinite(n) && n > 0 ? n : 180) * 60_000;
+})();
+
+/** "2 hours" / "35 minutes" — how the wait reads to the person who waited. */
+function waitedLabel(ms) {
+  const mins = Math.round(ms / 60_000);
+  if (mins < 120) return `${mins} minutes ago`;
+  const hours = Math.round(mins / 60);
+  return hours < 48 ? `${hours} hours ago` : `${Math.round(hours / 24)} days ago`;
 }
 
 // What to ask for next, keyed by the awaiting_* state. Used when an

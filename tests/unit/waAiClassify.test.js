@@ -117,6 +117,42 @@ describe('renderFacts', () => {
     expect(facts).toMatch(/FIRST message they have ever sent/);
     expect(facts).toMatch(/Still missing from their profile: full name/);
   });
+
+  // The fourth state, and the one that cost eighteen hours. "A quote is
+  // being prepared" had no time bound at all, so it stayed true for as
+  // long as nobody priced the link — and the assistant went on telling
+  // +254790325255 the quote was coming "shortly" from 21:02 on 5
+  // September until 15:22 the next day, four times, until she wrote "No
+  // you're not getting my question, I'm still waiting on the quote so
+  // that I pay".
+  it('says a quote is LATE once the wait has outrun the promise', () => {
+    const facts = renderFacts({
+      linkReceived: true, orderCount: 0,
+      quoteInFlight: false, quoteOverdue: true, quoteWaitedLabel: '18 hours ago',
+      inboundCount: 7,
+    });
+    expect(facts).toMatch(/18 hours ago/);
+    expect(facts).toMatch(/This is LATE/);
+    expect(facts).toMatch(/A person has been paged/);
+    // And it must not read as permission to keep promising: the guard
+    // decides what a reply may claim by reading this line back out.
+    expect(facts).not.toMatch(/quote IS genuinely being prepared/);
+    expect(facts).not.toMatch(/already been quoted or is too old/);
+  });
+
+  it('the overdue line withdraws the guard\'s permission to promise a quote', async () => {
+    // quoteInFlightAllowed() greps the facts for the in-flight sentence.
+    // The two must agree, or the assistant is either gagged while a quote
+    // really is coming or free to promise one that is eighteen hours late.
+    const { falseClaimIn } = await import('../../utils/waAi.js');
+    const overdue = renderFacts({
+      linkReceived: true, quoteOverdue: true, quoteWaitedLabel: '18 hours ago', inboundCount: 7,
+    });
+    const inFlight = renderFacts({ linkReceived: true, quoteInFlight: true, inboundCount: 7 });
+    const reply = 'Our team is pricing your cart now and your KES quote is coming shortly.';
+    expect(falseClaimIn(reply, overdue, '')).toMatch(/on its way/);
+    expect(falseClaimIn(reply, inFlight, '')).toBe(null);
+  });
 });
 
 // "Never price a specific item" was in the prompt three times and in code

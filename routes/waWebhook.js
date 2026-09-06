@@ -29,9 +29,11 @@ import {
   verifyWebhookSignature,
   parseInboundEvent,
   fetchMessage,
+  fetchMessageActivities,
   fromE164,
   mapProviderStatus, extractInboundMedia,
-  terminalStatusReason, failureReasonFromMessage, complianceKeyword } from '../utils/sentdm.js';
+  terminalStatusReason, failureReasonFromMessage, failureReasonFromActivities,
+  complianceKeyword } from '../utils/sentdm.js';
 import { handleInbound } from '../utils/waStateMachine.js';
 import { pushToStaff } from './events.js';
 import { logError } from '../utils/errorLogger.js';
@@ -206,15 +208,34 @@ async function alertStaffOfOptOut(db, contact, message) {
 /**
  * Ask the provider why a message failed, when the status event didn't say.
  *
+ * TWO endpoints, because only one of them answers. The message record was
+ * the only one asked until now, and it never once produced a reason:
+ * eighteen failures between 4 and 6 September 2026 — five customer sends
+ * and thirteen staff pages — were all recorded "no reason given", with no
+ * fetch warning beside any of them. The call succeeded; GET
+ * /v3/messages/{id} simply carries no events[]. The descriptions live in
+ * /activities, which /ops/settings already reads.
+ *
+ * That gap is why nobody could say why a page was failing. "Failed, no
+ * reason given" is indistinguishable between a number that is not on
+ * WhatsApp, a template that is not approved, and a provider having a bad
+ * hour — and those need three different fixes.
+ *
  * Best-effort by design: this runs inside the webhook ACK path, and a
  * reason we couldn't fetch is not worth failing the delivery over. The
  * status still lands either way.
  */
 async function failureReasonFor(messageId) {
   try {
-    return failureReasonFromMessage(await fetchMessage(messageId));
+    const fromMessage = failureReasonFromMessage(await fetchMessage(messageId));
+    if (fromMessage) return fromMessage;
   } catch (e) {
     console.warn(`[wa-webhook] could not fetch failure reason for ${messageId}: ${e?.message}`);
+  }
+  try {
+    return failureReasonFromActivities(await fetchMessageActivities(messageId));
+  } catch (e) {
+    console.warn(`[wa-webhook] could not fetch activities for ${messageId}: ${e?.message}`);
     return null;
   }
 }

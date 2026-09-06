@@ -1272,6 +1272,56 @@ async function sendDsarExportEmail({ toEmail, userName, userId, dsarId, exportJs
 }
 
 /**
+ * The staff page that WhatsApp would not deliver, sent by the one route
+ * that does not depend on WhatsApp.
+ *
+ * Every alert this system raises is a WhatsApp template to a staff
+ * number, which means the alerting channel and the thing most likely to
+ * be broken are the same channel. On the evening of 5 September 2026 five
+ * consecutive pages to the only working staff number failed inside three
+ * hours — including a customer's SHEIN cart waiting to be quoted — and
+ * the entire response was five console lines. She waited eighteen hours
+ * and asked twice before anybody knew.
+ *
+ * Deliberately plain and deliberately ugly: this arrives only when a page
+ * reached nobody, so it should read as the exception it is. No template,
+ * no branding decisions to get wrong — the alert text, verbatim, is the
+ * whole point.
+ *
+ * @param {string} toEmail
+ * @param {{subject: string, lines: string[]}} p
+ */
+async function sendStaffAlertFallbackEmail(toEmail, { subject, lines }) {
+  const text = lines.join('\n');
+  const bodyHtml = `
+    <h2 style="margin:0 0 16px;color:#b91c1c;font-size:20px;">A staff alert could not be delivered on WhatsApp</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:15px;line-height:1.6;">
+      This is the fallback route. It is used only when a page reached none of the
+      configured staff numbers, so treat it as the page itself.
+    </p>
+    <pre style="margin:0 0 16px;padding:16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;
+                white-space:pre-wrap;word-break:break-word;color:#111827;font-size:14px;line-height:1.6;">${
+      text.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+    }</pre>
+    <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.6;">
+      Check the numbers and their delivery history at <strong>/ops/settings</strong>.
+    </p>`;
+  try {
+    const result = await sendWithGmail({
+      to: toEmail,
+      subject,
+      html: emailLayout(bodyHtml),
+      text,
+    });
+    await logEmailSent({ toEmail, emailType: 'staff_alert_fallback', subject });
+    return result;
+  } catch (error) {
+    await logEmailSent({ toEmail, emailType: 'staff_alert_fallback', subject, errorMessage: error.message });
+    throw error;
+  }
+}
+
+/**
  * Email config diagnostics — backs the admin /api/admin/email-config endpoint
  * so the app can tell whether Gmail OAuth credentials are present without
  * exposing the secrets themselves.
@@ -1537,6 +1587,7 @@ export {
   sendUnifiedPaymentReceiptEmail,
   sendDsarExportEmail,
   sendAccountDeletionRequestedEmail,
+  sendStaffAlertFallbackEmail,
   emailConfigStatus,
 };
 
@@ -1568,5 +1619,6 @@ export default {
   sendUnifiedPaymentReceiptEmail,
   sendDsarExportEmail,
   sendAccountDeletionRequestedEmail,
+  sendStaffAlertFallbackEmail,
   emailConfigStatus,
 };

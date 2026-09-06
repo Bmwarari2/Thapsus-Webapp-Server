@@ -31,15 +31,24 @@
 // Started from server.js next to log retention and FX refresh; returns
 // a stop function for tests/shutdown.
 
-import { notifyStaff, staffAlertHealth, usableStaffNumbers } from './waStaffAlert.js';
+import {
+  notifyStaff, staffAlertHealth, usableStaffNumbers,
+  lostAlertBatches, deadStaffNumbers, claimAlertRescue,
+} from './waStaffAlert.js';
 import { getWaSettings } from './waSettings.js';
 import { sentDmConfigured, sendText } from './sentdm.js';
 import { sessionWindowOpen } from './waSend.js';
 import { fireWaOrderPostPaidHook } from './markPaymentPaid.js';
 import { runNudges } from './waNudges.js';
+import { PRODUCT_LINK, needsSheinCart } from './waStateMachine.js';
 
 const MIN = 60 * 1000;
 const WARMUP_MS = 90 * 1000;
+
+// How many failures in a row make a staff number "not receiving pages".
+// Two, because one is a bad minute and two in a row to the same number
+// has never once been a coincidence here.
+const DEAD_AFTER_FAILURES = 2;
 
 function minutes(envKey, fallback) {
   const n = parseInt(process.env[envKey] ?? '', 10);
@@ -96,9 +105,14 @@ async function assertAlertConfig(pool) {
       return;
     }
     for (const h of await staffAlertHealth(pool)) {
-      if (h.own_number || h.total === 0) continue;
-      if (h.failed === h.total) {
-        console.error(`[wa-sweeper] ⚠ every staff alert to ${h.phone} in the last 7 days failed to deliver (${h.total}, last: ${h.last_error || 'no reason given'}). That number is not receiving pages.`);
+      if (h.own_number) continue;
+      if (h.total === 0 && !h.last_at) {
+        console.warn(`[wa-sweeper] ${h.phone} has never been sent a staff alert — nothing has proved it can receive one.`);
+      } else if (h.failed_since_ok >= DEAD_AFTER_FAILURES) {
+        console.error(`[wa-sweeper] ⚠ ${h.phone} has failed its last ${h.failed_since_ok} staff alerts `
+          + `(last: ${h.last_error || 'no reason given'})`
+          + `${h.last_ok_at ? `, and has not confirmed one since ${new Date(h.last_ok_at).toISOString()}` : ' and has never confirmed one'}. `
+          + `That number is not receiving pages.`);
       } else if (h.last_status === 'failed') {
         console.warn(`[wa-sweeper] last staff alert to ${h.phone} failed to deliver (${h.last_error || 'no reason given'}).`);
       }
@@ -112,6 +126,7 @@ export async function sweepOnce(pool) {
   await Promise.allSettled([
     sweepStalePayments(pool),
     sweepUnansweredInbound(pool),
+    sweepUnquotedLinks(pool),
     sweepStalledOrders(pool),
     retryFailedSends(pool),
     reconcilePostPaidHooks(pool),
@@ -120,7 +135,203 @@ export async function sweepOnce(pool) {
     // Revenue follow-ups (quote/browse/repeat nudges + stalled-quote
     // staff pages) — utils/waNudges.js, gated by wa_settings.nudges_enabled.
     runNudges(pool),
+    // Last, and deliberately: everything above pages through WhatsApp,
+    // so this runs with the current sweep's failures already recorded.
+    sweepAlertChannel(pool),
   ]);
+}
+
+// ── 0. The pages that reached nobody ────────────────────────────────────────
+//
+// Every sweep above ends in notifyStaff(), and notifyStaff() is one
+// WhatsApp template send per staff number. When that send fails there is
+// no retry, no second channel and — until this — nothing that told a
+// human. Seven pages died that way on 5 and 6 September 2026, one of them
+// a customer's cart waiting to be quoted; she waited eighteen hours and
+// asked twice before anybody found out.
+//
+// Two failures are worth spending another channel on:
+//
+//   LOST   — a page where every configured number failed. Nobody has seen
+//            it, so the page itself is re-sent, by email, verbatim.
+//   DEAD   — a number that has failed every page since the last one it
+//            confirmed. That check existed and ran only at boot, which
+//            meant it ran once per deploy: +447346813917 was added at
+//            15:26 on 6 September, failed both pages it has ever been
+//            sent, and the container that would have warned had started
+//            the previous day.
+//
+// Both are reported by every route that is not the one that just failed:
+// the staff numbers that ARE working (a page that failed on one number is
+// reportable on another — "a failed page cannot page about itself" is
+// true of a number, not of a channel), and email, which shares nothing
+// with WhatsApp at all.
+//
+// The claim (wa_staff_alerts.rescued_at) is written BEFORE anything is
+// sent, so a crash reports zero times rather than twice, and so two
+// instances cannot both email the same lost page.
+async function sweepAlertChannel(pool) {
+  let lost = [];
+  let dead = [];
+  try {
+    [lost, dead] = await Promise.all([
+      lostAlertBatches(pool),
+      deadStaffNumbers(pool, { minFailures: DEAD_AFTER_FAILURES }),
+    ]);
+  } catch (e) {
+    // The table is missing (migration 0020 not yet applied) or the query
+    // failed. Say so — this is the sweep that exists because a silent
+    // alerting channel looks exactly like a quiet one.
+    console.error('[wa-sweeper] ⚠ could not check alert-channel health:', e?.message);
+    return;
+  }
+  if (lost.length === 0 && dead.length === 0) return;
+
+  const claimed = await claimAlertRescue(pool, [
+    ...lost.flatMap((b) => b.ids),
+    ...dead.flatMap((d) => d.ids),
+  ]);
+  if (claimed === 0) return; // another instance got there first
+
+  const lines = [];
+  for (const b of lost) {
+    lines.push(`LOST PAGE (${new Date(b.at).toISOString()}) — reached none of ${b.phones.join(', ')}:`);
+    lines.push(`  ${b.title}`);
+    if (b.detail) lines.push(`  ${b.detail}`);
+    lines.push('');
+  }
+  for (const d of dead) {
+    lines.push(`NUMBER NOT RECEIVING PAGES — ${d.phone}: ${d.failures} consecutive failure(s), `
+      + `last ${new Date(d.last_at).toISOString()} (${d.last_error || 'no reason given'}). `
+      + (d.last_ok_at
+        ? `Last confirmed page ${new Date(d.last_ok_at).toISOString()}.`
+        : `It has never confirmed a page.`));
+    lines.push('');
+  }
+
+  for (const line of lines) if (line) console.error(`[wa-sweeper] ⚠ ${line}`);
+
+  // Route 1: the staff numbers that are still working. A page lost on one
+  // number is not lost on another, and a dead number is exactly the thing
+  // its colleague should hear about. Skipped for a lost page, which by
+  // definition failed everywhere — re-sending it down the same channel
+  // that just dropped it is the retry that is not a retry.
+  if (dead.length > 0) {
+    const deadPhones = new Set(dead.map((d) => d.phone));
+    const healthy = (await staffAlertHealth(pool))
+      .filter((h) => !h.own_number && !deadPhones.has(h.phone));
+    if (healthy.length > 0) {
+      await notifyStaff(pool, {
+        title: 'A staff number is not receiving alerts',
+        detail: dead.map((d) => `${d.phone}: ${d.failures} page(s) failed in a row`
+          + `${d.last_ok_at ? '' : ', and it has never received one'}. `
+          + `Check it in /ops/settings — until it is fixed those alerts reach nobody.`).join(' '),
+        dedupeKey: `alert-channel-dead:${dead.map((d) => d.phone).sort().join(',')}`,
+      });
+    }
+  }
+
+  // Route 2: email, which shares nothing with WhatsApp. This is the only
+  // thing that can carry a page whose every number failed.
+  const to = process.env.ALERT_FALLBACK_EMAIL || process.env.ADMIN_EMAIL;
+  if (!to) {
+    console.error('[wa-sweeper] ⚠ no ADMIN_EMAIL (or ALERT_FALLBACK_EMAIL) set — '
+      + 'a staff page that WhatsApp refused has nowhere else to go.');
+    return;
+  }
+  try {
+    const { sendStaffAlertFallbackEmail } = await import('./email.js');
+    await sendStaffAlertFallbackEmail(to, {
+      subject: lost.length > 0
+        ? `[Thapsus] ${lost.length} staff alert(s) reached nobody`
+        : `[Thapsus] a staff alert number is not receiving pages`,
+      lines,
+    });
+  } catch (e) {
+    // Both channels are down. There is no third; the log is what is left.
+    console.error('[wa-sweeper] ⚠ the staff-alert fallback email ALSO failed '
+      + `(${e?.message}) — ${lost.length} lost page(s) and ${dead.length} dead number(s) `
+      + 'are recorded in wa_staff_alerts and nowhere else.');
+  }
+}
+
+// ── 0b. A link with no quote behind it ──────────────────────────────────────
+//
+// The one page that says a customer wants a quote fires once, the moment
+// the link arrives (handleInbound, step 1b). Nothing anywhere re-checks
+// it, and every stalled-quote sweep in this file and in waNudges keys on
+// o.status = 'quoted' — an order that already HAS a quote. A link whose
+// page was never delivered therefore has nothing watching it at all.
+//
+// That is exactly what happened to +254790325255 on 5 September 2026. She
+// sent a SHEIN cart at 21:02; the page failed; the assistant told her the
+// quote was coming, which was true as far as anything in the system knew;
+// the unanswered-inbound sweep never fired because the assistant's own
+// reply meant the conversation's last message was always ours. She asked
+// again at 10:02, then wrote "No you're not getting my question, I'm
+// still waiting on the quote so that I pay" at 13:09. The quote went out
+// at 15:22 — eighteen hours after the link.
+//
+// So: one page per link, claimed in the transcript-independent way the
+// rest of this file claims things, when a link has gone unanswered by a
+// quote for longer than the customer would expect.
+async function sweepUnquotedLinks(pool) {
+  const staleMin = minutes('WA_SLA_QUOTE_MINUTES', 60);
+  const { rows } = await pool.query(
+    // The SQL pattern is a deliberate SUPERSET of PRODUCT_LINK, which is
+    // a JS regex with a lookbehind and has no Postgres equivalent. The
+    // real test runs below, on the same expression handleInbound used to
+    // page in the first place — two link tests that could disagree about
+    // the same message is how a customer ends up waiting on a page that
+    // was never owed.
+    `SELECT c.id, c.full_name, c.phone, c.customer_code,
+            l.at, l.at::text AS link_key, l.body
+       FROM wa_contacts c
+       JOIN LATERAL (
+         SELECT m.created_at AS at, m.body
+           FROM wa_messages m
+          WHERE m.contact_id = c.id AND m.direction = 'in'
+            AND m.body ~* '(https?://|www\\.|[a-z0-9-]+\\.[a-z0-9-]+/)'
+          ORDER BY m.created_at DESC LIMIT 1
+       ) l ON true
+      WHERE c.state <> 'blocked'
+        AND l.at < NOW() - ($1 || ' minutes')::interval
+        AND l.at > NOW() - interval '7 days'
+        -- Nothing quoted since the link. A quote sent afterwards is the
+        -- answer; an older one belongs to a different order.
+        AND NOT EXISTS (
+          SELECT 1 FROM wa_orders o
+           WHERE o.contact_id = c.id AND o.quoted_at IS NOT NULL AND o.quoted_at > l.at
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM wa_staff_alerts a
+           WHERE a.dedupe_key = 'unquoted-link:' || c.id || ':' || l.at::text
+        )
+      ORDER BY l.at ASC
+      LIMIT 10`,
+    [String(staleMin)]
+  );
+  for (const c of rows) {
+    if (!PRODUCT_LINK.test(c.body || '')) continue;
+    // A SHEIN product link is not a stalled quote — we asked them for a
+    // cart and the ball is theirs. Paging staff for it would report our
+    // own correct behaviour as a fault, and the pages nobody needs are
+    // how the ones that matter stop being read.
+    if (needsSheinCart(c.body || '')) continue;
+    const waitedMin = Math.round((Date.now() - new Date(c.at).getTime()) / MIN);
+    // notifyStaff writes the wa_staff_alerts row that claims this page —
+    // failed sends included — so the NOT EXISTS above is the once-only
+    // guard whether or not WhatsApp delivers it, and a page that fails
+    // here is picked up by sweepAlertChannel like any other.
+    await notifyStaff(pool, {
+      title: 'Product link still not quoted',
+      detail: `${c.full_name || c.phone} (${c.customer_code || 'no code'}) sent a link `
+        + `${waitedMin >= 120 ? `${Math.round(waitedMin / 60)} hours` : `${waitedMin} minutes`} ago `
+        + `and has had no quote: "${String(c.body || '').slice(0, 120)}". `
+        + `The assistant is telling them it is on its way. This reminder won't repeat.`,
+      dedupeKey: `unquoted-link:${c.id}:${c.link_key}`,
+    });
+  }
 }
 
 // ── 6. Confirmed but unpaid: one payment reminder ───────────────────────────
